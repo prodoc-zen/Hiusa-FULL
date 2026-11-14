@@ -81,6 +81,7 @@ export default function ChatMessage({
   onAsk,
   actionLive = true,
   onActionChange,
+  onAskAgain,
 }) {
   const streaming = Boolean(message.streaming);
   const seconds = useElapsedSeconds(streaming);
@@ -118,7 +119,14 @@ export default function ChatMessage({
       )}
       {!streaming && payload && <AnswerBlocks payload={payload} onAsk={onAsk} disabled={busy} />}
       {!streaming && action && stored && (
-        <ActionCard message={message} action={action} live={actionLive} onChange={onActionChange} />
+        <ActionCard
+          message={message}
+          action={action}
+          live={actionLive}
+          onChange={onActionChange}
+          onAskAgain={onAskAgain ? () => onAskAgain(message) : undefined}
+          askAgainDisabled={busy}
+        />
       )}
       {payload?.notice && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{payload.notice}</p>}
       {stopped && <p className="mt-2 text-xs font-medium text-ink-muted-strong">You stopped this answer.</p>}

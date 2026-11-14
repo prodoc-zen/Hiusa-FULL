@@ -799,6 +799,50 @@ describe('AskAiPage', () => {
     });
   });
 
+  describe('conversation list paging', () => {
+    const firstPage = { data: [conversation(7, 'Newest chat'), conversation(6, 'Second chat')], has_more: true, next_before: '1700000000.6' };
+    const openHistory = async () => {
+      await ready();
+      fireEvent.click(await screen.findByRole('button', { name: 'History' }));
+    };
+
+    it('shows Show more only while the server has more, and appends the next page by its cursor', async () => {
+      service.listAiConversations
+        .mockResolvedValueOnce({ data: firstPage })
+        .mockResolvedValueOnce({ data: { data: [conversation(5, 'Older chat'), conversation(6, 'Second chat')], has_more: false, next_before: null } });
+      renderPage();
+      await openHistory();
+      const more = await screen.findByRole('button', { name: 'Show more' });
+      expect(service.listAiConversations).toHaveBeenCalledTimes(1);
+      fireEvent.click(more);
+      expect(await screen.findByRole('button', { name: 'Older chat' })).toBeInTheDocument();
+      expect(service.listAiConversations).toHaveBeenLastCalledWith({ before: '1700000000.6' });
+      expect(screen.getAllByRole('button', { name: 'Second chat' })).toHaveLength(1);
+      expect(screen.getByRole('button', { name: 'Newest chat' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the loaded list and the button when a page fails to load', async () => {
+      service.listAiConversations
+        .mockResolvedValueOnce({ data: firstPage })
+        .mockRejectedValueOnce(new Error('x'));
+      renderPage();
+      await openHistory();
+      fireEvent.click(await screen.findByRole('button', { name: 'Show more' }));
+      await waitFor(() => expect(service.listAiConversations).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Show more' })).toBeEnabled());
+      expect(screen.getByRole('button', { name: 'Newest chat' })).toBeInTheDocument();
+    });
+
+    it('shows no Show more when the server says there is no more', async () => {
+      service.listAiConversations.mockResolvedValue({ data: { data: [conversation(7, 'Newest chat')], has_more: false, next_before: null } });
+      renderPage();
+      await openHistory();
+      await screen.findByRole('button', { name: 'Newest chat' });
+      expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('request source and actions', () => {
     const lastCall = () => service.streamAiChat.mock.calls.at(-1)[0];
 
@@ -933,6 +977,60 @@ describe('AskAiPage', () => {
       expect(await screen.findByRole('link', { name: /Open event/ })).toHaveAttribute('href', '/dashboard/events/9');
       expect(service.confirmAiAction).toHaveBeenCalledWith(4, { title: 'Assembly' });
       expect(screen.getByText('A newer request replaced this one.')).toBeInTheDocument();
+    });
+
+    it('shows a card that is still confirming as working on it, not as replaced', async () => {
+      service.getAiConversation.mockResolvedValue({
+        data: {
+          conversation: conversation(3, 'Actions'),
+          messages: [
+            { id: 1, role: 'user', content: 'one', status: 'completed', payload: null },
+            proposalMessage(2, 'confirming'),
+          ],
+        },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      await screen.findByText('Proposal 2.');
+      expect(screen.getByText('Working on it. Check the page if this does not change.')).toBeInTheDocument();
+      expect(screen.queryByText('A newer request replaced this one.')).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/^Title 2/)).toHaveAttribute('readonly');
+    });
+
+    it('asks the same typed request again from an expired card and keeps the expired form on screen', async () => {
+      const expired = proposalMessage(2);
+      expired.payload.action.expires_at = new Date(Date.now() - 1000).toISOString();
+      service.getAiConversation.mockResolvedValue({
+        data: {
+          conversation: conversation(3, 'Actions'),
+          messages: [
+            { id: 1, role: 'user', content: 'make an event for friday', status: 'completed', payload: null },
+            expired,
+          ],
+        },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      await screen.findByText('Proposal 2.');
+      expect(screen.getByLabelText(/^Title 2/)).toHaveValue('Assembly');
+      const stream = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+      expect(lastCall()).toEqual(expect.objectContaining({ message: 'make an event for friday', source: 'typed', conversationId: 3 }));
+      await stream.reject(new Error('x'));
+    });
+
+    it('renders an assistant message whose payload is null', async () => {
+      service.getAiConversation.mockResolvedValue({
+        data: {
+          conversation: conversation(3, 'Hidden'),
+          messages: [
+            { id: 1, role: 'user', content: 'how is finance?', status: 'completed', payload: null },
+            { id: 2, role: 'assistant', content: 'You can no longer see this answer.', status: 'completed', feedback: null, payload: null },
+          ],
+        },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      expect(await screen.findByText('You can no longer see this answer.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^blocks:/ })).not.toBeInTheDocument();
     });
 
     it('tells the person they can ask it to do things, with examples for their role', async () => {
