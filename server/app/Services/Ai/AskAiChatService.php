@@ -9,6 +9,7 @@ use App\Models\AiMessage;
 use App\Models\AiOutput;
 use App\Models\User;
 use App\Services\Dashboard\ClientRouteAccess;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -332,9 +333,9 @@ class AskAiChatService
         $allowedModel = $this->askAi->canAsk($user, $intent);
 
         $messages = $this->modelMessages($history, $facts, $question);
-        // Numbers may come from the facts built for this question (which carry the question and the memories) and
-        // from what the person typed earlier, never from text the assistant wrote in earlier turns.
-        $guardFacts = ['facts' => $facts, 'typed' => array_column(array_filter($history, fn (array $turn) => $turn['role'] === 'user'), 'content')];
+        // Numbers may come from the facts built for this question, which carry the question itself, and nowhere else:
+        // not from earlier turns of either side and not from memories, which the person typed and nobody checked.
+        $guardFacts = ['facts' => Arr::except($facts, ['memories'])];
 
         $deadline = $started + $this->answerSeconds();
         $released = '';
