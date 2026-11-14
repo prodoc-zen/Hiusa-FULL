@@ -350,6 +350,36 @@ class AskAiRoutingAnswersTest extends TestCase
         }
     }
 
+    public function test_a_guide_offers_go_to_page_once_for_a_run_of_steps_on_the_same_page(): void
+    {
+        $orgAdmin = User::factory()->admin()->create(['organization_id' => $this->org()->id]);
+
+        $cases = [
+            ['user' => $this->sao(), 'question' => 'How do I post a university announcement?', 'guide' => 'sao-announcement'],
+            ['user' => $orgAdmin, 'question' => 'How do I create and assign a task?', 'guide' => 'admin-create-task'],
+        ];
+        foreach ($cases as $case) {
+            $answer = $this->ask($case['user'], $case['question']);
+            $this->assertSame('how_to_guide', $answer['intent'], $case['guide']);
+
+            $steps = array_values(array_filter($answer['rows'], fn (array $row) => str_starts_with((string) ($row['id'] ?? ''), $case['guide'].'-step-')));
+            $this->assertGreaterThan(2, count($steps), $case['guide']);
+            $this->assertNotNull($steps[0]['href'], $case['guide'].' keeps the link on the first step of a run');
+
+            foreach ($steps as $index => $row) {
+                if ($index === 0 || $row['href'] === null) {
+                    continue;
+                }
+                $this->assertNotSame(
+                    strtok((string) $steps[$index - 1]['href'], '?'),
+                    strtok($row['href'], '?'),
+                    $case['guide'].' repeats the same page link on consecutive steps',
+                );
+            }
+            $this->assertSame(1, count(array_filter($steps, fn (array $row) => $row['href'] !== null)), $case['guide'].' is one run on one page');
+        }
+    }
+
     // -------------------------------------------------------------------------
     // ask-16: the dean's office staff are given only links their profile can open
     // -------------------------------------------------------------------------

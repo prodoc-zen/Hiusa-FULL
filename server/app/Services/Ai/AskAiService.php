@@ -947,11 +947,18 @@ class AskAiService
 
         $stepRows = [];
         $paths = [];
+        $previousPath = null;
         foreach ($steps as $index => $step) {
             $href = $accessible ? $this->linkTo($user, ...$this->guides->stepPaths($step, $role)) : null;
-            if ($href !== null) {
-                $paths[strtok($href, '?')] = true;
+            $path = $href !== null ? strtok($href, '?') : null;
+            if ($path !== null) {
+                $paths[$path] = true;
             }
+            // Only the first step of a run on the same page offers "Go to page"; the steps after it are done there.
+            if ($path !== null && $path === $previousPath) {
+                $href = null;
+            }
+            $previousPath = $path;
             $stepRows[] = [
                 'id' => $guide['id'].'-step-'.($index + 1),
                 'step' => $index + 1,
@@ -3703,7 +3710,7 @@ class AskAiService
         }
 
         $plain = $this->ai->plainText($result['text']);
-        if ($plain === '' || ! $this->ai->preservesNumericFacts($plain, $facts)) {
+        if ($plain === '' || ! $this->ai->preservesNumericFacts($plain, $facts) || $this->namesPersonNotInFacts($plain, $facts)) {
             return null;
         }
 
@@ -3711,6 +3718,53 @@ class AskAiService
             'text' => $plain,
             'model' => $result['model'],
         ];
+    }
+
+    /**
+     * Words that start a sentence or name a role or a page in everyday answers. A run of capitalised words made only of
+     * these and of words the facts contain is not a person the model made up.
+     */
+    private const COMMON_CAPITALISED_WORDS = [
+        'a', 'about', 'after', 'all', 'also', 'an', 'and', 'any', 'are', 'as', 'ask', 'at', 'because', 'before', 'both', 'but', 'by',
+        'check', 'choose', 'click', 'contact', 'create', 'do', 'each', 'every', 'finally', 'first', 'for', 'from', 'go', 'good', 'great',
+        'have', 'here', 'how', 'if', 'in', 'is', 'it', 'its', 'just', 'keep', 'make', 'next', 'no', 'not', 'note', 'now', 'of', 'on',
+        'once', 'only', 'open', 'or', 'our', 'please', 'remember', 'review', 'see', 'select', 'send', 'so', 'some', 'start', 'still',
+        'that', 'the', 'then', 'there', 'these', 'they', 'this', 'those', 'tip', 'to', 'today', 'tomorrow', 'use', 'visit', 'we', 'what',
+        'when', 'where', 'which', 'while', 'who', 'why', 'with', 'yes', 'yesterday', 'you', 'your',
+        'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
+        'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+        'admin', 'affairs', 'college', 'dean', 'department', 'head', 'officer', 'officers', 'office', 'organization', 'organizations',
+        'record', 'records', 'search', 'student', 'students', 'super',
+    ];
+
+    /**
+     * True when the text names someone: two or more capitalised words in a row, one of which neither the facts sent to the
+     * model nor everyday wording explains. A made-up name is refused the way a made-up number is, and the record answer
+     * is shown instead. Refusing too much is safe; showing an invented person is not.
+     */
+    private function namesPersonNotInFacts(string $text, array $facts): bool
+    {
+        // A run after "the" or before page, section and similar words is the name of a page, not of a person.
+        $capitalisedRun = '/(?<!\bthe )(?<!\bThe )\b(?>\p{Lu}\p{Ll}{1,24}(?: \p{Lu}\p{Ll}{1,24}){1,4})\b(?! (?:page|pages|section|tab|screen|form|report|module|list|menu|board|calendar|view|dashboard)\b)/u';
+        if (preg_match_all($capitalisedRun, $text, $runs) === 0 || $runs[0] === []) {
+            return false;
+        }
+
+        $factText = json_encode($facts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+        preg_match_all('/\p{L}{2,40}/u', $factText, $factWords);
+        $known = array_flip(array_map(fn (string $word) => mb_strtolower($word), $factWords[0]));
+        $common = array_flip(self::COMMON_CAPITALISED_WORDS);
+
+        foreach ($runs[0] as $run) {
+            foreach (explode(' ', $run) as $word) {
+                $lower = mb_strtolower($word);
+                if (! isset($known[$lower]) && ! isset($common[$lower])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     // -------------------------------------------------------------------------
