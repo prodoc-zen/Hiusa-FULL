@@ -20,9 +20,13 @@ function getStoredUser() {
   }
 }
 
+// The top bar opens School year records for a completed semester, whoever the person is, so office staff may open that
+// one page too. Its path comes from the Admin menu in navigation.js, the same list the guard reads below.
+const recordsPage = () => getNavLeaves("ADMIN").find((page) => page.id === "records-archive")?.path;
+
 // Office staff take the ADMIN role but only the pages their own menu offers (navigation.js is the one list).
 function officeStaffMayOpen(pathname) {
-  if (pathname === "/dashboard" || pathname === "/change-password") return true;
+  if (pathname === "/dashboard" || pathname === "/change-password" || pathname === recordsPage()) return true;
   const pages = [...getNavLeaves("OFFICE_STAFF"), ...footerNav];
   return pages.some((page) => {
     const targets = [page.path, ...(page.also || [])].map((target) => target.split("?")[0]);

@@ -138,6 +138,18 @@ describe('ProtectedRoute office staff guard', () => {
     });
   });
 
+  it('lets office staff open School year records, where the top bar sends them for a completed semester', () => {
+    signIn(officeStaff);
+    renderGuarded('/dashboard/records');
+    expect(screen.getByText('at /dashboard/records')).toBeInTheDocument();
+  });
+
+  it('keeps office staff out of the pages under School year records that their menu does not offer', () => {
+    signIn(officeStaff);
+    renderGuarded('/dashboard/records/officer-transition');
+    expect(screen.getByText('at /dashboard/admin')).toBeInTheDocument();
+  });
+
   it('leaves a real organization Admin free to open the finance, task and voting pages', () => {
     signIn({ role: 'ADMIN', organization: { organization_type: 'STUDENT_ORGANIZATION' } });
     renderGuarded('/dashboard/tasks/task-board');
