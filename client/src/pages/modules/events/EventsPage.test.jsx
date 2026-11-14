@@ -222,6 +222,8 @@ describe('EventsPage approval-request launch', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
 
     expect(await screen.findByText('1 suggested to-do item')).toBeInTheDocument();
+    expect(screen.queryByText('Why Alex Santos was suggested')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
     expect(screen.getByText('Why Alex Santos was suggested')).toBeInTheDocument();
     expect(screen.getByLabelText('Task 1 deadline')).not.toHaveValue(expect.stringContaining('Z'));
     expect(document.body.textContent).not.toContain('000000Z');
@@ -229,10 +231,11 @@ describe('EventsPage approval-request launch', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to-do' }));
     expect(screen.getByLabelText('Task 2 officer')).toHaveValue('');
+    expect(screen.getByLabelText('Task 2 title')).toHaveValue('');
     expect(screen.getByText('Review eligible officers, then choose the final assignee.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeDisabled();
     expect(screen.getByText('Choose an officer for each to-do before saving.')).toBeInTheDocument();
-    // Name, due date and the officer stay in view; the rest of each to-do sits under one toggle.
+    // Each to-do opens to its inputs; the rest of them sit under one more toggle.
     const more = screen.getAllByText(/^More options/);
     expect(more).toHaveLength(2);
     expect(more[0].closest('details')).not.toHaveAttribute('open');
@@ -634,8 +637,36 @@ describe('EventsPage walkthrough fixes', () => {
       await screen.findByText('1 suggested to-do item');
     };
 
+    it('shows each to-do as one summary row and renders its inputs only once Edit is opened', async () => {
+      await openDraft(draft());
+
+      expect(screen.getByText('Prepare the venue')).toBeInTheDocument();
+      expect(screen.getByText('Alex Santos')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Task 1 title')).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Task name' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Review officers' })).not.toBeInTheDocument();
+      // An assigned to-do needs no select on the row.
+      expect(screen.queryByLabelText('Task 1 officer')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
+
+      expect(screen.getByLabelText('Task 1 title')).toHaveValue('Prepare the venue');
+      expect(screen.getByRole('button', { name: 'Review officers' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close editing to-do 1' })).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('keeps the officer pick on the row while a to-do has no officer', async () => {
+      await openDraft(draft({ assigned_to: null }));
+
+      expect(screen.getByLabelText('Task 1 officer')).toHaveValue('');
+      expect(screen.queryByLabelText('Task 1 title')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Task 1 officer'), { target: { value: '900007' } });
+      expect(screen.queryByLabelText('Task 1 officer')).not.toBeInTheDocument();
+      expect(screen.getByText('Alex Santos')).toBeInTheDocument();
+    });
+
     it('keeps the chosen officer when the task name is edited', async () => {
       await openDraft(draft());
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       fireEvent.change(screen.getByLabelText('Task 1 title'), { target: { value: 'Prepare the venue and stage' } });
 
       expect(screen.getByLabelText('Task 1 officer')).toHaveValue('900007');
@@ -644,6 +675,7 @@ describe('EventsPage walkthrough fixes', () => {
 
     it('says why when no officer is eligible instead of leaving an empty list', async () => {
       await openDraft(draft({ assigned_to: null, recommendation: { rankings: [] } }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       taskMocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [] } } });
       fireEvent.click(screen.getByRole('button', { name: 'Review officers' }));
 
@@ -668,6 +700,7 @@ describe('EventsPage walkthrough fixes', () => {
       fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
       fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
       await screen.findByText('2 suggested to-do items');
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 2' }));
       expect(screen.getByLabelText('Task 2 dependency')).toHaveValue('confirm-plan');
       fireEvent.click(screen.getByRole('button', { name: 'Delete to-do 1' }));
 
@@ -681,6 +714,7 @@ describe('EventsPage walkthrough fixes', () => {
       const response = draft();
       response.data.allowed_positions = ['Secretary', 'Treasurer'];
       await openDraft(response);
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       const select = screen.getByLabelText('Task 1 recommended role');
 
       expect(select.tagName).toBe('SELECT');

@@ -429,6 +429,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [workflowOutputId, setWorkflowOutputId] = useState(null);
   const [workflowAction, setWorkflowAction] = useState(false);
   const [rankingTaskKey, setRankingTaskKey] = useState(null);
+  // Each drafted to-do shows as one summary row; the keys here are the ones opened for editing.
+  const [openTaskKeys, setOpenTaskKeys] = useState([]);
   const [workflowHistory, setWorkflowHistory] = useState([]);
   const [workflowMeta, setWorkflowMeta] = useState({ template: false, contextIgnored: false, positions: [] });
   const [workflowHistoryError, setWorkflowHistoryError] = useState('');
@@ -985,6 +987,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   function addWorkflowTask() {
     const key = `admin-task-${Date.now()}`;
+    setOpenTaskKeys((current) => [...current, key]);
     setWorkflowDraft((current) => ({ ...current, tasks: [...current.tasks, { key, title: '', description: '', phase: 'pre_event', priority: 'medium', deadline: '', depends_on_key: null, recommended_role: null, assigned_to: null, recommendation: { rankings: [] } }] }));
   }
 
@@ -1605,20 +1608,36 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       {workflowDraft.tasks.map((task, index) => {
                         const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
                         const dueDateHint = task.phase === 'pre_event' ? `Choose a time before ${formatDateTime(selectedPlanningEvent?.start_time)}.` : task.phase === 'event_day' ? `Choose a time between ${formatDateTime(selectedPlanningEvent?.start_time)} and ${formatDateTime(selectedPlanningEvent?.end_time)}.` : `Choose a time after ${formatDateTime(selectedPlanningEvent?.end_time)}, within 30 days.`;
+                        const isOpen = openTaskKeys.includes(task.key);
+                        const assigneeName = selectedOfficer ? formatDisplayText(selectedOfficer.name) : 'Officer chosen';
+                        const officerField = (
+                          <Field label="Assign to" required>
+                            <HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)}><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect>
+                          </Field>
+                        );
                         return (
-                          <li key={task.key} className="py-5">
+                          <li key={task.key} className="py-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div><p className="text-sm font-semibold text-ink">To-do {index + 1}</p><p className="mt-0.5 text-xs text-ink-muted">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div>
-                              <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-11 w-11 shrink-0 place-items-center rounded-control border border-line text-danger-strong hover:bg-danger-tint"><X size={15} /></button>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs text-ink-muted">To-do {index + 1} · {workflowPhaseLabel[task.phase] || 'Timing not selected'}</p>
+                                <p className="mt-0.5 break-words text-sm font-semibold text-ink">{task.title?.trim() ? formatDisplayText(task.title) : 'Name not set yet'}</p>
+                                <p className="mt-0.5 text-xs text-ink-muted-strong">{task.deadline ? `Due ${formatDateTime(task.deadline)}` : 'No due date yet'}{task.assigned_to ? <> · <span>{assigneeName}</span></> : null}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <button type="button" aria-expanded={isOpen} aria-label={isOpen ? `Close editing to-do ${index + 1}` : `Edit to-do ${index + 1}`} onClick={() => setOpenTaskKeys((current) => (isOpen ? current.filter((key) => key !== task.key) : [...current, task.key]))} className="flex h-11 items-center rounded-control border border-line px-3 text-sm font-medium text-brand-700 hover:bg-subtle">{isOpen ? 'Done' : 'Edit'}</button>
+                                <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-11 w-11 shrink-0 place-items-center rounded-control border border-line text-danger-strong hover:bg-danger-tint"><X size={15} /></button>
+                              </div>
                             </div>
 
+                            {!task.assigned_to && !isOpen && <div className="mt-3">{officerField}</div>}
+
+                            {isOpen && (
+                            <>
                             <div className="mt-4 grid gap-4 lg:grid-cols-2">
                               <Field label="Task name"><Input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} /></Field>
                               <Field label="Due date and time" hint={dueDateHint}><Input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} /></Field>
                               <div className="lg:col-span-2">
-                                <Field label="Assign to" required>
-                                  <HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)}><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect>
-                                </Field>
+                                {officerField}
                                 <div className="mt-2 flex flex-wrap items-center gap-3">
                                   <Button variant="secondary" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)}>{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</Button>
                                   {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">{task.recommendation?.reviewed ? 'No officer is eligible right now. Check that officers have an active position and are under their open task limit.' : 'Review eligible officers, then choose the final assignee.'}</p>}
@@ -1643,6 +1662,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                 <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label}><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-0.5 text-sm font-medium tabular-nums text-ink">{scoreLabel(value)}</dd></div>)}</dl>
                                 {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-xs text-ink-muted-strong">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
                               </div>
+                            )}
+                            </>
                             )}
                           </li>
                         );
