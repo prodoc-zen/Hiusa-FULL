@@ -197,6 +197,56 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->assertStringNotContainsString('10000001', $response->getContent());
     }
 
+    public function test_the_email_the_sao_typed_is_kept_and_shown_to_the_holder_of_the_link(): void
+    {
+        $token = $this->makeLink(['email' => 'Dean@Example.edu']);
+
+        $this->assertDatabaseHas('department_head_invitations', ['college_id' => $this->college->id, 'role' => 'DEPARTMENT_HEAD', 'email' => 'dean@example.edu']);
+        $response = $this->getJson("/api/department-head-invitations/{$token}");
+
+        $response->assertOk()->assertJsonPath('invitation.prefill.email', 'dean@example.edu');
+        $this->assertSame(['email' => 'dean@example.edu'], $response->json('invitation.prefill'));
+    }
+
+    public function test_a_link_made_for_an_email_is_refused_for_another_email_and_works_for_that_one(): void
+    {
+        $token = $this->makeLink(['email' => 'dean@example.edu']);
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'other@example.edu']))->assertJsonValidationErrors(['email' => 'Use the email this invitation was made for.']);
+        $this->assertDatabaseMissing('users', ['email' => 'other@example.edu']);
+
+        $this->postJson("/api/department-head-invitations/{$token}/accept", $this->details(['email' => 'Dean@Example.edu']))->assertOk();
+        $this->assertDatabaseHas('users', ['email' => 'dean@example.edu', 'role' => 'DEPARTMENT_HEAD']);
+    }
+
+    public function test_a_dean_link_for_an_email_that_already_has_an_account_is_refused(): void
+    {
+        User::factory()->create(['email' => 'taken@example.edu', 'organization_id' => $this->home->id]);
+
+        $this->actingAs($this->sao)->postJson("/api/system/colleges/{$this->college->id}/invite-department-head", ['email' => 'Taken@Example.edu'])->assertJsonValidationErrors('email');
+        $this->assertDatabaseMissing('department_head_invitations', ['college_id' => $this->college->id]);
+    }
+
+    public function test_show_refuses_a_used_or_expired_link_without_the_email(): void
+    {
+        $used = $this->makeLink(['email' => 'dean@example.edu']);
+        $this->postJson("/api/department-head-invitations/{$used}/accept", $this->details(['email' => 'dean@example.edu']))->assertOk();
+
+        $usedResponse = $this->getJson("/api/department-head-invitations/{$used}")->assertStatus(410);
+        $this->assertStringNotContainsString('dean@example.edu', $usedResponse->getContent());
+
+        $this->postJson("/api/department-head-invitations/{$used}/accept", $this->details(['email' => 'dean@example.edu']))->assertStatus(410);
+    }
+
+    public function test_show_refuses_an_expired_link_without_the_email(): void
+    {
+        $token = $this->makeLink(['email' => 'late@example.edu']);
+        DepartmentHeadInvitation::query()->update(['expires_at' => now()->subMinute()]);
+
+        $response = $this->getJson("/api/department-head-invitations/{$token}")->assertStatus(410);
+        $this->assertStringNotContainsString('late@example.edu', $response->getContent());
+    }
+
     public function test_unknown_token_is_not_found(): void
     {
         $this->getJson('/api/department-head-invitations/'.Str::random(64))->assertNotFound();

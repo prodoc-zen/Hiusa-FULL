@@ -85,16 +85,22 @@ class DepartmentHeadInvitationController extends Controller
         }
 
         $data = $request->validate(['email' => ['nullable', 'email', 'max:100']]);
+        $email = isset($data['email']) && trim($data['email']) !== '' ? Str::lower(trim($data['email'])) : null;
 
-        [$invitation, $magicLink] = DB::transaction(function () use ($college, $request, $home) {
+        if ($email !== null && User::where('email', $email)->exists()) {
+            throw ValidationException::withMessages(['email' => ['That email already has an account.']]);
+        }
+
+        // The email the SAO typed is kept on the link, so the page fills it in and the account is made for that address.
+        [$invitation, $magicLink] = DB::transaction(function () use ($college, $request, $home, $email) {
             DepartmentHeadInvitation::where('college_id', $college->id)->where('role', self::HEAD)->whereNull('accepted_at')->delete();
 
-            return $this->createInvitation($request, $college, $home, self::HEAD, null, 'department_head_invited', "SAO created an invitation link for the Department Head of {$college->name}.");
+            return $this->createInvitation($request, $college, $home, self::HEAD, null, 'department_head_invited', "SAO created an invitation link for the Department Head of {$college->name}.", null, $email === null ? [] : ['email' => $email]);
         });
 
         // With the log mail driver a sent mail goes nowhere, so the answer must not claim it was emailed.
         $mailIsOff = app(PasswordResetService::class)->mailIsOff();
-        $emailed = ! $mailIsOff && $this->sendLink($data['email'] ?? null, $college, 'Department Head', $magicLink);
+        $emailed = ! $mailIsOff && $this->sendLink($email, $college, 'Department Head', $magicLink);
 
         return response()->json([
             'message' => 'The link is ready.',
