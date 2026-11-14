@@ -370,7 +370,7 @@ class AskAiService
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
-            if ($allowModel) {
+            if ($allowModel && $intent !== 'daily_priorities' && ! in_array($intent, AskAiRoleIntents::INTENTS, true)) {
                 $payload = $this->augmentWithRagMatches($payload, $rag);
             }
         }
@@ -862,10 +862,9 @@ class AskAiService
     private function answerHowTo(User $user, string $question): array
     {
         $role = $user->role;
-        $result = $this->guides->search($question, $role);
-        $guide = $result['best'];
-
         $request = $this->isActionRequest($this->plainQuestion($question));
+        $result = $this->guides->search($question, $role, $request);
+        $guide = $result['best'];
 
         if ($guide === null) {
             $payload = $this->buildHowToCatalog($user, $question, $request);
@@ -1095,15 +1094,21 @@ class AskAiService
 
         return [
             'title' => 'How-to guides for your role',
-            'answer' => sprintf(
-                $request
-                    ? 'I could not tell which task you mean by "%s". I can take you to the right page for %s for %s, so say which one you want to start, for example "%s".'
-                    : 'I could not match "%s" to one procedure. I can walk you through %s for %s, so ask about any of them, for example "%s".',
-                Str::limit($question, 80),
-                $this->plural(count($guides), $request ? 'task' : 'guide'),
-                HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
-                $request ? (self::REQUEST_EXAMPLES[$role] ?? 'I want to create an event') : ($guides[0]['question'] ?? 'How do I use Ask AI?')
-            ),
+            'answer' => $request
+                ? sprintf(
+                    'I could not tell which task you mean by "%s". As %s you can start %s from here, so say which one you want, for example "%s".',
+                    Str::limit($question, 80),
+                    $this->roleName($role),
+                    $this->plural(count($guides), 'task'),
+                    self::REQUEST_EXAMPLES[$role] ?? 'I want to create an event'
+                )
+                : sprintf(
+                    'I could not match "%s" to one procedure. I can walk you through %s for %s, so ask about any of them, for example "%s".',
+                    Str::limit($question, 80),
+                    $this->plural(count($guides), 'guide'),
+                    HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
+                    $guides[0]['question'] ?? 'How do I use Ask AI?'
+                ),
             'highlights' => [
                 ['label' => 'Guides available', 'value' => (string) count($guides), 'tone' => 'primary'],
                 ['label' => 'Categories', 'value' => (string) count(array_unique(array_column($guides, 'category'))), 'tone' => 'info'],
@@ -1267,7 +1272,7 @@ class AskAiService
                     'status' => 'High priority',
                     'status_tone' => 'danger',
                     'meta' => "{$urgentGrievances} open",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/grievances'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/grievances'),
                     'action_label' => 'Open grievances',
                 ];
             }
@@ -1279,7 +1284,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingRegistrations} pending",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations?status=pending'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/organizations?status=pending'),
                     'action_label' => 'Review registrations',
                 ];
             }
@@ -1291,7 +1296,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingCompliance} submitted",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=review'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/compliance?tab=review'),
                     'action_label' => 'Review compliance',
                 ];
             }
@@ -1303,7 +1308,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingEventApprovals} queued",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=event-reviews'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/compliance?tab=event-reviews'),
                     'action_label' => 'Open event reviews',
                 ];
             }
@@ -1315,7 +1320,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingReportApprovals} queued",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=financial'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/compliance?tab=financial'),
                     'action_label' => 'Open financial reports',
                 ];
             }
@@ -1327,7 +1332,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingOtherApprovals} queued",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organization-approvals'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/organization-approvals'),
                     'action_label' => 'Open approvals',
                 ];
             }
@@ -1339,7 +1344,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'info',
                     'meta' => "{$pendingVenues} pending",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/venues'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/venues'),
                     'action_label' => 'Open venues',
                 ];
             }
@@ -1351,7 +1356,7 @@ class AskAiService
                     'status' => 'Waiting for SAO',
                     'status_tone' => 'info',
                     'meta' => $this->plural($pendingClearances, 'student'),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/clearances'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/clearances'),
                     'action_label' => 'Open clearances',
                 ];
             }
@@ -1363,7 +1368,7 @@ class AskAiService
                     'status' => 'Follow up',
                     'status_tone' => 'neutral',
                     'meta' => $this->plural($incompleteOrgs, 'organization'),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/compliance'),
                     'action_label' => 'View compliance',
                 ];
             }
@@ -1442,7 +1447,7 @@ class AskAiService
                     'status' => 'Waiting for the Department Head',
                     'status_tone' => 'warning',
                     'meta' => "{$pendingApprovals} pending",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/department-head/approvals'),
+                    'href' => $this->linkTo($user, '/dashboard/department-head/approvals'),
                     'action_label' => 'Open approvals',
                 ];
             }
@@ -1454,7 +1459,7 @@ class AskAiService
                     'status' => 'Waiting for the Department Head',
                     'status_tone' => 'warning',
                     'meta' => $this->plural($pendingReports, 'report'),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/department-head/approvals'),
+                    'href' => $this->linkTo($user, '/dashboard/department-head/approvals'),
                     'action_label' => 'Review reports',
                 ];
             }
@@ -1466,7 +1471,7 @@ class AskAiService
                     'status' => 'Returned',
                     'status_tone' => 'danger',
                     'meta' => "{$returnedOrgs} returned",
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations'),
+                    'href' => $this->linkTo($user, '/dashboard/department-head/organizations'),
                     'action_label' => 'Manage organizations',
                 ];
             }
@@ -1478,7 +1483,7 @@ class AskAiService
                     'status' => 'Needs an organization head',
                     'status_tone' => 'info',
                     'meta' => $this->plural($orgsWithoutAdmin, 'organization'),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations'),
+                    'href' => $this->linkTo($user, '/dashboard/department-head/organizations'),
                     'action_label' => 'View organizations',
                 ];
             }
@@ -1563,7 +1568,7 @@ class AskAiService
                     'status' => $heldClearance > 0 ? 'Held' : 'In progress',
                     'status_tone' => $heldClearance > 0 ? 'danger' : 'warning',
                     'meta' => ($heldClearance + $pendingClearance).' remaining',
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/my-clearance'),
+                    'href' => $this->linkTo($user, '/dashboard/my-clearance'),
                     'action_label' => 'View clearance',
                 ];
             }
@@ -1575,7 +1580,7 @@ class AskAiService
                     'status' => 'Unpaid balance',
                     'status_tone' => 'warning',
                     'meta' => '₱'.number_format($invoiceDebt, 2),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/statement-of-account'),
+                    'href' => $this->linkTo($user, '/dashboard/finance/statement-of-account'),
                     'action_label' => 'Check balance',
                 ];
             }
@@ -1587,7 +1592,7 @@ class AskAiService
                     'status' => 'Unpaid balance',
                     'status_tone' => 'warning',
                     'meta' => '₱'.number_format($reservedOrderDebt, 2),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/merchandise/my-orders'),
+                    'href' => $this->linkTo($user, '/dashboard/merchandise/my-orders'),
                     'action_label' => 'My orders',
                 ];
             }
@@ -1605,7 +1610,7 @@ class AskAiService
                     'status' => 'Election open',
                     'status_tone' => 'info',
                     'meta' => 'Vote now',
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote'),
+                    'href' => $this->linkTo($user, '/dashboard/elections/cast-vote'),
                     'action_label' => 'Cast vote',
                 ];
             }
@@ -1617,7 +1622,7 @@ class AskAiService
                     'status' => 'Ready to claim',
                     'status_tone' => 'success',
                     'meta' => $this->plural($readyOrders, 'order'),
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/merchandise/my-orders'),
+                    'href' => $this->linkTo($user, '/dashboard/merchandise/my-orders'),
                     'action_label' => 'My orders',
                 ];
             }
@@ -1699,7 +1704,7 @@ class AskAiService
                 'status' => 'Overdue',
                 'status_tone' => 'danger',
                 'meta' => "{$overdueTasks} overdue",
-                'href' => $this->routeAccess->hrefFor($role, $isOfficer ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board'),
+                'href' => $this->linkTo($user, $isOfficer ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board'),
                 'action_label' => 'Open tasks',
             ];
         }
@@ -1711,7 +1716,7 @@ class AskAiService
                 'status' => 'Waiting for the organization head',
                 'status_tone' => 'warning',
                 'meta' => "{$pendingApprovals} pending",
-                'href' => $this->routeAccess->hrefFor($role, '/dashboard/approvals'),
+                'href' => $this->linkTo($user, '/dashboard/approvals'),
                 'action_label' => 'Review approvals',
             ];
         }
@@ -1724,7 +1729,7 @@ class AskAiService
                 'status' => $isOfficer ? 'Waiting for the organization head' : 'Incomplete',
                 'status_tone' => 'warning',
                 'meta' => "{$missingComplianceCount} missing",
-                'href' => $this->routeAccess->hrefFor($role, '/dashboard/compliance'),
+                'href' => $this->linkTo($user, '/dashboard/compliance'),
                 'action_label' => 'Open compliance',
             ];
         }
@@ -1736,7 +1741,7 @@ class AskAiService
                 'status' => 'Waiting for an officer',
                 'status_tone' => 'info',
                 'meta' => $this->plural($ordersToVerify, 'order'),
-                'href' => $this->routeAccess->hrefFor($role, '/dashboard/merchandise/manage-orders'),
+                'href' => $this->linkTo($user, '/dashboard/merchandise/manage-orders'),
                 'action_label' => 'Verify orders',
             ];
         }
@@ -1748,7 +1753,7 @@ class AskAiService
                 'status' => 'Needs closing',
                 'status_tone' => 'warning',
                 'meta' => $this->plural($staleEvents, 'event'),
-                'href' => $this->routeAccess->hrefFor($role, $isOfficer ? '/dashboard/events/activity-calendar' : '/dashboard/events/manage-events'),
+                'href' => $this->linkTo($user, $isOfficer ? '/dashboard/events/activity-calendar' : '/dashboard/events/manage-events'),
                 'action_label' => 'Manage events',
             ];
         }
@@ -1760,7 +1765,7 @@ class AskAiService
                 'status' => 'In progress',
                 'status_tone' => 'info',
                 'meta' => "{$openTasks} active",
-                'href' => $this->routeAccess->hrefFor($role, $isOfficer ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board'),
+                'href' => $this->linkTo($user, $isOfficer ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board'),
                 'action_label' => 'View tasks',
             ];
         }
@@ -2319,7 +2324,7 @@ class AskAiService
                     'status' => 'Pending review',
                     'status_tone' => 'warning',
                     'meta' => $org->submitted_at ? Carbon::parse($org->submitted_at)->diffForHumans() : 'Submitted',
-                    'href' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations?status=pending'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/organizations?status=pending'),
                     'action_label' => 'Review',
                 ])->all(),
             ];
@@ -3609,11 +3614,13 @@ class AskAiService
 
             // Entity & exact phrase matching boost
             $entityBoost = 0.0;
+            $namesEntity = false;
             $primaryLower = Str::lower($doc['primary'].' '.($doc['secondary'] ?? ''));
             foreach ($doc['entity_terms'] ?? [] as $entityTerm) {
                 $entityLower = Str::lower(trim((string) $entityTerm));
                 if ($entityLower !== '' && strlen($entityLower) >= 3 && $this->containsWord($questionLower, $entityLower)) {
                     $entityBoost += 1.6;
+                    $namesEntity = true;
                     $matchedEntities[$entityTerm] = $entityTerm;
                 }
             }
@@ -3633,6 +3640,7 @@ class AskAiService
                 $confidence = max(15, min(99, (int) round(min(1.0, $rawScore / 2.2) * 100)));
                 $doc['relevance_score'] = round($rawScore, 4);
                 $doc['relevance_percent'] = $confidence;
+                $doc['names_entity'] = $namesEntity;
                 $scored[] = $doc;
             }
         }
@@ -3702,7 +3710,7 @@ class AskAiService
         }
 
         $topThree = $chunks->take(3)->map(
-            fn (array $c) => sprintf('%s (%s)', $c['primary'], $c['status'])
+            fn (array $c) => Str::contains($c['primary'], $c['status']) ? $c['primary'] : sprintf('%s (%s)', $c['primary'], $c['status'])
         )->implode('; ');
 
         $actionNeededCount = $chunks->filter(
@@ -3763,8 +3771,8 @@ class AskAiService
             ->all();
 
         $highConfidenceExtras = $chunks
-            ->filter(fn (array $c) => ($c['relevance_percent'] ?? 0) >= 65 && ! in_array(Str::lower($c['primary']), $existingIds, true))
-            ->take(6)
+            ->filter(fn (array $c) => ($c['names_entity'] ?? false) && ($c['relevance_percent'] ?? 0) >= 65 && ! in_array(Str::lower($c['primary']), $existingIds, true))
+            ->take(3)
             ->values();
 
         if ($matchedEntities !== [] && $highConfidenceExtras->isNotEmpty()) {
@@ -3804,9 +3812,12 @@ class AskAiService
         'compliance' => ['SUPER_ADMIN' => '/dashboard/super-admin/compliance', 'DEPARTMENT_HEAD' => '/dashboard/department-head/compliance', 'ADMIN' => '/dashboard/compliance'],
     ];
 
-    private function corpusHref(string $role, string $page): ?string
+    /** The dean's office staff open documents where a Department Head opens college compliance. */
+    private const CORPUS_FALLBACKS = ['compliance' => '/dashboard/department-head/documents'];
+
+    private function corpusHref(User $user, string $page): ?string
     {
-        return $this->routeAccess->hrefFor($role, self::CORPUS_PAGES[$page][$role] ?? null);
+        return $this->linkTo($user, ...array_filter([self::CORPUS_PAGES[$page][$user->role] ?? null, $user->role === 'DEPARTMENT_HEAD' ? (self::CORPUS_FALLBACKS[$page] ?? null) : null]));
     }
 
     /** @return array{0: string, 1: array<int, string>}|null an ORDER BY that puts rows matching a word of the question first, or null when the question has no searchable word */
@@ -3884,7 +3895,7 @@ class AskAiService
                     'not_applicable' => null,
                     default => 50,
                 },
-                'href' => $this->corpusHref($role, 'organizations'),
+                'href' => $this->corpusHref($user, 'organizations'),
                 'action_label' => 'View organization',
                 'entity_terms' => array_filter([$org->name, $org->acronym, $org->college]),
                 'search_text' => implode(' ', array_filter([
@@ -3956,9 +3967,9 @@ class AskAiService
                 'status' => $position,
                 'status_tone' => $leader->role === 'ADMIN' ? 'success' : 'info',
                 'meta' => $showContact ? 'ID #'.$leader->school_id : $orgLabel,
-                'href' => $this->corpusHref($role, 'leaders'),
+                'href' => $this->corpusHref($user, 'leaders'),
                 'action_label' => 'Directory',
-                'entity_terms' => array_filter([$fullName, $leader->first_name, $leader->last_name, $position, $leader->org_acronym, $showContact ? (string) $leader->school_id : null]),
+                'entity_terms' => array_filter([$fullName, trim($leader->last_name.' '.$leader->first_name), $showContact ? (string) $leader->school_id : null]),
                 'search_text' => implode(' ', array_filter([
                     'who is officer leader admin president vice secretary treasurer auditor adviser dean directory roster member position email contact',
                     $fullName,
@@ -4016,7 +4027,7 @@ class AskAiService
                 'status_tone' => $budgetStatus === 'approved' ? ($usedPct > 90 ? 'warning' : 'success') : 'info',
                 'meta' => '₱'.number_format($remaining, 2).' left',
                 'progress_percent' => $usedPct,
-                'href' => $this->corpusHref($role, 'budgets'),
+                'href' => $this->corpusHref($user, 'budgets'),
                 'action_label' => 'Open budget',
                 'entity_terms' => array_filter([$budgetTitle, $b->org_acronym, $b->org_name]),
                 'search_text' => implode(' ', array_filter([
@@ -4071,7 +4082,7 @@ class AskAiService
                     'status' => $advance ? 'Cash advance '.$advance : ($isExpense ? 'Expense' : 'Income'),
                     'status_tone' => $advance ? 'neutral' : ($isExpense ? 'warning' : 'success'),
                     'meta' => '₱'.number_format($amount, 2),
-                    'href' => $this->corpusHref($role, 'ledger'),
+                    'href' => $this->corpusHref($user, 'ledger'),
                     'action_label' => 'View ledger',
                     'entity_terms' => array_filter([$tx->category, $tx->description, $tx->receipt_reference, $orgLabel]),
                     'search_text' => implode(' ', array_filter([
@@ -4130,7 +4141,7 @@ class AskAiService
                 'status_tone' => $stock <= 0 ? 'danger' : ($isLow ? 'warning' : 'success'),
                 'meta' => '₱'.number_format((float) $item->price, 2)." · {$stock} in stock",
                 'progress_percent' => min(100, (int) round(($stock / max(20, $threshold * 3)) * 100)),
-                'href' => $this->corpusHref($role, 'merchandise'),
+                'href' => $this->corpusHref($user, 'merchandise'),
                 'action_label' => 'Open store',
                 'entity_terms' => array_filter([$item->name, $item->category, $orgLabel]),
                 'search_text' => implode(' ', array_filter([
@@ -4183,7 +4194,7 @@ class AskAiService
                 'status' => Str::headline((string) $ev->status),
                 'status_tone' => in_array($ev->status, ['approved', 'ongoing', 'completed'], true) ? 'success' : 'warning',
                 'meta' => $ev->start_time ? Carbon::parse($ev->start_time)->format('M j, Y') : 'Scheduled',
-                'href' => $this->corpusHref($role, 'events'),
+                'href' => $this->corpusHref($user, 'events'),
                 'action_label' => 'View event',
                 'entity_terms' => array_filter([$ev->title, $ev->location, $orgLabel]),
                 'search_text' => implode(' ', array_filter([
@@ -4214,7 +4225,7 @@ class AskAiService
                 'status' => 'Active venue',
                 'status_tone' => 'info',
                 'meta' => 'Cap: '.number_format((int) $venue->capacity),
-                'href' => $this->corpusHref($role, 'venues'),
+                'href' => $this->corpusHref($user, 'venues'),
                 'action_label' => 'View venues',
                 'entity_terms' => array_filter([$venue->name, $venue->location]),
                 'search_text' => implode(' ', array_filter([
@@ -4269,7 +4280,7 @@ class AskAiService
                     'status_tone' => $t->status === 'overdue' ? 'danger' : ($t->status === 'completed' ? 'success' : 'warning'),
                     'meta' => "{$pct}% complete",
                     'progress_percent' => $pct,
-                    'href' => $this->corpusHref($role, 'tasks'),
+                    'href' => $this->corpusHref($user, 'tasks'),
                     'action_label' => 'Open task',
                     'entity_terms' => array_filter([$t->title, $assignee, $t->first_name, $t->last_name]),
                     'search_text' => implode(' ', array_filter([
@@ -4328,7 +4339,7 @@ class AskAiService
                 'status' => Str::headline((string) $cand->election_status),
                 'status_tone' => $cand->election_status === 'active' ? 'success' : 'info',
                 'meta' => $party,
-                'href' => $this->corpusHref($role, 'candidates'),
+                'href' => $this->corpusHref($user, 'candidates'),
                 'action_label' => 'View ballot',
                 'entity_terms' => array_filter([$candName, $cand->first_name, $cand->last_name, $cand->position_title, $party, $cand->election_title]),
                 'search_text' => implode(' ', array_filter([
@@ -4397,7 +4408,7 @@ class AskAiService
                 'status' => $ann->is_pinned ? 'Pinned' : ($ann->is_important ? 'Important' : 'Published'),
                 'status_tone' => $ann->is_important ? 'warning' : ($ann->is_pinned ? 'info' : 'success'),
                 'meta' => $ann->published_at ? Carbon::parse($ann->published_at)->format('M j, Y') : 'Published',
-                'href' => $this->corpusHref($role, 'announcements'),
+                'href' => $this->corpusHref($user, 'announcements'),
                 'action_label' => 'Read post',
                 'entity_terms' => array_filter([$ann->title, $ann->category, $orgLabel]),
                 'search_text' => implode(' ', array_filter([
@@ -4447,7 +4458,7 @@ class AskAiService
                 'status_tone' => $sub->status === 'approved' ? 'success' : ($sub->status === 'returned' ? 'danger' : 'warning'),
                 'meta' => $sub->academic_year,
                 'progress_percent' => $sub->status === 'approved' ? 100 : ($sub->status === 'submitted' ? 75 : 25),
-                'href' => $this->corpusHref($role, 'compliance'),
+                'href' => $this->corpusHref($user, 'compliance'),
                 'action_label' => 'Open compliance',
                 'entity_terms' => array_filter([$sub->req_name, $orgLabel, $sub->org_name, $sub->file_original_name]),
                 'search_text' => implode(' ', array_filter([

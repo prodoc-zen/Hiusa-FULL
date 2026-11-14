@@ -394,6 +394,7 @@ class AskAiCoreAuditFixesTest extends TestCase
         AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'status' => 'active']);
         ComplianceRequirementType::create(['academic_year' => '2026-2027', 'category' => 'organization', 'name' => 'Constitution', 'deadline_at' => now()->addMonth(), 'is_active' => true, 'created_by' => $sao->school_id]);
         $author = User::factory()->admin()->create(['organization_id' => $active->id]);
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
         foreach ([['event', 1], ['event', 2], ['financial_report', 3], ['budget', 4]] as [$type, $id]) {
             ApprovalRequest::create([
                 'organization_id' => $active->id, 'entity_type' => $type, 'entity_id' => $id,

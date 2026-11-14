@@ -104,7 +104,7 @@ class AskAiAssistantTest extends TestCase
 
         $overview = $this->getJson('/api/ai/assistant')->assertOk();
         $overview->assertJsonPath('role', 'SUPER_ADMIN');
-        $overview->assertJsonPath('role_label', 'SAO Operations Copilot');
+        $overview->assertJsonPath('role_label', 'SAO assistant');
         $this->assertNotEmpty($overview->json('suggested_questions'));
 
         $missingRes = $this->postJson('/api/ai/assistant/ask', [
@@ -786,8 +786,8 @@ class AskAiAssistantTest extends TestCase
         ])->assertOk();
         $payload = json_encode($res->json());
 
-        $this->assertStringContainsString('Role: Admin', $payload);
-        $this->assertStringContainsString('Role: SBO Officer', $payload);
+        $this->assertStringContainsString('Role: Organization Head', $payload);
+        $this->assertStringContainsString('Role: Officer', $payload);
         $this->assertStringNotContainsString('A D M I N', $payload);
         $this->assertStringNotContainsString('S B O', $payload);
     }

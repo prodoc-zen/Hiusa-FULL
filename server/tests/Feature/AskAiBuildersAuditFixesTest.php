@@ -243,7 +243,7 @@ class AskAiBuildersAuditFixesTest extends TestCase
         ]);
         $make(['title' => 'Finalized upcoming', 'finalized_at' => now()]);
         $make(['title' => 'Approved but not finalized']);
-        $make(['title' => 'Finalized active', 'status' => 'active', 'finalized_at' => now(), 'start_time' => now()->subDay()]);
+        $make(['title' => 'Finalized active', 'status' => 'active', 'approved_at' => now(), 'finalized_at' => now(), 'start_time' => now()->subDay()]);
         $make(['title' => 'Finalized cancelled', 'finalized_at' => now(), 'cancelled_at' => now()]);
 
         $payload = $this->answer($student, 'elections_status');
@@ -253,11 +253,11 @@ class AskAiBuildersAuditFixesTest extends TestCase
         $this->assertStringContainsString('Finalized active', $titles);
         $this->assertStringNotContainsString('not finalized', $titles);
         $this->assertStringNotContainsString('cancelled', $titles);
-        $this->assertSame('1', $this->highlight($payload, 'Active elections'));
-        $this->assertSame('1', $this->highlight($payload, 'Upcoming elections'));
+        $this->assertSame('1', $this->highlight($payload, 'You can vote in'));
+        $this->assertSame('1', $this->highlight($payload, 'Coming up'));
         $hrefs = collect($this->section($payload, 'elections-status-list')['rows'])->pluck('href', 'status');
-        $this->assertSame('/dashboard/elections/cast-vote', $hrefs['Active']);
-        $this->assertSame('/dashboard/elections/election-info', $hrefs['Upcoming']);
+        $this->assertSame('/dashboard/elections/cast-vote', $hrefs['You can vote now']);
+        $this->assertSame('/dashboard/elections/election-info', $hrefs['Coming up']);
     }
 
     public function test_the_grievance_queue_counts_every_open_case_and_skips_deleted_ones(): void

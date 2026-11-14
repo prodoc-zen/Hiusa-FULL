@@ -91,6 +91,7 @@ class HowToGuideLibrary
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Invite a Department Head (Dean) with a link',
                 'question' => 'How do I invite a dean?',
+                'action' => 'invite a Department Head (Dean)',
                 'summary' => 'Each college has one Department Head (Dean), who gets an invitation link and fills in their own name, email and password.',
                 'keywords' => ['college', 'dean', 'department head', 'assign dean', 'invite dean', 'invitation', 'invite department head', 'magic link', 'onboarding link'],
                 'checks' => [],
@@ -234,10 +235,10 @@ class HowToGuideLibrary
                 'id' => 'sao-venues',
                 'category' => 'Venues',
                 'roles' => ['SUPER_ADMIN'],
-                'title' => 'Add campus venues and approve venue bookings',
+                'title' => 'Add campus venues and approve venue requests',
                 'question' => 'How do I manage venues and approve bookings?',
                 'summary' => 'SAO keeps the list of campus venues and approves booking requests. Overlapping approved bookings are blocked.',
-                'keywords' => ['venue', 'venues', 'room', 'auditorium', 'gym', 'hall', 'booking', 'reserve', 'approve booking', 'new venue'],
+                'keywords' => ['venue', 'venues', 'room', 'auditorium', 'gym', 'hall', 'approve booking', 'approve venue', 'new venue'],
                 'checks' => [],
                 'minutes' => 2,
                 'steps' => [
@@ -379,7 +380,7 @@ class HowToGuideLibrary
                 'id' => 'dean-allow-applicant',
                 'category' => 'Organizations',
                 'roles' => ['DEPARTMENT_HEAD'],
-                'title' => 'Allow a student to apply for an organization',
+                'title' => 'Start or register a new organization for your college',
                 'question' => 'How do I start a new organization for my college?',
                 'action' => 'start a new organization',
                 'doing' => 'Yes, you can start a new organization for your college, and it begins with you. On the Organizations page you choose a student of your college with Allow a student to apply, and that student fills in the application from their own account. The application then comes back to you: you endorse it to the SAO or return it with your notes. The SAO makes the final decision, and when the SAO approves it the student becomes the organization\'s Admin.',
@@ -400,6 +401,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Oversee student organizations via GHL-style sub-accounts',
                 'question' => 'How do I oversee organizations as sub-accounts?',
+                'action' => 'look inside a student organization of your college',
                 'summary' => 'Deans can switch context into any student organization under their college from the top navigation bar without logging out.',
                 'keywords' => ['sub-account', 'subaccount', 'ghl', 'oversee org', 'switch organization', 'switch org', 'context switch', 'dean oversight', 'master view'],
                 'checks' => [],
@@ -418,6 +420,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Name the organization head of an organization in your college',
                 'question' => 'How do I give an organization its head?',
+                'action' => 'name the head of an organization in your college',
                 'summary' => 'You name the Organization head (usually the President) of each student organization in your college. The person must already have an account.',
                 'keywords' => ['organization head', 'give access', 'president', 'add admin', 'administrator', 'awaiting administrator', 'org admin', 'assign president', 'name head'],
                 'checks' => [],
@@ -454,7 +457,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Approve budgets, events, and reports for your college',
                 'question' => 'How do I approve requests from my college organizations?',
-                'action' => 'approve requests from the organizations of a college',
+                'action' => 'approve budgets, events and reports',
                 'summary' => 'Budgets, events, elections, and financial reports from your college need your sign-off before they reach SAO.',
                 'keywords' => ['approve', 'approval', 'endorse budget', 'approve event', 'approve budget', 'financial report', 'sign off', 'pending request'],
                 'checks' => [],
@@ -692,7 +695,7 @@ class HowToGuideLibrary
                 'open_path' => '/dashboard/tasks/task-board?new=1',
                 'open_label' => 'Open the new task form',
                 'summary' => 'Create tasks for officers. The AI recommends an assignee based on position and current workload.',
-                'keywords' => ['task', 'tasks', 'assign', 'assignment', 'delegate', 'delegation', 'to-do', 'deadline', 'workload', 'recommend assignee'],
+                'keywords' => ['task', 'tasks', 'assign', 'assignment', 'delegate', 'delegation', 'to-do', 'deadline', 'workload', 'recommend assignee', 'create task', 'new task', 'assign task', 'task for officer', 'give task'],
                 'checks' => ['active_semester'],
                 'minutes' => 2,
                 'steps' => [
@@ -1000,7 +1003,7 @@ class HowToGuideLibrary
      *
      * @return array{best: ?array, accessible: bool, related: array<int, array>, total: int, categories: int, top_confidence: int}
      */
-    public function search(string $question, string $role): array
+    public function search(string $question, string $role, bool $strict = false): array
     {
         $guides = $this->all();
         $total = count($guides);
@@ -1035,12 +1038,16 @@ class HowToGuideLibrary
         $scored = [];
         foreach ($guides as $i => $guide) {
             $score = 0.0;
+            $core = 0;
             foreach (array_unique($queryTokens) as $tok) {
                 $df = $docFreq[$tok] ?? 0;
                 if ($df === 0) {
                     continue;
                 }
                 $idf = log(1 + ($total / $df));
+                if (in_array($tok, $docTokens[$i]['title'], true) || in_array($tok, $docTokens[$i]['keywords'], true)) {
+                    $core++;
+                }
                 if (in_array($tok, $docTokens[$i]['title'], true)) {
                     $score += 3.0 * $idf;
                 }
@@ -1052,8 +1059,14 @@ class HowToGuideLibrary
                 }
             }
 
+            $phrasesMatched = [];
             foreach ($guide['keywords'] as $phrase) {
-                if (str_contains($phrase, ' ') && (str_contains($questionLower, Str::lower($phrase)) || $this->containsSequence($queryTokens, $this->tokens($phrase)))) {
+                if (! str_contains($phrase, ' ')) {
+                    continue;
+                }
+                $sequence = implode(' ', $this->tokens($phrase));
+                if (! isset($phrasesMatched[$sequence]) && (str_contains($questionLower, Str::lower($phrase)) || $this->containsSequence($queryTokens, $this->tokens($phrase)))) {
+                    $phrasesMatched[$sequence] = true;
                     $score += 4.0;
                 }
             }
@@ -1067,21 +1080,18 @@ class HowToGuideLibrary
             }
 
             if ($score > 0) {
-                $scored[] = ['guide' => $guide, 'score' => $score, 'accessible' => $isAccessible];
+                $scored[] = ['guide' => $guide, 'score' => $score, 'accessible' => $isAccessible, 'core' => $core];
             }
+        }
+
+        // A request is only matched to a guide that shares the verb and the thing, so "change the sidebar color" does not land on
+        // the change-password guide because of one word.
+        if ($strict) {
+            $needed = min(2, count(array_unique($queryTokens)));
+            $scored = array_values(array_filter($scored, fn (array $s) => $s['core'] >= $needed));
         }
 
         usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
-
-        // A guide for this role that scores nearly as well as another role's guide is the one the person means.
-        if ($scored !== [] && ! $scored[0]['accessible']) {
-            foreach ($scored as $position => $candidate) {
-                if ($candidate['accessible'] && $candidate['score'] >= 2.5 && $candidate['score'] >= $scored[0]['score'] * 0.7) {
-                    array_unshift($scored, ...array_splice($scored, $position, 1));
-                    break;
-                }
-            }
-        }
 
         if ($scored === [] || $scored[0]['score'] < 2.5) {
             return ['best' => null, 'accessible' => false, 'related' => [], 'total' => $total, 'categories' => $categories, 'top_confidence' => 0];
@@ -1142,6 +1152,29 @@ class HowToGuideLibrary
     }
 
     /**
+     * The pages that can open a step, best first. The dean's office staff sign in with the Admin profile, which cannot
+     * open the Department Head compliance and announcement pages, so those steps fall back to the nearest page it can open.
+     *
+     * @return array<int, string>
+     */
+    public function stepPaths(array $step, string $role): array
+    {
+        $path = $this->stepPath($step, $role);
+        if ($path === null) {
+            return [];
+        }
+
+        $fallback = $role === 'DEPARTMENT_HEAD' ? (self::OFFICE_STAFF_FALLBACKS[$path] ?? null) : null;
+
+        return $fallback === null ? [$path] : [$path, $fallback];
+    }
+
+    private const OFFICE_STAFF_FALLBACKS = [
+        '/dashboard/department-head/compliance' => '/dashboard/department-head/documents',
+        '/dashboard/department-head/announcements' => '/dashboard/announcements/view-announcements',
+    ];
+
+    /**
      * @return array<int, string>
      */
     private function tokens(string $text): array
@@ -1169,7 +1202,7 @@ class HowToGuideLibrary
             'organisation' => 'organization', 'organisations' => 'organization',
             'sy' => 'year', 'ay' => 'year', 'term' => 'semester', 'terms' => 'semester', 'sem' => 'semester',
             'dean' => 'department', 'merch' => 'merchandise', 'pw' => 'password', 'login' => 'password',
-            'make' => 'create', 'add' => 'create', 'new' => 'create', 'start' => 'create', 'set' => 'create', 'setup' => 'create',
+            'make' => 'create', 'add' => 'create', 'new' => 'create', 'set' => 'create', 'setup' => 'create',
             'establish' => 'create', 'register' => 'register',
             'reserve' => 'book', 'reservation' => 'book', 'complaint' => 'grievance', 'complaints' => 'grievance',
             'expenses' => 'expense', 'buy' => 'order', 'purchase' => 'order', 'officers' => 'officer',

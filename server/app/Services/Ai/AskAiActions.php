@@ -40,7 +40,7 @@ class AskAiActions
 
     private const QUESTION_PHRASES = ['how to', 'how do', 'how can', 'how would', 'how should', 'steps to'];
 
-    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|tomorrow|today|tonight|next|this|with|for)\b|[.,;!?]|$)';
+    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|tomorrow|today|tonight|next|this|with|for)\b|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
 
     private const NAME_STOPWORDS = ['the', 'and', 'for', 'let', 'allow', 'apply', 'new', 'organization', 'student', 'start', 'create', 'make', 'please', 'her', 'his', 'she', 'can', 'to', 'a', 'an'];
 
