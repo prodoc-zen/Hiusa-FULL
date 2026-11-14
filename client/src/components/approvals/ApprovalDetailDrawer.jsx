@@ -11,7 +11,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
 import { FileLink } from '../reviews/FileReviewList';
 import ApprovalReceipt from './ApprovalReceipt';
-import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, stageOfRequest } from './EventFilesReview';
+import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
 import { electionProposal, formatDateTime, fullName } from './approvalFormat';
 
@@ -236,7 +236,7 @@ function ReportExtras({ request }) {
 // request says, and what has happened to it. The footer holds the viewer's one decision: Approve is
 // the single primary, Reject is the secondary. After a decision the same drawer stays open on the
 // updated record, so it reads the next stage and who the request is waiting on.
-export default function ApprovalDetailDrawer({ open, request, status, role, canAct, organizationName, onClose, onApprove, onReject, onDecide }) {
+export default function ApprovalDetailDrawer({ open, request, status, role, canAct, organizationName, onClose, onApprove, onReject, onDecide, onFileMarked }) {
   if (!open) return null;
 
   if (!request) {
@@ -255,16 +255,17 @@ export default function ApprovalDetailDrawer({ open, request, status, role, canA
     );
   }
 
-  return <RequestDrawer key={request.id} request={request} role={role} canAct={canAct} organizationName={organizationName} onClose={onClose} onApprove={onApprove} onReject={onReject} onDecide={onDecide} />;
+  return <RequestDrawer key={request.id} request={request} role={role} canAct={canAct} organizationName={organizationName} onClose={onClose} onApprove={onApprove} onReject={onReject} onDecide={onDecide} onFileMarked={onFileMarked} />;
 }
 
 // Split from the shell above so the per-file marks live in hooks that run only once there is a request.
-function RequestDrawer({ request, role, canAct, organizationName, onClose, onApprove, onReject, onDecide }) {
+function RequestDrawer({ request, role, canAct, organizationName, onClose, onApprove, onReject, onDecide, onFileMarked }) {
   const files = filesOf(request);
   const stage = stageOfRequest(request);
   const reviewing = canAct && files.length > 0;
   const [marks, setMarks] = useState(() => initialMarks(files, stage));
   const [notes, setNotes] = useState({});
+  const [markError, setMarkError] = useState('');
   // An election has three outcomes, so its remarks are written here and the decision is sent as one payload.
   const isElection = request.entity_type === 'election';
   const decidingElection = isElection && canAct && typeof onDecide === 'function';
@@ -280,6 +281,21 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
   const typeLabel = ENTITY_LABEL[request.entity_type] || request.entity_type;
 
   const trimmed = remarks.trim();
+
+  // The mark shows at once and is saved in the background. If the save fails the mark goes back, so the screen
+  // never shows a file accepted that the server does not have.
+  async function markFile(fileId, value) {
+    const before = marks[fileId] ?? '';
+    setMarks((current) => ({ ...current, [fileId]: value }));
+    setMarkError('');
+    try {
+      const reviews = await saveFileMark(request.id, fileId, value, before);
+      if (reviews) onFileMarked?.(request, fileId, reviews);
+    } catch (cause) {
+      setMarks((current) => ({ ...current, [fileId]: before }));
+      setMarkError(getApiErrorMessage(cause, 'Could not save that mark. Try again.'));
+    }
+  }
 
   async function decide(payload) {
     setDeciding(true);
@@ -337,10 +353,11 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
             actionable={reviewing}
             marks={marks}
             notes={notes}
-            onMark={(id, value) => setMarks((current) => ({ ...current, [id]: value }))}
+            onMark={markFile}
             onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
           />
         )}
+        {markError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong">{markError}</p>}
         {isElection && request.summary && <ElectionProposal summary={request.summary} />}
         {request.entity_type === 'election' && request.summary?.informative_letter_url && (
           <section aria-label="Informative letter">

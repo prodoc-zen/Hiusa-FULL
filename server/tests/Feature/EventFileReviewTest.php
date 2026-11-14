@@ -161,6 +161,7 @@ class EventFileReviewTest extends TestCase
 
         $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
             ['id' => $permitId, 'status' => 'ok'],
+            ['id' => $this->fileId($eventId, $this->proposal), 'status' => 'ok'],
         ])->assertOk();
         $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
     }
@@ -261,7 +262,121 @@ class EventFileReviewTest extends TestCase
         $this->assertSame('pending', $this->row($eventId, 'SUPER_ADMIN')->fresh()->status);
         $this->decide($this->director, $this->row($eventId, 'SUPER_ADMIN'), 'approved', [
             ['id' => $this->fileId($eventId, $this->permit), 'status' => 'ok'],
+            ['id' => $proposalId, 'status' => 'ok'],
         ])->assertOk();
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
+    }
+
+    private function markFile(User $reviewer, ApprovalRequest $approval, int $fileId, string $status = 'ok')
+    {
+        Sanctum::actingAs($reviewer);
+
+        return $this->patchJson('/api/approval-requests/'.$approval->id.'/files/'.$fileId, ['status' => $status]);
+    }
+
+    private function savedMarks(User $reviewer, int $eventId, int $fileId): array
+    {
+        Sanctum::actingAs($reviewer);
+        $approval = collect($this->getJson('/api/approval-requests?status=all&per_page=50')->assertOk()->json('data'))->firstWhere('entity_id', $eventId);
+
+        return collect($approval['summary']['requirement_files'])->firstWhere('id', $fileId)['reviews'];
+    }
+
+    public function test_a_mark_made_on_a_file_is_saved_at_once_and_comes_back_on_reload(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $proposalId)
+            ->assertOk()
+            ->assertJsonPath('reviews.0.stage', 'dean')
+            ->assertJsonPath('reviews.0.status', 'ok');
+
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $proposalId, 'stage' => 'dean', 'status' => 'ok', 'reviewed_by' => $this->head->school_id]);
+        $this->assertSame('pending', $this->row($eventId, 'DEPARTMENT_HEAD')->status);
+        $this->assertSame([['stage' => 'dean', 'status' => 'ok', 'note' => null]], $this->savedMarks($this->head, $eventId, $proposalId));
+    }
+
+    public function test_a_saved_mark_can_be_cleared_and_clearing_never_removes_a_return(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $permitId = $this->fileId($eventId, $this->permit);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'rejected', [
+            ['id' => $permitId, 'status' => 'needs_changes', 'note' => 'Expired.'],
+        ], 'Fix the permit.')->assertOk();
+        $this->upload($eventId, $this->proposal)->assertOk();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $proposalId)->assertOk();
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $proposalId, 'none')->assertOk()->assertJsonPath('reviews', []);
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $permitId, 'none')->assertOk();
+
+        $this->assertDatabaseMissing('event_requirement_file_reviews', ['event_requirement_file_id' => $proposalId]);
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'dean', 'status' => 'needs_changes']);
+    }
+
+    public function test_a_saved_accepted_mark_replaces_an_earlier_return_so_the_head_can_approve(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $permitId = $this->fileId($eventId, $this->permit);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'rejected', [
+            ['id' => $permitId, 'status' => 'needs_changes', 'note' => 'Expired.'],
+        ], 'Fix the permit.')->assertOk();
+        $this->upload($eventId, $this->proposal)->assertOk();
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved')->assertUnprocessable();
+
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $permitId)->assertOk();
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'dean', 'status' => 'ok', 'note' => null]);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved')->assertOk();
+        $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
+    }
+
+    public function test_the_sao_marks_are_saved_at_its_own_step(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+        $permitId = $this->fileId($eventId, $this->permit);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $proposalId, 'status' => 'ok'],
+            ['id' => $permitId, 'status' => 'ok'],
+        ])->assertOk();
+
+        $this->markFile($this->director, $this->row($eventId, 'SUPER_ADMIN'), $permitId)->assertOk();
+
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'sao', 'status' => 'ok']);
+        $this->assertCount(2, $this->savedMarks($this->director, $eventId, $permitId));
+    }
+
+    public function test_someone_without_authority_cannot_save_a_mark(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $fileId = $this->fileId($eventId, $this->proposal);
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+        $outsider = $this->makeCollegeHead($this->makeCollege('CBA'));
+
+        $this->markFile($outsider, $headRow, $fileId)->assertNotFound();
+        $this->markFile($this->director, $headRow, $fileId)->assertForbidden();
+        $this->markFile($this->admin, $headRow, $fileId)->assertForbidden();
+
+        $this->assertDatabaseCount('event_requirement_file_reviews', 0);
+    }
+
+    public function test_a_mark_is_refused_for_a_file_of_another_event_a_decided_request_and_an_archived_organization(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $otherEventId = $this->eventWithFiles();
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+
+        $this->markFile($this->head, $headRow, $this->fileId($otherEventId, $this->permit))->assertNotFound();
+        $this->markFile($this->head, $headRow, $this->fileId($eventId, $this->permit), 'maybe')->assertUnprocessable();
+
+        $this->organization->update(['lifecycle_status' => 'archived']);
+        $this->markFile($this->head, $headRow, $this->fileId($eventId, $this->permit))->assertConflict();
+        $this->organization->update(['lifecycle_status' => 'active']);
+
+        $this->decide($this->head, $headRow, 'rejected', [], 'Redo it.')->assertOk();
+        $this->markFile($this->head, $headRow, $this->fileId($eventId, $this->permit))->assertConflict();
+
+        $this->assertDatabaseCount('event_requirement_file_reviews', 0);
     }
 }
