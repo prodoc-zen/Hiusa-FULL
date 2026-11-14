@@ -1181,6 +1181,27 @@ describe('FinancePage plain ledger rows and page-level states', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
   });
 
+  it.each([
+    ['budgets', /No budgets yet/],
+    ['forecasting', /No forecasts yet/],
+    ['reports', /No saved reports/],
+    ['receipts', /No receipts/],
+    ['invoices', /No invoices/],
+    ['transactions', /No transactions/],
+  ])('says the data did not load, and not that the %s tab is empty, when the load fails', async (tab, emptyText) => {
+    financeMocks.getBudgets.mockRejectedValue(new Error('down'));
+    financeMocks.getForecasts.mockRejectedValue(new Error('down'));
+    financeMocks.getFinancialReports.mockRejectedValue(new Error('down'));
+    financeMocks.getTransactions.mockRejectedValue(new Error('down'));
+    financeMocks.getPersonalReceipts.mockRejectedValue(new Error('down'));
+    financeMocks.getInvoices.mockRejectedValue(new Error('down'));
+
+    render(<FinancePage initialTab={tab} />);
+
+    expect(await screen.findByText('Financial data did not load')).toBeInTheDocument();
+    expect(screen.queryByText(emptyText)).not.toBeInTheDocument();
+  });
+
   it('leaves out a payer, a recorder and a reference the system already shows in the description', async () => {
     financeMocks.getTransactions.mockResolvedValue({ data: { data: [{
       id: 21, transaction_date: '2026-09-08T10:30:00.000000Z', description: 'Merchandise order ORD-2', category: 'Merchandise', type: 'income', amount: 350,
