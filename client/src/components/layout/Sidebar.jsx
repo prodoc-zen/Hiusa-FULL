@@ -60,6 +60,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const sidebarRef = useRef(null);
+  const navRef = useRef(null);
   const closeButtonRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const flyoutRef = useRef(null);
@@ -129,6 +130,11 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   }, [isOpen, isDesktop]);
 
   useEffect(() => { setFlyout(null); }, [location.pathname, desktopCollapsed]);
+
+  // A long menu scrolls inside the sidebar, so the page you land on keeps its row in view.
+  useEffect(() => {
+    navRef.current?.querySelector('a[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!flyout) return undefined;
@@ -221,7 +227,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         </button>
       </div>
 
-      <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
+      <nav ref={navRef} onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="space-y-1">
           {orgSpace && (
             <div className="mb-2 border-b border-white/10 pb-3">
