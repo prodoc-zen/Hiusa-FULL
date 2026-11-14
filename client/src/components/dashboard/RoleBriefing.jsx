@@ -31,7 +31,7 @@ const REGISTRATION_TYPES = new Set(['registrations_pending', 'registration_retur
 const TASK_TYPES = new Set(['task_overdue', 'task_due_soon']);
 
 // Homes where the attention list is the one place a task is named; the headline above it would repeat the first row.
-const SINGLE_VOICE_ROLES = new Set(['STUDENT', 'SBO_OFFICER']);
+const SINGLE_VOICE_ROLES = new Set(['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD']);
 
 function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }

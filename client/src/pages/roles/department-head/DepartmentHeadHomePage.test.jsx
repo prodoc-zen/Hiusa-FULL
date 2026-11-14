@@ -7,13 +7,11 @@ const mocks = vi.hoisted(() => ({
   getElections: vi.fn(),
   getEvents: vi.fn(),
   getAnnouncements: vi.fn(),
-  getApprovalRequests: vi.fn(),
   getCollegeOrganizations: vi.fn(),
 }));
 vi.mock('../../../services/electionService', () => ({ getElections: mocks.getElections }));
 vi.mock('../../../services/eventService', () => ({ getEvents: mocks.getEvents }));
 vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mocks.getAnnouncements }));
-vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 const briefing = vi.hoisted(() => ({ getBriefing: vi.fn() }));
@@ -38,19 +36,17 @@ describe('DepartmentHeadHomePage', () => {
     mocks.getElections.mockResolvedValue([]);
     mocks.getEvents.mockResolvedValue(paginator([]));
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
-    mocks.getApprovalRequests.mockResolvedValue(paginator([]));
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active'), org(2, 'active'), org(3, 'pending'), org(4, 'returned')]));
   });
 
-  it('shows three tiles, each a link, with older returned and pending filings as context', async () => {
+  it('shows two tiles, each a link, and leaves the approvals count to the briefing, with older returned and pending filings as context', async () => {
     renderPage();
 
     const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
     const section = heading.closest('section');
     const tiles = within(section).getAllByRole('link');
-    expect(tiles.map((tile) => tile.textContent)).toEqual(['Awaiting your approval0', 'Active organizations21 returned, 1 pending review', 'Upcoming events0']);
+    expect(tiles.map((tile) => tile.textContent)).toEqual(['Active organizations21 returned, 1 pending review', 'Upcoming events0']);
     expect(tiles.map((tile) => tile.getAttribute('href'))).toEqual([
-      '/dashboard/department-head/approvals',
       '/dashboard/department-head/organizations?status=active',
       '/dashboard/events',
     ]);

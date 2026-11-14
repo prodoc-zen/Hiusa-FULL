@@ -55,14 +55,14 @@ describe('RoleBriefing', () => {
     expect(indicators).toHaveAttribute('open');
   });
 
-  it.each(['STUDENT', 'SBO_OFFICER'])('%s: the headline gives way to the attention list when it has rows, so one task is not said twice', async (role) => {
+  it.each(['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'])('%s: the headline gives way to the attention list when it has rows, so one task is not said twice', async (role) => {
     vi.mocked(getBriefing).mockResolvedValue(briefing(role));
     renderBriefing();
     expect(await screen.findByText('Foundation Week budget')).toBeInTheDocument();
     expect(screen.queryByText('One approval needs you today.')).not.toBeInTheDocument();
   });
 
-  it.each(['STUDENT', 'SBO_OFFICER'])('%s: keeps the headline when nothing is in the attention list', async (role) => {
+  it.each(['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'])('%s: keeps the headline when nothing is in the attention list', async (role) => {
     vi.mocked(getBriefing).mockResolvedValue(briefing(role, { attention: [], summary: { attention_count: 0, headline: 'Nothing needs you today.' } }));
     renderBriefing();
     expect(await screen.findByText('Nothing needs you today.')).toBeInTheDocument();

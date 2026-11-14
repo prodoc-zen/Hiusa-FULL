@@ -4,9 +4,8 @@ import { NavLink } from 'react-router-dom';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
-import { getApprovalRequests } from '../../../services/approvalService';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
-import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import { fetchAllPages, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
 import { ProcessTracker } from '../../../components/process';
 import { Button, Card, EmptyState, ErrorState, Skeleton, SkeletonStat, Stat } from '../../../components/ui';
@@ -35,7 +34,6 @@ function ViewAll({ to }) {
 
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], organizations: [] });
-  const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -53,13 +51,11 @@ export default function DepartmentHeadHomePage() {
     try {
       // /events has no status filter, so the full org event list is walked via
       // fetchAllPages - the endpoint also orders oldest-first, so a single
-      // page-1 fetch would surface stale events instead of upcoming ones. The
-      // pending-approval queue is only counted, so its `total` backs the tile.
-      const [electionsRes, events, announcementsRes, approvalsRes, organizations] = await Promise.all([
+      // page-1 fetch would surface stale events instead of upcoming ones.
+      const [electionsRes, events, announcementsRes, organizations] = await Promise.all([
         getElections(),
         fetchAllPages((p) => getEvents(p).then((r) => r.data)),
         getAnnouncements({ published_only: 1 }),
-        getApprovalRequests({ status: 'pending', per_page: 100 }),
         fetchAllPages((p) => getCollegeOrganizations(p).then((r) => r.data)),
       ]);
 
@@ -72,7 +68,6 @@ export default function DepartmentHeadHomePage() {
         organizations,
       };
       setData((current) => (silent && JSON.stringify(current) === JSON.stringify(next) ? current : next));
-      setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
       setLoadError('');
     } catch {
       if (!silent && epoch === loadEpoch.current) setLoadError('Check your connection and try again.');
@@ -127,7 +122,6 @@ export default function DepartmentHeadHomePage() {
           </Card>
         ) : !loadError && (
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
-            <Stat className="p-3! sm:p-4!" label="Awaiting your approval" value={pendingApprovalsTotal} to="/dashboard/department-head/approvals" />
             <Stat className="p-3! sm:p-4!" label="Active organizations" value={organizationCount('active')} context={needAttention || undefined} to={`${ORGANIZATIONS_PATH}?status=active`} />
             <Stat className="p-3! sm:p-4!" label="Upcoming events" value={upcomingEvents.length} to="/dashboard/events" />
           </div>
