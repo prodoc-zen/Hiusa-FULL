@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
+import { manilaDate } from '../../../lib/format';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
 import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
 
@@ -589,6 +590,110 @@ describe('AcademicYearsPage', () => {
 
     expect(await within(dialog).findByText('These dates overlap 2026-2027.')).toBeInTheDocument();
     expect(createAcademicYear).toHaveBeenCalledWith({ label: '2027-2028', starts_on: '2027-08-01', ends_on: '2028-05-31' });
+  });
+
+  describe('when an election stops a semester from closing', () => {
+    const live = [{ ...years[1], semesters: [{ id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }] }];
+    const refusal = {
+      response: {
+        status: 422,
+        data: {
+          message: 'This semester still has an election that is upcoming or open: 2026 Officer Election (Cold Computing Society).',
+          errors: { semester: ['This semester still has an election that is upcoming or open: 2026 Officer Election (Cold Computing Society).'] },
+          elections: [
+            { id: 5, title: '2026 Officer Election', status: 'upcoming', organization_id: 7, organization_name: 'Cold Computing Society' },
+            { id: 6, title: 'Batch Election', status: 'active', organization_id: 8, organization_name: 'Chess Club' },
+          ],
+        },
+      },
+    };
+
+    it('names each election with its status and links to the organization that can cancel it', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(live);
+      vi.mocked(closeAcademicSemester).mockRejectedValue(refusal);
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Close 1st semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Close semester' });
+      fireEvent.change(within(dialog).getByLabelText(/Type 1st semester, AY 2026-2027 to confirm/), { target: { value: '1st semester, AY 2026-2027' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close semester' }));
+
+      const alert = await within(dialog).findByRole('alert');
+      expect(alert).toHaveTextContent('Each organization Admin can cancel its election, or you can wait for it to close.');
+      expect(within(alert).getByRole('link', { name: 'Cold Computing Society' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/7');
+      expect(within(alert).getByRole('link', { name: 'Chess Club' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/8');
+      expect(alert).toHaveTextContent('2026 Officer Election');
+      expect(alert).toHaveTextContent('Upcoming');
+      expect(alert).toHaveTextContent('Batch Election');
+      expect(alert).toHaveTextContent('Open now');
+    });
+  });
+
+  describe('making a year current', () => {
+    it('says in plain words that no semester can be activated until a future year starts', async () => {
+      const future = { ...years[0], id: 3, label: '2999-3000', starts_on: '2999-08-01', ends_on: '3000-05-31', semesters: [
+        { id: 31, number: 1, status: 'upcoming', starts_on: '2999-08-01', ends_on: '2999-12-15' },
+        { id: 32, number: 2, status: 'upcoming', starts_on: '2999-12-16', ends_on: '3000-05-31' },
+      ] };
+      vi.mocked(getAcademicYears).mockResolvedValue([future, years[1]]);
+      renderPage();
+
+      fireEvent.click(await findRowAction('Make current'));
+      const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
+      expect(within(dialog).getByText(new RegExp(`No semester can be activated in AY 2999-3000 until ${manilaDate('2999-08-01', 'long')}\\.`))).toBeInTheDocument();
+      expect(within(dialog).getByText(/AY 2026-2027 stops being the current year\./)).toBeInTheDocument();
+    });
+
+    it('says nothing about a start date for a year that has begun', async () => {
+      const begun = { ...years[0], id: 3, label: '2025-2026', starts_on: '2025-08-01', ends_on: '2026-05-31', semesters: [
+        { id: 31, number: 1, status: 'completed', starts_on: '2025-08-01', ends_on: '2025-12-15' },
+      ] };
+      vi.mocked(getAcademicYears).mockResolvedValue([years[1], begun]);
+      renderPage();
+
+      fireEvent.click(await findRowAction('Make current'));
+      const dialog = await screen.findByRole('dialog', { name: 'Make this the current year' });
+      expect(within(dialog).queryByText(/No semester can be activated/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('the way back when the current year has no active semester', () => {
+    const previous = (semesters) => ({ ...years[1], is_current: false, semesters });
+    const completedSecond = { id: 12, number: 2, status: 'completed', starts_on: '2026-12-16', ends_on: '2027-05-31' };
+
+    it('names reopening the last completed semester or making the previous year current', async () => {
+      const newest = { ...years[0], is_current: true, semesters: [] };
+      vi.mocked(getAcademicYears).mockResolvedValue([newest, previous([{ id: 11, number: 1, status: 'completed', starts_on: '2026-08-01', ends_on: '2026-12-15' }, completedSecond])]);
+      renderPage();
+
+      expect(await screen.findByText('No semester is active. To go back, reopen the 2nd semester of AY 2026-2027, or make AY 2026-2027 the current year again.')).toBeInTheDocument();
+    });
+
+    it('names only making the previous year current when it has nothing to reopen', async () => {
+      const newest = { ...years[0], is_current: true, semesters: [] };
+      vi.mocked(getAcademicYears).mockResolvedValue([newest, previous([{ id: 11, number: 1, status: 'upcoming', starts_on: '2026-08-01', ends_on: '2026-12-15' }])]);
+      renderPage();
+
+      expect(await screen.findByText('No semester is active. To go back, make AY 2026-2027 the current year again.')).toBeInTheDocument();
+    });
+
+    it('stays silent while a semester is active, when nothing can be undone, or when the previous year is completed', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[1], semesters: [{ id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }] }]);
+      const { unmount } = renderPage();
+      await screen.findByText('2026-2027 is the current year');
+      expect(screen.queryByText(/To go back/)).not.toBeInTheDocument();
+      unmount();
+
+      vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[1], semesters: [] }]);
+      const second = renderPage();
+      await screen.findByText('2026-2027 is the current year');
+      expect(screen.queryByText(/To go back/)).not.toBeInTheDocument();
+      second.unmount();
+
+      vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[0], is_current: true, semesters: [] }, { ...previous([completedSecond]), closed_at: '2027-06-01T00:00:00Z' }]);
+      renderPage();
+      await screen.findByText('2027-2028 is the current year');
+      expect(screen.queryByText(/To go back/)).not.toBeInTheDocument();
+    });
   });
 });
 

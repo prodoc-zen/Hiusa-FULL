@@ -17,6 +17,7 @@ use App\Services\Compliance\RegistrationRequirementCatalog;
 use App\Services\Records\SemesterSnapshotService;
 use App\Services\RequirementSampleService;
 use Carbon\Carbon;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -187,7 +188,7 @@ class AcademicSemesterController extends Controller
                 }
                 $openElections = $this->openElections(AcademicSemester::where('status', 'active')->select('id'));
                 if ($openElections->isNotEmpty()) {
-                    throw ValidationException::withMessages(['semester' => ['The current semester still has an election that is upcoming or open: '.$openElections->implode(', ').'. Wait for it to close before starting the next semester.']]);
+                    $this->refuseForElections($openElections, 'The current semester still has an election that is upcoming or open: ');
                 }
                 $currentYear = AcademicYear::where('is_current', true)->lockForUpdate()->first();
                 if ($currentYear && $currentYear->id !== $semester->academic_year_id
@@ -226,7 +227,7 @@ class AcademicSemesterController extends Controller
             }
             $openElections = $this->openElections([$semester->id]);
             if ($openElections->isNotEmpty()) {
-                throw ValidationException::withMessages(['semester' => ['This semester still has an election that is upcoming or open: '.$openElections->implode(', ').'. Wait for it to close before closing the semester.']]);
+                $this->refuseForElections($openElections, 'This semester still has an election that is upcoming or open: ');
             }
             app(SemesterSnapshotService::class)->snapshot($semester);
             $semester->update(['status' => 'completed']);
@@ -270,8 +271,29 @@ class AcademicSemesterController extends Controller
     {
         return Election::with('organization:id,name')->whereIn('academic_semester_id', $semesterIds)
             ->where(fn ($query) => $query->where('status', 'active')->orWhere(fn ($upcoming) => $upcoming->where('status', 'upcoming')->whereNotNull('approved_at')))
-            ->orderBy('id')->get()
-            ->map(fn (Election $election) => $election->title.' ('.($election->organization?->name ?? 'no organization').')');
+            ->orderBy('id')->get();
+    }
+
+    /**
+     * Refuses with the elections named in the message and listed beside it, so the page can say which organization owns each one.
+     * Only that organization's Admin can cancel an election, so the SAO is pointed to the organization, never to a screen it cannot open.
+     */
+    private function refuseForElections($elections, string $before): never
+    {
+        $names = $elections->map(fn (Election $election) => $election->title.' ('.($election->organization?->name ?? 'no organization').')')->implode(', ');
+        $message = $before.$names.'. The Admin of each organization can cancel its election, or you can wait for it to close.';
+
+        throw new HttpResponseException(response()->json([
+            'message' => $message,
+            'errors' => ['semester' => [$message]],
+            'elections' => $elections->map(fn (Election $election) => [
+                'id' => $election->id,
+                'title' => $election->title,
+                'status' => $election->status,
+                'organization_id' => $election->organization_id,
+                'organization_name' => $election->organization?->name,
+            ])->values()->all(),
+        ], 422));
     }
 
     public function destroy(Request $request, AcademicSemester $academicSemester)

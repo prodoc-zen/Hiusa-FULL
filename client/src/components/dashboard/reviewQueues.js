@@ -1,6 +1,7 @@
 // The SAO decides several queues; the briefing carries each as attention items (docs/api/dashboard-briefing.md).
-// Order is the order the SAO should work: registrations lead because everything else waits on a registered organization.
+// Order is the order the SAO should work: applications and registrations lead because everything else waits on a registered organization.
 const AREAS = [
+  { key: 'applications', label: 'Applications awaiting your decision', action: 'Review applications', noun: ['application', 'applications'], match: (item) => item.type === 'applications_pending' },
   { key: 'registrations', label: 'Registrations awaiting review', action: 'Review registrations', noun: ['registration', 'registrations'], match: (item) => item.type === 'registrations_pending' },
   { key: 'compliance', label: 'Compliance submissions awaiting review', action: 'Review compliance', noun: ['compliance submission', 'compliance submissions'], match: (item) => item.type === 'compliance_submissions_pending' },
   { key: 'financial-reports', label: 'Financial reports to approve', action: 'Review financial reports', noun: ['financial report', 'financial reports'], match: (item) => item.type === 'approval' && /[?&]tab=financial\b/.test(item.href || '') },

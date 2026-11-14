@@ -55,6 +55,25 @@ describe('ElectionNextStep for an election where students file their own candida
     expect(screen.queryByRole('button', { name: 'Cancel election' })).not.toBeInTheDocument();
   });
 
+  it('lets the Admin cancel an approved upcoming election that has no phase yet', async () => {
+    mocks.cancelElection.mockResolvedValue({ id: 2 });
+    const onChanged = renderStep(legacy({ approved_at: '2026-10-01T08:00:00+08:00' }));
+    expect(screen.getByRole('button', { name: 'Cancel election' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel election' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel election' });
+    fireEvent.change(within(dialog).getByLabelText('Reason'), { target: { value: 'The dates were wrong' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel election' }));
+
+    await waitFor(() => expect(mocks.cancelElection).toHaveBeenCalledWith(2, 'The dates were wrong'));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it('offers no cancel for an approved election that closed before phases existed', () => {
+    renderStep(legacy({ approved_at: '2026-10-01T08:00:00+08:00', status: 'closed' }));
+    expect(screen.queryByRole('button', { name: 'Cancel election' })).not.toBeInTheDocument();
+  });
+
   it('gives the Admin Suspend and Cancel election, and nobody else', () => {
     renderStep(filing());
     expect(screen.getByRole('button', { name: 'Suspend' })).toBeInTheDocument();

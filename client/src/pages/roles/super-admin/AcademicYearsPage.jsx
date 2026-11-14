@@ -77,11 +77,56 @@ function makeCurrentBlocker(target, years) {
   return active && active.id !== target.id ? active : null;
 }
 
+// The day a year's first semester begins, or the year itself when it has no semester yet.
+function firstDay(year) {
+  const starts = (year.semesters || []).map((item) => String(item.starts_on).slice(0, 10)).sort();
+  return starts[0] || String(year.starts_on).slice(0, 10);
+}
+
 function makeCurrentMessage(target, years) {
   const active = makeCurrentBlocker(target, years);
   const base = "Accreditation status will count this year's requirements, and new requirement sets and clearance periods will default to it. This does not start a semester.";
   if (active) return `${base} A semester in AY ${active.label} is active, so this is refused. Close it first, or activate a semester in this year to make it current.`;
+  const replaced = years.find((year) => year.is_current && year.id !== target.id);
+  if (firstDay(target) > manilaDateStamp()) {
+    return `${base} No semester can be activated in AY ${target.label} until ${manilaDate(firstDay(target), 'long')}.${replaced ? ` AY ${replaced.label} stops being the current year.` : ''}`;
+  }
   return base;
+}
+
+// After the current year changes with no semester running, the one line that says how to get back.
+function wayBackLine(years) {
+  const current = years.find((year) => year.is_current);
+  if (!current || liveSemester(years)) return '';
+  const lastCompleted = years
+    .filter((year) => !year.closed_at)
+    .flatMap((year) => (year.semesters || []).filter((item) => item.status === 'completed').map((item) => ({ semester: item, yearLabel: year.label })))
+    .sort((left, right) => String(right.semester.ends_on).localeCompare(String(left.semester.ends_on)))[0];
+  const previous = years
+    .filter((year) => !year.is_current && !year.closed_at && String(year.starts_on) < String(current.starts_on))
+    .sort((left, right) => String(right.starts_on).localeCompare(String(left.starts_on)))[0];
+  const ways = [];
+  if (lastCompleted) ways.push(`reopen the ${semesterName(lastCompleted.semester, lastCompleted.yearLabel)}`);
+  if (previous) ways.push(`make AY ${previous.label} the current year again`);
+  return ways.length ? `No semester is active. To go back, ${ways.join(', or ')}.` : '';
+}
+
+const ELECTION_STATUS = { upcoming: 'Upcoming', active: 'Open now' };
+
+// The server's refusal when elections are still running: each one named, with the organization that can cancel it.
+function ElectionRefusal({ message, elections }) {
+  if (!elections.length) return message;
+  return (
+    <>
+      <span className="block">{`${elections.length === 1 ? 'This election is' : 'These elections are'} still upcoming or open. Each organization Admin can cancel its election, or you can wait for it to close.`}</span>
+      {elections.map((election) => (
+        <span key={election.id} className="mt-1 block font-medium">
+          {`${ELECTION_STATUS[election.status] || election.status}: ${election.title}, `}
+          {election.organization_id ? <Link to={`/dashboard/super-admin/organizations/${election.organization_id}`} className="underline">{election.organization_name}</Link> : 'no organization'}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function hasStarted(semester) {
@@ -128,6 +173,7 @@ export default function AcademicYearsPage() {
   const [datesTarget, setDatesTarget] = useState(null);
   const [datesForm, setDatesForm] = useState({ starts_on: '', ends_on: '' });
   const [semesterChangeError, setSemesterChangeError] = useState('');
+  const [semesterChangeElections, setSemesterChangeElections] = useState([]);
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -142,6 +188,7 @@ export default function AcademicYearsPage() {
   useEffect(() => { load(); }, [load]);
 
   const current = years.items.find((year) => year.is_current);
+  const wayBack = wayBackLine(years.items);
 
   function openModal(year = null) {
     setFieldErrors({});
@@ -256,6 +303,7 @@ export default function AcademicYearsPage() {
     const { semester, action, yearLabel } = semesterChange;
     setBusy(true);
     setSemesterChangeError('');
+    setSemesterChangeElections([]);
     try {
       if (action === 'activate') await activateAcademicSemester(semester.id);
       else if (action === 'reopen') await reopenAcademicSemester(semester.id);
@@ -265,6 +313,7 @@ export default function AcademicYearsPage() {
       await load();
     } catch (cause) {
       setSemesterChangeError(getApiErrorMessage(cause, 'The semester could not be changed.'));
+      setSemesterChangeElections(cause?.response?.data?.elections || []);
     } finally {
       setBusy(false);
     }
@@ -299,6 +348,7 @@ export default function AcademicYearsPage() {
         <section aria-label="Current academic year">
           <h2 className="text-base font-semibold text-ink">{`${current.label} is the current year`}</h2>
           <p className="mt-1 text-sm text-ink-muted">{`${manilaDate(current.starts_on, 'long')} to ${manilaDate(current.ends_on, 'long')}`}</p>
+          {wayBack && <p className="mt-1 text-sm text-ink-muted">{wayBack}</p>}
           <p className="mt-4 text-xs font-medium text-ink-muted">At the start of each year</p>
           <ul className="mt-1 divide-y divide-line-soft border-y border-line-soft">
             {YEAR_START_STEPS.map((step) => (
@@ -558,7 +608,7 @@ export default function AcademicYearsPage() {
         confirmationText={semesterChange?.action === 'close' ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}
         variant="primary"
         busy={busy}
-        error={semesterChangeError}
+        error={semesterChangeError && <ElectionRefusal message={semesterChangeError} elections={semesterChangeElections} />}
         onCancel={() => !busy && setSemesterChange(null)}
         onConfirm={confirmSemesterChange}
       />
