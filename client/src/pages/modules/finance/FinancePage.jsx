@@ -1306,7 +1306,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             />
           </TableFilterBar>
 
-          {loading || ledgerLoading ? (
+          {error ? null : loading || ledgerLoading ? (
             <div className="p-4"><SkeletonTable rows={5} columns={5} className="border-0" /></div>
           ) : filtered.length === 0 ? (
             <div className="px-4 sm:px-5">
@@ -1463,7 +1463,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'budgets' && !requestFlow && (
+      {activeTab === 'budgets' && !requestFlow && !error && (
         <section aria-label="Budgets" className="overflow-hidden rounded-card border border-line bg-surface">
           {recordMissing && <div className="border-b border-line p-4">{missingRecordNotice('budget')}</div>}
 
@@ -1589,7 +1589,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'forecasting' && (
+      {activeTab === 'forecasting' && !error && (
         <section aria-label="Forecast" className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
           <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
             {forecastGenError && (
@@ -1700,7 +1700,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'reports' && (
+      {activeTab === 'reports' && !error && (
         <div className="space-y-6">
           {reportFormVisible && <section aria-labelledby="prepare-report-title" className="rounded-card border border-line bg-surface p-4 sm:p-5">
             <h2 id="prepare-report-title" className="text-base font-semibold text-ink">Prepare a report</h2>
@@ -1888,7 +1888,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </div>
       )}
 
-      {activeTab === 'receipts' && (
+      {activeTab === 'receipts' && !error && (
         <section aria-label="Receipts">
           {loading ? (
             <SkeletonTable rows={3} columns={3} />
@@ -1947,7 +1947,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         {selectedReceipt && <div data-finance-receipt><ReceiptDocument transaction={selectedReceipt} /></div>}
       </Drawer>
 
-      {activeTab === 'invoices' && (
+      {activeTab === 'invoices' && !error && (
         <section aria-label="Statement of account" className="space-y-5">
           {currentUserRole === 'STUDENT' && !loading && !error && <AccountSummary debt={studentDebt} clearances={clearances} />}
           <DataTable
