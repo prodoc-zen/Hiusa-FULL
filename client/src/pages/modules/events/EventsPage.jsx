@@ -1411,7 +1411,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </label>
               <Field label="Event date" className="w-full sm:w-44"><Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></Field>
               <Field label="Sort by" className="w-full sm:w-44"><HiusaSelect value={eventSort} onChange={(event) => { setEventSort(event.target.value); setEventsPage(1); }}><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></HiusaSelect></Field>
-              <Field label="Status" className="w-full sm:w-52"><HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)}><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></Field>
+              <Field label="Status" className="w-full sm:w-52"><HiusaSelect filter value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)}><option value="">All statuses</option>{(['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole) ? ['planning', 'approved', 'ongoing', 'completed', 'cancelled'] : ['approved', 'ongoing', 'completed']).map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</HiusaSelect></Field>
               {hasEventFilters && <button type="button" onClick={clearEventFilters} className="min-h-10 rounded-control px-2 text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
             </div>
           )}
@@ -1871,10 +1871,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <dl className="grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">Schedule</dt><dd className="mt-0.5 text-ink">{formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</dd></div>
                   <div><dt className="text-xs text-ink-muted">Location</dt><dd className="mt-0.5 text-ink">{selectedEvent.location || ''}</dd></div>
-                  <div><dt className="text-xs text-ink-muted">Event type</dt><dd className="mt-0.5 text-ink">{selectedEvent.planning_details?.event_type || ''}</dd></div>
-                  <div><dt className="text-xs text-ink-muted">Expected participants</dt><dd className="mt-0.5 tabular-nums text-ink">{selectedEvent.planning_details?.expected_participants || ''}</dd></div>
+                  {selectedEvent.planning_details?.event_type && <div><dt className="text-xs text-ink-muted">Event type</dt><dd className="mt-0.5 text-ink">{selectedEvent.planning_details.event_type}</dd></div>}
+                  {selectedEvent.planning_details?.expected_participants && <div><dt className="text-xs text-ink-muted">Expected participants</dt><dd className="mt-0.5 tabular-nums text-ink">{selectedEvent.planning_details.expected_participants}</dd></div>}
                 </dl>
                 <section className="border-t border-line pt-4"><h3 className="text-sm font-semibold text-ink">Description</h3><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></section>
+                {currentUserRole !== 'STUDENT' && (
                 <dl className="grid gap-3 border-t border-line pt-4 sm:grid-cols-3">
                   <div>
                     <dt className="text-xs text-ink-muted">Preparation progress</dt>
@@ -1895,6 +1896,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <dd className="mt-0.5 font-semibold text-ink">{stageText(selectedEvent) || capitalize(selectedEvent.approval_status || selectedEvent.status)}</dd>
                   </div>
                 </dl>
+                )}
                 {(selectedEvent.planning_details?.requirements || selectedEvent.planning_details?.resources || selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
                   <section className="space-y-2 border-t border-line pt-4">
                     <h3 className="text-sm font-semibold text-ink">Planning details</h3>
