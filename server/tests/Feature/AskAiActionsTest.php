@@ -328,7 +328,7 @@ class AskAiActionsTest extends TestCase
         $message = $this->ask('create a task Prepare minutes for Ana Cruz');
 
         $assignee = collect($message['payload']['action']['fields'])->firstWhere('name', 'assigned_to');
-        $this->assertSame([['value' => (string) $officer->school_id, 'label' => 'Ana Cruz, Secretary']], $assignee['options']);
+        $this->assertSame([['value' => (string) $officer->school_id, 'label' => 'Ana Cruz, Secretary (recommended)']], $assignee['options']);
         $this->assertSame((string) $officer->school_id, $assignee['value']);
         $this->assertSame(0, Task::count());
 
@@ -342,6 +342,28 @@ class AskAiActionsTest extends TestCase
         $this->assertSame($admin->school_id, (int) $task->created_by);
         $this->assertSame('Task created and assigned to Ana Cruz.', $response->json('message.payload.action.result.message'));
         $this->assertSame('/dashboard/tasks/task-board', $response->json('message.payload.action.result.href'));
+    }
+
+    public function test_the_assign_to_list_is_the_delegation_result_so_an_officer_at_the_task_limit_is_not_offered(): void
+    {
+        config(['services.hiusa_ai.task_max_active_tasks' => 1]);
+        $org = Organization::factory()->create();
+        foreach (['Secretary', 'Treasurer'] as $title) {
+            SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => $title, 'is_active' => true]);
+        }
+        $busy = User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Busy', 'last_name' => 'Bee', 'position_title' => 'Secretary', 'account_status' => 'active']);
+        $free = User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Free', 'last_name' => 'Fox', 'position_title' => 'Treasurer', 'account_status' => 'active']);
+        Task::factory()->create(['organization_id' => $org->id, 'event_id' => null, 'assigned_to' => $busy->school_id, 'status' => 'pending']);
+        Sanctum::actingAs($this->admin($org));
+
+        $message = $this->ask('create a task called Prepare minutes');
+
+        $assignee = collect($message['payload']['action']['fields'])->firstWhere('name', 'assigned_to');
+        $this->assertSame([['value' => (string) $free->school_id, 'label' => 'Free Fox, Treasurer (recommended)']], $assignee['options']);
+
+        $this->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $busy->school_id])
+            ->assertUnprocessable()->assertJsonPath('errors.assigned_to.0', 'Choose one of the listed options.');
+        $this->assertSame(1, Task::count());
     }
 
     public function test_an_assignee_outside_the_options_is_refused_on_the_assignee_field(): void
