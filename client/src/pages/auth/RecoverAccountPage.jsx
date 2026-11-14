@@ -6,6 +6,14 @@ import { Button } from '../../components/ui';
 import { requestPasswordReset } from '../../services/authService';
 import { getApiErrorMessage } from '../../utils/apiError';
 
+// Who can hand out a one-time link when no email goes out, for each kind of account. The last line is the way back in for an SAO nobody else can reset.
+const WHO_CAN_RESET = [
+  'Students and officers: your organization Admin, or the SAO.',
+  'Organization Admins, office staff and Department Heads: the SAO.',
+  'SAO staff: another SAO account holder.',
+  'The only SAO account: whoever looks after the server runs the reset command in the deployment guide (hiusa:reset-sao-password).',
+];
+
 export default function RecoverAccountPage() {
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
@@ -35,8 +43,11 @@ export default function RecoverAccountPage() {
       <AuthLayout>
         <h1 className="text-xl font-semibold text-ink sm:text-2xl">Ask for a reset</h1>
         <p className="mt-2 text-sm text-ink-muted">
-          Password reset by email is not available. Nothing was sent to anyone. Ask your organization Admin or the SAO for a one-time link to choose a new password, then open it to set one. SAO staff ask another SAO account holder.
+          Password reset by email is not available. Nothing was sent to anyone. Someone else has to give you a one-time link to choose a new password. Open the link to set one.
         </p>
+        <ul aria-label="Who can reset your password" className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-muted">
+          {WHO_CAN_RESET.map((line) => <li key={line}>{line}</li>)}
+        </ul>
 
         <div className="mt-6">
           <Button className="w-full" onClick={() => navigate('/login')}>
