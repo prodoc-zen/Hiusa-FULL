@@ -30,6 +30,9 @@ const SETUP_TITLE = { STUDENT: 'Next for you' };
 const REGISTRATION_TYPES = new Set(['registrations_pending', 'registration_returned', 'organization_awaiting_admin']);
 const TASK_TYPES = new Set(['task_overdue', 'task_due_soon']);
 
+// Homes where the attention list is the one place a task is named; the headline above it would repeat the first row.
+const SINGLE_VOICE_ROLES = new Set(['STUDENT', 'SBO_OFFICER']);
+
 function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
 }
@@ -63,6 +66,9 @@ function BriefingBody({ data, introduction }) {
       headline = attention.length === 0 ? 'Nothing needs you today.' : `${attention.length} ${attention.length === 1 ? 'item needs' : 'items need'} you today.`;
     }
   }
+
+  // The attention list says the same thing in full, so the one-line count above it only stays when the list is empty.
+  if (SINGLE_VOICE_ROLES.has(role) && attention.length > 0) headline = null;
 
   const reviewAreas = role === 'SUPER_ADMIN' ? buildReviewAreas(attention) : [];
   if (reviewAreas.length > 0) headline = reviewHeadline(reviewAreas);

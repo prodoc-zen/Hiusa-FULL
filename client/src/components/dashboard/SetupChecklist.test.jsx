@@ -59,7 +59,7 @@ describe('SetupChecklist', () => {
 
   it('shows every step, finished ones marked for screen readers, behind Show all', () => {
     renderChecklist();
-    fireEvent.click(screen.getByRole('button', { name: 'Show all 6 steps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show all steps' }));
 
     expect(rowLabels()).toEqual(['Done one', 'Add your members', 'Wait for the semester', 'Enroll your fingerprint', 'Fourth open step', 'Done two']);
     expect(screen.getAllByText('(done)')).toHaveLength(2);
@@ -85,7 +85,7 @@ describe('SetupChecklist', () => {
     expect(first).not.toHaveClass('max-sm:hidden');
     expect(second).toHaveClass('max-sm:hidden');
     expect(third).toHaveClass('max-sm:hidden');
-    fireEvent.click(screen.getByRole('button', { name: /Show all 6 steps/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Show all steps/ }));
     screen.getAllByRole('listitem').forEach((row) => expect(row).not.toHaveClass('max-sm:hidden'));
   });
 
