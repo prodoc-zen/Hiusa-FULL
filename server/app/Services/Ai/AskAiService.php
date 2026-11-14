@@ -14,6 +14,7 @@ use App\Models\ElectionBallot;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\EventRequirementFileReview;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
@@ -25,6 +26,7 @@ use App\Models\VenueBooking;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
+use App\Services\EventApprovalChain;
 use App\Services\StudentAccountBalances;
 use App\Support\SemesterScope;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -44,7 +46,9 @@ class AskAiService
         'clearances_status' => 'compliance',
         'finance_health' => 'finance',
         'merchandise_orders' => 'merchandise',
+        'merchandise_stock' => 'merchandise',
         'events_attendance' => 'events',
+        'event_readiness' => 'events',
     ];
 
     // 'tasks_workload' has no module here on purpose: an officer limited to other areas still reads their own tasks, and that answer is already cut to them.
@@ -57,7 +61,9 @@ class AskAiService
         'tasks_workload',
         'finance_health',
         'merchandise_orders',
+        'merchandise_stock',
         'events_attendance',
+        'event_readiness',
         'clearances_status',
         'elections_status',
         'grievances_status',
@@ -206,6 +212,8 @@ class AskAiService
         'missing_submissions' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
         'submitted_documents' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
         'organizations_without_admin' => ['the list of organizations that still need an organization head', 'I can show what you need to do today instead.', 'daily_priorities'],
+        'merchandise_stock' => ['the stock levels of the organization\'s merchandise, which its officers keep', 'I can show your own orders instead.', 'merchandise_orders'],
+        'event_readiness' => ['an event\'s readiness checklist, which the organization head and officers keep', 'I can show the upcoming events instead.', 'events_attendance'],
     ];
 
     private const STUDENT_INTENTS = [
@@ -229,6 +237,7 @@ class AskAiService
         private readonly HowToGuideLibrary $guides,
         private readonly AskAiRoleIntents $roleIntents,
         private readonly AskAiActions $actions,
+        private readonly EventApprovalChain $eventApprovals,
     ) {}
 
     public function overview(User $user): array
@@ -449,6 +458,16 @@ class AskAiService
             return 'how_to_guide';
         }
 
+        // "Which merchandise is running low" is the stock, not the order queue that shares the word merchandise, and
+        // "is Sports Fest ready" is a checklist for one event, not the events list or a status count.
+        if ($this->asksLowStock($q)) {
+            return 'merchandise_stock';
+        }
+
+        if ($this->asksEventReadiness($q, $role)) {
+            return 'event_readiness';
+        }
+
         // A student's own records come before the staff words they share: "outstanding balance" is their fees, not a
         // compliance gap, and "events assigned this month" is the calendar, not the task board.
         if ($role === 'STUDENT' && preg_match(self::INTENT_PATTERNS['semantic_rag'], $q) !== 1) {
@@ -472,6 +491,38 @@ class AskAiService
         }
 
         return 'semantic_rag';
+    }
+
+    // Stock words that mean the stock level on their own, and the "running low" words that need an item word beside them
+    // so "is our budget running low" stays a budget question.
+    private const STOCK_WORDS = '~\b(?:low[- ]stock|out[- ]of[- ]stock|(?:low|short|out) (?:on|of) (?:stock|inventory|supplies)|sold[- ]out|re-?stock\w{0,8}|stock levels?|stock status|inventory)\b~';
+
+    private const RUNNING_LOW_WORDS = '~\b(?:running (?:low|out|short)|(?:almost|nearly) (?:gone|out)|low on)\b~';
+
+    private const ITEM_WORDS = '~\b(?:merch(?:andise)?|items?|products?|goods|supplies|shirts?|lanyards?|hoodies?|store|shop)\b~';
+
+    private function asksLowStock(string $q): bool
+    {
+        return preg_match(self::STOCK_WORDS, $q) === 1
+            || (preg_match(self::RUNNING_LOW_WORDS, $q) === 1 && preg_match(self::ITEM_WORDS, $q) === 1);
+    }
+
+    // The words that ask whether something is ready, and the words that say the thing is not an event: an order to claim,
+    // a clearance, a report, a budget. Without those, an Admin, an officer or a student asking "is X ready" is asking
+    // about an event; the Dean and the SAO need an event word beside it because they ask about approvals too.
+    private const READY_WORDS = '~\b(?:ready|all set|good to go|set to go|prepared|on track|readiness)\b~';
+
+    private const NOT_AN_EVENT_WORDS = '~\b(?:orders?|claim\w{0,6}|pick-?up|merch\w{0,9}|clearances?|signatures?|ballots?|votes?|voting|elections?|invoices?|fees?|receipts?|payments?|tokens?|budgets?|funds?|reports?|documents?|files?|submissions?|requirements?|applications?|registrations?|approvals?|reviews?|grievances?|complaints?|tasks?|accounts?|passwords?|profile|certificates?|grades?)\b~';
+
+    private const EVENT_WORDS = '~\b(?:events?|fest|festival|seminar|assembly|workshop|summit|tournament|competition|orientation|concert|activity|activities|program|programme|induction|ceremony|gala|week)\b~';
+
+    private function asksEventReadiness(string $q, string $role): bool
+    {
+        if (preg_match(self::READY_WORDS, $q) !== 1 || preg_match(self::NOT_AN_EVENT_WORDS, $q) === 1) {
+            return false;
+        }
+
+        return ! in_array($role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true) || preg_match(self::EVENT_WORDS, $q) === 1;
     }
 
     private const STUDENT_FIRST = ['grievances_status', 'clearances_status', 'merchandise_orders', 'elections_status', 'money_words', 'finance_health', 'events_attendance'];
@@ -519,7 +570,9 @@ class AskAiService
                 'finance_health' => $this->withBudgetNote($user, $question, $this->buildFinanceHealth($user, $organizationIds)),
                 'own_balance' => $this->buildFinanceHealth($user, $organizationIds, true),
                 'merchandise_orders' => $this->buildMerchandiseOrders($user),
+                'merchandise_stock' => $this->buildMerchandiseStock($user),
                 'events_attendance' => $this->buildEventsAttendance($user, $organizationIds),
+                'event_readiness' => $this->buildEventReadiness($user, $question),
                 'clearances_status' => $this->buildClearancesStatus($user, $organizationIds),
                 'elections_status' => $this->buildElectionsStatus($user, $organizationIds),
                 'grievances_status' => $this->buildGrievancesStatus($user),
@@ -528,7 +581,8 @@ class AskAiService
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
-            if ($allowModel && $intent !== 'daily_priorities' && ! in_array($intent, AskAiRoleIntents::INTENTS, true)) {
+            // A stock list and a readiness checklist are whole answers; the records the search ranked beside them would repeat them.
+            if ($allowModel && ! in_array($intent, ['daily_priorities', 'merchandise_stock', 'event_readiness'], true) && ! in_array($intent, AskAiRoleIntents::INTENTS, true)) {
                 $payload = $this->augmentWithRagMatches($payload, $rag);
             }
         }
@@ -1526,7 +1580,9 @@ class AskAiService
             'finance_health' => $student ? 'invoices and payments' : 'budgets and transactions',
             'own_balance' => 'invoices and payments',
             'merchandise_orders' => $student ? 'orders' : 'merchandise orders',
+            'merchandise_stock' => 'merchandise stock and orders',
             'events_attendance' => 'events and attendance',
+            'event_readiness' => 'events, venue bookings, budgets, required files and tasks',
             'clearances_status' => 'clearance signatures',
             'elections_status' => 'elections and votes',
             'grievances_status' => 'grievances',
@@ -3104,6 +3160,13 @@ class AskAiService
         $allocated = (float) ($totals->allocated ?? 0);
         $remaining = (float) ($totals->remaining ?? 0);
 
+        // The working behind "remaining": income posted against a budget is added to it and spending is taken off, so
+        // the sentence shows both from the entries recorded against the approved budgets, never from the remaining column.
+        $ledgerSums = "COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense";
+        $ledger = Transaction::whereIn('budget_id', (clone $approvedBudgetQuery)->select('id'))->selectRaw($ledgerSums)->first();
+        $ledgerByBudget = Transaction::whereIn('budget_id', $approvedBudgets->pluck('id'))->selectRaw("budget_id, {$ledgerSums}")->groupBy('budget_id')->get()->keyBy('budget_id');
+        $working = $this->budgetWorking($allocated, (float) ($ledger->income ?? 0), (float) ($ledger->expense ?? 0), $remaining);
+
         $unpaidInvoicesCount = DB::table('invoices')
             ->whereIn('organization_id', $orgIds)
             ->whereNotIn('status', ['paid', 'cancelled', 'waived'])
@@ -3121,7 +3184,7 @@ class AskAiService
                 $unpaidInvoicesCount,
                 Str::plural('invoice', $unpaidInvoicesCount),
                 $unpaidInvoicesCount === 1 ? 'is' : 'are'
-            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : ''),
+            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : '').($working === null ? '' : ' Working: '.$working),
             'highlights' => [
                 ['label' => 'Approved allocated', 'value' => '₱'.number_format($allocated, 2), 'tone' => 'primary'],
                 ['label' => 'Remaining budget', 'value' => '₱'.number_format($remaining, 2), 'tone' => 'success'],
@@ -3133,15 +3196,20 @@ class AskAiService
                     'title' => 'Approved Budgets',
                     'description' => $this->showingFirst($budgetTotal, 'largest allocation first'),
                     'empty_message' => 'No approved budgets are recorded yet.',
-                    'rows' => $approvedBudgets->map(function ($b) use ($budgetOrgs, $spentByBudget, $budgetHref) {
+                    'rows' => $approvedBudgets->map(function ($b) use ($budgetOrgs, $spentByBudget, $ledgerByBudget, $budgetHref) {
                         $org = $budgetOrgs->get($b->organization_id);
                         $spent = (float) ($spentByBudget[$b->id] ?? 0);
                         $used = (float) $b->allocated_amount > 0 ? $spent / (float) $b->allocated_amount : 0;
+                        // Shown only when it adds up and its spent figure is the one on the row; a cash advance makes them differ.
+                        $entries = $ledgerByBudget->get($b->id);
+                        $working = $entries !== null && abs((float) $entries->expense - $spent) < 0.005
+                            ? $this->budgetWorking((float) $b->allocated_amount, (float) $entries->income, (float) $entries->expense, (float) $b->remaining_amount)
+                            : null;
 
                         return [
                             'id' => 'bud-'.$b->id,
                             'primary' => $b->title.' — '.($org?->acronym ?: ($org?->name ?? 'Organization')),
-                            'secondary' => sprintf('Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s', number_format((float) $b->allocated_amount, 2), number_format($spent, 2), number_format((float) $b->remaining_amount, 2)),
+                            'secondary' => sprintf('Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s', number_format((float) $b->allocated_amount, 2), number_format($spent, 2), number_format((float) $b->remaining_amount, 2)).($working === null ? '' : '. Working: '.$working),
                             'status' => round($used * 100).'% spent',
                             'status_tone' => $used >= 0.9 ? 'danger' : ($used >= 0.8 ? 'warning' : 'success'),
                             'meta' => '₱'.number_format((float) $b->remaining_amount, 2).' left',
@@ -3266,6 +3334,102 @@ class AskAiService
         ];
     }
 
+    /**
+     * The items an organization is running low on, lowest first, from the stock the merchandise page shows: an item is low
+     * at or under its own restock level and out at zero. Stock already has the units of unpaid orders taken out of it, so
+     * those are shown beside it and never added back. Delisted and deleted items are not asked about.
+     */
+    private function buildMerchandiseStock(User $user): array
+    {
+        if (in_array($user->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
+            return [
+                'title' => 'Merchandise Stock Levels',
+                'answer' => 'Merchandise stock is handled by each student organization, so there is no stock on your account. Ask the organization to check its own stock.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+                ],
+            ];
+        }
+
+        $orgId = (int) $user->organization_id;
+        $low = DB::table('merchandise')
+            ->where('organization_id', $orgId)
+            ->whereNull('deleted_at')
+            ->where('is_active', true)
+            ->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+        $total = (clone $low)->count();
+        $outCount = (clone $low)->where('stock_quantity', 0)->count();
+        $items = (clone $low)
+            ->orderBy('stock_quantity')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit(self::ROW_LIMIT)
+            ->get(['id', 'name', 'stock_quantity', 'low_stock_threshold']);
+
+        $heldQuery = fn () => DB::table('orders')
+            ->where('organization_id', $orgId)
+            ->where('status', 'pending')
+            ->where('stock_held', true);
+        $heldByItem = $heldQuery()->whereIn('merchandise_id', $items->pluck('id'))->selectRaw('merchandise_id, SUM(quantity) as units')->groupBy('merchandise_id')->pluck('units', 'merchandise_id');
+        $heldUnits = (int) $heldQuery()->whereIn('merchandise_id', (clone $low)->select('id'))->sum('quantity');
+
+        $href = $this->linkTo($user, '/dashboard/merchandise/manage-inventory', '/dashboard/merchandise/order-merchandise');
+        $actionLabel = $href !== null && str_contains($href, 'manage-inventory') ? 'Open inventory' : 'Open store';
+
+        $named = $items->take(3)->map(fn ($item) => (int) $item->stock_quantity === 0
+            ? $item->name.' is out of stock'
+            : $item->name.' has '.(int) $item->stock_quantity.' left')->all();
+        if ($total > 3) {
+            $named[] = ($total - 3).' more';
+        }
+
+        return [
+            'title' => 'Merchandise Stock Levels',
+            'answer' => $total === 0
+                ? 'Nothing is running low. Every active item is above its restock level.'
+                : sprintf('%d %s restocking: %s.', $total, $total === 1 ? 'item needs' : 'items need', $this->joinPhrases($named))
+                    .($heldUnits > 0
+                        ? ($heldUnits === 1
+                            ? ' 1 unit is held by an unpaid order and is not counted in the stock shown.'
+                            : " {$heldUnits} units are held by unpaid orders and are not counted in the stock shown.")
+                        : ''),
+            'highlights' => [
+                ['label' => 'Out of stock', 'value' => (string) $outCount, 'tone' => $outCount > 0 ? 'danger' : 'neutral'],
+                ['label' => 'Low stock', 'value' => (string) ($total - $outCount), 'tone' => $total - $outCount > 0 ? 'warning' : 'neutral'],
+                ['label' => 'Held by unpaid orders', 'value' => (string) $heldUnits, 'tone' => 'neutral'],
+            ],
+            'sections' => [
+                [
+                    'id' => 'merchandise-stock-list',
+                    'title' => 'Items Running Low',
+                    'description' => $this->showingFirst($total, 'lowest stock first'),
+                    'empty_message' => 'No active item is at or under its restock level.',
+                    'rows' => $items->map(fn ($item) => [
+                        'id' => 'stock-'.$item->id,
+                        'primary' => $item->name,
+                        'secondary' => sprintf(
+                            '%d left, restock at %d or fewer. %d held by unpaid orders.',
+                            (int) $item->stock_quantity,
+                            (int) $item->low_stock_threshold,
+                            (int) ($heldByItem[$item->id] ?? 0)
+                        ),
+                        'status' => (int) $item->stock_quantity === 0 ? 'Out of stock' : 'Low',
+                        'status_tone' => (int) $item->stock_quantity === 0 ? 'danger' : 'warning',
+                        'meta' => (int) $item->stock_quantity.' left',
+                        'href' => $href,
+                        'action_label' => $actionLabel,
+                    ])->all(),
+                ],
+            ],
+            'follow_ups' => [
+                ['topic' => 'merchandise_orders', 'label' => 'Which orders are waiting?', 'question' => 'Which merchandise orders are waiting?'],
+                ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+            ],
+        ];
+    }
+
     // -------------------------------------------------------------------------
     // Intent 9: Events & Attendance
     // -------------------------------------------------------------------------
@@ -3353,6 +3517,292 @@ class AskAiService
                     ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
                 ],
         ];
+    }
+
+    /**
+     * "Allocated plus income posted, minus spent, equals what is left", written out so a remaining amount above the
+     * allocation reads as checked. It is returned only when the figures from the ledger really add up to the remaining
+     * amount on the budget, and only when there is income or spending to show.
+     */
+    private function budgetWorking(float $allocated, float $income, float $spent, float $remaining): ?string
+    {
+        if (($income < 0.005 && $spent < 0.005) || abs($allocated + $income - $spent - $remaining) >= 0.005) {
+            return null;
+        }
+
+        return sprintf(
+            '₱%s allocated + ₱%s income posted - ₱%s spent = ₱%s left.',
+            number_format($allocated, 2),
+            number_format($income, 2),
+            number_format($spent, 2),
+            number_format($remaining, 2)
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Event readiness: one event, five checks, and who has to move next
+    // -------------------------------------------------------------------------
+
+    private const READINESS_FILLER_WORDS = [
+        'is', 'are', 'was', 'will', 'be', 'the', 'our', 'my', 'we', 'it', 'its', 'ready', 'for', 'to', 'go', 'all', 'set', 'good',
+        'how', 'prepared', 'on', 'track', 'readiness', 'of', 'a', 'an', 'yet', 'next', 'upcoming', 'this', 'that', 'event', 'events',
+        'activity', 'activities', 'program', 'check', 'tell', 'me', 'about', 'whether', 'if', 'can', 'you', 'now', 'status', 'still',
+        'almost', 'really', 'please', 'and', 'i', 'do', 'does', 'did', 'when', 'what', 'with', 'in', 'by', 'seminar', 'workshop',
+        'assembly', 'summit', 'concert', 'ceremony', 'tournament', 'competition',
+    ];
+
+    private function normalizeWords(string $text): string
+    {
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', Str::lower($text)));
+    }
+
+    /**
+     * The events of this organization the question names, as titles inside the question first, then the title without its
+     * year, then the words left once the question words are taken away. The first kind that finds any decides.
+     *
+     * @param  Collection<int, Event>  $events
+     * @return Collection<int, Event>
+     */
+    private function eventsNamedIn(Collection $events, string $question): Collection
+    {
+        $q = $this->normalizeWords($question);
+        $padded = " {$q} ";
+        $candidate = trim(implode(' ', array_diff(explode(' ', $q), self::READINESS_FILLER_WORDS)));
+        $titles = $events->mapWithKeys(fn (Event $event) => [$event->id => $this->normalizeWords((string) $event->title)]);
+        $contains = fn (string $haystack, string $needle) => $needle !== '' && str_contains(" {$haystack} ", " {$needle} ");
+
+        $tiers = [
+            fn (string $title) => $contains($q, $title),
+            fn (string $title) => strlen($withoutYear = trim((string) preg_replace('/\s(?:19|20)\d{2}$/', '', $title))) >= 3 && $withoutYear !== $title && $contains($q, $withoutYear),
+            fn (string $title) => strlen($candidate) >= 3 && $contains($title, $candidate),
+        ];
+
+        foreach ($tiers as $tier => $matches) {
+            $found = $events->filter(fn (Event $event) => $titles[$event->id] !== '' && $matches($titles[$event->id]));
+            if ($found->isEmpty()) {
+                continue;
+            }
+            // One event per title: the soonest one that has not passed, else the latest.
+            $found = $found->groupBy(fn (Event $event) => $titles[$event->id])
+                ->map(fn (Collection $same) => $same->first(fn (Event $event) => $event->end_time >= now()) ?? $same->last())
+                ->values();
+            if ($tier === 0 && $found->count() > 1) {
+                $names = $found->map(fn (Event $event) => $titles[$event->id]);
+                $longest = $found->filter(fn (Event $event) => $names->every(fn (string $other) => $other === $titles[$event->id] || str_contains(" {$titles[$event->id]} ", " {$other} ")));
+                $found = $longest->isEmpty() ? $found : $longest->values();
+            }
+
+            return $found->sortBy([['start_time', 'asc'], ['id', 'asc']])->values();
+        }
+
+        return collect();
+    }
+
+    private function buildEventReadiness(User $user, string $question): array
+    {
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)) {
+            return [
+                'title' => 'Event readiness',
+                'answer' => 'An event readiness checklist is kept by an organization head and officers from their own organization\'s records, so there is none on your account. What waits for your decision is under your approvals.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'pending_approvals', 'label' => 'What is waiting for me?', 'question' => 'What is waiting for my approval?'],
+                ],
+            ];
+        }
+
+        $orgId = (int) $user->organization_id;
+        $events = Event::where('organization_id', $orgId)->orderByDesc('start_time')->orderByDesc('id')->limit(300)->get()->sortBy([['start_time', 'asc'], ['id', 'asc']])->values();
+        $upcoming = $events->filter(fn (Event $event) => in_array($event->status, ['planning', 'approved', 'ongoing'], true) && $event->end_time >= now())->values();
+        $candidate = trim(implode(' ', array_diff(explode(' ', $this->normalizeWords($question)), self::READINESS_FILLER_WORDS)));
+        $matches = $candidate === '' ? collect() : $this->eventsNamedIn($events, $question);
+
+        if ($matches->count() > 1) {
+            $count = $matches->count();
+            $titles = $matches->pluck('title')->take(4)->all();
+            $listed = $count > 4 ? [...array_slice($titles, 0, 3), ($count - 3).' more'] : $titles;
+
+            return [
+                'title' => 'Which event do you mean?',
+                'answer' => sprintf('%s events match: %s. Tell me which one.', [2 => 'Two', 3 => 'Three', 4 => 'Four'][$count] ?? (string) $count, $this->joinPhrases($listed)),
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => array_map(fn (string $title) => ['topic' => 'event_readiness', 'label' => $title, 'question' => "Is {$title} ready?"], array_slice($titles, 0, 3)),
+            ];
+        }
+
+        $event = $matches->first();
+        if ($event === null && $candidate === '') {
+            $event = $upcoming->first();
+            if ($event === null) {
+                return $this->noEventToCheck('Your organization has no upcoming event to check.', []);
+            }
+        }
+        if ($event === null) {
+            $next = $upcoming->take(3)->pluck('title')->all();
+
+            return $this->noEventToCheck(
+                'I could not find an event named like that in your organization.'
+                    .($next === [] ? '' : sprintf(' Your next %s %s.', count($next) === 1 ? 'event is' : 'events are', $this->joinPhrases($next))),
+                $next
+            );
+        }
+
+        if (in_array($event->status, ['completed', 'cancelled'], true)) {
+            return [
+                'title' => $event->title.' readiness',
+                'answer' => "{$event->title} is {$event->status}, so there is nothing left to get ready.",
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [],
+            ];
+        }
+
+        $checks = $this->readinessChecks($user, $event);
+        $ready = count(array_filter($checks, fn (array $check) => $check['ready']));
+        $moves = array_values(array_filter(array_column($checks, 'move')));
+        $tasks = $checks[4];
+
+        return [
+            'title' => $event->title.' readiness',
+            'answer' => sprintf('%s is %d of %d ready. ', $event->title, $ready, count($checks))
+                .($moves === [] ? 'Nothing is waiting on anyone.' : 'Next moves: '.implode('; ', $moves).'.'),
+            'highlights' => [
+                ['label' => 'Ready', 'value' => sprintf('%d of %d', $ready, count($checks)), 'tone' => $ready === count($checks) ? 'success' : 'warning'],
+                ['label' => 'Tasks done', 'value' => $tasks['done_label'], 'tone' => 'neutral'],
+                ['label' => 'Overdue tasks', 'value' => (string) $tasks['overdue'], 'tone' => $tasks['overdue'] > 0 ? 'danger' : 'neutral'],
+            ],
+            'sections' => [
+                [
+                    'id' => 'event-readiness-checks',
+                    'title' => 'Readiness checks',
+                    'description' => $event->start_time ? 'Starts '.Carbon::parse($event->start_time)->format('M j, Y g:i A').'.' : null,
+                    'empty_message' => 'No checks are available for this event.',
+                    'rows' => array_map(fn (array $check) => [
+                        'id' => 'ready-'.$check['key'].'-'.$event->id,
+                        'primary' => $check['label'],
+                        'secondary' => $check['detail'],
+                        'status' => $check['status'],
+                        'status_tone' => $check['status'] === 'Not ready' ? 'warning' : ($check['status'] === 'Ready' ? 'success' : 'neutral'),
+                        'meta' => match ($check['status']) {
+                            'Ready' => 'Done',
+                            'Not required' => 'Not needed',
+                            default => 'Next: '.$check['owner'],
+                        },
+                        'href' => $check['href'],
+                        'action_label' => $check['action_label'],
+                    ], $checks),
+                ],
+            ],
+            'follow_ups' => [
+                ['topic' => 'tasks_workload', 'label' => 'Who has overdue tasks?', 'question' => 'Who has overdue or pending tasks in our organization?'],
+                ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+            ],
+        ];
+    }
+
+    private function noEventToCheck(string $answer, array $nextTitles): array
+    {
+        return [
+            'title' => 'Event readiness',
+            'answer' => $answer,
+            'highlights' => [],
+            'sections' => [],
+            'follow_ups' => array_map(fn (string $title) => ['topic' => 'event_readiness', 'label' => $title, 'question' => "Is {$title} ready?"], array_slice($nextTitles, 0, 2)),
+        ];
+    }
+
+    /**
+     * The five checks for one event, in the order a head works through them. A check with nothing to do reads Not
+     * required and counts as ready; one that is not ready names whose move it is.
+     *
+     * @return array<int, array{key: string, label: string, ready: bool, status: string, detail: string, owner: string, move: ?string, href: ?string, action_label: string}>
+     */
+    private function readinessChecks(User $user, Event $event): array
+    {
+        $eventsHref = $this->linkTo($user, "/dashboard/events/manage-events?event={$event->id}", '/dashboard/events/activity-calendar');
+        $check = fn (string $key, string $label, string $status, string $detail, string $owner, ?string $move, ?string $href, string $action) => [
+            'key' => $key, 'label' => $label, 'ready' => $status !== 'Not ready', 'status' => $status, 'detail' => $detail,
+            'owner' => $owner, 'move' => $status === 'Not ready' ? $move : null, 'href' => $href, 'action_label' => $action,
+        ];
+        $you = 'your organization';
+
+        // 1. The event's own approval.
+        $stage = $this->eventApprovals->describe([$event])[$event->id]['approval_stage'] ?? 'not_submitted';
+        [$approvalDetail, $approvalOwner, $approvalMove] = match ($stage) {
+            'approved' => ['The event is approved.', $you, null],
+            'awaiting_department_head' => ['Waiting for the Department Head to decide.', 'the Department Head', 'the Department Head decides the event'],
+            'awaiting_sao' => ['Waiting for the SAO to decide.', 'the SAO', 'the SAO decides the event'],
+            'rejected' => ['The Department Head sent the event back.', $you, 'your organization revises and resubmits the event'],
+            'requirements_returned' => ['The SAO sent the event files back.', $you, 'your organization fixes the returned files'],
+            'awaiting_requirements' => ['The required files are not all uploaded yet.', $you, 'your organization uploads the required files'],
+            default => ['The event has not been sent for approval yet.', $you, 'your organization sends the event for approval'],
+        };
+        $approval = $check('approval', 'Event approval', $stage === 'approved' ? 'Ready' : 'Not ready', $approvalDetail, $approvalOwner, $approvalMove, $eventsHref, 'Open event');
+
+        // 2. The venue booking, newest request first.
+        $booking = DB::table('venue_bookings')
+            ->leftJoin('venues', 'venues.id', '=', 'venue_bookings.venue_id')
+            ->where('venue_bookings.event_id', $event->id)
+            ->orderByDesc('venue_bookings.id')
+            ->first(['venue_bookings.status', 'venue_bookings.off_campus_location', 'venues.name as venue_name']);
+        $venueName = $booking?->venue_name ?: ($booking?->off_campus_location ?: 'The venue');
+        $venue = match (true) {
+            $booking === null => $check('venue', 'Venue booking', 'Not ready', 'No venue booking has been requested yet.', $you, 'your organization books the venue', null, 'Open venues'),
+            $booking->status === 'approved' => $check('venue', 'Venue booking', 'Ready', "{$venueName}, booking approved.", 'the SAO', null, null, 'Open venues'),
+            $booking->status === 'rejected' => $check('venue', 'Venue booking', 'Not ready', "{$venueName}, booking rejected.", $you, 'your organization books another venue', null, 'Open venues'),
+            default => $check('venue', 'Venue booking', 'Not ready', "{$venueName}, booking pending.", 'the SAO', 'the SAO decides the venue booking', null, 'Open venues'),
+        };
+        $venue['href'] = $this->linkTo($user, "/dashboard/venues?event={$event->id}", '/dashboard/venues');
+
+        // 3. The budget filed for the event.
+        $budgets = DB::table('budgets')->where('event_id', $event->id)->orderByDesc('id')->get(['allocated_amount', 'submission_status']);
+        $approvedBudgets = $budgets->where('submission_status', 'approved');
+        $budgetHref = $this->linkTo($user, "/dashboard/finance/budget-allocation?event={$event->id}", '/dashboard/finance/budget-allocation');
+        $budget = match (true) {
+            $approvedBudgets->isNotEmpty() => $check('budget', 'Budget', 'Ready', '₱'.number_format((float) $approvedBudgets->sum('allocated_amount'), 2).' approved for this event.', 'the Department Head', null, $budgetHref, 'Open budget'),
+            $budgets->isEmpty() && ! $event->requires_budget => $check('budget', 'Budget', 'Not required', 'No budget is required for this event.', $you, null, $budgetHref, 'Open budget'),
+            $budgets->isEmpty() => $check('budget', 'Budget', 'Not ready', 'No budget request has been filed yet.', $you, 'your organization files the budget request', $budgetHref, 'Open budget'),
+            $budgets->first()->submission_status === 'pending_department_head' => $check('budget', 'Budget', 'Not ready', 'Budget request is waiting for the Department Head.', 'the Department Head', 'the Department Head decides the budget', $budgetHref, 'Open budget'),
+            $budgets->first()->submission_status === 'pending_sao' => $check('budget', 'Budget', 'Not ready', 'Budget request is waiting for the SAO.', 'the SAO', 'the SAO decides the budget', $budgetHref, 'Open budget'),
+            $budgets->first()->submission_status === 'rejected' => $check('budget', 'Budget', 'Not ready', 'The budget request was rejected.', $you, 'your organization revises the budget request', $budgetHref, 'Open budget'),
+            default => $check('budget', 'Budget', 'Not ready', 'The budget request is a draft.', $you, 'your organization submits the budget request', $budgetHref, 'Open budget'),
+        };
+
+        // 4. The files the SAO asks for: uploaded, then marked.
+        $requiredIds = EventRequirement::activeForEvent($event)->where('is_optional', false)->pluck('id');
+        $uploaded = EventRequirementFile::where('event_id', $event->id)->get(['id', 'requirement_id']);
+        $uploadedRequired = $uploaded->whereIn('requirement_id', $requiredIds)->count();
+        $returned = $uploaded->isEmpty() ? 0 : EventRequirementFileReview::where('status', 'needs_changes')->whereIn('event_requirement_file_id', $uploaded->pluck('id'))->distinct()->count('event_requirement_file_id');
+        $required = $requiredIds->count();
+        $files = match (true) {
+            $required === 0 => $check('files', 'Required files', 'Not required', 'No required files apply to this event.', $you, null, $eventsHref, 'Open files'),
+            $uploadedRequired < $required => $check('files', 'Required files', 'Not ready', "{$uploadedRequired} of {$required} required files uploaded".($returned > 0 ? ", {$returned} returned for changes." : '.'), $you, 'your organization uploads the missing files', $eventsHref, 'Open files'),
+            $returned > 0 => $check('files', 'Required files', 'Not ready', "{$required} of {$required} required files uploaded, {$returned} returned for changes.", $you, 'your organization fixes the returned files', $eventsHref, 'Open files'),
+            $stage === 'approved' => $check('files', 'Required files', 'Ready', "{$required} of {$required} required files uploaded and approved.", 'the SAO', null, $eventsHref, 'Open files'),
+            default => $check('files', 'Required files', 'Ready', "{$required} of {$required} required files uploaded, waiting for review.", 'the SAO', null, $eventsHref, 'Open files'),
+        };
+
+        // 5. The tasks set for the event; one past its deadline and not finished is overdue even before the nightly mark.
+        $tasks = DB::table('tasks')->where('event_id', $event->id)->orderBy('deadline')->orderBy('id')->get(['title', 'status', 'deadline', 'assigned_to']);
+        $open = $tasks->where('status', '!=', 'completed');
+        $overdue = $open->filter(fn ($task) => $task->status === 'overdue' || Carbon::parse($task->deadline)->isPast());
+        $next = $overdue->first() ?? $open->first();
+        $assignee = $next?->assigned_to === null ? null : DB::table('users')->where('school_id', $next->assigned_to)->first(['first_name', 'last_name']);
+        $assigneeName = $assignee === null ? null : trim($assignee->first_name.' '.$assignee->last_name);
+        $done = $tasks->count() - $open->count();
+        $taskDetail = "{$done} of {$tasks->count()} tasks done".($overdue->isEmpty() ? '.' : ", {$overdue->count()} overdue.");
+        $tasksCheck = match (true) {
+            $tasks->isEmpty() => $check('tasks', 'Tasks', 'Not required', 'No tasks are set for this event.', $you, null, null, 'Open tasks'),
+            $open->isEmpty() => $check('tasks', 'Tasks', 'Ready', $taskDetail, $you, null, null, 'Open tasks'),
+            default => $check('tasks', 'Tasks', 'Not ready', $taskDetail, $assigneeName ?: $you, $assigneeName ? "{$assigneeName} finishes {$next->title}" : "your organization assigns {$next->title}", null, 'Open tasks'),
+        };
+        $tasksCheck['href'] = $this->linkTo($user, '/dashboard/tasks/task-board', '/dashboard/tasks/assigned-tasks');
+        $tasksCheck['done_label'] = $tasks->isEmpty() ? 'No tasks' : "{$done} of {$tasks->count()}";
+        $tasksCheck['overdue'] = $overdue->count();
+
+        return [$approval, $venue, $budget, $files, $tasksCheck];
     }
 
     // -------------------------------------------------------------------------
