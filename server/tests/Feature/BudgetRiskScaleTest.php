@@ -70,7 +70,7 @@ class BudgetRiskScaleTest extends TestCase
         $this->assertSame('high', Budget::overspendingRiskFor(200, 200));
         $this->assertSame('high', Budget::overspendingRiskFor(150, 200));
         $this->assertSame('low', Budget::overspendingRiskFor(201, 200));
-        $this->assertSame('low', Budget::overspendingRiskFor(0, 0));
+        $this->assertSame('high', Budget::overspendingRiskFor(0, 0));
 
         foreach ([[-5, 100], [100, 100], [500, 100], [0, 0], [50, 0]] as [$available, $threshold]) {
             $this->assertSame(

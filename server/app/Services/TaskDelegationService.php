@@ -83,10 +83,11 @@ class TaskDelegationService
         foreach ($officers as $officer) {
             $history = $this->statsFor($stats, $officer->school_id);
             $active = $history['active'];
+            $canonical = $this->canonicalPosition($officer->position_title, $activePositions);
             $eligibilityResult = match (true) {
                 ! $this->accountIsActive($officer) => 'inactive_account',
                 trim((string) $officer->position_title) === '' => 'missing_position',
-                ! in_array($officer->position_title, $activePositions, true) => 'inactive_position',
+                $canonical === null => 'inactive_position',
                 $active >= $maxActive => 'overloaded',
                 default => 'eligible',
             };
@@ -112,7 +113,7 @@ class TaskDelegationService
 
             $completed = $history['completed'];
             $overdue = $history['overdue'];
-            [$roleScore, $tier] = $this->roleScore($officer->position_title, $area);
+            [$roleScore, $tier] = $this->roleScore($canonical, $area);
             $workloadScore = round(100 * (1 - ($active / $maxActive)), 2);
             $hasHistory = ($completed + $overdue) > 0;
             $performanceScore = $hasHistory ? round($completed / ($completed + $overdue) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
@@ -129,7 +130,7 @@ class TaskDelegationService
             $ranking = [
                 'officer_id' => $officer->school_id,
                 'name' => trim("{$officer->first_name} {$officer->last_name}"),
-                'position_title' => $officer->position_title,
+                'position_title' => $canonical,
                 'position_tier' => $tier,
                 'role_score' => $roleScore,
                 'workload_score' => $workloadScore,
@@ -156,7 +157,7 @@ class TaskDelegationService
         $recommended = $rankings[0]['officer_id'] ?? null;
         if ($preferredRole !== null && trim($preferredRole) !== '') {
             foreach ($rankings as $ranking) {
-                if (strcasecmp(trim((string) $ranking['position_title']), trim($preferredRole)) === 0) {
+                if (SboPosition::normaliseTitle((string) $ranking['position_title']) === SboPosition::normaliseTitle($preferredRole)) {
                     $recommended = $ranking['officer_id'];
                     break;
                 }
@@ -240,6 +241,31 @@ class TaskDelegationService
             ->where('is_active', true)
             ->pluck('title')
             ->all();
+    }
+
+    /**
+     * The active position row an officer's saved title stands for: an exact match first, then the same
+     * title once case, spacing and dash type are ignored (the way hand-overs and venue booking match seats).
+     *
+     * @param  list<string>  $activeTitles
+     */
+    public function canonicalPosition(?string $title, array $activeTitles): ?string
+    {
+        $title = trim((string) $title);
+        if ($title === '') {
+            return null;
+        }
+        if (in_array($title, $activeTitles, true)) {
+            return $title;
+        }
+        $wanted = SboPosition::normaliseTitle($title);
+        foreach ($activeTitles as $active) {
+            if (SboPosition::normaliseTitle($active) === $wanted) {
+                return $active;
+            }
+        }
+
+        return null;
     }
 
     /**

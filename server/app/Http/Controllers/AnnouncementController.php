@@ -27,6 +27,12 @@ class AnnouncementController extends Controller
 {
     private const DRAFT_CONTEXT = 'announcement-v2';
 
+    /** A draft the provider wrote and billed but the checks rejected: it still counts toward the daily quota. */
+    private const REJECTED_CONTEXT = 'announcement-rejected-v1';
+
+    /** A reserved slot that has been pending longer than the provider deadline plus a margin belongs to a request that died. */
+    private const PENDING_GRACE_MINUTES = 2;
+
     private const BODY_MESSAGES = ['body.max' => 'The announcement text can be at most 10,000 characters.'];
 
     public function __construct(
@@ -107,10 +113,16 @@ class AnnouncementController extends Controller
                 450,
                 0.4,
             );
+            $providerWrote = (bool) $generated;
+            $rejection = null;
             if ($generated) {
                 $generated['text'] = $this->ai->plainText($generated['text']);
-                if ($generated['text'] === ''
-                    || ! $this->ai->preservesNumericFacts($generated['text'], [$data['title'], $data['details'] ?? ''])) {
+                if ($generated['text'] === '') {
+                    $rejection = 'empty';
+                } elseif (! $this->keepsTheOfficersNumbers($generated['text'], $data['title'], $data['details'] ?? '')) {
+                    $rejection = 'numbers';
+                }
+                if ($rejection) {
                     $generated = null;
                 }
             }
@@ -122,7 +134,7 @@ class AnnouncementController extends Controller
 
         $isTemplate = ! $generated;
         if ($isTemplate) {
-            $generated = ['text' => $this->fallbackAnnouncementDraft($data, $audience), 'model' => 'template-draft'];
+            $generated = ['text' => $this->fallbackAnnouncementDraft($data), 'model' => 'template-draft'];
         }
 
         $output = $generated['text'];
@@ -131,7 +143,7 @@ class AnnouncementController extends Controller
         $aiOutput->update([
             'output_text' => $output,
             'model_name' => $model,
-            'context_version' => $isTemplate ? 'announcement-template-v1' : self::DRAFT_CONTEXT,
+            'context_version' => ! $isTemplate ? self::DRAFT_CONTEXT : ($providerWrote ? self::REJECTED_CONTEXT : 'announcement-template-v1'),
             'structured_output' => ['body' => $output],
             'status' => 'completed',
         ]);
@@ -148,7 +160,7 @@ class AnnouncementController extends Controller
             'ai_output_id' => $aiOutput->id,
             'model_name' => $model,
             'is_template' => $isTemplate,
-            'notice' => $isTemplate ? 'This is a template draft because the AI writer is not available right now. '.(filled($data['details'] ?? null) ? 'Your notes were inserted as written. Check them and add any missing details before you post it.' : 'Add the date, place and other details before you post it.') : null,
+            'notice' => $isTemplate ? $this->templateNotice($rejection, filled($data['details'] ?? null)) : null,
             'quota' => $this->announcementGenerationQuota($request),
         ]);
     }
@@ -402,6 +414,7 @@ class AnnouncementController extends Controller
                 ->where('requested_by', $user->school_id)
                 ->where('feature_type', 'ANNOUNCEMENT_DRAFT')
                 ->where('decision_status', 'pending')
+                ->where('status', 'completed')
                 ->find($data['ai_output_id']);
             if (! $draftOutput) {
                 return response()->json(['message' => 'The selected AI draft is not available to this user.'], 422);
@@ -748,17 +761,74 @@ class AnnouncementController extends Controller
         }
     }
 
-    private function fallbackAnnouncementDraft(array $data, string $audience): string
+    private function templateNotice(?string $rejection, bool $hasDetails): string
     {
-        $lines = ["This announcement for {$audience} is about {$data['title']}."];
-        if (($data['category'] ?? 'general') !== 'general') {
-            $lines[] = 'Category: '.ucfirst($data['category']).'.';
-        }
-        $details = trim((string) ($data['details'] ?? ''));
+        $reason = [
+            'numbers' => 'The AI draft added a date, time or number you did not give, so a template was used instead. Check the date, time and fees in your notes.',
+            'empty' => 'The AI writer sent back an empty draft, so a template was used instead.',
+        ][$rejection] ?? 'The AI writer did not send back a draft this time, so a template was used instead.';
+
+        return 'This is a template draft. '.$reason.' '.($hasDetails
+            ? 'Your notes were inserted as written, except instructions about tone. Check them and add any missing details before you post it.'
+            : 'Add the date, place and other details before you post it.');
+    }
+
+    private function fallbackAnnouncementDraft(array $data): string
+    {
+        $lines = [rtrim($data['title'], '.:').': please read the details below.'];
+        $sentences = preg_split('/(?<=[.!?])\s+/u', trim((string) ($data['details'] ?? ''))) ?: [];
+        $details = trim(implode(' ', array_filter($sentences, fn (string $sentence) => ! preg_match('/\btone\b/iu', $sentence))));
         $lines[] = $details !== '' ? $details : 'Date and venue: to be announced.';
-        $lines[] = 'If you have questions, please ask your organization officers.';
+        $lines[] = in_array($data['target_role'], ['all', 'STUDENT'], true)
+            ? 'If you have questions, please ask your organization officers.'
+            : 'If you have questions, please contact the person who posted this announcement.';
 
         return implode("\n\n", $lines);
+    }
+
+    /**
+     * The draft may restate the officer's times and dates in any ordinary written form ("3pm" as "3:00 PM",
+     * "Nov 20" as "November 20, 2026" or "11/20") but may not add a number the officer did not give.
+     */
+    private function keepsTheOfficersNumbers(string $draft, string $title, string $details): bool
+    {
+        $facts = $title."\n".$details;
+        $extras = [(int) now()->year, (int) now()->year + 1];
+        if (preg_match('/(?<![\pL])[ap]\.?m\b/iu', $facts)) {
+            preg_match_all('/(?<![\pL\pN:.,])\d{1,2}(?![\pN])/u', $facts, $hours);
+            foreach ($hours[0] as $hour) {
+                if ($hour >= 1 && $hour <= 12) {
+                    array_push($extras, (int) $hour, (int) $hour + 12);
+                }
+            }
+        }
+        foreach (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as $index => $month) {
+            if (preg_match('/\b'.$month.'[a-z]*\b/iu', $facts)) {
+                $extras[] = $index + 1;
+            }
+        }
+
+        return $this->ai->preservesNumericFacts($this->withClockTimesAsNumbers($draft), [$this->withClockTimesAsNumbers($facts), $extras]);
+    }
+
+    /** "3pm", "3 PM" and "3:00 PM" all become 15; "10:30am" and "10:30" become 10.30, so ":00" is never read as a separate 0. */
+    private function withClockTimesAsNumbers(string $text): string
+    {
+        $text = preg_replace_callback(
+            '/(?<![\pL\pN:.,])(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b\.?/iu',
+            function (array $match) {
+                $hour = ((int) $match[1]) % 12 + (strtolower($match[3]) === 'p' ? 12 : 0);
+
+                return ($match[2] ?? '') !== '' && (int) $match[2] > 0 ? $hour.'.'.$match[2] : (string) $hour;
+            },
+            $text,
+        ) ?? $text;
+
+        return preg_replace_callback(
+            '/(?<![\pL\pN:.,])(\d{1,2}):(\d{2})(?![\pN])/u',
+            fn (array $match) => (int) $match[2] > 0 ? $match[1].'.'.$match[2] : $match[1],
+            $text,
+        ) ?? $text;
     }
 
     private function announcementGenerationQuota(Request $request): array
@@ -768,7 +838,8 @@ class AnnouncementController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->where('requested_by', $request->user()->school_id)
             ->where('feature_type', 'ANNOUNCEMENT_DRAFT')
-            ->where('context_version', self::DRAFT_CONTEXT)
+            ->whereIn('context_version', [self::DRAFT_CONTEXT, self::REJECTED_CONTEXT])
+            ->where(fn ($query) => $query->where('status', '!=', 'pending')->orWhere('created_at', '>=', now()->subMinutes(self::PENDING_GRACE_MINUTES)))
             ->whereDate('created_at', now()->toDateString())
             ->count();
 

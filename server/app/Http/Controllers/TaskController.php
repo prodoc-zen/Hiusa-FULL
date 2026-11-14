@@ -8,6 +8,7 @@ use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Notification;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\TaskProgressUpdate;
 use App\Models\User;
@@ -265,7 +266,7 @@ class TaskController extends Controller
         $data = $this->normalizeDeadline($request->validate($this->rules(true)));
 
         if (isset($data['deadline'])) {
-            $deadlineError = $this->changedDeadlineError($task, Carbon::parse($data['deadline']));
+            $deadlineError = $this->changedDeadlineError($task, $this->localTime($data['deadline']));
             if ($deadlineError !== null) {
                 return response()->json(['message' => $deadlineError, 'errors' => ['deadline' => [$deadlineError]]], 422);
             }
@@ -442,8 +443,10 @@ class TaskController extends Controller
     // A task due on a date is due at the end of that day, so a bare date is stored as 23:59:59 rather than midnight.
     private function normalizeDeadline(array $data): array
     {
-        if (isset($data['deadline']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) $data['deadline']))) {
-            $data['deadline'] = Carbon::parse(trim($data['deadline']), config('app.timezone'))->endOfDay()->toDateTimeString();
+        if (isset($data['deadline'])) {
+            $data['deadline'] = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string) $data['deadline']))
+                ? Carbon::parse(trim($data['deadline']), config('app.timezone'))->endOfDay()->toDateTimeString()
+                : $this->localTime($data['deadline'])->toDateTimeString();
         }
 
         return $data;
@@ -642,7 +645,8 @@ class TaskController extends Controller
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $area = $this->delegation->inferArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type'));
-        [$roleScore, $tier] = $this->delegation->roleScore($assignee->position_title, $area);
+        $position = $this->delegation->canonicalPosition($assignee->position_title, $this->activePositions($request)) ?? $assignee->position_title;
+        [$roleScore, $tier] = $this->delegation->roleScore($position, $area);
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
         $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : TaskDelegationService::NEUTRAL_PERFORMANCE_SCORE;
@@ -654,7 +658,7 @@ class TaskController extends Controller
         $scores = [
             'officer_id' => $assignee->school_id,
             'name' => trim("{$assignee->first_name} {$assignee->last_name}"),
-            'position_title' => $assignee->position_title,
+            'position_title' => $position,
             'position_tier' => $tier,
             'task_area' => $area,
             'role_score' => $roleScore,
@@ -700,7 +704,7 @@ class TaskController extends Controller
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $candidates = $this->delegation->officerPool($request->user()->organization_id)
             ->filter(fn (User $officer) => $officer->account_status === 'active')
-            ->when($request->filled('preferred_role'), fn (Collection $pool) => $pool->filter(fn (User $officer) => $officer->position_title === $request->preferred_role))
+            ->when($request->filled('preferred_role'), fn (Collection $pool) => $pool->filter(fn (User $officer) => $this->holdsPreferredRole($officer, $request)))
             ->values();
         $officers = $this->eligibleOfficers($request);
 
@@ -764,15 +768,16 @@ class TaskController extends Controller
     {
         $history = $this->statsFor($request, $officer);
         $activeTasks = $history['active'];
+        $canonical = $this->delegation->canonicalPosition($officer->position_title, $this->activePositions($request));
 
         return [
             'officer_id' => $officer->school_id,
             'name' => trim("{$officer->first_name} {$officer->last_name}"),
             'role' => $officer->role,
-            'position_title' => $officer->position_title,
+            'position_title' => $canonical ?? $officer->position_title,
             'account_status' => $this->delegation->accountIsActive($officer) ? 'active' : 'inactive',
             'is_available' => $activeTasks < (int) config('services.hiusa_ai.task_max_active_tasks', 5),
-            'policy_eligible' => in_array($officer->position_title, $this->activePositions($request), true),
+            'policy_eligible' => $canonical !== null,
             'active_tasks' => $activeTasks,
             'completed_tasks' => $history['completed'],
             'overdue_tasks' => $history['overdue'],
@@ -802,6 +807,13 @@ class TaskController extends Controller
         return $this->delegation->statsFor($this->officerStats, $officer->school_id);
     }
 
+    private function holdsPreferredRole(User $officer, Request $request): bool
+    {
+        $held = $this->delegation->canonicalPosition($officer->position_title, $this->activePositions($request)) ?? trim((string) $officer->position_title);
+
+        return SboPosition::normaliseTitle($held) === SboPosition::normaliseTitle((string) $request->preferred_role);
+    }
+
     /** @return Collection<int, User> */
     private function eligibleOfficers(Request $request): Collection
     {
@@ -810,8 +822,8 @@ class TaskController extends Controller
         return $this->delegation->officerPool($request->user()->organization_id)
             ->filter(fn (User $officer) => $this->delegation->accountIsActive($officer)
                 && trim((string) $officer->position_title) !== ''
-                && in_array($officer->position_title, $activePositions, true)
-                && (! $request->filled('preferred_role') || $officer->position_title === $request->preferred_role))
+                && $this->delegation->canonicalPosition($officer->position_title, $activePositions) !== null
+                && (! $request->filled('preferred_role') || $this->holdsPreferredRole($officer, $request)))
             ->values();
     }
 
@@ -857,7 +869,7 @@ class TaskController extends Controller
     private function assignmentExplanation(array $taskData, User $assignee, array $scores): string
     {
         $area = $scores['task_area'] ?? $this->delegation->inferArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['category'] ?? $taskData['task_type'] ?? null);
-        $tier = $scores['position_tier'] ?? $this->delegation->roleScore($assignee->position_title, $area)[1];
+        $tier = $scores['position_tier'] ?? $this->delegation->roleScore($this->delegation->canonicalPosition($assignee->position_title, $this->activePositionTitles ?? []) ?? $assignee->position_title, $area)[1];
         $tierPhrase = $this->delegation->tierPhrase($tier);
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
 

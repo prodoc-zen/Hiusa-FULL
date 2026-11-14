@@ -122,7 +122,7 @@ class FinancialForecastController extends Controller
             $analysis['fit_quality'] = 'insufficient_data';
             $analysis['confidence_note'] = $recordedMonths === 0
                 ? 'No transaction history is available. These zero amounts are placeholders, not a reliable forecast.'
-                : 'Only one month has transactions. This projection repeats that month and is not a reliable trend.';
+                : 'Only one month has transactions, so there is no trend to project. Treat these amounts as placeholders, not a forecast.';
         }
         $analysis['confidence_note'] = trim(($analysis['confidence_note'] ?? '').' The current unfinished month is left out of the trend.');
         $nextPeriod = $this->periodStart($analysis['forecast_period']);
@@ -460,7 +460,7 @@ class FinancialForecastController extends Controller
         $fundsSentence = ' With PHP '.number_format($currentFunds, 2).' in approved budgets, the estimated available budget is PHP '.number_format($estimatedAvailable, 2).'.';
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds.{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
-            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2)."{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.';
+            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', and expected expenses are PHP '.number_format($expense, 2).".{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.';
         if (! $isReliable && $reliabilityNote) {
             $fallback .= " {$reliabilityNote}";
         }

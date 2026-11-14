@@ -58,8 +58,6 @@ class BudgetController extends Controller
             'warning_threshold' => ['required', 'numeric', 'min:0', 'lte:allocated_amount'],
             'event_id' => ['nullable', 'exists:events,id'],
             'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
-            'advisory_note' => ['nullable', 'string'],
-            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
         if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
@@ -70,6 +68,7 @@ class BudgetController extends Controller
             $budget = Budget::create([
                 ...$data,
                 'remaining_amount' => $data['allocated_amount'],
+                'overspending_risk' => Budget::overspendingRiskFor((float) $data['allocated_amount'], (float) $data['warning_threshold']),
                 'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
                 'organization_id' => $request->user()->organization_id,
             ]);
@@ -107,8 +106,6 @@ class BudgetController extends Controller
             'warning_threshold' => ['sometimes', 'required', 'numeric', 'min:0'],
             'event_id' => ['nullable', 'exists:events,id'],
             'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
-            'advisory_note' => ['nullable', 'string'],
-            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
         if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
@@ -229,6 +226,7 @@ class BudgetController extends Controller
 
         $forecast = $this->currentForecast($budget->organization_id);
         $share = $forecast ? $this->allocationShare($budget) : 0.0;
+        $forecastStatus = ! $forecast ? 'missing' : ($share > 0 ? 'used' : 'not_applied');
         $payload = [
             'predicted_income' => round((float) ($forecast?->predicted_income ?? 0) * $share, 2),
             'predicted_expense' => round((float) ($forecast?->predicted_expense ?? 0) * $share, 2),
@@ -239,7 +237,7 @@ class BudgetController extends Controller
         ];
         $inputs = [
             ...$payload,
-            'forecast_status' => $forecast ? 'used' : 'missing',
+            'forecast_status' => $forecastStatus,
             'forecast_period' => $forecast?->forecast_period,
             'budget_share' => round($share, 4),
         ];
@@ -250,8 +248,10 @@ class BudgetController extends Controller
             $advice = BudgetAdviceRules::evaluate($payload);
             $engine = 'php-fallback';
         }
-        if (! $forecast) {
+        if ($forecastStatus === 'missing') {
             $advice['advice'] = 'No current forecast was available, so this advice uses the budget balance only. '.$advice['advice'];
+        } elseif ($forecastStatus === 'not_applied') {
+            $advice['advice'] = 'This budget is outside the current semester, so the advice uses its balance only. '.$advice['advice'];
         }
         $advice['inputs'] = $inputs;
 
@@ -324,7 +324,7 @@ class BudgetController extends Controller
             'budget' => $freshBudget,
             'forecast_id' => $forecast?->id,
             'forecast_period' => $forecast?->forecast_period,
-            'forecast_status' => $forecast ? 'used' : 'missing',
+            'forecast_status' => $forecastStatus,
             'engine' => $engine,
             'advice' => $advice,
         ]);
@@ -351,8 +351,13 @@ class BudgetController extends Controller
             return 0.0;
         }
 
+        $semester = AcademicSemester::active();
+        if (! SemesterScope::budgets(Budget::whereKey($budget->id), $semester)->exists()) {
+            return 0.0;
+        }
+
         $approved = (float) SemesterScope::budgets(Budget::where('organization_id', $budget->organization_id)
-            ->where('submission_status', 'approved'), AcademicSemester::active())->sum('allocated_amount');
+            ->where('submission_status', 'approved'), $semester)->sum('allocated_amount');
 
         return $allocated / max($approved, $allocated);
     }

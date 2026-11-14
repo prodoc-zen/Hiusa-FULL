@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AnnouncementDraftAuditFixesTest extends TestCase
@@ -50,11 +51,10 @@ class AnnouncementDraftAuditFixesTest extends TestCase
 
         $text = $response->json('output_text');
         $this->assertStringContainsString('Assembly is on September 30 at 2:00 PM. Bring your ID.', $text);
-        $this->assertStringContainsString('Students', $text);
-        $this->assertStringContainsString('Category: Events.', $text);
+        $this->assertStringStartsWith('General Assembly: please read the details below.', $text);
+        $this->assertStringNotContainsString('Category:', $text);
         $this->assertStringNotContainsString('HIUSA', $text);
         $this->assertStringNotContainsString('to be announced', $text);
-        $this->assertStringStartsNotWith('General Assembly', $text);
         $this->assertStringContainsString('inserted as written', $response->json('notice'));
     }
 
@@ -154,5 +154,131 @@ class AnnouncementDraftAuditFixesTest extends TestCase
         }
 
         $this->assertDatabaseCount('ai_outputs', 0);
+    }
+
+    private function providerReturns(string $text): void
+    {
+        config(['services.groq.key' => 'test-key', 'services.anthropic.key' => '']);
+        Http::fake(['*' => Http::response(['id' => 'x', 'model' => 'test-model', 'output_text' => $text])]);
+    }
+
+    /** @return array<string, array{string, string, string}> */
+    public static function ordinaryRewordings(): array
+    {
+        $year = now()->year;
+
+        return [
+            'time with minutes added and a year' => ['Nov 20, 3pm, Room 204', "The meeting starts at 3:00 PM on November 20, {$year} in Room 204.", 'Assembly'],
+            'time range' => ['8 to 10:30am', 'The session runs from 8:00 to 10:30 AM.', 'Workshop'],
+            'weekday date with the year' => ['Friday Nov 20', "Join us on Friday, November 20, {$year}.", 'Orientation'],
+            'afternoon range' => ['3 to 5pm at the gym', 'Come from 3:00 PM to 5:00 PM at the gym.', 'Sports day'],
+            'numeric date from a month name' => ['November 20 at 9am', 'On 11/20 at 9:00 AM we meet.', 'Meeting'],
+            'dotted meridiem' => ['Starts 2 p.m.', 'It starts at 2:00 P.M.', 'Kickoff'],
+        ];
+    }
+
+    #[DataProvider('ordinaryRewordings')]
+    public function test_a_draft_that_restates_the_officers_time_or_date_is_kept(string $details, string $draft, string $title): void
+    {
+        $this->providerReturns($draft);
+        Sanctum::actingAs($this->admin());
+
+        $this->postJson('/api/announcements/generate-draft', ['title' => $title, 'target_role' => 'all', 'details' => $details])
+            ->assertOk()
+            ->assertJsonPath('is_template', false)
+            ->assertJsonPath('notice', null);
+    }
+
+    public function test_a_draft_with_a_different_time_or_fee_is_rejected_and_the_notice_says_why(): void
+    {
+        $this->providerReturns('The meeting starts at 4:00 PM on November 20.');
+        Sanctum::actingAs($this->admin());
+
+        $notice = $this->postJson('/api/announcements/generate-draft', ['title' => 'Assembly', 'target_role' => 'all', 'details' => 'Nov 20, 3pm'])
+            ->assertOk()
+            ->assertJsonPath('is_template', true)
+            ->json('notice');
+
+        $this->assertStringContainsString('added a date, time or number you did not give', $notice);
+        $this->assertStringNotContainsString('not available', $notice);
+    }
+
+    public function test_the_notice_never_says_the_service_is_down_when_no_draft_came_back(): void
+    {
+        config(['services.groq.key' => '', 'services.anthropic.key' => '']);
+        Http::fake();
+        Sanctum::actingAs($this->admin());
+
+        $notice = $this->postJson('/api/announcements/generate-draft', ['title' => 'Assembly', 'target_role' => 'all'])->json('notice');
+
+        $this->assertStringNotContainsString('not available', $notice);
+        $this->assertStringContainsString('did not send back a draft', $notice);
+    }
+
+    public function test_provider_drafts_that_the_checks_reject_still_count_toward_the_daily_quota(): void
+    {
+        config(['services.groq.announcement_daily_limit' => 2]);
+        $this->providerReturns('The meeting starts at 4:45 PM.');
+        Sanctum::actingAs($this->admin());
+        $payload = ['title' => 'Assembly', 'target_role' => 'all', 'details' => 'Nov 20, 3pm'];
+
+        $this->postJson('/api/announcements/generate-draft', $payload)->assertOk()->assertJsonPath('is_template', true)->assertJsonPath('quota.remaining', 1);
+        $this->postJson('/api/announcements/generate-draft', $payload)->assertOk()->assertJsonPath('quota.remaining', 0);
+        $this->postJson('/api/announcements/generate-draft', $payload)->assertStatus(429);
+
+        Http::assertSentCount(2);
+    }
+
+    private function reservation(User $user, string $status, \DateTimeInterface $createdAt): AiOutput
+    {
+        return AiOutput::create([
+            'organization_id' => $user->organization_id,
+            'feature_type' => 'ANNOUNCEMENT_DRAFT',
+            'reference_type' => 'announcement',
+            'prompt_text' => 'p',
+            'output_text' => '',
+            'context_version' => 'announcement-v2',
+            'status' => $status,
+            'version' => 1,
+            'decision_status' => 'pending',
+            'requested_by' => $user->school_id,
+            'created_at' => $createdAt,
+        ]);
+    }
+
+    public function test_a_reservation_left_by_a_dead_request_stops_counting_and_cannot_be_attached(): void
+    {
+        $user = $this->admin();
+        Sanctum::actingAs($user);
+        $stale = $this->reservation($user, 'pending', now()->subMinutes(10));
+        $fresh = $this->reservation($user, 'pending', now());
+
+        $this->getJson('/api/announcements/generation-quota')->assertJsonPath('used', 1);
+
+        foreach ([$stale, $fresh] as $output) {
+            $this->postJson('/api/announcements', ['title' => 'A', 'body' => 'B', 'target_role' => 'all', 'ai_output_id' => $output->id])
+                ->assertUnprocessable();
+        }
+    }
+
+    public function test_the_template_is_written_for_the_reader_without_the_officers_ai_instructions(): void
+    {
+        config(['services.groq.key' => '', 'services.anthropic.key' => '']);
+        Http::fake();
+        Sanctum::actingAs($this->admin());
+
+        $text = $this->postJson('/api/announcements/generate-draft', [
+            'title' => 'General Assembly',
+            'target_role' => 'ADMIN',
+            'category' => 'events',
+            'details' => 'Formal tone. Assembly is on September 30 at 2:00 PM. Bring your ID. Use a friendly tone please.',
+        ])->assertOk()->json('output_text');
+
+        $this->assertStringStartsWith('General Assembly: please read the details below.', $text);
+        $this->assertStringContainsString('Assembly is on September 30 at 2:00 PM. Bring your ID.', $text);
+        $this->assertStringNotContainsString('tone', $text);
+        $this->assertStringNotContainsString('Category:', $text);
+        $this->assertStringNotContainsString('organization officers', $text);
+        $this->assertStringNotContainsString('This announcement for', $text);
     }
 }

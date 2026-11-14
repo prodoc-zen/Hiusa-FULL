@@ -41,8 +41,14 @@ class GrievanceController extends Controller
 
     private const MEDIUM_KEYWORDS = ['broken', 'delay*', 'missing', 'complaint*', 'unfair', 'issue*', 'problem*'];
 
-    /** An urgency keyword does not count when one of these comes within two words before it in the same clause. */
-    private const NEGATORS = ['not', 'no', 'hindi', 'dili', 'walang'];
+    /**
+     * An urgency keyword is dropped only when one of these directly denies it: the negator is the word right before the
+     * keyword, or right before "a", "an", "any" or "the" and then the keyword, in the same clause. Anything between them
+     * ("not stop bullying") keeps the word, so whenever it is unclear the higher urgency wins.
+     */
+    private const NEGATORS = ['not', 'no', 'hindi', 'dili', 'walang', 'wala', 'walay', "wala'y", 'di'];
+
+    private const ARTICLES = ['a', 'an', 'any', 'the'];
 
     private const CATEGORY_KEYWORDS = [
         'Safety & Security' => [...self::CRITICAL_KEYWORDS, 'security', 'unsafe', 'guard', 'theft'],
@@ -363,7 +369,7 @@ class GrievanceController extends Controller
      */
     public function localClassification(string $title, string $description): array
     {
-        $text = mb_strtolower($title.' '.$description);
+        $text = mb_strtolower($title.'. '.$description);
 
         $urgency = 'Low';
         $confidence = 0.5;
@@ -375,6 +381,11 @@ class GrievanceController extends Controller
                 $confidence = $score;
                 break;
             }
+        }
+
+        $denied = [];
+        foreach ([...self::CRITICAL_KEYWORDS, ...self::HIGH_KEYWORDS, ...self::MEDIUM_KEYWORDS] as $keyword) {
+            $this->found($text, $keyword, $denied);
         }
 
         $category = 'General';
@@ -391,7 +402,7 @@ class GrievanceController extends Controller
             'urgency' => $urgency,
             'category' => $category,
             'confidence_score' => $confidence,
-            'reasoning' => $this->reasoning($urgency, $urgencyWords, $category, $categoryWords),
+            'reasoning' => $this->reasoning($urgency, $urgencyWords, $category, $categoryWords).$this->denialNote($denied),
         ];
     }
 
@@ -412,10 +423,26 @@ class GrievanceController extends Controller
 
     private function quoted(array $words): string
     {
-        $items = array_map(fn (string $word) => '"'.$word.'"', array_slice($words, 0, 5));
+        return $this->joined(array_map(fn (string $word) => '"'.$word.'"', $words));
+    }
+
+    private function joined(array $items): string
+    {
+        $items = array_slice($items, 0, 5);
         $last = array_pop($items);
 
         return $items === [] ? $last : implode(', ', $items).' and '.$last;
+    }
+
+    /** @param list<array{string, string}> $denied */
+    private function denialNote(array $denied): string
+    {
+        if ($denied === []) {
+            return '';
+        }
+        $pairs = $this->joined(array_map(fn (array $pair) => '"'.$pair[0].'" after "'.$pair[1].'"', $denied));
+
+        return " It also mentions {$pairs}, which was not counted as urgent; a reviewer should check it.";
     }
 
     /** @return list<string> the words in the text that the keywords matched, in keyword order, without repeats */
@@ -432,16 +459,23 @@ class GrievanceController extends Controller
         return $words;
     }
 
-    private function found(string $text, string $keyword): ?string
+    /** @param list<array{string, string}>|null $denied filled with a word that matched only after a denial, and its negator */
+    private function found(string $text, string $keyword, ?array &$denied = null): ?string
     {
         $pattern = str_ends_with($keyword, '*')
             ? '/\b'.preg_quote(substr($keyword, 0, -1), '/').'\w*/u'
             : '/\b'.preg_quote($keyword, '/').'\b/u';
         preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE);
+        $blocked = null;
         foreach ($matches[0] as [$word, $offset]) {
-            if (! $this->isUrgencyKeyword($keyword) || ! $this->negated($text, $offset)) {
+            $negator = $this->isUrgencyKeyword($keyword) ? $this->negator($text, $offset) : null;
+            if ($negator === null) {
                 return $word;
             }
+            $blocked ??= [$word, $negator];
+        }
+        if ($blocked !== null && $denied !== null && ! in_array($blocked, $denied, true)) {
+            $denied[] = $blocked;
         }
 
         return null;
@@ -452,11 +486,15 @@ class GrievanceController extends Controller
         return in_array($keyword, [...self::CRITICAL_KEYWORDS, ...self::HIGH_KEYWORDS, ...self::MEDIUM_KEYWORDS], true);
     }
 
-    private function negated(string $text, int $offset): bool
+    private function negator(string $text, int $offset): ?string
     {
         $clause = preg_split('/[.!?;,:\n]/u', substr($text, 0, $offset));
         preg_match_all("/[\\w']+/u", end($clause), $words);
+        $words = $words[0];
+        if ($words !== [] && in_array(end($words), self::ARTICLES, true)) {
+            array_pop($words);
+        }
 
-        return array_intersect(array_slice($words[0], -2), self::NEGATORS) !== [];
+        return $words !== [] && in_array(end($words), self::NEGATORS, true) ? end($words) : null;
     }
 }

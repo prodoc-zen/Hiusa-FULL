@@ -161,6 +161,16 @@ def test_budget_advice_rates_the_warning_threshold_high_and_ninety_percent_mediu
     assert (ratio["overspending_risk"], ratio["forecast_risk"]) == ("medium", "overspending")
 
 
+def test_budget_advice_rates_a_fully_spent_budget_high_even_without_a_warning_threshold() -> None:
+    result = advise_budget(BudgetAdviceRequest(
+        predicted_income=0,
+        predicted_expense=0,
+        current_available_budget=0,
+        warning_threshold=0,
+    ))
+    assert (result["overspending_risk"], result["forecast_risk"]) == ("high", "overspending")
+
+
 def test_infer_task_area_uses_word_boundaries_not_bare_substrings() -> None:
     # "media" must not fire merely because it appears inside "im-media-te".
     assert infer_task_area("Send immediate reminders to officers") != "publicity"
@@ -446,13 +456,61 @@ def test_grievance_classification_keeps_a_negated_word_from_hiding_a_real_one() 
     assert result["urgency"] == "High"
     assert result["reasoning"] == (
         'Marked High because the text mentions "stole"; '
-        'filed under Financial Integrity because it mentions "funds" and "stole".'
+        'filed under Financial Integrity because it mentions "funds" and "stole". '
+        'It also mentions "urgent" after "not", which was not counted as urgent; a reviewer should check it.'
     )
 
 
-def test_grievance_classification_counts_negation_only_inside_two_words_and_one_clause() -> None:
+def test_grievance_classification_counts_negation_only_when_it_directly_denies_the_word() -> None:
     assert _classify("There is no excuse for this threat")["urgency"] == "Critical"
     assert _classify("I did not sleep. Emergency at the dorm")["urgency"] == "Critical"
+
+
+HARM_WITH_A_NEGATOR = [
+    ("Officer", "They did not stop bullying me even after I reported it."),
+    ("Officer conduct", "The vice president would not stop harassing me after the meeting."),
+    ("No more bullying in our org", "Please act on this."),
+    ("No response", "Harassment by the treasurer during the meeting."),
+    ("Not again", "Threatened by an officer at the venue."),
+    ("I can not take the bullying anymore", "It happens every day."),
+    ("Help", "He did not stop abusing me after the party."),
+    ("Not once did they stop the threats", "Please help."),
+    ("No one helps me", "The abuse continues every day."),
+    ("There is no way I can ignore the harassment", "It is ongoing."),
+    ("Hindi tumitigil ang pagbabanta sa akin", "Humihingi po ako ng tulong."),
+    ("Hindi na siya tumigil sa pananakit", "Sinaktan niya ako ulit kahapon."),
+    ("Walang tigil ang pambu-bully", "Binantaan niya ako ulit."),
+    ("Dili siya mohunong sa bullying nako", "Gibantaan gyud ko niya."),
+    ("Wala siya mohunong sa pagbully", "Gibantaan ko niya ug gisaktan."),
+]
+
+
+@pytest.mark.parametrize(("title", "description"), HARM_WITH_A_NEGATOR)
+def test_grievance_classification_never_lowers_harm_described_next_to_a_negator(title: str, description: str) -> None:
+    assert _classify(title, description)["urgency"] == "Critical"
+
+
+@pytest.mark.parametrize(("title", "description"), [
+    ("There was no harassment", "just a misunderstanding about the schedule"),
+    ("This is not a danger to anyone", "I only have a question"),
+    ("Not any violence was reported", "asking about the venue"),
+    ("Hindi emergency ito", "tanong lang po"),
+    ("Dili emergency kini", "pangutana lang"),
+    ("Walay bullying nga nahitabo", "pangutana lang"),
+    ("Wala'y threat", "pangutana lang"),
+])
+def test_grievance_classification_lowers_urgency_for_a_direct_denial_and_says_so(title: str, description: str) -> None:
+    result = _classify(title, description)
+
+    assert result["urgency"] == "Low"
+    assert "a reviewer should check it." in result["reasoning"]
+
+
+def test_grievance_classification_reasoning_names_the_denied_word() -> None:
+    assert _classify("This is not an emergency", "just a scheduling question")["reasoning"] == (
+        'No urgent words were found, so it is Low; filed under Academic / Faculty because it mentions "scheduling". '
+        'It also mentions "emergency" after "not", which was not counted as urgent; a reviewer should check it.'
+    )
 
 
 def test_grievance_classification_files_theft_of_money_under_financial_integrity() -> None:

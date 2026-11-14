@@ -15,6 +15,7 @@ use App\Models\FinancialReport;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
+use App\Services\BudgetAdviceRules;
 use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
 use App\Services\SubmissionStoragePolicy;
@@ -194,8 +195,22 @@ class FinancialReportController extends Controller
             ->get([
                 'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
                 'recommended_allocation', 'safe_spending_limit', 'overspending_risk',
-                'advisory_note', 'advice_generated_at',
+                'advisory_note', 'advice_generated_at', 'warning_threshold',
             ]);
+        $adviceInputs = AiOutput::where('feature_type', 'BUDGET_EXPLANATION')
+            ->where('reference_type', Budget::class)
+            ->whereIn('reference_id', $budgets->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('reference_id');
+        $budgets = $budgets
+            ->reject(fn (Budget $budget) => BudgetAdviceRules::isStale(
+                is_array($adviceInputs->get($budget->id)?->structured_input) ? $adviceInputs->get($budget->id)->structured_input : null,
+                (float) $budget->remaining_amount,
+                (float) $budget->warning_threshold,
+            ))
+            ->map(fn (Budget $budget) => $budget->makeHidden('warning_threshold'))
+            ->values();
         $auditLogs = AuditLog::where('organization_id', $organizationId)
             ->whereIn('module', ['financial_ledger', 'budgets', 'financial_reports'])
             ->whereDate('created_at', '>=', $start)

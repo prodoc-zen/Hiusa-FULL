@@ -4,7 +4,6 @@ namespace App\Services\Finance;
 
 use App\Models\AcademicSemester;
 use App\Models\FinancialReport;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FinancialReportStatement;
 use Illuminate\Support\Collection;
@@ -14,8 +13,8 @@ use Illuminate\Support\Collection;
  * given its final approval (submission_status = approved with sao_approved_at). Every figure
  * is computed from the report's saved snapshot through FinancialReportStatement, the same code
  * the report uses for its own totals, so it always equals the approved report. The live ledger is
- * never read, except for a report saved before snapshots existed, which the report itself reads
- * from the entries it listed. Remittances are custody movements held outside the ledger rows and
+ * never read, so an approved report saved before snapshots existed is left out here (staff still see it).
+ * Remittances are custody movements held outside the ledger rows and
  * cash advances are excluded as FinancialReportStatement excludes them, so neither is income or spending.
  *
  * Nothing about people or documents is returned: no ledger rows, descriptions, payer or recorder
@@ -34,13 +33,13 @@ class ApprovedFeeUsage
      *         period_start: string|null,
      *         period_end: string|null,
      *         approved_at: string|null,
-     *         totals: array{collected: float, spent: float, balance: float},
+     *         totals: array{collected: float, spent: float, opening: float, balance: float},
      *         spending: list<array{category: string, amount: float, share_percent: int}>,
      *         income: list<array{category: string, amount: float}>
      *     }>
      * } organization is null for a student without one; reports are newest approved first, and
      *   empty when the organization has no approved report (or none matches $reportId).
-     *   period_start and period_end are Y-m-d. balance is the report's closing balance,
+     *   period_start and period_end are Y-m-d. opening is the balance carried in from before the period and balance is the report's closing balance,
      *   spending is largest first with share_percent of total spent as a whole number, income is largest first.
      */
     public function summaryFor(User $user, ?int $reportId = null): array
@@ -55,6 +54,8 @@ class ApprovedFeeUsage
             ->where('organization_id', $organization->id)
             ->where('submission_status', 'approved')
             ->whereNotNull('sao_approved_at')
+            ->whereNotNull('transactions_snapshot')
+            ->whereNotNull('opening_balance_snapshot')
             ->when($reportId !== null, fn ($query) => $query->where('id', $reportId))
             ->orderByDesc('sao_approved_at')
             ->orderByDesc('id')
@@ -71,7 +72,7 @@ class ApprovedFeeUsage
     private function summarize(FinancialReport $report, Collection $semesters): array
     {
         $rows = $report->savedTransactions();
-        $statement = FinancialReportStatement::from($rows, $this->openingBalance($report));
+        $statement = FinancialReportStatement::from($rows, (float) $report->opening_balance_snapshot);
         $ordinary = FinancialReportStatement::ordinary($rows);
         $spent = $statement['totals']['expense'];
 
@@ -85,6 +86,7 @@ class ApprovedFeeUsage
             'totals' => [
                 'collected' => $statement['totals']['income'],
                 'spent' => $spent,
+                'opening' => $statement['totals']['opening_balance'],
                 'balance' => $statement['totals']['closing_balance'],
             ],
             'spending' => $this->byCategory($ordinary, 'expense')
@@ -102,27 +104,6 @@ class ApprovedFeeUsage
             ->map(fn (Collection $group, string $category) => ['category' => $category, 'amount' => round((float) $group->sum('amount'), 2)])
             ->sortByDesc('amount')
             ->values();
-    }
-
-    /** The opening balance the report itself shows: its snapshot, or for an old report the ledger before its period. */
-    private function openingBalance(FinancialReport $report): float
-    {
-        if ($report->opening_balance_snapshot !== null) {
-            return (float) $report->opening_balance_snapshot;
-        }
-
-        if ($report->event_id || ! $report->period_start) {
-            return 0.0;
-        }
-
-        $totals = Transaction::query()
-            ->where('organization_id', $report->organization_id)
-            ->whereDate('transaction_date', '<', $report->period_start->toDateString())
-            ->selectRaw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income_total")
-            ->selectRaw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense_total")
-            ->first();
-
-        return (float) ($totals?->income_total ?? 0) - (float) ($totals?->expense_total ?? 0);
     }
 
     private function periodLabel(FinancialReport $report, Collection $semesters): ?string
