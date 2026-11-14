@@ -10,6 +10,7 @@ vi.mock('../../../services/askAiService', async (importOriginal) => ({
   getAiConversation: vi.fn(),
   listAiMemories: vi.fn(),
   sendAiMessageFeedback: vi.fn(),
+  confirmAiAction: vi.fn(),
 }));
 
 const service = await import('../../../services/askAiService');
@@ -74,6 +75,7 @@ describe('AskAiPage with the real stream parser and renderers', () => {
     service.listAiConversations.mockResolvedValue({ data: [] });
     service.listAiMemories.mockResolvedValue({ data: [] });
     service.sendAiMessageFeedback.mockResolvedValue({ data: {} });
+    service.confirmAiAction.mockReset();
   });
 
   afterEach(() => {
@@ -96,7 +98,7 @@ describe('AskAiPage with the real stream parser and renderers', () => {
     ask('how is finance?');
 
     expect(fetchMock.mock.calls[0][1].headers.Accept).toBe('text/event-stream, application/json');
-    expect(sentBody(fetchMock, 0)).toEqual({ conversation_id: null, message: 'how is finance?', topic: null, regenerate: false });
+    expect(sentBody(fetchMock, 0)).toEqual({ conversation_id: null, message: 'how is finance?', topic: null, regenerate: false, source: 'typed' });
 
     const meta = frame('meta', { conversation: conversation(), user_message: { id: 1, role: 'user', content: 'how is finance?' } });
     await pushCut(first, meta, [9, 40]);
@@ -137,7 +139,7 @@ describe('AskAiPage with the real stream parser and renderers', () => {
     const second = liveResponse();
     fetchMock.mockResolvedValueOnce(second.response);
     fireEvent.click(within(answer).getByRole('button', { name: 'Regenerate' }));
-    expect(sentBody(fetchMock, 1)).toEqual({ conversation_id: 12, message: null, topic: null, regenerate: true });
+    expect(sentBody(fetchMock, 1)).toEqual({ conversation_id: 12, message: null, topic: null, regenerate: true, source: 'typed' });
     await waitFor(() => expect(screen.queryByText('Thought for 4 seconds')).not.toBeInTheDocument());
     expect(screen.getAllByText('how is finance?', { selector: 'p' })).toHaveLength(1);
 
@@ -201,7 +203,7 @@ describe('AskAiPage with the real stream parser and renderers', () => {
     ask('and events?');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(sentBody(fetchMock, 0).conversation_id).toBe(12);
-    expect(sentBody(fetchMock, 1)).toEqual({ conversation_id: null, message: 'and events?', topic: null, regenerate: false });
+    expect(sentBody(fetchMock, 1)).toEqual({ conversation_id: null, message: 'and events?', topic: null, regenerate: false, source: 'typed' });
     expect(screen.getByText(/no longer available/)).toBeInTheDocument();
     expect(screen.queryByText('Old answer.')).not.toBeInTheDocument();
 
@@ -209,5 +211,59 @@ describe('AskAiPage with the real stream parser and renderers', () => {
     await pushCut(fresh, frame('done', { conversation: conversation({ id: 40 }), message: { ...finalMessage, id: 6, content: 'Events are fine.' } }), []);
     await fresh.close();
     expect(await screen.findByText('Events are fine.')).toBeInTheDocument();
+  });
+
+  it('streams an action proposal, lets the person edit it and confirm it', async () => {
+    const live = liveResponse();
+    fetchMock.mockResolvedValueOnce(live.response);
+    await open();
+    ask('create an event called General Assembly');
+    expect(sentBody(fetchMock, 0).source).toBe('typed');
+
+    const proposal = {
+      id: 8,
+      role: 'assistant',
+      content: 'Here is the event I can create. Check the details, then press Create event.',
+      status: 'completed',
+      feedback: null,
+      payload: {
+        action: {
+          key: 'create_event',
+          title: 'Create an event',
+          status: 'awaiting_confirmation',
+          submit_label: 'Create event',
+          fields: [{ name: 'title', label: 'Title', type: 'text', required: true, value: 'General Assembly', max: 255, help: null, options: null }],
+          errors: {},
+          result: null,
+          expires_at: new Date(Date.now() + 20 * 60000).toISOString(),
+        },
+      },
+    };
+    await pushCut(live, frame('meta', { conversation: conversation(), user_message: { id: 7, role: 'user', content: 'create an event called General Assembly' } }), [10]);
+    await pushCut(live, frame('delta', { text: proposal.content }), [20]);
+    await pushCut(live, frame('done', { conversation: conversation(), message: proposal }), [30]);
+    await live.close();
+
+    const title = await screen.findByLabelText(/^Title/);
+    expect(title).toHaveValue('General Assembly');
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument();
+
+    fireEvent.change(title, { target: { value: 'General Assembly 2026' } });
+    service.confirmAiAction.mockResolvedValueOnce({
+      data: {
+        message: {
+          ...proposal,
+          content: 'Event created. It is waiting for approval.',
+          payload: { action: { ...proposal.payload.action, status: 'done', result: { message: 'Event created. It is waiting for approval.', href: '/dashboard/events/5', action_label: 'Open event' } } },
+        },
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+
+    expect(await screen.findByRole('link', { name: /Open event/ })).toHaveAttribute('href', '/dashboard/events/5');
+    expect(service.confirmAiAction).toHaveBeenCalledTimes(1);
+    expect(service.confirmAiAction).toHaveBeenCalledWith(8, { title: 'General Assembly 2026' });
+    expect(screen.queryByLabelText(/^Title/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Event created. It is waiting for approval.')).toHaveLength(1);
   });
 });

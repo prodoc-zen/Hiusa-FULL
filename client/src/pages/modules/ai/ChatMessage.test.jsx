@@ -108,3 +108,55 @@ describe('ChatMessage Copy', () => {
     ].join('\n'));
   });
 });
+
+describe('ChatMessage with an action', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const proposal = (status = 'awaiting_confirmation', extra = {}) => answer({
+    content: 'Here is the event I can create.',
+    payload: {
+      action: {
+        key: 'create_event',
+        title: 'Create an event',
+        status,
+        submit_label: 'Create event',
+        fields: [
+          { name: 'title', label: 'Title', type: 'text', required: true, value: 'General Assembly', max: 255, help: null, options: null },
+          { name: 'who', label: 'Assign to', type: 'select', required: false, value: '4', max: null, help: null, options: [{ value: '4', label: 'Ana Cruz' }] },
+          { name: 'public', label: 'Open to everyone', type: 'checkbox', required: false, value: true, max: null, help: null, options: null },
+        ],
+        errors: {},
+        result: null,
+        expires_at: new Date(Date.now() + 600000).toISOString(),
+        ...extra,
+      },
+    },
+  });
+
+  it('renders the card under the text and does not offer Regenerate', () => {
+    renderMessage(proposal());
+    expect(screen.getByText('Here is the event I can create.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create event' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+  });
+
+  it('copies the text with the field labels and their values', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    renderMessage(proposal());
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await screen.findByRole('button', { name: 'Copied' });
+    expect(writeText).toHaveBeenCalledWith(
+      'Here is the event I can create.\nCreate an event\nTitle: General Assembly\nAssign to: Ana Cruz\nOpen to everyone: Yes',
+    );
+  });
+
+  it('shows the result once, in the card, when done', () => {
+    renderMessage(proposal('done', { result: { message: 'Event created.', href: '/dashboard/events/3', action_label: 'Open event' } }));
+    expect(screen.getAllByText('Event created.')).toHaveLength(1);
+    expect(screen.queryByText('Here is the event I can create.')).not.toBeInTheDocument();
+  });
+});

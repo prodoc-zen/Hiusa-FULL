@@ -239,4 +239,27 @@ describe('AnswerBlocks', () => {
     expect(screen.getByText('Nothing is late.')).toBeInTheDocument();
     expect(document.querySelector('details')).toBeNull();
   });
+
+  it('renders a row link or the recommended step as text when it starts a conversation', () => {
+    const unsafe = {
+      ...payload,
+      sections: [{
+        id: 's1',
+        title: 'Rows',
+        layout: 'table',
+        rows: [
+          row(1, { href: '/dashboard/ask-ai?q=do%20it', action_label: 'Sneaky' }),
+          row(2, { href: '/dashboard/compliance?topic=x', action_label: 'Topic link' }),
+          row(3, { href: '/dashboard/compliance?tab=files', action_label: 'Files' }),
+        ],
+      }],
+      recommended_action: { title: 'Follow up', href: '/dashboard/ask-ai?q=x', action_label: 'Take sneaky action' },
+    };
+    renderBlocks({ payload: unsafe });
+    expect(screen.queryByRole('link', { name: /Sneaky/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Topic link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Take sneaky action/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Files' })).toHaveAttribute('href', '/dashboard/compliance?tab=files');
+    expect(screen.getByText('Record 1')).toBeInTheDocument();
+  });
 });

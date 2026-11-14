@@ -9,6 +9,7 @@ use App\Http\Controllers\AgencyOverviewController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApplicantGrantController;
 use App\Http\Controllers\ApprovalRequestController;
+use App\Http\Controllers\AskAiActionController;
 use App\Http\Controllers\AskAiController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ClassListImportController;
@@ -114,6 +115,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::patch('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'renameConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
     Route::delete('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'destroyConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
     Route::post('/ai/assistant/messages/{message}/feedback', [AskAiController::class, 'feedback'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/confirm', [AskAiActionController::class, 'confirm'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/cancel', [AskAiActionController::class, 'cancel'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
     Route::get('/ai/assistant/memories', [AskAiController::class, 'memories'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/memories', [AskAiController::class, 'storeMemory'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::delete('/ai/assistant/memories', [AskAiController::class, 'destroyMemories'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);

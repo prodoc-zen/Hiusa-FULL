@@ -53,6 +53,7 @@ class AskAiChatService
         private readonly AskAiService $askAi,
         private readonly TextGenerator $ai,
         private readonly ClientRouteAccess $routeAccess,
+        private readonly AskAiActions $actions,
     ) {}
 
     public function assertRegenerable(AiConversation $conversation): void
@@ -101,7 +102,8 @@ class AskAiChatService
         $local = $this->localAnswer($user, $question, $source === 'typed');
         $message = $local !== null
             ? $this->answerLocally($user, $conversation, $userMessage, $local, $emit, $started)
-            : $this->answerFromRecords($user, $conversation, $userMessage, $topic, $emit, $aborted, $started);
+            : ($this->actions->propose($user, $conversation, $userMessage, $source, $emit)
+                ?? $this->answerFromRecords($user, $conversation, $userMessage, $topic, $emit, $aborted, $started));
 
         $conversation->forceFill(['last_message_at' => now()])->save();
 

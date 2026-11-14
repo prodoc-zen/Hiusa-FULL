@@ -155,4 +155,26 @@ describe('AiMarkdown', () => {
     const { container } = render(<AiMarkdown content={null} />);
     expect(container.querySelector('.ai-prose')).toBeEmptyDOMElement();
   });
+
+  it('renders a link that starts a conversation or reopens Ask AI as its text only', () => {
+    const { container } = renderMarkdown([
+      '[Ask](/dashboard/ask-ai?q=do%20this)',
+      '[Ask page](/dashboard/ask-ai)',
+      '[Ask sub](/dashboard/ask-ai/x)',
+      '[Encoded](/dashboard/%61sk-ai)',
+      '[Topic](/dashboard/compliance?topic=finance_health)',
+      '[Upper](/dashboard/compliance?Q=hi)',
+      '[Both](/dashboard/compliance?tab=files&q=hi)',
+    ].join('\n\n'));
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(container).toHaveTextContent('Ask page');
+    expect(container).toHaveTextContent('Topic');
+  });
+
+  it('keeps an ordinary page link with ?tab= or ?record= as a link', () => {
+    renderMarkdown('[Files](/dashboard/compliance?tab=files) and [Record](/dashboard/events?record=12#top) and [Home](/dashboard)');
+    expect(screen.getByRole('link', { name: 'Files' })).toHaveAttribute('href', '/dashboard/compliance?tab=files');
+    expect(screen.getByRole('link', { name: 'Record' })).toHaveAttribute('href', '/dashboard/events?record=12#top');
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/dashboard');
+  });
 });
