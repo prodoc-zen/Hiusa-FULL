@@ -25,6 +25,8 @@ use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
+    private const DRAFT_CONTEXT = 'announcement-v2';
+
     private const BODY_MESSAGES = ['body.max' => 'The announcement text can be at most 10,000 characters.'];
 
     public function __construct(
@@ -46,16 +48,8 @@ class AnnouncementController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
-            'details' => ['nullable', 'string'],
-        ]);
-
-        $quota = $this->announcementGenerationQuota($request);
-        if ($quota['remaining'] < 1) {
-            return response()->json([
-                'message' => 'You have used all announcement drafts available today. Try again after the daily reset.',
-                'quota' => $quota,
-            ], 429);
-        }
+            'details' => ['nullable', 'string', 'max:2000'],
+        ], ['details.max' => 'The AI instructions can be at most 2,000 characters.']);
 
         $audience = [
             'all' => 'Everyone in the organization',
@@ -70,46 +64,76 @@ class AnnouncementController extends Controller
             .'Category: '.($data['category'] ?? 'general')."\n"
             .'Details: '.($data['details'] ?? 'Use a clear, formal, student-friendly tone.')."\n";
 
-        $model = (string) config('services.groq.model');
-        $generated = $this->ai->generate(
-            AiInstructions::announcementDraft(),
-            $prompt,
-            450,
-            0.4,
-        );
-        if ($generated) {
-            $generated['text'] = $this->ai->plainText($generated['text']);
-            if ($generated['text'] === '') {
-                $generated = null;
+        $organizationId = $request->user()->organization_id;
+        $aiOutput = DB::transaction(function () use ($request, $organizationId, $data, $prompt) {
+            if ($organizationId) {
+                Organization::whereKey($organizationId)->lockForUpdate()->first();
             }
+            if ($this->announcementGenerationQuota($request)['remaining'] < 1) {
+                return null;
+            }
+
+            return AiOutput::create([
+                'organization_id' => $organizationId,
+                'feature_type' => 'ANNOUNCEMENT_DRAFT',
+                'reference_type' => 'announcement',
+                'reference_id' => null,
+                'prompt_text' => $prompt,
+                'output_text' => '',
+                'model_name' => null,
+                'context_version' => self::DRAFT_CONTEXT,
+                'structured_input' => $data,
+                'structured_output' => null,
+                'status' => 'pending',
+                'version' => ((int) AiOutput::where('organization_id', $organizationId)
+                    ->where('feature_type', 'ANNOUNCEMENT_DRAFT')->max('version')) + 1,
+                'decision_status' => 'pending',
+                'requested_by' => $request->user()->id,
+                'created_at' => now(),
+            ]);
+        });
+
+        if (! $aiOutput) {
+            return response()->json([
+                'message' => 'You have used all announcement drafts available today. Try again after the daily reset.',
+                'quota' => $this->announcementGenerationQuota($request),
+            ], 429);
         }
-        $version = ((int) AiOutput::where('organization_id', $request->user()->organization_id)
-            ->where('feature_type', 'ANNOUNCEMENT_DRAFT')->max('version')) + 1;
+
+        try {
+            $generated = $this->ai->generate(
+                AiInstructions::announcementDraft(),
+                $prompt,
+                450,
+                0.4,
+            );
+            if ($generated) {
+                $generated['text'] = $this->ai->plainText($generated['text']);
+                if ($generated['text'] === ''
+                    || ! $this->ai->preservesNumericFacts($generated['text'], [$data['title'], $data['details'] ?? ''])) {
+                    $generated = null;
+                }
+            }
+        } catch (\Throwable $e) {
+            $aiOutput->delete();
+
+            throw $e;
+        }
 
         $isTemplate = ! $generated;
         if ($isTemplate) {
-            $generated = ['text' => $this->fallbackAnnouncementDraft($prompt), 'model' => 'template-draft'];
+            $generated = ['text' => $this->fallbackAnnouncementDraft($data, $audience), 'model' => 'template-draft'];
         }
 
         $output = $generated['text'];
         $model = $generated['model'];
 
-        $aiOutput = AiOutput::create([
-            'organization_id' => $request->user()->organization_id,
-            'feature_type' => 'ANNOUNCEMENT_DRAFT',
-            'reference_type' => 'announcement',
-            'reference_id' => null,
-            'prompt_text' => $prompt,
+        $aiOutput->update([
             'output_text' => $output,
             'model_name' => $model,
-            'context_version' => $isTemplate ? 'announcement-template-v1' : 'announcement-v2',
-            'structured_input' => $data,
+            'context_version' => $isTemplate ? 'announcement-template-v1' : self::DRAFT_CONTEXT,
             'structured_output' => ['body' => $output],
             'status' => 'completed',
-            'version' => $version,
-            'decision_status' => 'pending',
-            'requested_by' => $request->user()->id,
-            'created_at' => now(),
         ]);
 
         $this->recordAnnouncementAudit($request, 'generated_draft', null, null, [
@@ -124,7 +148,7 @@ class AnnouncementController extends Controller
             'ai_output_id' => $aiOutput->id,
             'model_name' => $model,
             'is_template' => $isTemplate,
-            'notice' => $isTemplate ? 'This is a template draft because the AI writer is not available right now. Add the date, place and other details before you post it.' : null,
+            'notice' => $isTemplate ? 'This is a template draft because the AI writer is not available right now. '.(filled($data['details'] ?? null) ? 'Your notes were inserted as written. Check them and add any missing details before you post it.' : 'Add the date, place and other details before you post it.') : null,
             'quota' => $this->announcementGenerationQuota($request),
         ]);
     }
@@ -724,12 +748,17 @@ class AnnouncementController extends Controller
         }
     }
 
-    private function fallbackAnnouncementDraft(string $prompt): string
+    private function fallbackAnnouncementDraft(array $data, string $audience): string
     {
-        $title = Str::after($prompt, 'Title: ');
-        $title = trim(Str::before($title, "\n")) ?: 'Announcement';
+        $lines = ["This announcement for {$audience} is about {$data['title']}."];
+        if (($data['category'] ?? 'general') !== 'general') {
+            $lines[] = 'Category: '.ucfirst($data['category']).'.';
+        }
+        $details = trim((string) ($data['details'] ?? ''));
+        $lines[] = $details !== '' ? $details : 'Date and venue: to be announced.';
+        $lines[] = 'If you have questions, please ask your organization officers.';
 
-        return "{$title}\n\nPlease be informed of this important HIUSA announcement. Kindly review the details, take note of any required action, and watch for further updates from the organization.\n\nThank you for your attention and cooperation.";
+        return implode("\n\n", $lines);
     }
 
     private function announcementGenerationQuota(Request $request): array
@@ -739,6 +768,7 @@ class AnnouncementController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->where('requested_by', $request->user()->school_id)
             ->where('feature_type', 'ANNOUNCEMENT_DRAFT')
+            ->where('context_version', self::DRAFT_CONTEXT)
             ->whereDate('created_at', now()->toDateString())
             ->count();
 
