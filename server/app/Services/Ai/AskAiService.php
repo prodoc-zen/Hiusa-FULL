@@ -416,7 +416,7 @@ class AskAiService
         }
 
         $organizationIds = $this->scopedStudentOrganizationIds($user);
-        $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent);
+        $rag = $this->retrieveRagContext($user, $question, $organizationIds, $intent === 'semantic_rag' || $allowModel);
 
         if ($intent === 'semantic_rag') {
             $payload = $this->buildSemanticRagPayload($user, $question, $rag, $organizationIds);
@@ -459,7 +459,7 @@ class AskAiService
             'meta' => $chunk['meta'],
         ], array_slice($rag['chunks'] ?? [], 0, 8));
         $payload['rag_metadata'] = [
-            'engine' => $modelName ? 'Hybrid Semantic RAG + '.(str_starts_with($modelName, 'claude') ? 'Claude' : 'Groq').' LLM' : 'Hybrid Semantic RAG (BM25 + 12D Concept Vector + Trigram)',
+            'engine' => $modelName ? 'Record search + '.(str_starts_with($modelName, 'claude') ? 'Claude' : 'Groq') : 'Record search',
             'corpus_size' => $rag['corpus_size'],
             'retrieved_count' => count($rag['chunks']),
             'domains_searched' => $rag['domains_searched'],
@@ -1300,17 +1300,20 @@ class AskAiService
             $requirementTypes = $academicYear
                 ? ComplianceRequirementType::where('academic_year', $academicYear)
                     ->where('is_active', true)
+                    ->where('category', 'organization')
                     ->where(fn ($q) => $q->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
                     ->orderBy('name')
                     ->get(['id', 'name', 'category', 'deadline_at'])
                 : collect();
 
             $orgs = Organization::whereIn('id', $organizationIds)
+                ->where('lifecycle_status', 'active')
                 ->orderBy('name')
-                ->get(['id', 'name', 'acronym', 'lifecycle_status']);
+                ->get(['id', 'name', 'acronym']);
+            $activeOrgIds = $orgs->pluck('id');
 
             $submissionsByOrg = $requirementTypes->isNotEmpty()
-                ? OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)
+                ? OrganizationComplianceSubmission::whereIn('organization_id', $activeOrgIds)
                     ->whereIn('requirement_type_id', $requirementTypes->pluck('id'))
                     ->get(['organization_id', 'requirement_type_id', 'status'])
                     ->groupBy('organization_id')
@@ -1359,7 +1362,7 @@ class AskAiService
                     'status' => $returnedNames !== [] ? 'Returned' : 'Missing files',
                     'status_tone' => $returnedNames !== [] ? 'danger' : 'warning',
                     'meta' => "{$submittedCount}/{$requirementTypes->count()} submitted",
-                    'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/department-head/organizations'),
+                    'href' => $this->linkTo($user, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/department-head/organizations'),
                     'action_label' => 'Inspect',
                 ];
             }
@@ -1367,15 +1370,17 @@ class AskAiService
             // Also check financial report deadline
             $latestDeadline = DB::table('financial_report_deadlines')->orderByDesc('id')->first();
             $missingReportRows = [];
+            $missingReportTotal = 0;
             if ($latestDeadline) {
                 $coveredOrgIds = DB::table('financial_reports')
-                    ->whereIn('organization_id', $organizationIds)
+                    ->whereIn('organization_id', $activeOrgIds)
                     ->where('deadline_id', $latestDeadline->id)
                     ->whereIn('submission_status', ['pending_department_head', 'pending_sao', 'approved'])
                     ->pluck('organization_id')
                     ->unique();
 
                 $orgsMissingReport = $orgs->whereNotIn('id', $coveredOrgIds);
+                $missingReportTotal = $orgsMissingReport->count();
                 foreach ($orgsMissingReport->take(self::ROW_LIMIT) as $org) {
                     $missingReportRows[] = [
                         'id' => 'missing-fin-'.$org->id,
@@ -1384,28 +1389,42 @@ class AskAiService
                         'status' => Carbon::parse($latestDeadline->deadline_at)->isPast() ? 'Overdue' : 'Not submitted',
                         'status_tone' => Carbon::parse($latestDeadline->deadline_at)->isPast() ? 'danger' : 'warning',
                         'meta' => 'Due '.Carbon::parse($latestDeadline->deadline_at)->format('M j'),
-                        'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance?tab=financial' : '/dashboard/department-head/compliance'),
+                        'href' => $this->complianceReviewLink($user, '/dashboard/super-admin/compliance?tab=financial', '/dashboard/compliance'),
                         'action_label' => 'View reports',
                     ];
                 }
             }
 
             $missingComplianceTotal = count($missingComplianceRows);
-            $missingReportTotal = count($missingReportRows);
+            $orgsLabel = Str::plural('organization', $orgs->count());
+            $financialSentence = match (true) {
+                $latestDeadline === null => 'No financial report deadline has been set yet.',
+                $missingReportTotal === 0 => 'Every organization has submitted its financial report for the latest deadline.',
+                default => sprintf(
+                    '%d %s not yet submitted a financial report for the latest deadline.',
+                    $missingReportTotal,
+                    $missingReportTotal === 1 ? 'organization has' : 'organizations have'
+                ),
+            };
 
             $answer = $requirementTypes->isEmpty()
                 ? sprintf(
-                    'There are currently 0 active compliance requirement types configured for the current period across %d organization(s), and %d organization(s) have an unsubmitted financial report for the latest deadline.',
+                    'No compliance requirements are set for the current period across %d active student %s. %s',
                     $orgs->count(),
-                    $missingReportTotal
+                    $orgsLabel,
+                    $financialSentence
                 )
                 : sprintf(
-                    'Out of %d student organization(s) in scope, %d organization(s) still have missing or returned compliance requirements across %d active requirement type(s), while %d organization(s) have submitted all required files. For financial reporting, %d organization(s) have not yet submitted against the latest deadline.',
-                    $orgs->count(),
+                    '%d of %d active student %s %s missing or returned compliance files, and %d %s submitted everything required across %d %s. %s',
                     $missingComplianceTotal,
-                    $requirementTypes->count(),
+                    $orgs->count(),
+                    $orgsLabel,
+                    $missingComplianceTotal === 1 ? 'has' : 'have',
                     $fullySubmittedCount,
-                    $missingReportTotal
+                    $fullySubmittedCount === 1 ? 'has' : 'have',
+                    $requirementTypes->count(),
+                    Str::plural('requirement', $requirementTypes->count()),
+                    $financialSentence
                 );
 
             return [
@@ -1421,14 +1440,14 @@ class AskAiService
                     [
                         'id' => 'orgs-missing-compliance',
                         'title' => 'Organizations Missing Compliance Documents',
-                        'description' => 'Student organizations with unsubmitted or returned compliance requirements for the current academic period.',
+                        'description' => $this->showingFirst($missingComplianceTotal),
                         'empty_message' => 'Every organization in scope has submitted all active compliance requirements.',
                         'rows' => array_slice($missingComplianceRows, 0, self::ROW_LIMIT),
                     ],
                     [
                         'id' => 'orgs-missing-financial-reports',
                         'title' => 'Organizations Missing Latest Financial Report',
-                        'description' => 'Organizations that have not yet submitted a financial report for the active reporting deadline.',
+                        'description' => $this->showingFirst($missingReportTotal),
                         'empty_message' => 'No organizations are missing a required financial report for the latest deadline.',
                         'rows' => $missingReportRows,
                     ],
@@ -1443,25 +1462,32 @@ class AskAiService
 
         // Organization-scoped (ADMIN, SBO_OFFICER, STUDENT)
         $orgId = (int) $user->organization_id;
-        $missingCompliance = $this->missingComplianceRequirementsForOrganization($orgId);
+        $missingCompliance = $this->missingComplianceRequirementsForOrganization($user);
 
-        // Also check events with missing requirement files
+        $semesterId = AcademicSemester::selected()?->id;
         $upcomingOrDraftEvents = Event::where('organization_id', $orgId)
-            ->whereIn('status', ['draft', 'pending', 'approved'])
-            ->orderByDesc('start_time')
+            ->whereIn('status', ['planning', 'approved'])
+            ->where('end_time', '>=', now())
+            ->when($semesterId, fn ($events) => $events->where('academic_semester_id', $semesterId))
+            ->orderBy('start_time')
             ->limit(8)
             ->get();
 
+        $uploadedByEvent = $upcomingOrDraftEvents->isEmpty()
+            ? collect()
+            : EventRequirementFile::whereIn('event_id', $upcomingOrDraftEvents->pluck('id'))
+                ->get(['event_id', 'requirement_id'])
+                ->groupBy('event_id');
+
+        $requirementsByShape = [];
         $missingEventReqRows = [];
         foreach ($upcomingOrDraftEvents as $event) {
-            $activeReqs = EventRequirement::activeForEvent($event)->where('is_optional', false)->get(['id', 'name']);
+            $shape = ($event->academic_semester_id ?? 'none').'|'.data_get($event->planning_details, 'venue_type');
+            $activeReqs = $requirementsByShape[$shape] ??= EventRequirement::activeForEvent($event)->where('is_optional', false)->get(['id', 'name']);
             if ($activeReqs->isEmpty()) {
                 continue;
             }
-            $uploadedReqIds = EventRequirementFile::where('event_id', $event->id)
-                ->whereIn('event_requirement_id', $activeReqs->pluck('id'))
-                ->pluck('event_requirement_id')
-                ->all();
+            $uploadedReqIds = ($uploadedByEvent->get($event->id) ?? collect())->pluck('requirement_id')->all();
             $missingNames = $activeReqs->whereNotIn('id', $uploadedReqIds)->pluck('name')->all();
             if ($missingNames !== []) {
                 $missingEventReqRows[] = [
@@ -1471,40 +1497,82 @@ class AskAiService
                     'status' => count($missingNames).' missing',
                     'status_tone' => 'warning',
                     'meta' => Str::headline($event->status),
-                    'href' => $this->routeAccess->hrefFor($role, $role === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'),
+                    'href' => $this->linkTo($user, $role === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'),
                     'action_label' => 'Upload files',
                 ];
             }
         }
 
+        $latestDeadline = DB::table('financial_report_deadlines')->orderByDesc('id')->first();
+        $missingReportRows = [];
+        if ($latestDeadline) {
+            $reportSubmitted = DB::table('financial_reports')
+                ->where('organization_id', $orgId)
+                ->where('deadline_id', $latestDeadline->id)
+                ->whereIn('submission_status', ['pending_department_head', 'pending_sao', 'approved'])
+                ->exists();
+            if (! $reportSubmitted) {
+                $deadlineAt = Carbon::parse($latestDeadline->deadline_at);
+                $missingReportRows[] = [
+                    'id' => 'missing-fin-'.$orgId,
+                    'primary' => 'Financial report for the '.$deadlineAt->format('M j, Y').' deadline',
+                    'secondary' => 'No submitted financial report for this deadline yet.',
+                    'status' => $deadlineAt->isPast() ? 'Overdue' : 'Not submitted',
+                    'status_tone' => $deadlineAt->isPast() ? 'danger' : 'warning',
+                    'meta' => 'Due '.$deadlineAt->format('M j'),
+                    'href' => $this->linkTo($user, '/dashboard/finance/financial-ledger?tab=reports'),
+                    'action_label' => 'Open reports',
+                ];
+            }
+        }
+
+        $complianceTotal = count($missingCompliance);
+        $eventTotal = count($missingEventReqRows);
+        $reportSentence = match (true) {
+            $latestDeadline === null => 'No financial report deadline has been set yet.',
+            $missingReportRows === [] => 'Your financial report for the latest deadline is in.',
+            default => 'Your financial report for the latest deadline has not been submitted.',
+        };
+
         $answer = sprintf(
-            'For %s, there are %d unsubmitted or returned organization compliance requirement(s) and %d event(s) still missing required proposal files.',
-            $user->organization?->name ?? 'your organization',
-            count($missingCompliance),
-            count($missingEventReqRows)
+            '%s has %d unsubmitted or returned compliance %s and %d %s still missing required proposal files. %s',
+            $user->organization?->name ?? 'Your organization',
+            $complianceTotal,
+            Str::plural('requirement', $complianceTotal),
+            $eventTotal,
+            Str::plural('event', $eventTotal),
+            $reportSentence
         );
 
         return [
             'title' => 'Missing or Returned Requirements',
             'answer' => $answer,
             'highlights' => [
-                ['label' => 'Missing compliance files', 'value' => (string) count($missingCompliance), 'tone' => count($missingCompliance) > 0 ? 'warning' : 'success'],
-                ['label' => 'Events missing files', 'value' => (string) count($missingEventReqRows), 'tone' => count($missingEventReqRows) > 0 ? 'warning' : 'success'],
+                ['label' => 'Missing compliance files', 'value' => (string) $complianceTotal, 'tone' => $complianceTotal > 0 ? 'warning' : 'success'],
+                ['label' => 'Events missing files', 'value' => (string) $eventTotal, 'tone' => $eventTotal > 0 ? 'warning' : 'success'],
+                ['label' => 'Financial report', 'value' => $latestDeadline === null ? 'No deadline' : ($missingReportRows === [] ? 'Submitted' : 'Not submitted'), 'tone' => $missingReportRows === [] ? 'success' : 'danger'],
             ],
             'sections' => [
                 [
                     'id' => 'org-missing-compliance-list',
                     'title' => 'Unsubmitted or Returned Compliance Requirements',
-                    'description' => 'Active university compliance requirements your organization still needs to upload or revise.',
+                    'description' => $this->showingFirst($complianceTotal),
                     'empty_message' => 'Your organization has submitted all active compliance requirements.',
                     'rows' => array_slice($missingCompliance, 0, self::ROW_LIMIT),
                 ],
                 [
                     'id' => 'org-missing-event-files',
                     'title' => 'Events Missing Required Proposal Documents',
-                    'description' => 'Organization events that still have unuploaded mandatory requirement files.',
+                    'description' => null,
                     'empty_message' => 'All current events have their required proposal documents uploaded.',
                     'rows' => $missingEventReqRows,
+                ],
+                [
+                    'id' => 'org-missing-financial-report',
+                    'title' => 'Financial Report',
+                    'description' => null,
+                    'empty_message' => $latestDeadline === null ? 'No financial report deadline has been set yet.' : 'Your financial report for the latest deadline has been submitted.',
+                    'rows' => $missingReportRows,
                 ],
             ],
             'follow_ups' => [
@@ -1521,7 +1589,6 @@ class AskAiService
 
     private function buildSubmittedDocuments(User $user, Collection $organizationIds): array
     {
-        $role = $user->role;
         $orgIds = $organizationIds->all();
 
         $submissions = OrganizationComplianceSubmission::with([
@@ -1541,8 +1608,11 @@ class AskAiService
         $totalApproved = OrganizationComplianceSubmission::whereIn('organization_id', $orgIds)
             ->where('status', 'approved')
             ->count();
+        $totalReturned = OrganizationComplianceSubmission::whereIn('organization_id', $orgIds)
+            ->where('status', 'returned')
+            ->count();
 
-        $complianceRows = $submissions->map(function (OrganizationComplianceSubmission $sub) use ($role) {
+        $complianceRows = $submissions->map(function (OrganizationComplianceSubmission $sub) use ($user) {
             $orgName = $sub->organization?->acronym
                 ? "{$sub->organization->name} ({$sub->organization->acronym})"
                 : ($sub->organization?->name ?? 'Organization');
@@ -1560,14 +1630,7 @@ class AskAiService
                     default => 'neutral',
                 },
                 'meta' => $sub->submitted_at ? $sub->submitted_at->diffForHumans() : 'Recently',
-                'href' => $this->routeAccess->hrefFor(
-                    $role,
-                    match ($role) {
-                        'SUPER_ADMIN' => '/dashboard/super-admin/compliance?tab=review',
-                        'DEPARTMENT_HEAD' => '/dashboard/department-head/compliance',
-                        default => '/dashboard/compliance',
-                    }
-                ),
+                'href' => $this->complianceReviewLink($user, '/dashboard/super-admin/compliance?tab=review', '/dashboard/compliance'),
                 'action_label' => 'View file',
             ];
         })->all();
@@ -1599,22 +1662,35 @@ class AskAiService
                 default => 'neutral',
             },
             'meta' => $rep->submitted_at ? Carbon::parse($rep->submitted_at)->diffForHumans() : 'Submitted',
-            'href' => $this->routeAccess->hrefFor(
-                $role,
-                match ($role) {
-                    'SUPER_ADMIN' => '/dashboard/super-admin/compliance?tab=financial',
-                    'DEPARTMENT_HEAD' => '/dashboard/department-head/compliance',
-                    default => '/dashboard/finance/statement-of-account',
-                }
-            ),
+            'href' => $this->complianceReviewLink($user, '/dashboard/super-admin/compliance?tab=financial', '/dashboard/finance/statement-of-account'),
             'action_label' => 'Open report',
         ])->all();
 
+        $reportCounts = DB::table('financial_reports')
+            ->whereIn('organization_id', $orgIds)
+            ->whereIn('submission_status', ['pending_department_head', 'pending_sao', 'approved', 'rejected'])
+            ->selectRaw('submission_status, COUNT(*) as total')
+            ->groupBy('submission_status')
+            ->pluck('total', 'submission_status');
+        $reportsAwaiting = (int) ($reportCounts['pending_department_head'] ?? 0) + (int) ($reportCounts['pending_sao'] ?? 0);
+        $reportsApproved = (int) ($reportCounts['approved'] ?? 0);
+        $reportsReturned = (int) ($reportCounts['rejected'] ?? 0);
+        $reportsTotal = $reportsAwaiting + $reportsApproved + $reportsReturned;
+        $complianceTotal = $totalSubmitted + $totalApproved + $totalReturned;
+
         $answer = sprintf(
-            'There are %d compliance document(s) currently awaiting review and %d approved compliance submission(s) in scope, along with %d submitted financial report(s).',
+            '%d compliance %s %s waiting for review and %d %s approved. For financial reports, %d %s awaiting review, %d %s approved and %d %s returned for changes.',
             $totalSubmitted,
+            Str::plural('file', $totalSubmitted),
+            $totalSubmitted === 1 ? 'is' : 'are',
             $totalApproved,
-            $reports->count()
+            $totalApproved === 1 ? 'is' : 'are',
+            $reportsAwaiting,
+            $reportsAwaiting === 1 ? 'is' : 'are',
+            $reportsApproved,
+            $reportsApproved === 1 ? 'is' : 'are',
+            $reportsReturned,
+            $reportsReturned === 1 ? 'is' : 'are'
         );
 
         return [
@@ -1623,20 +1699,22 @@ class AskAiService
             'highlights' => [
                 ['label' => 'Awaiting review', 'value' => (string) $totalSubmitted, 'tone' => $totalSubmitted > 0 ? 'warning' : 'neutral'],
                 ['label' => 'Approved files', 'value' => (string) $totalApproved, 'tone' => 'success'],
-                ['label' => 'Submitted financial reports', 'value' => (string) $reports->count(), 'tone' => 'primary'],
+                ['label' => 'Reports awaiting review', 'value' => (string) $reportsAwaiting, 'tone' => $reportsAwaiting > 0 ? 'warning' : 'neutral'],
+                ['label' => 'Reports approved', 'value' => (string) $reportsApproved, 'tone' => 'success'],
+                ['label' => 'Reports returned', 'value' => (string) $reportsReturned, 'tone' => $reportsReturned > 0 ? 'danger' : 'neutral'],
             ],
             'sections' => [
                 [
                     'id' => 'submitted-compliance-files',
                     'title' => 'Recent Compliance Submissions',
-                    'description' => 'Compliance files uploaded by organizations, newest first.',
+                    'description' => $this->showingFirst($complianceTotal, 'newest first'),
                     'empty_message' => 'No compliance submissions have been uploaded yet.',
                     'rows' => $complianceRows,
                 ],
                 [
                     'id' => 'submitted-financial-reports',
                     'title' => 'Submitted Financial Reports',
-                    'description' => 'Financial statements submitted for Department Head or SAO endorsement.',
+                    'description' => $this->showingFirst($reportsTotal, 'newest first'),
                     'empty_message' => 'No financial reports have been submitted yet.',
                     'rows' => $reportRows,
                 ],
@@ -1658,21 +1736,36 @@ class AskAiService
         $role = $user->role;
         $orgIds = $organizationIds->all();
 
+        if ($role === 'SBO_OFFICER') {
+            return [
+                'title' => 'Pending Approvals & Review Queue',
+                'answer' => 'Approval requests are reviewed by your organization head, the Department Head and the SAO, so there is no review queue on your account.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+                ],
+            ];
+        }
+
         $approvalsQuery = ApprovalRequest::with(['requester:school_id,first_name,last_name', 'organization:id,name,acronym'])
-            ->where('status', 'pending');
+            ->where('status', 'pending')
+            ->where('required_role', $user->approvalRole())
+            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
 
         if ($role === 'SUPER_ADMIN') {
-            $approvalsQuery->where('required_role', 'SUPER_ADMIN');
-        } elseif ($role === 'DEPARTMENT_HEAD') {
-            $approvalsQuery->where('required_role', 'DEPARTMENT_HEAD')->whereIn('organization_id', $orgIds);
+            $saoEntityTypes = ['financial_report', 'event', ...(config('approvals.budget_final') === 'SUPER_ADMIN' ? ['budget'] : [])];
+            $approvalsQuery->where(fn ($allowed) => $allowed->whereIn('entity_type', $saoEntityTypes)
+                ->orWhere(fn ($unified) => $unified->whereIn('entity_type', ['budget', 'election'])
+                    ->whereIn('organization_id', Organization::student()->where('is_university_wide', true)->select('id'))));
         } else {
-            $approvalsQuery->where('organization_id', (int) $user->organization_id);
+            $approvalsQuery->whereIn('organization_id', $orgIds);
         }
 
         $totalPendingApprovals = (clone $approvalsQuery)->count();
         $approvals = $approvalsQuery->orderBy('requested_at')->limit(self::ROW_LIMIT)->get();
 
-        $approvalRows = $approvals->map(function (ApprovalRequest $req) use ($role) {
+        $approvalRows = $approvals->map(function (ApprovalRequest $req) use ($user, $role) {
             $requester = trim(($req->requester?->first_name ?? '').' '.($req->requester?->last_name ?? '')) ?: 'Member';
             $orgName = $req->organization?->acronym ?: ($req->organization?->name ?? 'Organization');
 
@@ -1683,7 +1776,7 @@ class AskAiService
                 'status' => 'Pending '.$this->roleName($req->required_role),
                 'status_tone' => 'warning',
                 'meta' => $req->requested_at ? $req->requested_at->diffForHumans() : 'Pending',
-                'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/approvals'),
+                'href' => $this->linkTo($user, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organization-approvals' : '/dashboard/approvals'),
                 'action_label' => 'Review',
             ];
         })->all();
@@ -1701,7 +1794,7 @@ class AskAiService
             $extraSection[] = [
                 'id' => 'pending-org-registrations',
                 'title' => 'Pending Organization Registrations',
-                'description' => 'Student organizations awaiting SAO registration review.',
+                'description' => $this->showingFirst($pendingRegCount),
                 'empty_message' => 'No organization registrations are pending review.',
                 'rows' => $pendingRegs->take(self::ROW_LIMIT)->map(fn ($org) => [
                     'id' => 'reg-'.$org->id,
@@ -1716,9 +1809,17 @@ class AskAiService
             ];
         }
 
+        $requestsPhrase = $totalPendingApprovals.' approval '.Str::plural('request', $totalPendingApprovals);
         $answer = $role === 'SUPER_ADMIN'
-            ? "There are {$totalPendingApprovals} pending SAO approval request(s) and {$pendingRegCount} student organization registration(s) awaiting review."
-            : "There are {$totalPendingApprovals} pending approval request(s) currently in your queue.";
+            ? sprintf(
+                '%s %s waiting for your review, and %d student %s %s waiting for a registration decision.',
+                $requestsPhrase,
+                $totalPendingApprovals === 1 ? 'is' : 'are',
+                $pendingRegCount,
+                Str::plural('organization', $pendingRegCount),
+                $pendingRegCount === 1 ? 'is' : 'are'
+            )
+            : sprintf('%s %s waiting for your review.', $requestsPhrase, $totalPendingApprovals === 1 ? 'is' : 'are');
 
         return [
             'title' => 'Pending Approvals & Review Queue',
@@ -1735,7 +1836,7 @@ class AskAiService
                 [
                     'id' => 'pending-approvals-list',
                     'title' => 'Pending Approval Requests',
-                    'description' => 'Requests ordered oldest first so the longest-waiting items are addressed first.',
+                    'description' => $this->showingFirst($totalPendingApprovals, 'oldest first'),
                     'empty_message' => 'No pending approval requests in your queue.',
                     'rows' => $approvalRows,
                 ],
@@ -1773,17 +1874,20 @@ class AskAiService
             ->orderBy('name')
             ->get(['id', 'name', 'acronym', 'review_remarks']);
 
-        $href = $this->routeAccess->hrefFor(
-            $role,
+        $href = $this->linkTo(
+            $user,
             $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organizations' : '/dashboard/department-head/organizations'
         );
 
         return [
             'title' => 'Organization Leadership & Registration Gaps',
             'answer' => sprintf(
-                'There are %d active student organization(s) without an assigned active administrator and %d organization registration(s) currently in returned status.',
+                '%d active student %s %s no active administrator, and %d organization %s returned for changes.',
                 $noAdminOrgs->count(),
-                $returnedOrgs->count()
+                Str::plural('organization', $noAdminOrgs->count()),
+                $noAdminOrgs->count() === 1 ? 'has' : 'have',
+                $returnedOrgs->count(),
+                $returnedOrgs->count() === 1 ? 'registration was' : 'registrations were'
             ),
             'highlights' => [
                 ['label' => 'Active without admin', 'value' => (string) $noAdminOrgs->count(), 'tone' => $noAdminOrgs->count() > 0 ? 'warning' : 'success'],
@@ -1793,9 +1897,9 @@ class AskAiService
                 [
                     'id' => 'orgs-without-admin',
                     'title' => 'Active Organizations Without an Administrator',
-                    'description' => $role === 'SUPER_ADMIN'
-                        ? 'Active organizations without an active Admin. The Department Head names it for a college organization; you name it for a university-wide one.'
-                        : 'Active organizations without an organization head. Open one and use Give access to name it.',
+                    'description' => trim(($role === 'SUPER_ADMIN'
+                        ? 'The Department Head names the admin of a college organization, and you name the admin of a university-wide one.'
+                        : 'Open an organization and use Give access to name its head.').' '.$this->showingFirst($noAdminOrgs->count())),
                     'empty_message' => 'Every active organization in scope has an assigned administrator.',
                     'rows' => $noAdminOrgs->take(self::ROW_LIMIT)->map(fn ($org) => [
                         'id' => 'noadmin-'.$org->id,
@@ -1811,7 +1915,7 @@ class AskAiService
                 [
                     'id' => 'orgs-returned',
                     'title' => 'Returned Organization Registrations',
-                    'description' => 'Registrations returned for revision.',
+                    'description' => $this->showingFirst($returnedOrgs->count()),
                     'empty_message' => 'No organization registrations are currently returned.',
                     'rows' => $returnedOrgs->take(self::ROW_LIMIT)->map(fn ($org) => [
                         'id' => 'ret-'.$org->id,
@@ -1852,6 +1956,10 @@ class AskAiService
             $query->where('tasks.assigned_to', $user->school_id);
         }
 
+        if ($semesterId = AcademicSemester::selected()?->id) {
+            $query->where('tasks.academic_semester_id', $semesterId);
+        }
+
         $overdueCount = (clone $query)->where('tasks.status', 'overdue')->count();
         $openCount = (clone $query)->whereIn('tasks.status', ['pending', 'in_progress'])->count();
 
@@ -1870,8 +1978,8 @@ class AskAiService
                 'users.last_name',
             ]);
 
-        $href = $this->routeAccess->hrefFor(
-            $role,
+        $href = $this->linkTo(
+            $user,
             $role === 'SBO_OFFICER' ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board'
         );
 
@@ -1893,7 +2001,13 @@ class AskAiService
 
         return [
             'title' => 'Tasks & Officer Workload',
-            'answer' => "There are {$overdueCount} overdue task(s) and {$openCount} pending or in-progress task(s) in your current scope.",
+            'answer' => sprintf(
+                '%d %s overdue, and %d %s still pending or in progress.',
+                $overdueCount,
+                $overdueCount === 1 ? 'task is' : 'tasks are',
+                $openCount,
+                $openCount === 1 ? 'task is' : 'tasks are'
+            ),
             'highlights' => [
                 ['label' => 'Overdue tasks', 'value' => (string) $overdueCount, 'tone' => $overdueCount > 0 ? 'danger' : 'success'],
                 ['label' => 'Open tasks', 'value' => (string) $openCount, 'tone' => 'primary'],
@@ -1902,7 +2016,7 @@ class AskAiService
                 [
                     'id' => 'tasks-workload-list',
                     'title' => 'Overdue & Active Tasks',
-                    'description' => 'Overdue tasks appear first, ordered by earliest deadline.',
+                    'description' => trim('Overdue tasks come first, then the earliest deadline. '.$this->showingFirst($overdueCount + $openCount)),
                     'empty_message' => 'No overdue or pending tasks found.',
                     'rows' => $rows,
                 ],

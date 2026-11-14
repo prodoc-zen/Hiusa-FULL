@@ -88,7 +88,7 @@ class HowToGuideLibrary
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Invite a Department Head (Dean) with a link',
                 'question' => 'How do I invite a dean?',
-                'summary' => 'The list of colleges is fixed. Each college has one Department Head (Dean), who gets an invitation link and fills in their own name, email and password.',
+                'summary' => 'Each college has one Department Head (Dean), who gets an invitation link and fills in their own name, email and password.',
                 'keywords' => ['college', 'dean', 'department head', 'assign dean', 'invite dean', 'invitation', 'invite department head', 'magic link', 'onboarding link'],
                 'checks' => [],
                 'minutes' => 2,
@@ -98,7 +98,25 @@ class HowToGuideLibrary
                     ['title' => 'Create the link', 'detail' => 'You can type an email to send the link to. It is optional. You do not type the dean\'s name, school ID or password.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Invite Department Head'],
                     ['title' => 'Copy and send it', 'detail' => 'Copy the link and send it to the dean by chat or SMS. The dean opens it and makes their own account.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Link ready'],
                 ],
-                'tips' => ['The link works once and expires in 48 hours. Make a new link if it expires.', 'Archive a college instead of removing it. Colleges cannot be added or deleted.'],
+                'tips' => ['The link works once and expires in 48 hours. Make a new link if it expires.', 'Colleges start from a seeded list. You can add a college, delete one that has no organizations or people, or archive one that does.'],
+            ],
+            [
+                'id' => 'sao-manage-colleges',
+                'category' => 'Academic setup',
+                'roles' => ['SUPER_ADMIN'],
+                'title' => 'Add, archive or delete a college',
+                'question' => 'How do I add or delete a college?',
+                'summary' => 'Colleges start from a seeded list. The SAO can add a college, delete one that is empty, or archive one that has organizations or people.',
+                'keywords' => ['add college', 'new college', 'create college', 'delete college', 'remove college', 'archive college', 'restore college', 'college list', 'colleges'],
+                'checks' => [],
+                'minutes' => 2,
+                'steps' => [
+                    ['title' => 'Open Colleges', 'detail' => 'In the sidebar, open Governance → Colleges.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Governance → Colleges'],
+                    ['title' => 'Add a college', 'detail' => 'Click "Add college", enter its name and code, and save. The college gets its own home organization.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → Add college'],
+                    ['title' => 'Delete an empty college', 'detail' => 'Open the menu on a college that has no organizations or people and choose Delete college. This cannot be undone.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → college menu'],
+                    ['title' => 'Archive or restore a college', 'detail' => 'For a college that has organizations or people, choose Archive college instead. Its profiles cannot sign in until you restore it.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → college menu'],
+                ],
+                'tips' => ['A college with organizations or people cannot be deleted. Archive it.', 'Invite its Department Head with the invitation link once the college exists.'],
             ],
             [
                 'id' => 'advance-planning-periods',
@@ -703,14 +721,14 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN', 'SBO_OFFICER'],
                 'title' => 'Post an organization announcement',
                 'question' => 'How do I post an announcement?',
-                'summary' => 'Share news with your members. It shows on their announcement feed.',
+                'summary' => 'Share news with your members. Once it is published, it shows on their announcement feed.',
                 'keywords' => ['announcement', 'announce', 'post', 'bulletin', 'news', 'publish', 'pin'],
                 'checks' => [],
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Announcements', 'detail' => 'In the sidebar, open Updates → Announcements.', 'path' => '/dashboard/announcements/manage-announcements', 'where' => 'Updates → Announcements'],
                     ['title' => 'Click "New announcement"', 'detail' => 'Add a title, body, category, and audience. Pin it or mark it important if needed.', 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
-                    ['title' => 'Publish now or schedule it', 'detail' => 'Published announcements appear on members\' feeds right away.', 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
+                    ['title' => 'Publish it or send it for approval', 'detail' => ['ADMIN' => 'Publish now or schedule it. Published announcements appear on members\' feeds right away.', 'SBO_OFFICER' => 'Submit it for approval. Your Admin approves it before it appears on members\' feeds.'], 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
                 ],
                 'tips' => [],
             ],
@@ -905,6 +923,7 @@ class HowToGuideLibrary
     {
         $guides = $this->all();
         $total = count($guides);
+        $resolve = fn (array $guide) => $this->forViewer($guide, $role);
         $categories = count(array_unique(array_column($guides, 'category')));
 
         $queryTokens = $this->tokens($question);
@@ -922,7 +941,7 @@ class HowToGuideLibrary
                 'title' => $this->tokens($guide['title']),
                 'keywords' => $this->tokens(implode(' ', $guide['keywords'])),
                 'body' => $this->tokens($guide['summary'].' '.implode(' ', array_map(
-                    fn (array $s) => $s['title'].' '.$s['detail'],
+                    fn (array $s) => $s['title'].' '.(is_array($s['detail']) ? implode(' ', $s['detail']) : $s['detail']),
                     $guide['steps']
                 ))),
             ];
@@ -987,9 +1006,9 @@ class HowToGuideLibrary
         ));
 
         return [
-            'best' => $top['guide'],
+            'best' => $resolve($top['guide']),
             'accessible' => $top['accessible'],
-            'related' => array_slice($related, 0, 3),
+            'related' => array_map($resolve, array_slice($related, 0, 3)),
             'total' => $total,
             'categories' => $categories,
             'top_confidence' => max(35, min(99, (int) round(min(1.0, $top['score'] / 14) * 100))),
@@ -1001,10 +1020,24 @@ class HowToGuideLibrary
      */
     public function forRole(string $role): array
     {
-        return array_values(array_filter(
-            $this->all(),
-            fn (array $guide) => in_array($role, $guide['roles'], true)
+        return array_values(array_map(
+            fn (array $guide) => $this->forViewer($guide, $role),
+            array_filter($this->all(), fn (array $guide) => in_array($role, $guide['roles'], true))
         ));
+    }
+
+    /** A step whose detail differs by role is given to the asking role as plain text. */
+    private function forViewer(array $guide, string $role): array
+    {
+        $guide['steps'] = array_map(function (array $step) use ($role): array {
+            if (is_array($step['detail'])) {
+                $step['detail'] = $step['detail'][$role] ?? (string) reset($step['detail']);
+            }
+
+            return $step;
+        }, $guide['steps']);
+
+        return $guide;
     }
 
     public function stepPath(array $step, string $role): ?string
