@@ -164,12 +164,13 @@ class AskAiChatScopeTest extends TestCase
         $this->assertSame(0, AiMemory::count());
     }
 
-    public function test_the_chat_route_uses_the_ai_generation_limit(): void
+    public function test_the_chat_route_uses_its_own_chat_limit(): void
     {
+        config(['performance.rate_limits.ai_chat_per_minute' => 3]);
         Sanctum::actingAs($this->adminIn(Organization::factory()->create()));
         $this->fake();
 
-        for ($sent = 0; $sent < 5; $sent++) {
+        for ($sent = 0; $sent < 3; $sent++) {
             $this->postJson('/api/ai/assistant/chat', ['message' => 'What should I do today?'])->assertOk();
         }
 
