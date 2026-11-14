@@ -14,3 +14,9 @@ export const getClearanceSignatures = (params) => api.get('/clearance-signatures
 export const updateClearanceSignature = (id, data) => api.patch(`/clearance-signatures/${id}`, data);
 
 export const deleteClearancePeriod = (id) => api.delete(`/clearance-periods/${id}`);
+
+export const updateClearancePeriod = (id, data) => api.patch(`/clearance-periods/${id}`, data);
+
+export const closeClearancePeriod = (id) => api.post(`/clearance-periods/${id}/close`);
+
+export const syncClearancePeriod = (id) => api.post(`/clearance-periods/${id}/sync`);

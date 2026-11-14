@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { ClipboardCheck, Lock, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { Button, Card, EmptyState, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
 import TableRowActions from '../../../components/TableRowActions';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -8,12 +8,13 @@ import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { Meter } from '../../../components/charts';
 import PaginationControls from '../../../components/PaginationControls';
-import { deleteClearancePeriod, getClearancePeriods, getClearancePeriodStudents } from '../../../services/clearanceService';
+import { closeClearancePeriod, deleteClearancePeriod, getClearancePeriods, getClearancePeriodStudents, syncClearancePeriod } from '../../../services/clearanceService';
 import { listMeta, unwrapList, fetchAllPages } from '../../../services/pagination';
 import { manilaDate } from '../../../lib/format';
 import useRecordParam from '../../../lib/useRecordParam';
 import CreateClearancePeriodModal from './CreateClearancePeriodModal';
 import ClearancePeriodStudentsDrawer from './ClearancePeriodStudentsDrawer';
+import EditClearancePeriodDrawer from './EditClearancePeriodDrawer';
 import { humanizeRole } from './clearanceLabels';
 
 export default function SaoClearancesPage() {
@@ -28,6 +29,13 @@ export default function SaoClearancesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [closeTarget, setCloseTarget] = useState(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+  const [closeError, setCloseError] = useState(null);
+  const [syncingId, setSyncingId] = useState(null);
+  // Read when the list loads, so a render never depends on the clock.
+  const [loadedAt, setLoadedAt] = useState(() => Date.now());
 
   const load = useCallback(() => {
     setLoading(true);
@@ -35,6 +43,7 @@ export default function SaoClearancesPage() {
     return getClearancePeriods({ page })
       .then((res) => {
         setPeriods(unwrapList(res.data));
+        setLoadedAt(Date.now());
         setMeta(listMeta(res.data));
       })
       .catch(() => setError('Failed to load clearance periods.'))
@@ -92,6 +101,35 @@ export default function SaoClearancesPage() {
     }
   }
 
+  async function syncStudents(period) {
+    setSyncingId(period.id);
+    try {
+      const { data } = await syncClearancePeriod(period.id);
+      notify.success(data?.message || 'Students added.');
+      setProgress({});
+      load();
+    } catch (err) {
+      notify.error(getApiErrorMessage(err, 'Students could not be added. Try again.'));
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function confirmClose() {
+    setCloseBusy(true);
+    setCloseError(null);
+    try {
+      await closeClearancePeriod(closeTarget.id);
+      notify.success(`"${closeTarget.title}" closed.`);
+      setCloseTarget(null);
+      load();
+    } catch (err) {
+      setCloseError(getApiErrorMessage(err, 'This clearance period could not be closed.'));
+    } finally {
+      setCloseBusy(false);
+    }
+  }
+
   const firstRun = !loading && !error && periods.length === 0;
 
   return (
@@ -120,6 +158,7 @@ export default function SaoClearancesPage() {
         <div className="flex flex-col gap-3">
           {periods.map((period) => {
             const stats = progress[period.id];
+            const closed = Boolean(period.deadline_at) && new Date(period.deadline_at).getTime() <= loadedAt;
             return (
               <Card key={period.id}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -127,6 +166,7 @@ export default function SaoClearancesPage() {
                     <p className="text-base font-semibold text-ink">{formatDisplayText(period.title)}</p>
                     <p className="text-xs text-ink-muted">{period.academic_year} · Deadline {period.deadline_at ? manilaDate(period.deadline_at) : 'not set'}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
+                      {closed && <StatusBadge tone="neutral" label="Closed" />}
                       {period.required_roles.map((role) => <StatusBadge key={role} tone="neutral" label={humanizeRole(role)} />)}
                     </div>
                   </div>
@@ -139,6 +179,9 @@ export default function SaoClearancesPage() {
                   </div>
                   <TableRowActions subject={formatDisplayText(period.title)} actions={[
                     { label: 'View students', icon: ClipboardCheck, onClick: () => setRecordId(period.id) },
+                    { label: 'Add students who joined since', icon: UserPlus, disabled: syncingId === period.id, onClick: () => syncStudents(period) },
+                    { label: 'Edit period', icon: Pencil, onClick: () => setEditTarget(period) },
+                    ...(closed ? [] : [{ label: 'Close period', icon: Lock, onClick: () => { setCloseError(null); setCloseTarget(period); } }]),
                     { label: 'Delete period', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(period); } },
                   ]} />
                 </div>
@@ -161,6 +204,19 @@ export default function SaoClearancesPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
+      <ConfirmModal
+        open={Boolean(closeTarget)}
+        title="Close this clearance period?"
+        message="The deadline moves to now. Signers can still finish the lines already open, but no more students can be added until you set a later deadline."
+        recordName={closeTarget?.title}
+        confirmText="Close period"
+        variant="primary"
+        busy={closeBusy}
+        error={closeError}
+        onCancel={() => setCloseTarget(null)}
+        onConfirm={confirmClose}
+      />
+      <EditClearancePeriodDrawer period={editTarget} onClose={() => setEditTarget(null)} onSaved={() => { setEditTarget(null); setProgress({}); load(); }} />
       <CreateClearancePeriodModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setProgress({}); if (page === 1) load(); else setPage(1); }} />
       {selectedPeriod && <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setRecordId(null)} onSignatureChanged={() => { setProgress({}); load(); }} />}
     </div>
