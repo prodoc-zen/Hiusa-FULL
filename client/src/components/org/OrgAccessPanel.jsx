@@ -91,12 +91,30 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
     { key: 'modules', header: 'Can open', render: (row) => <span className="text-xs font-normal text-ink-muted">{modulesLabel(row)}</span> },
   ];
 
-  const actions = canGrant ? (row) => (
-    <div className="flex justify-end gap-2">
-      <Button variant="secondary" size="sm" disabled={Boolean(row.deletion_block_reason)} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${row.first_name} ${row.last_name}`} onClick={() => setEditing(row)}>Change</Button>
-      <Button variant="secondary" size="sm" disabled={Boolean(row.deletion_block_reason)} title={row.deletion_block_reason || undefined} aria-label={`Remove ${row.first_name} ${row.last_name}`} onClick={() => { setRemoveError(''); setRemoving(row); }}>Remove</Button>
-    </div>
-  ) : undefined;
+  // Removing a person's last profile deletes the whole account, so the button says so.
+  const actions = canGrant ? (row) => {
+    const name = `${row.first_name} ${row.last_name}`;
+    const isLastProfile = !(row.profiles_count > 1);
+    const organizationName = row.organization?.name || 'this organization';
+    const blocked = Boolean(row.deletion_block_reason);
+
+    return (
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" disabled={blocked} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${name}`} onClick={() => setEditing(row)}>Change</Button>
+        <Button
+          variant={isLastProfile ? 'danger' : 'secondary'}
+          size="sm"
+          className="max-w-48"
+          disabled={blocked}
+          title={row.deletion_block_reason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
+          aria-label={isLastProfile ? `Delete account for ${name}` : `Remove ${name} from ${organizationName}`}
+          onClick={() => { setRemoveError(''); setRemoving(row); }}
+        >
+          <span className="truncate">{isLastProfile ? 'Delete account' : `Remove from ${organizationName}`}</span>
+        </Button>
+      </div>
+    );
+  } : undefined;
 
   const filtersActive = Boolean(term);
   const emptyState = filtersActive ? undefined : (
