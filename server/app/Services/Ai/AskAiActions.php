@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Contracts\TextGenerator;
+use App\Http\Middleware\EnsureRole;
 use App\Models\AccountProfile;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
@@ -58,20 +59,30 @@ class AskAiActions
     /** @return array<int, string> the titles of the actions this person can use, for the capabilities answer */
     public function titlesFor(User $user): array
     {
-        return array_values(array_map(fn (array $definition) => $definition['title'], $this->forRole($user->role)));
+        return array_values(array_map(fn (array $definition) => $definition['title'], $this->forUser($user)));
     }
 
     public function definitionFor(User $user, string $key): ?array
     {
         $definition = $this->definitions()[$key] ?? null;
 
-        return $definition !== null && in_array($user->role, $definition['roles'], true) ? $definition : null;
+        return $definition !== null && $this->offeredTo($user, $definition) ? $definition : null;
     }
 
     /** @return array<string, array> */
-    private function forRole(string $role): array
+    private function forUser(User $user): array
     {
-        return array_filter($this->definitions(), fn (array $definition) => in_array($role, $definition['roles'], true));
+        return array_filter($this->definitions(), fn (array $definition) => $this->offeredTo($user, $definition));
+    }
+
+    /** The role gate, and the dean-only list the real route's middleware applies to the dean's office staff. */
+    private function offeredTo(User $user, array $definition): bool
+    {
+        if (! in_array($user->role, $definition['roles'], true)) {
+            return false;
+        }
+
+        return ! ($user->isCollegeOfficeStaff() && in_array($definition['route'][0].' '.ltrim($definition['route'][1], '/'), EnsureRole::DEAN_ONLY, true));
     }
 
     /** @return array<string, array> */
@@ -391,7 +402,7 @@ class AskAiActions
 
         $best = null;
         $bestDistance = PHP_INT_MAX;
-        foreach ($this->forRole($user->role) as $key => $definition) {
+        foreach ($this->forUser($user) as $key => $definition) {
             if (isset($definition['also']) && array_intersect($definition['also'], $tokens) === []) {
                 continue;
             }
@@ -851,7 +862,7 @@ class AskAiActions
         [$method, $path] = $definition['route'];
         $path = preg_replace_callback('/\{(\w+)\}/', fn (array $match) => rawurlencode((string) ($values[$match[1]] ?? '')), $path);
 
-        $server = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'REMOTE_ADDR' => $original->server('REMOTE_ADDR', '127.0.0.1')];
+        $server = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'REMOTE_ADDR' => (string) ($original->ip() ?? '127.0.0.1')];
         foreach (['Authorization' => 'HTTP_AUTHORIZATION', 'X-Academic-Semester' => 'HTTP_X_ACADEMIC_SEMESTER', 'User-Agent' => 'HTTP_USER_AGENT'] as $header => $key) {
             if ($original->headers->has($header)) {
                 $server[$key] = (string) $original->headers->get($header);

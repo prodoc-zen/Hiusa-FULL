@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Contracts\TextGenerator;
+use App\Http\Middleware\EnsurePeriodWritable;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\AiMessage;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
@@ -20,6 +24,7 @@ use App\Models\User;
 use App\Services\Ai\AskAiActions;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
@@ -606,6 +611,18 @@ class AskAiActionsTest extends TestCase
         $this->assertFalse((bool) $event->requires_budget);
     }
 
+    public function test_an_organization_archived_after_the_proposal_is_refused_at_confirm_and_nothing_is_created(): void
+    {
+        $org = Organization::factory()->create();
+        Sanctum::actingAs($this->admin($org));
+        $message = $this->ask('create an event called Fun Run');
+
+        $org->update(['lifecycle_status' => 'archived', 'is_active' => false]);
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertForbidden();
+
+        $this->assertSame(0, Event::count());
+    }
+
     // -------------------------------------------------------------------------
     // The internal request really runs the route's middleware
     // -------------------------------------------------------------------------
@@ -629,34 +646,112 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, ApprovalRequest::count());
     }
 
-    public function test_the_deans_staff_are_refused_by_the_dean_only_gate(): void
+    public function test_the_deans_staff_are_never_offered_the_dean_only_applicant_card(): void
     {
         $college = $this->makeCollege('CCS');
         $home = $this->makeCollegeHome($college);
-        $this->makeCollegeHead($college);
+        $dean = $this->makeCollegeHead($college);
         $staff = User::factory()->admin()->create(['organization_id' => $home->id, 'position_title' => 'College Secretary']);
-        $student = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+        User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+
         Sanctum::actingAs($staff);
-        $message = $this->ask('let Maria Santos apply for a new organization');
-        $this->assertSame('allow_applicant', $message['payload']['action']['key']);
+        $this->assertArrayNotHasKey('action', $this->ask('let Maria Santos apply for a new organization')['payload']);
+        $this->assertSame([], app(AskAiActions::class)->titlesFor($staff));
 
-        $response = $this->confirm($message['id'], ['school_id' => (string) $student->school_id])->assertOk();
-
-        $this->assertSame('failed', $response->json('message.payload.action.status'));
-        $this->assertSame('I could not do that. Only the dean can do this.', $response->json('message.content'));
-        $this->assertSame(0, OrganizationApplicantGrant::count());
+        Sanctum::actingAs($dean);
+        $this->assertSame('allow_applicant', $this->ask('let Maria Santos apply for a new organization')['payload']['action']['key']);
     }
 
-    public function test_an_organization_archived_after_the_proposal_is_refused_and_nothing_is_created(): void
+    public function test_the_audit_row_keeps_the_address_the_proxy_forwarded_not_the_proxys_own(): void
     {
         $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => 'Secretary', 'account_status' => 'active']);
         Sanctum::actingAs($this->admin($org));
-        $message = $this->ask('create an event called Fun Run');
+        $message = $this->ask('create a task called Prepare minutes');
 
-        $org->update(['lifecycle_status' => 'archived', 'is_active' => false]);
-        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertForbidden();
+        TrustProxies::at('127.0.0.1');
+        try {
+            $this->withHeader('X-Forwarded-For', '203.0.113.9')
+                ->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $officer->school_id])
+                ->assertOk();
+        } finally {
+            TrustProxies::flushState();
+        }
 
+        $this->assertSame(1, Task::count());
+        $this->assertSame('203.0.113.9', AuditLog::where('action', 'task_delegated')->sole()->ip_address);
+    }
+
+    public function test_the_selected_planning_semester_header_reaches_the_route_and_files_the_event_there(): void
+    {
+        [$active, $upcoming] = $this->semesters();
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Next Term Kickoff');
+
+        $this->withHeader('X-Academic-Semester', (string) $upcoming->id)
+            ->confirm($message['id'], ['title' => 'Next Term Kickoff', 'start_time' => '2027-02-05T15:00', 'end_time' => '2027-02-05T17:00'])
+            ->assertOk();
+
+        $this->assertSame($upcoming->id, Event::sole()->academic_semester_id);
+        $this->assertNotSame($active->id, Event::sole()->academic_semester_id);
+    }
+
+    public function test_an_event_outside_the_semester_comes_back_as_an_error_that_belongs_to_no_field(): void
+    {
+        $this->semesters();
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Far Future');
+
+        $response = $this->confirm($message['id'], ['title' => 'Far Future', 'start_time' => '2028-02-05T15:00', 'end_time' => '2028-02-05T17:00'])->assertUnprocessable();
+
+        $this->assertSame(['_' => ['Event dates must fall within the academic semester.']], $response->json('errors'));
+        $this->assertSame('awaiting_confirmation', $response->json('assistant_message.payload.action.status'));
         $this->assertSame(0, Event::count());
+    }
+
+    public function test_a_closed_semester_refuses_the_task_through_the_routes_period_gate(): void
+    {
+        $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => 'Secretary', 'account_status' => 'active']);
+        [, , $completed] = $this->semesters();
+        Sanctum::actingAs($this->admin($org));
+        $message = $this->ask('create a task called Prepare minutes');
+
+        $response = $this->withHeader('X-Academic-Semester', (string) $completed->id)
+            ->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $officer->school_id])
+            ->assertOk();
+
+        $this->assertSame('failed', $response->json('message.payload.action.status'));
+        $this->assertStringContainsString(EnsurePeriodWritable::CLOSED, $response->json('message.content'));
+        $this->assertSame(0, Task::count());
+    }
+
+    public function test_a_real_bearer_token_carries_through_to_the_route(): void
+    {
+        $admin = $this->admin();
+        $headers = ['Authorization' => 'Bearer '.$admin->createToken('ask-ai-actions-test')->plainTextToken];
+        $message = $this->withHeaders($headers)->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk()->json('message');
+
+        $this->withHeaders($headers)->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+
+        $event = Event::sole();
+        $this->assertSame($admin->school_id, (int) $event->created_by);
+        $this->assertSame($admin->organization_id, $event->organization_id);
+    }
+
+    /** @return array{AcademicSemester, AcademicSemester, AcademicSemester} the active, upcoming and completed semesters */
+    private function semesters(): array
+    {
+        $past = AcademicYear::create(['label' => '2025-2026', 'starts_on' => '2025-08-01', 'ends_on' => '2026-05-31', 'is_current' => false]);
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+
+        return [
+            AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']),
+            AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']),
+            AcademicSemester::create(['academic_year_id' => $past->id, 'number' => 1, 'starts_on' => '2025-08-01', 'ends_on' => '2025-12-31', 'status' => 'completed']),
+        ];
     }
 
     public function test_a_server_error_never_leaks_its_message(): void
