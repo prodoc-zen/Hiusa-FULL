@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -24,8 +24,8 @@ vi.mock('../../../services/clearanceService', () => ({ createClearancePeriod: vi
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const years = [
-  { id: 2, label: '2027-2028', starts_on: '2027-08-01', ends_on: '2028-05-31', is_current: false },
-  { id: 1, label: '2026-2027', starts_on: '2026-08-01', ends_on: '2027-05-31', is_current: true },
+  { id: 2, label: '2027-2028', starts_on: '2027-08-01', ends_on: '2028-05-31', is_current: false, can_be_removed: true, removal_blocker: null },
+  { id: 1, label: '2026-2027', starts_on: '2026-08-01', ends_on: '2027-05-31', is_current: true, can_be_removed: false, removal_blocker: '2026-2027 has a semester that has started, so it stays on the calendar.' },
 ];
 
 const renderPage = () => render(<MemoryRouter><AcademicYearsPage /></MemoryRouter>);
@@ -33,7 +33,7 @@ const renderPage = () => render(<MemoryRouter><AcademicYearsPage /></MemoryRoute
 describe('AcademicYearsPage', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('names the current year, links the start-of-year work, and protects the current row', async () => {
+  it('names the current year, links the start-of-year work, and offers Remove only where the server says the year can go', async () => {
     vi.mocked(getAcademicYears).mockResolvedValue(years);
     renderPage();
 
@@ -44,7 +44,72 @@ describe('AcademicYearsPage', () => {
     // The table renders a desktop row and a mobile card for each year.
     fireEvent.click(screen.getAllByRole('button', { name: 'Actions for 2026-2027' })[0]);
     expect(screen.queryByRole('menuitem', { name: 'Remove 2026-2027' })).not.toBeInTheDocument();
+    expect(screen.getByText('2026-2027 has a semester that has started, so it stays on the calendar.')).toBeInTheDocument();
     expect(await findRowAction('Remove 2027-2028', '2027-2028')).toBeInTheDocument();
+  });
+
+  describe('the academic year trap', () => {
+    const trapSemester = { id: 31, number: 1, status: 'upcoming', starts_on: '2999-08-07', ends_on: '2999-12-15' };
+    const trapYear = { id: 3, label: '2999-3000', starts_on: '2999-08-01', ends_on: '3000-05-31', is_current: true, can_be_removed: true, removal_blocker: null, semesters: [trapSemester] };
+
+    it('offers Remove on a current year whose semesters never started, and removes it after confirmation', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValueOnce([trapYear]).mockResolvedValueOnce([]);
+      vi.mocked(deleteAcademicYear).mockResolvedValue({});
+      renderPage();
+
+      fireEvent.click(await findRowAction('Remove 2999-3000', '2999-3000'));
+      const dialog = await screen.findByRole('dialog', { name: 'Remove academic year' });
+      expect(within(dialog).getByText(/No academic year will be current afterwards\./)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remove year' }));
+
+      await waitFor(() => expect(deleteAcademicYear).toHaveBeenCalledWith(3));
+    });
+
+    it('says why Activate is unavailable before the click and offers Edit dates right there', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([trapYear]);
+      renderPage();
+
+      const activate = await screen.findByRole('button', { name: 'Activate 1st semester of AY 2999-3000' });
+      expect(activate).toBeDisabled();
+      expect(activate).toHaveAccessibleDescription('Starts on August 7, 2999. Change its dates or activate it from that day.');
+      expect(screen.getByText('Starts on August 7, 2999. Change its dates or activate it from that day.')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit dates' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit dates of the 1st semester, AY 2999-3000' });
+      expect(within(dialog).getByLabelText(/Starts on/)).toHaveValue('2999-08-07');
+      expect(within(dialog).getByLabelText(/Ends on/)).toHaveValue('2999-12-15');
+    });
+
+    it('does not offer the beside-the-note Edit dates when the blocker is not the start date', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        { ...years[1], semesters: [{ id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }, { id: 12, number: 2, status: 'completed', starts_on: '2027-01-01', ends_on: '2027-05-31' }] },
+      ]);
+      renderPage();
+
+      await screen.findByText('2026-2027 is the current year');
+      expect(screen.queryByRole('button', { name: 'Edit dates' })).not.toBeInTheDocument();
+    });
+
+    it('says in one line what to do when no academic year is current', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([{ ...years[0], is_current: false }]);
+      renderPage();
+
+      expect(await screen.findByText('No academic year is current. Choose Make current on a year in the calendar, or add one.')).toBeInTheDocument();
+      expect(screen.queryByText(/is the current year/)).not.toBeInTheDocument();
+    });
+
+    it('stays quiet about a missing current year when one is current or the calendar is empty', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(years);
+      const { unmount } = renderPage();
+      await screen.findByText('2026-2027 is the current year');
+      expect(screen.queryByText(/No academic year is current/)).not.toBeInTheDocument();
+      unmount();
+
+      vi.mocked(getAcademicYears).mockResolvedValue([]);
+      renderPage();
+      expect(await screen.findByText('No academic year set')).toBeInTheDocument();
+      expect(screen.queryByText(/No academic year is current/)).not.toBeInTheDocument();
+    });
   });
 
   it('makes another year current after confirmation', async () => {
