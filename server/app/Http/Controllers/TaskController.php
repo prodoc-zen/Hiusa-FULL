@@ -350,7 +350,21 @@ class TaskController extends Controller
             return response()->json(['message' => 'You are not authorized to delete this task.'], 403);
         }
 
-        $task->delete();
+        DB::transaction(function () use ($task, $request) {
+            $task->delete();
+            AuditLog::create([
+                'organization_id' => $task->organization_id,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'tasks',
+                'action' => 'task_deleted',
+                'record_type' => Task::class,
+                'record_id' => $task->id,
+                'old_values' => $task->only(['title', 'status', 'assigned_to', 'event_id', 'deadline']),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
 
         return response()->json(['message' => 'Task deleted successfully.']);
     }
