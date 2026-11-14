@@ -996,7 +996,7 @@ class OrderController extends Controller
 
     private function organizationHasGcashQr(int $organizationId): bool
     {
-        return Organization::whereKey($organizationId)->whereNotNull('gcash_qr_url')->where('gcash_qr_url', '!=', '')->exists();
+        return Organization::find($organizationId)?->gcashQrPath() !== null;
     }
 
     private function auditableOrderValues(Order $order): array

@@ -9,6 +9,9 @@ use App\Models\AiMessage;
 use App\Models\AiOutput;
 use App\Models\User;
 use App\Services\Dashboard\ClientRouteAccess;
+use Carbon\Carbon;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -30,6 +33,11 @@ class AskAiChatService
     public const CHAT_AUDIT_VERSION = 'ask-ai-chat-v1';
 
     public const ACTION_AUDIT_VERSION = 'ask-ai-action-v1';
+
+    /** How long a card may stay "confirming" before nobody can say whether the action ran. */
+    public const RUNNING_SECONDS = 120;
+
+    public const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
 
     private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory'];
 
@@ -88,6 +96,7 @@ class AskAiChatService
         if ($regenerate) {
             $this->assertRegenerable($conversation);
             $userMessage = $conversation->messages()->reorder()->where('role', 'user')->orderByDesc('id')->first();
+            $source = ($userMessage->payload['source'] ?? null) === 'typed' ? 'typed' : 'link';
             $conversation->messages()->reorder()->where('role', 'assistant')->where('id', '>', $userMessage->id)->get()
                 ->each(fn (AiMessage $replaced) => $replaced->supersede());
         } else {
@@ -102,6 +111,7 @@ class AskAiChatService
                 'conversation_id' => $conversation->id,
                 'role' => 'user',
                 'content' => (string) $text,
+                'payload' => ['source' => $source],
                 'status' => 'completed',
                 'created_at' => now(),
             ]);
@@ -161,8 +171,61 @@ class AskAiChatService
             'status' => $message->status,
             'feedback' => $message->feedback,
             'created_at' => $message->created_at?->toIso8601String(),
-            'payload' => $message->payload,
+            'payload' => $message->role === 'user' ? null : $this->withErrorsAsMap($message->payload),
         ];
+    }
+
+    /** True for a card still "confirming" that began over the running limit ago, or never recorded when it began. */
+    public function isInterrupted(mixed $payload): bool
+    {
+        $action = is_array($payload) ? ($payload['action'] ?? null) : null;
+        if (! is_array($action) || ($action['status'] ?? null) !== 'confirming') {
+            return false;
+        }
+
+        $started = isset($action['confirming_at']) ? Carbon::parse($action['confirming_at']) : null;
+
+        return $started === null || $started->diffInSeconds(now(), true) >= self::RUNNING_SECONDS;
+    }
+
+    /**
+     * Closes a card that was left "confirming" past the running limit as failed, so a page that shows no Confirm or
+     * Cancel button does not say "Working on it" forever. The check runs again under a row lock so two readers close it once.
+     */
+    public function closeIfInterrupted(User $user, AiMessage $message): AiMessage
+    {
+        if ($message->role !== 'assistant' || ! $this->isInterrupted($message->payload)) {
+            return $message;
+        }
+
+        return DB::transaction(function () use ($user, $message): AiMessage {
+            $locked = AiMessage::query()->whereKey($message->id)->lockForUpdate()->firstOrFail();
+            if ($this->isInterrupted($locked->payload)) {
+                $this->failInterrupted($user, $locked);
+            }
+
+            return $locked;
+        });
+    }
+
+    /** Fails the card with the interrupted sentence and leaves an audit row for the unknown outcome. The caller holds the row lock. */
+    public function failInterrupted(User $user, AiMessage $locked): void
+    {
+        $payload = $locked->payload;
+        $payload['action']['status'] = 'failed';
+        $payload['action']['result'] = ['message' => self::INTERRUPTED];
+        $locked->update(['payload' => $payload, 'content' => self::INTERRUPTED]);
+        $this->recordAction($user, $locked, 'interrupted', null);
+    }
+
+    /** The stored JSON turns an empty map into a list, but the action card's errors are a map from field name to messages. */
+    private function withErrorsAsMap(mixed $payload): mixed
+    {
+        if (is_array($payload) && is_array($payload['action'] ?? null) && ($payload['action']['errors'] ?? null) === []) {
+            $payload['action']['errors'] = new \stdClass;
+        }
+
+        return $payload;
     }
 
     /** An answer from an area the person's access no longer covers is shown as unavailable and never sent to the model. */
@@ -174,7 +237,7 @@ class AskAiChatService
     public function presentMessageFor(User $user, AiMessage $message): array
     {
         if ($this->visibleTo($user, $message)) {
-            return $this->presentMessage($message);
+            return $this->presentMessage($this->closeIfInterrupted($user, $message));
         }
 
         return [...$this->presentMessage($message), 'content' => self::HIDDEN_ANSWER, 'payload' => null];
@@ -332,9 +395,9 @@ class AskAiChatService
         $allowedModel = $this->askAi->canAsk($user, $intent);
 
         $messages = $this->modelMessages($history, $facts, $question);
-        // Numbers may come from the facts built for this question (which carry the question and the memories) and
-        // from what the person typed earlier, never from text the assistant wrote in earlier turns.
-        $guardFacts = ['facts' => $facts, 'typed' => array_column(array_filter($history, fn (array $turn) => $turn['role'] === 'user'), 'content')];
+        // Numbers may come from the facts built for this question, which carry the question itself, and nowhere else:
+        // not from earlier turns of either side and not from memories, which the person typed and nobody checked.
+        $guardFacts = ['facts' => Arr::except($facts, ['memories'])];
 
         $deadline = $started + $this->answerSeconds();
         $released = '';

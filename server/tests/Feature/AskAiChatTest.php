@@ -491,15 +491,15 @@ class AskAiChatTest extends TestCase
         Sanctum::actingAs($admin);
         $fake = $this->fake(['Short answer.']);
 
-        $saved = $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that I am the treasurer and want short answers'])->assertOk();
+        $saved = $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that I am the treasurer and want short answers', 'source' => 'typed'])->assertOk();
         $saved->assertJsonPath('message.content', 'Saved to memory: I am the treasurer and want short answers');
         $this->assertSame(1, AiMemory::ownedBy($admin)->count());
         $this->assertCount(0, $fake->calls);
 
-        $this->postJson('/api/ai/assistant/chat', ['message' => 'Please remember: my deadline is Friday'])->assertOk();
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'Please remember: my deadline is Friday', 'source' => 'typed'])->assertOk();
         $this->assertSame(2, AiMemory::ownedBy($admin)->count());
 
-        $list = $this->postJson('/api/ai/assistant/chat', ['message' => 'What do you remember?'])->assertOk();
+        $list = $this->postJson('/api/ai/assistant/chat', ['message' => 'What do you remember?', 'source' => 'typed'])->assertOk();
         $this->assertStringContainsString('- I am the treasurer and want short answers', $list->json('message.content'));
         $this->assertStringContainsString('- my deadline is Friday', $list->json('message.content'));
 
@@ -509,7 +509,7 @@ class AskAiChatTest extends TestCase
 
         $this->getJson('/api/ai/assistant')->assertOk()->assertJsonPath('memory_count', 2);
 
-        $this->postJson('/api/ai/assistant/chat', ['message' => 'forget everything'])->assertOk()->assertJsonPath('message.payload.intent', 'memory');
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'forget everything', 'source' => 'typed'])->assertOk()->assertJsonPath('message.payload.intent', 'memory');
         $this->assertSame(0, AiMemory::ownedBy($admin)->count());
     }
 
@@ -519,7 +519,7 @@ class AskAiChatTest extends TestCase
         Sanctum::actingAs($admin);
         $this->fake();
 
-        $this->postJson('/api/ai/assistant/chat', ['message' => 'remember '.str_repeat('abcde ', 80)])->assertOk();
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'remember '.str_repeat('abcde ', 80), 'source' => 'typed'])->assertOk();
 
         $this->assertLessThanOrEqual(300, mb_strlen(AiMemory::first()->content));
     }
@@ -538,7 +538,7 @@ class AskAiChatTest extends TestCase
         $this->postJson('/api/ai/assistant/memories', ['content' => 'One too many'])->assertStatus(422)->assertJsonValidationErrors(['content']);
 
         $this->fake(['x']);
-        $full = $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that this is the thirty first'])->assertOk();
+        $full = $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that this is the thirty first', 'source' => 'typed'])->assertOk();
         $this->assertStringContainsString('Delete one', $full->json('message.content'));
         $this->assertSame(30, AiMemory::ownedBy($admin)->count());
 
@@ -687,11 +687,11 @@ class AskAiChatTest extends TestCase
 
         $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that I am the treasurer', 'source' => 'typed'])->assertOk()
             ->assertJsonPath('message.payload.intent', 'memory');
-        $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that I like tables'])->assertOk()
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'remember that I like tables', 'source' => 'typed'])->assertOk()
             ->assertJsonPath('message.payload.intent', 'memory');
         $this->assertSame(3, AiMemory::ownedBy($admin)->count());
 
-        $this->postJson('/api/ai/assistant/chat', ['message' => 'forget everything'])->assertOk();
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'forget everything', 'source' => 'typed'])->assertOk();
         $this->assertSame(0, AiMemory::ownedBy($admin)->count());
 
         $this->postJson('/api/ai/assistant/chat', ['message' => 'hello', 'source' => 'bogus'])->assertStatus(422)->assertJsonValidationErrors(['source']);

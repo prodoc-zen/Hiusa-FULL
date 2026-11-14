@@ -1,14 +1,17 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Check, Copy } from 'lucide-react';
 import { Button, Field, Input, Select, Textarea } from '../ui';
 import { cancelAiAction, confirmAiAction } from '../../services/askAiService';
-import { effectiveStatus } from './actionState';
+import { actionDetailsText, effectiveStatus } from './actionState';
 import isSafePageHref from './safeHref';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const INPUT_CLASS = 'h-11 read-only:bg-subtle read-only:text-ink-muted-strong';
+// The shared Select is 40px; this lifts only the card's selects to the 44px of INPUT_CLASS.
+const SELECT_FIELD_CLASS = '[&>div>div]:min-h-11';
 const NOTE_CLASS = 'text-xs font-medium text-ink-muted-strong';
 const FAILURE = 'Could not complete that. Try again.';
+const THROTTLED = 'Too many requests. Wait a moment, then try again.';
 
 const messageList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
 
@@ -80,7 +83,7 @@ function ActionField({ field, value, error, readOnly, onChange }) {
   if (field.type === 'select') {
     const options = Array.isArray(field.options) ? field.options : [];
     return (
-      <Field label={label} hint={hint} error={error} required={field.required}>
+      <Field label={label} hint={hint} error={error} required={field.required} className={SELECT_FIELD_CLASS}>
         <Select value={value} disabled={readOnly} onChange={(event) => onChange(event.target.value)}>
           {field.required && (value === '' || value == null) && <option value="" disabled>Choose an option</option>}
           {!field.required && <option value="">None</option>}
@@ -123,7 +126,32 @@ function ActionField({ field, value, error, readOnly, onChange }) {
   );
 }
 
-export default function ActionCard({ message, action, live = true, onChange }) {
+function CopyDetails({ getText }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <Button variant="secondary" leftIcon={copied ? Check : Copy} onClick={copy}>
+      {copied ? 'Copied' : 'Copy details'}
+    </Button>
+  );
+}
+
+export default function ActionCard({ message, action, live = true, onChange, onValuesChange, onAskAgain, askAgainDisabled = false }) {
   const fields = Array.isArray(action.fields) ? action.fields : [];
   const [values, setValues] = useState(() => initialValues(fields));
   const [errors, setErrors] = useState(() => action.errors || {});
@@ -132,6 +160,12 @@ export default function ActionCard({ message, action, live = true, onChange }) {
   const busyRef = useRef(false);
   const now = useExpiry(action);
   const status = effectiveStatus(action, now);
+  const showsForm = !['done', 'cancelled', 'failed'].includes(status);
+
+  // The message Copy reads these, so it copies what the person edited, and falls back to the stored values once the form is gone.
+  useEffect(() => {
+    onValuesChange?.(showsForm ? values : null);
+  }, [onValuesChange, showsForm, values]);
 
   const run = async (request, onRefused) => {
     if (busyRef.current) return;
@@ -145,7 +179,8 @@ export default function ActionCard({ message, action, live = true, onChange }) {
       const code = err?.response?.status;
       const data = err?.response?.data;
       if (onRefused?.(code, data)) return;
-      if (code === 409 || code === 404) setClosedNote(data?.message || FAILURE);
+      if (code === 429) setErrors((current) => ({ ...current, _: [data?.message || THROTTLED] }));
+      else if (code === 409 || code === 404) setClosedNote(data?.message || FAILURE);
       else setErrors((current) => ({ ...current, _: [FAILURE] }));
     } finally {
       busyRef.current = false;
@@ -180,18 +215,23 @@ export default function ActionCard({ message, action, live = true, onChange }) {
     );
   }
 
-  if (status === 'cancelled' || status === 'failed' || status === 'expired') {
+  if (status === 'cancelled' || status === 'failed') {
     const line = {
       cancelled: 'You cancelled this request.',
-      failed: 'This request did not go through.',
-      expired: 'This request expired. Ask again to get a fresh one.',
+      failed: action.result?.message || 'This request did not go through.',
     }[status];
     return <p className={`mt-3 ${NOTE_CLASS}`}>{line}</p>;
   }
 
-  const editable = live && !closedNote;
+  const expired = status === 'expired';
+  const editable = live && !closedNote && status === 'awaiting_confirmation';
   const readOnly = !editable || busy;
   const general = messageList(errors._);
+  const note = status === 'confirming'
+    ? 'Working on it. Check the page if this does not change.'
+    : expired
+      ? 'This request expired. Ask again to get a fresh one.'
+      : !live && !closedNote ? 'A newer request replaced this one.' : '';
 
   return (
     <form
@@ -215,7 +255,13 @@ export default function ActionCard({ message, action, live = true, onChange }) {
         <p role="alert" className="text-sm font-medium text-danger-strong">{general.join(' ')}</p>
       )}
       {closedNote && <p role="alert" className="text-sm font-medium text-ink">{closedNote}</p>}
-      {!live && !closedNote && <p className={NOTE_CLASS}>A newer request replaced this one.</p>}
+      {note && <p className={NOTE_CLASS}>{note}</p>}
+      {expired && (
+        <div className="flex flex-wrap gap-2">
+          {onAskAgain && <Button onClick={onAskAgain} disabled={askAgainDisabled}>Ask again</Button>}
+          <CopyDetails getText={() => actionDetailsText(action, values)} />
+        </div>
+      )}
       {editable && (
         <div className="flex flex-wrap gap-2">
           <Button type="submit" loading={busy}>{action.submit_label || 'Confirm'}</Button>
