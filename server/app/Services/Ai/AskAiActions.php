@@ -1002,6 +1002,10 @@ class AskAiActions
             return ['outcome' => 'invalid', 'errors' => $this->fieldErrors($definition, $json), 'status' => $status];
         }
 
+        if ($status === 429) {
+            return ['outcome' => 'invalid', 'errors' => ['_' => ['Too many requests. Wait a moment, then press the button again.']], 'status' => $status];
+        }
+
         return ['outcome' => 'failed', 'message' => $this->failureSentence($status, $json), 'status' => $status];
     }
 

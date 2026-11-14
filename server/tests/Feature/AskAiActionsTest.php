@@ -22,6 +22,7 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Ai\AskAiActions;
+use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\TrustProxies;
@@ -649,14 +650,72 @@ class AskAiActionsTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
         $message = $this->ask('create an event called Fun Run');
-        $row = AiMessage::find($message['id']);
-        $payload = $row->payload;
-        $payload['action']['status'] = 'confirming';
-        $row->update(['payload' => $payload]);
+        $this->markConfirming($message['id'], now()->subSeconds(10));
 
         $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
 
         $this->assertSame(0, Event::count());
+        $this->assertSame('confirming', AiMessage::find($message['id'])->payload['action']['status']);
+    }
+
+    public function test_a_card_interrupted_while_running_is_closed_as_unknown_not_left_confirming_forever(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now()->subMinutes(3));
+
+        $response = $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
+
+        $sentence = 'I could not tell whether this went through. Check the page before trying again.';
+        $this->assertSame($sentence, $response->json('message'));
+        $row = AiMessage::find($message['id']);
+        $this->assertSame('failed', $row->payload['action']['status']);
+        $this->assertSame($sentence, $row->content);
+        $this->assertSame(0, Event::count());
+
+        $this->postJson("/api/ai/assistant/messages/{$message['id']}/action/cancel")->assertStatus(409);
+    }
+
+    public function test_a_throttle_refusal_before_the_action_runs_does_not_burn_the_card(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $other = $this->ask('create an event called Open Mic');
+
+        RateLimiter::for('api-write', fn () => Limit::perMinute(1));
+        $this->postJson("/api/ai/assistant/messages/{$other['id']}/action/cancel")->assertOk();
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(429);
+        $this->assertSame('awaiting_confirmation', AiMessage::find($message['id'])->payload['action']['status']);
+
+        RateLimiter::for('api-write', fn () => Limit::none());
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+        $this->assertSame(1, Event::count());
+    }
+
+    public function test_a_throttle_refusal_from_the_route_puts_the_card_back_to_waiting(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $fields = ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'];
+
+        RateLimiter::for('api-write', fn () => Limit::perMinute(1));
+        $response = $this->confirm($message['id'], $fields)->assertUnprocessable();
+        $this->assertSame(['_' => ['Too many requests. Wait a moment, then press the button again.']], $response->json('errors'));
+        $this->assertSame('awaiting_confirmation', $response->json('assistant_message.payload.action.status'));
+        $this->assertSame(0, Event::count());
+
+        RateLimiter::for('api-write', fn () => Limit::none());
+        $this->confirm($message['id'], $fields)->assertOk();
+        $this->assertSame(1, Event::count());
+    }
+
+    private function markConfirming(int $messageId, Carbon $since): void
+    {
+        $row = AiMessage::find($messageId);
+        $payload = $row->payload;
+        $payload['action']['status'] = 'confirming';
+        $payload['action']['confirming_at'] = $since->toIso8601String();
+        $row->update(['payload' => $payload]);
     }
 
     public function test_an_expired_action_is_refused_and_marked_expired(): void
