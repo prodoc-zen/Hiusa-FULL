@@ -226,17 +226,42 @@ describe('OrgAccessPanel', () => {
     expect(await screen.findByText('Maria Santos no longer has access.')).toBeInTheDocument();
   });
 
-  it('warns when removing the only profile would delete the account', async () => {
-    renderPanel();
+  it('warns when removing the only profile would delete the account, and the dialog says Delete account', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
     await seen('Ana Reyes');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0]);
 
-    expect(await screen.findByRole('dialog')).toHaveTextContent('deletes the account');
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('deletes the account');
+    expect(within(dialog).getByRole('heading', { name: 'Delete account' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('Remove access')).not.toBeInTheDocument();
+  });
+
+  it('keeps Remove access on the dialog for a person who keeps another profile', async () => {
+    renderPanel();
+    await seen('Maria Santos');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Remove access' })).toBeInTheDocument();
+  });
+
+  it('stops the dean at a last profile and says who can remove the account', async () => {
+    renderPanel();
+    await seen('Ana Reyes');
+
+    const button = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0];
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Ask the SAO to remove the account');
+    expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account');
+    expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toBeEnabled();
   });
 
   it('names the organization on Remove when the person keeps another profile, and says Delete account on their last one', async () => {
-    renderPanel();
+    renderPanel({ actorRole: 'ADMIN' });
     await seen('Maria Santos');
 
     expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toHaveTextContent('Remove from Computing Council');

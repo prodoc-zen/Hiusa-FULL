@@ -49,6 +49,27 @@ describe('useAccessDeniedNotice', () => {
     expect(assign).toHaveBeenCalledWith('/dashboard/admin/users');
   });
 
+  it('offers the college-home profile first when several of their profiles may open the page, then the lowest id', async () => {
+    const college = { ...profile(5, 'ADMIN', 'College of Arts'), organization: { id: 50, name: 'College of Arts', is_active: true, organization_type: 'COLLEGE' } };
+    mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
+      profile(1, 'STUDENT', 'College of Computing'), profile(4, 'ADMIN', 'Chess Club'), profile(3, 'ADMIN', 'Arts Guild'), college,
+    ] } });
+    renderDenied();
+
+    await waitFor(() => expect(mocks.info).toHaveBeenCalledTimes(1));
+    expect(mocks.info.mock.calls[0][0]).toBe('That page belongs to your College of Arts Admin workspace.');
+  });
+
+  it('offers the lowest id among their organization profiles when none is the college home', async () => {
+    mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
+      profile(1, 'STUDENT', 'College of Computing'), profile(4, 'ADMIN', 'Chess Club'), profile(3, 'ADMIN', 'Arts Guild'),
+    ] } });
+    renderDenied();
+
+    await waitFor(() => expect(mocks.info).toHaveBeenCalledTimes(1));
+    expect(mocks.info.mock.calls[0][0]).toBe('That page belongs to your Arts Guild Admin workspace.');
+  });
+
   it('only offers a profile whose role may open the page', async () => {
     mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
       profile(1, 'STUDENT', 'College of Computing'),

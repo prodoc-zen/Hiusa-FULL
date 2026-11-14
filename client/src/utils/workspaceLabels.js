@@ -1,3 +1,5 @@
+import { isOfficeStaff } from './collegeIdentity';
+
 const ROLE_WORDS = {
   ADMIN: 'Admin',
   SBO_OFFICER: 'Officer',
@@ -11,11 +13,12 @@ export function workspaceRoleWord(role, organizationType) {
   return ROLE_WORDS[role] || role || '';
 }
 
-// The browser tab title: HIUSA, the role, and the short name of the organization the person is working in.
+// The browser tab title: HIUSA, the role, and the short name of the organization the person is working in (left out when it only repeats the role).
 export function workspaceTitle(user) {
   if (!user?.role) return 'HIUSA';
-  const word = workspaceRoleWord(user.role, user.organization?.organization_type);
-  const organization = user.organization?.acronym || user.organization?.name;
+  const word = isOfficeStaff(user) ? 'Office staff' : workspaceRoleWord(user.role, user.organization?.organization_type);
+  const name = user.organization?.acronym || user.organization?.name;
+  const organization = name && name.trim().toLowerCase() !== word.toLowerCase() ? name : null;
 
   return organization ? `HIUSA · ${word} · ${organization}` : `HIUSA · ${word}`;
 }

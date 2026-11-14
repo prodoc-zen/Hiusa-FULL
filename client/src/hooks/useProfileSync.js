@@ -3,7 +3,7 @@ import { storedUser } from '../utils/collegeIdentity';
 
 const SIGN_IN_KEYS = ['user', 'auth_token'];
 
-const signature = () => `${localStorage.getItem('auth_token') ?? ''}|${storedUser()?.active_profile_id ?? ''}|${storedUser()?.role ?? ''}`;
+const signature = () => `${localStorage.getItem('auth_token') ?? ''}|${storedUser()?.role ?? ''}|${storedUser()?.organization_id ?? ''}`;
 
 // The sign-in lives in storage that every tab shares. When another tab switches profile, signs in as someone else or
 // signs out, this tab would show a mix of the old menu and the new person, so it reloads and starts from the stored sign-in.

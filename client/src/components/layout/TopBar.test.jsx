@@ -323,8 +323,8 @@ describe('TopBar notifications', () => {
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Account menu for Test User' }));
 
-    expect(await screen.findByText('College profile · Department Head')).toBeInTheDocument();
-    expect(screen.getByText('Organization profile · Student')).toBeInTheDocument();
+    expect(await screen.findByText('College profile · Dean')).toBeInTheDocument();
+    expect(screen.getByText('Organization profile · Member')).toBeInTheDocument();
   });
 
   it('explains when there is only one profile and can retry a failed load', async () => {

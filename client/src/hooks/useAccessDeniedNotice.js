@@ -26,7 +26,10 @@ export default function useAccessDeniedNotice() {
       try {
         const response = await getAccountProfiles();
         const activeId = response.data.active_profile_id;
-        owned = (response.data.profiles || []).find((profile) => profile.id !== activeId && usable(profile) && denied.allowedRoles?.includes(profile.role)) ?? null;
+        const collegeFirst = (profile) => (profile.organization?.organization_type === 'COLLEGE' ? 0 : 1);
+        owned = (response.data.profiles || [])
+          .filter((profile) => profile.id !== activeId && usable(profile) && denied.allowedRoles?.includes(profile.role))
+          .sort((a, b) => collegeFirst(a) - collegeFirst(b) || a.id - b.id)[0] ?? null;
       } catch {
         owned = null;
       }
