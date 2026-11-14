@@ -11,7 +11,7 @@ const authMocks = vi.hoisted(() => ({
 vi.mock('../../services/authService', () => authMocks);
 
 const record = { name: 'Hannah Reyes', college: 'College of Computer Studies', program: 'BS Information Technology', year_level: '1st Year', section: 'A' };
-const MISMATCH = "We couldn't match that school ID and birth date with the school records.";
+const MISMATCH = "We couldn't match that school ID and birth date with the school records. Check both. If they are right, your record may be missing or have a typing mistake. Show your school ID at your Department Head's office or the Student Affairs Office, and they can add or correct it.";
 const CLAIMED = 'This school ID already has an account. Sign in, or reset your password.';
 
 const apiError = (status, errors, message) => Object.assign(new Error('request failed'), { response: { status, data: { errors, message } } });

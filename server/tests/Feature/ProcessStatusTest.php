@@ -143,20 +143,73 @@ class ProcessStatusTest extends TestCase
 
     public function test_sao_sees_every_active_college_start_at_the_first_open_step(): void
     {
+        $this->semester();
         $payload = $this->statusOf($this->sao)->assertOk()->json();
 
         $this->assertSame(2, count($payload['colleges']));
         $this->assertFalse($payload['complete']);
-        $this->assertSame(['Dean invited', 'Dean active', 'School records loaded', 'Organizations applying', 'Organizations active'], array_column($payload['steps'], 'label'));
+        $this->assertSame(['Academic year set', 'Semesters added', 'Semester activated', 'Colleges added', 'Dean invited', 'Dean active', 'School records loaded', 'Requirements published', 'Organizations applying', 'Organizations active'], array_column($payload['steps'], 'label'));
+        $this->assertSame('current', $payload['steps'][4]['state']);
+        $this->assertSame(0, $payload['steps'][4]['count']);
+        $this->assertSame(2, $payload['steps'][4]['total']);
+        $this->assertSame(['label' => 'Invite the Department Head', 'path' => '/dashboard/super-admin/colleges'], $payload['steps'][4]['action']);
+        $this->assertArrayNotHasKey('action', $payload['steps'][5]);
+    }
+
+    public function test_sao_is_walked_through_the_calendar_before_the_colleges_and_requirements_before_applications(): void
+    {
+        $payload = $this->statusOf($this->sao)->assertOk()->json();
+
+        $this->assertSame(
+            ['academic-year', 'semester', 'semester-active', 'colleges-added', 'dean-invited', 'dean-active', 'records-loaded', 'requirements-published', 'organizations-applying', 'organizations-active'],
+            array_column($payload['steps'], 'key'),
+        );
+        $this->assertSame('current', $this->states($payload)['academic-year']);
+        $this->assertSame('todo', $this->states($payload)['semester']);
+        $this->assertSame('done', $this->states($payload)['colleges-added']);
+        $this->assertSame(['label' => 'Set the academic year', 'path' => '/dashboard/super-admin/academic-years'], $this->steps($payload)['academic-year']['action']);
+    }
+
+    public function test_sao_calendar_steps_tick_from_the_year_the_semesters_and_the_active_semester(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $states = $this->states($this->statusOf($this->sao)->assertOk()->json());
+        $this->assertSame(['done', 'current', 'todo'], [$states['academic-year'], $states['semester'], $states['semester-active']]);
+
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'upcoming']);
+        $states = $this->states($this->statusOf($this->sao)->assertOk()->json());
+        $this->assertSame(['done', 'done', 'current'], [$states['academic-year'], $states['semester'], $states['semester-active']]);
+
+        $semester->update(['status' => 'active']);
+        $states = $this->states($this->statusOf($this->sao)->assertOk()->json());
+        $this->assertSame(['done', 'done', 'done'], [$states['academic-year'], $states['semester'], $states['semester-active']]);
+    }
+
+    public function test_sao_requirements_step_ticks_once_a_requirement_is_published(): void
+    {
+        $this->assertSame('todo', $this->states($this->statusOf($this->sao)->json())['requirements-published']);
+
+        $this->requirement($this->semester(), 'semestral_report', 'Semestral report');
+        $this->app['auth']->forgetGuards();
+
+        $this->assertSame('done', $this->states($this->statusOf($this->sao)->json())['requirements-published']);
+    }
+
+    public function test_sao_with_no_college_yet_is_told_to_set_up_the_calendar_and_add_colleges(): void
+    {
+        College::query()->update(['is_active' => false]);
+
+        $payload = $this->statusOf($this->sao)->assertOk()->json();
+
+        $this->assertSame(['academic-year', 'semester', 'semester-active', 'colleges-added'], array_column($payload['steps'], 'key'));
         $this->assertSame('current', $payload['steps'][0]['state']);
-        $this->assertSame(0, $payload['steps'][0]['count']);
-        $this->assertSame(2, $payload['steps'][0]['total']);
-        $this->assertSame(['label' => 'Invite the Department Head', 'path' => '/dashboard/super-admin/colleges'], $payload['steps'][0]['action']);
-        $this->assertArrayNotHasKey('action', $payload['steps'][1]);
+        $this->assertFalse($payload['complete']);
+        $this->assertSame([], $payload['colleges'] ?? []);
     }
 
     public function test_sao_per_college_steps_follow_each_colleges_own_records(): void
     {
+        $this->semester();
         $inviter = $this->sao;
         DepartmentHeadInvitation::create([
             'college_id' => $this->arts->id, 'role' => 'DEPARTMENT_HEAD', 'token_hash' => hash('sha256', 'arts'),
@@ -192,6 +245,7 @@ class ProcessStatusTest extends TestCase
 
     public function test_sao_ignores_archived_colleges_and_a_deans_disabled_account(): void
     {
+        $this->semester();
         $this->arts->update(['is_active' => false]);
         $dean = User::factory()->departmentHead()->create(['organization_id' => $this->computingHome->id]);
         AccountProfile::where('user_school_id', $dean->school_id)->update(['account_status' => 'disabled']);
@@ -204,6 +258,7 @@ class ProcessStatusTest extends TestCase
 
     public function test_sao_is_complete_when_every_college_has_gone_through_every_step(): void
     {
+        $this->requirement($this->semester(), 'semestral_report', 'Semestral report');
         foreach ([[$this->computing, $this->computingHome, 2600001], [$this->arts, $this->artsHome, 2600002]] as [$college, $home, $id]) {
             User::factory()->departmentHead()->create(['organization_id' => $home->id]);
             $this->record($college, $id);
