@@ -297,6 +297,71 @@ class ApprovalRequestController extends Controller
         return response()->json($freshApproval);
     }
 
+    /**
+     * Saves one file's Accepted mark as the reviewer makes it, so it is still there after a reload.
+     * Same reviewer checks as the decision itself.
+     */
+    public function markFile(Request $request, $id, $file)
+    {
+        $approvalQuery = ApprovalRequest::query();
+        if ($request->user()->role !== 'SUPER_ADMIN') {
+            $approvalQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
+        }
+        $approval = $approvalQuery->where('entity_type', 'event')->find($id);
+
+        if (! $approval) {
+            return response()->json(['message' => 'Approval request not found.'], 404);
+        }
+
+        if ($approval->status !== 'pending') {
+            return response()->json(['message' => 'This request has already been reviewed.'], 409);
+        }
+
+        if (! $this->organizationIsActive($approval->organization_id)) {
+            return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
+        }
+
+        if (! $this->canReview($request->user()->approvalRole(), $approval->required_role) || ($approval->assigned_approver && $approval->assigned_approver !== $request->user()->school_id)) {
+            return response()->json(['message' => 'You are not authorized to review this request.'], 403);
+        }
+
+        if ($approval->requested_by === $request->user()->school_id) {
+            return response()->json(['message' => 'You cannot review your own approval request.'], 403);
+        }
+
+        $data = $request->validate(['status' => ['required', 'in:ok,none']]);
+
+        $event = Event::where('organization_id', $approval->organization_id)->find($approval->entity_id);
+        if (! $event) {
+            return response()->json(['message' => 'The record attached to this approval request no longer exists.'], 409);
+        }
+        if (AcademicSemester::isClosed($event->academic_semester_id)) {
+            return response()->json(['message' => 'Historical semester event approvals are read only.'], 409);
+        }
+
+        $requirementFile = EventRequirementFile::where('event_id', $event->id)->find($file);
+        if (! $requirementFile) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        try {
+            $reviews = DB::transaction(function () use ($approval, $requirementFile, $data, $request) {
+                if (Organization::whereKey($approval->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
+                    throw new DomainException(self::ARCHIVED_MESSAGE);
+                }
+                if (ApprovalRequest::lockForUpdate()->whereKey($approval->id)->value('status') !== 'pending') {
+                    throw new DomainException('This request has already been reviewed.');
+                }
+
+                return $this->eventFileReview->mark($approval, $requirementFile, $data['status'], $request->user()->school_id);
+            });
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json(['id' => $requirementFile->id, 'reviews' => $reviews]);
+    }
+
     private function organizationIsActive(int $organizationId): bool
     {
         return Organization::whereKey($organizationId)->value('lifecycle_status') === 'active';

@@ -316,6 +316,15 @@ export default function DepartmentHeadApprovalsPage() {
     setOrganizationFilter('all');
   }
 
+  // A mark saved from the drawer is kept on the request in memory too, so closing and reopening it shows the saved state.
+  function keepFileMarks(request, fileId, reviews) {
+    const patch = (item) => (item.id === request.id && item.summary?.requirement_files
+      ? { ...item, summary: { ...item.summary, requirement_files: item.summary.requirement_files.map((file) => (file.id === fileId ? { ...file, reviews } : file)) } }
+      : item);
+    setRequests((current) => current.map(patch));
+    setOpened((current) => (current?.request?.id === request.id ? { ...current, request: patch(current.request) } : current));
+  }
+
   const canAct = (request) => request.status === 'pending' && Boolean(role) && request.required_role === role && request.requested_by !== user.school_id;
 
   async function handleReview(remarks) {
@@ -502,6 +511,7 @@ export default function DepartmentHeadApprovalsPage() {
         onApprove={(request, files) => setModalState({ open: true, request, action: 'approved', files })}
         onReject={(request, files) => setModalState({ open: true, request, action: 'rejected', files })}
         onDecide={decideElection}
+        onFileMarked={keepFileMarks}
       />
     </div>
   );

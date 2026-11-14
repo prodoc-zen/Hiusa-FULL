@@ -7,7 +7,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
-import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote } from '../../../components/approvals/EventFilesReview';
+import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark } from '../../../components/approvals/EventFilesReview';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
@@ -102,6 +102,19 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     load();
     return () => { requests.current++; };
   }, [load]);
+
+  // The mark shows at once and is saved in the background, so a reload keeps it. A failed save puts the mark back.
+  async function markFile(approval, fileId, value) {
+    const before = marks[fileId] ?? '';
+    setMarks((current) => ({ ...current, [fileId]: value }));
+    setActionError('');
+    try {
+      await saveFileMark(approval.id, fileId, value, before);
+    } catch (cause) {
+      setMarks((current) => ({ ...current, [fileId]: before }));
+      setActionError(getApiErrorMessage(cause, 'Could not save that mark. Try again.'));
+    }
+  }
 
   function chooseEvent(eventId) {
     setSelectedEventId(eventId);
@@ -486,7 +499,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   <div className="mt-3 space-y-2">
                     {filesOf(approval).length === 0
                       ? <p className="text-sm text-ink-muted-strong">No files have been submitted for this event.</p>
-                      : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => setMarks((current) => ({ ...current, [id]: value }))} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}
+                      : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => markFile(approval, id, value)} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}
                     {!allAccepted(filesOf(approval), marks) && <p className="text-sm text-ink-muted-strong">Accept every file to approve. Reject the event to send back a file with a note.</p>}
                   </div>
                 )}

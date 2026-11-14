@@ -4,7 +4,7 @@ import EventRequirementsTab from './EventRequirementsTab';
 
 const mocks = vi.hoisted(() => ({
   getEventRequirements: vi.fn(), createEventRequirement: vi.fn(), updateEventRequirement: vi.fn(),
-  reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(),
+  reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(), markApprovalFile: vi.fn(),
   uploadEventRequirementTemplate: vi.fn(), removeEventRequirementTemplate: vi.fn(), setEventRequirementTemplateLink: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
@@ -16,7 +16,7 @@ vi.mock('../../../services/eventService', () => ({
   removeEventRequirementTemplate: mocks.removeEventRequirementTemplate,
   setEventRequirementTemplateLink: mocks.setEventRequirementTemplateLink,
 }));
-vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest }));
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest, markApprovalFile: mocks.markApprovalFile }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 
 const FILES = [
@@ -47,6 +47,7 @@ describe('EventRequirementsTab', () => {
       { id: 2, name: 'Budget', description: '', allowed_extensions: ['xlsx'], is_active: true },
     ] });
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [] } });
+    mocks.markApprovalFile.mockResolvedValue({ data: { reviews: [] } });
     mocks.uploadEventRequirementTemplate.mockResolvedValue({ data: {} });
     mocks.removeEventRequirementTemplate.mockResolvedValue({ data: {} });
     mocks.setEventRequirementTemplateLink.mockResolvedValue({ data: {} });
@@ -301,6 +302,42 @@ describe('EventRequirementsTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Approve event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: undefined, files: [{ id: 7, status: 'ok' }, { id: 8, status: 'ok' }] }));
+  });
+
+  it('saves an Accepted mark as it is made and shows it again after the screen is reloaded', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    const { unmount } = render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    mark(section, 'Venue Reservation Letter', 'ok');
+    await waitFor(() => expect(mocks.markApprovalFile).toHaveBeenCalledWith(41, 7, 'ok'));
+    fireEvent.change(within(section).getByLabelText('Review of Venue Reservation Letter'), { target: { value: '' } });
+    await waitFor(() => expect(mocks.markApprovalFile).toHaveBeenCalledWith(41, 7, 'none'));
+    mark(section, 'Request Letter', 'needs_changes');
+    expect(mocks.markApprovalFile).toHaveBeenCalledTimes(2);
+
+    unmount();
+    const saved = [{ ...FILES[0], reviews: [{ stage: 'sao', status: 'ok', note: null }] }, { ...FILES[1], reviews: [{ stage: 'sao', status: 'ok', note: null }] }];
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting(saved)] } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const reloaded = await openFiles();
+
+    expect(within(reloaded).getAllByText('Accepted')).toHaveLength(2);
+    expect(within(reloaded).queryByText('Not checked')).not.toBeInTheDocument();
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeEnabled();
+  });
+
+  it('puts a mark back and says so when it could not be saved', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.markApprovalFile.mockRejectedValue(new Error('offline'));
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    mark(section, 'Venue Reservation Letter', 'ok');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save that mark. Try again.');
+    expect(within(section).getByLabelText('Review of Venue Reservation Letter')).toHaveValue('');
   });
 
   it('keeps Approve off while a file needs changes and sends the marked files with their notes on Reject', async () => {

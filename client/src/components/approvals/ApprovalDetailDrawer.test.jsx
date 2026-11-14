@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ApprovalDetailDrawer from './ApprovalDetailDrawer';
 
-const mocks = vi.hoisted(() => ({ openProtectedFile: vi.fn(), getApprovalHistory: vi.fn(), historyFails: false }));
+const mocks = vi.hoisted(() => ({ openProtectedFile: vi.fn(), getApprovalHistory: vi.fn(), markApprovalFile: vi.fn(), historyFails: false }));
 vi.mock('../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 // A rejection is made here, not by the spy, so the spy does not report the handled rejection as unhandled.
 vi.mock('../../services/electionService', () => ({
@@ -12,6 +13,7 @@ vi.mock('../../services/electionService', () => ({
     return mocks.historyFails ? Promise.reject(new Error('offline')) : history;
   },
 }));
+vi.mock('../../services/approvalService', () => ({ markApprovalFile: mocks.markApprovalFile }));
 vi.mock('../../services/financeService', () => ({ downloadFinancialReportPdf: vi.fn() }));
 
 const FILES = [
@@ -41,6 +43,7 @@ const rowOf = (drawer, name) => within(drawer).getByText(name).closest('li');
 beforeEach(() => {
   mocks.historyFails = false;
   mocks.getApprovalHistory.mockResolvedValue([]);
+  mocks.markApprovalFile.mockResolvedValue({ data: { reviews: [] } });
 });
 
 describe('ApprovalDetailDrawer SAO event files', () => {
@@ -55,6 +58,73 @@ describe('ApprovalDetailDrawer SAO event files', () => {
     expect(row.getByText('Not checked')).toBeInTheDocument();
     expect(row.getByRole('button', { name: 'venue.pdf' })).toBeInTheDocument();
     expect(row.getByRole('button', { name: 'Review Venue Reservation Letter' })).toBeInTheDocument();
+  });
+
+  it('saves an Accepted mark as soon as it is made, and clears it when the file moves off Accepted', async () => {
+    const onFileMarked = vi.fn();
+    const { drawer } = renderDrawer({ onFileMarked });
+    const saved = [{ stage: 'dean', status: 'ok', note: null }];
+    mocks.markApprovalFile.mockResolvedValueOnce({ data: { reviews: saved } });
+
+    fireEvent.click(within(rowOf(drawer, 'Venue Reservation Letter')).getByRole('button', { name: 'Review Venue Reservation Letter' }));
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue Reservation Letter'), { target: { value: 'ok' } });
+    await waitFor(() => expect(mocks.markApprovalFile).toHaveBeenCalledWith(25, 7, 'ok'));
+    await waitFor(() => expect(onFileMarked).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), 7, saved));
+
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue Reservation Letter'), { target: { value: '' } });
+    await waitFor(() => expect(mocks.markApprovalFile).toHaveBeenCalledWith(25, 7, 'none'));
+
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue Reservation Letter'), { target: { value: 'needs_changes' } });
+    expect(mocks.markApprovalFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('puts the mark back and says so when it could not be saved', async () => {
+    mocks.markApprovalFile.mockRejectedValue(new Error('offline'));
+    const { drawer } = renderDrawer();
+
+    fireEvent.click(within(rowOf(drawer, 'Venue Reservation Letter')).getByRole('button', { name: 'Review Venue Reservation Letter' }));
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue Reservation Letter'), { target: { value: 'ok' } });
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent('Could not save that mark. Try again.');
+    expect(within(drawer).getByLabelText('Review of Venue Reservation Letter')).toHaveValue('');
+  });
+
+  it('shows the saved marks again after the drawer is closed and opened, or the page reloaded', async () => {
+    function Harness() {
+      const [current, setCurrent] = useState(request());
+      const [open, setOpen] = useState(true);
+      const keep = (_request, fileId, reviews) => setCurrent((item) => ({ ...item, summary: { ...item.summary, requirement_files: item.summary.requirement_files.map((file) => (file.id === fileId ? { ...file, reviews } : file)) } }));
+      return (
+        <MemoryRouter>
+          <button type="button" onClick={() => setOpen((value) => !value)}>Toggle drawer</button>
+          <ApprovalDetailDrawer open={open} request={current} role="DEPARTMENT_HEAD" canAct onClose={() => setOpen(false)} onApprove={() => {}} onReject={() => {}} onDecide={() => {}} onFileMarked={keep} />
+        </MemoryRouter>
+      );
+    }
+    mocks.markApprovalFile.mockResolvedValue({ data: { reviews: [{ stage: 'dean', status: 'ok', note: null }] } });
+    const { unmount } = render(<Harness />);
+    let drawer = screen.getByRole('dialog');
+    for (const name of ['Venue Reservation Letter', 'Request Letter']) {
+      fireEvent.click(within(rowOf(drawer, name)).getByRole('button', { name: `Review ${name}` }));
+      fireEvent.change(within(drawer).getByLabelText(`Review of ${name}`), { target: { value: 'ok' } });
+      await waitFor(() => expect(mocks.markApprovalFile).toHaveBeenCalledTimes(name === 'Request Letter' ? 2 : 1));
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle drawer' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle drawer' }));
+    drawer = await screen.findByRole('dialog');
+    expect(within(rowOf(drawer, 'Venue Reservation Letter')).getByText('Accepted')).toBeInTheDocument();
+    expect(within(rowOf(drawer, 'Request Letter')).getByText('Accepted')).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeEnabled();
+
+    // A full reload hands the drawer the saved marks the server returns, with no state kept from before.
+    unmount();
+    const files = FILES.map((file) => ({ ...file, reviews: [{ stage: 'dean', status: 'ok', note: null }] }));
+    ({ drawer } = renderDrawer({ request: request({}, files) }));
+    expect(within(rowOf(drawer, 'Venue Reservation Letter')).getByText('Accepted')).toBeInTheDocument();
+    expect(within(rowOf(drawer, 'Request Letter')).getByText('Accepted')).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeEnabled();
   });
 
   it('opens a file through the protected url', () => {

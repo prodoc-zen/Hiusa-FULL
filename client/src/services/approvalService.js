@@ -11,3 +11,7 @@ export const getSubmittedApprovals = (params) =>
 
 export const reviewApprovalRequest = (id, data) =>
   api.patch(`/approval-requests/${id}`, data);
+
+// Saves one event file's Accepted mark as the reviewer makes it, so it is still there after a reload.
+export const markApprovalFile = (id, fileId, status) =>
+  api.patch(`/approval-requests/${id}/files/${fileId}`, { status });

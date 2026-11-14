@@ -33,6 +33,28 @@ class EventFileReview
     }
 
     /**
+     * Saves or clears one file's Accepted mark the moment the reviewer makes it, so a reload keeps it.
+     * Clearing only removes an Accepted mark; a Needs changes mark is a return and goes with the decision.
+     *
+     * @return array<int, array{stage: string, status: string, note: ?string}>
+     */
+    public function mark(ApprovalRequest $approval, EventRequirementFile $file, string $status, int $reviewerId): array
+    {
+        $stage = $this->stageOf($approval);
+
+        if ($status === 'ok') {
+            EventRequirementFileReview::updateOrCreate(
+                ['event_requirement_file_id' => $file->id, 'stage' => $stage],
+                ['status' => 'ok', 'note' => null, 'reviewed_by' => $reviewerId],
+            );
+        } else {
+            EventRequirementFileReview::where('event_requirement_file_id', $file->id)->where('stage', $stage)->where('status', 'ok')->delete();
+        }
+
+        return $file->reviews()->get()->map->only(['stage', 'status', 'note'])->values()->all();
+    }
+
+    /**
      * Saves the marks sent with a decision. Approving is refused while any file of the event still
      * says Needs changes at this step, whether the mark arrived now or on an earlier return.
      *

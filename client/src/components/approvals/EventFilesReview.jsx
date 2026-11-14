@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { markApprovalFile } from '../../services/approvalService';
 import { Field, Select, Textarea } from '../ui';
 import FileReviewList from '../reviews/FileReviewList';
 
@@ -29,6 +30,15 @@ export function initialMarks(files, stage) {
   return Object.fromEntries(files
     .filter((file) => file.reviews?.some((review) => review.stage === stage && review.status === 'ok'))
     .map((file) => [file.id, 'ok']));
+}
+
+// Only Accepted is saved as the reviewer picks it, since that is what Approve needs on a reload. Moving a file off
+// Accepted clears the saved mark. A Needs changes mark and its note go with the decision. Resolves to the file's
+// saved marks, or null when nothing had to be saved.
+export async function saveFileMark(approvalId, fileId, value, before) {
+  if (value !== 'ok' && before !== 'ok') return null;
+  const { data } = await markApprovalFile(approvalId, fileId, value === 'ok' ? 'ok' : 'none');
+  return data?.reviews ?? [];
 }
 
 export const allAccepted = (files, marks) => files.every((file) => marks[file.id] === 'ok');
