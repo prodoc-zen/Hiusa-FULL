@@ -14,6 +14,7 @@ use App\Models\ElectionBallot;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Transaction;
@@ -549,9 +550,9 @@ class AskAiService
         if ($readinessRows !== []) {
             $sections[] = [
                 'id' => 'how-to-readiness',
-                'title' => 'Before you start: live check',
-                'description' => 'Checked against current HIUSA records.',
-                'empty_message' => 'Everything needed is ready.',
+                'title' => 'Before you start',
+                'description' => 'This comes from your records as they are today.',
+                'empty_message' => 'Everything you need is ready.',
                 'rows' => $readinessRows,
             ];
         }
@@ -559,11 +560,11 @@ class AskAiService
         $sections[] = [
             'id' => 'how-to-steps',
             'layout' => 'steps',
-            'title' => 'Step-by-step: '.$guide['title'],
+            'title' => 'The steps: '.$guide['title'],
             'description' => $accessible
-                ? sprintf('%d steps · about %d min', $stepCount, $guide['minutes'])
-                : 'Shown for reference. Your role cannot open these pages.',
-            'empty_message' => 'No steps recorded.',
+                ? $this->plural($stepCount, 'step').', about '.$this->plural((int) $guide['minutes'], 'minute')
+                : 'Shown so you know what they do. Your role cannot open these pages.',
+            'empty_message' => 'There are no steps yet.',
             'rows' => $stepRows,
         ];
 
@@ -588,20 +589,21 @@ class AskAiService
         if ($accessible) {
             $firstStep = $steps[0] ?? null;
             $answer = sprintf(
-                '%s Follow these %d steps%s.',
+                '%s There %s %s%s.',
                 $guide['summary'],
-                $stepCount,
-                $paths !== [] ? '. Each "Go to page" button opens the page for that step' : ''
+                $this->be($stepCount),
+                $this->plural($stepCount, 'step'),
+                $paths !== [] ? ', and each Go to page button opens the page for that step' : ''
             );
             if ($firstStep !== null) {
                 $answer .= ' Start here: '.rtrim($firstStep['detail'], '.').'.';
             }
         } else {
             $answer = sprintf(
-                'Your role (%s) cannot do "%s". It is done by: %s. Here are the steps so you know what they do. %s',
+                'The %s role cannot do "%s". That is done by %s. Here are the steps so you know what they do. %s',
                 HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
                 Str::lower($guide['title']),
-                implode(', ', $allowedRoles),
+                $this->joinPhrases($allowedRoles),
                 $guide['summary']
             );
         }
@@ -626,7 +628,7 @@ class AskAiService
             'highlights' => [
                 ['label' => 'Steps', 'value' => (string) $stepCount, 'tone' => 'primary'],
                 ['label' => 'Pages involved', 'value' => (string) count($paths), 'tone' => 'info'],
-                ['label' => 'Estimated time', 'value' => '~'.$guide['minutes'].' min', 'tone' => 'success'],
+                ['label' => 'Estimated time', 'value' => $this->plural((int) $guide['minutes'], 'minute'), 'tone' => 'success'],
                 ['label' => 'Your access', 'value' => $accessible ? 'Allowed' : 'Other role', 'tone' => $accessible ? 'success' : 'warning'],
             ],
             'sections' => $sections,
@@ -705,7 +707,7 @@ class AskAiService
                 'secondary' => $g['summary'],
                 'status' => $g['category'],
                 'status_tone' => 'info',
-                'meta' => count($g['steps']).' steps',
+                'meta' => $this->plural(count($g['steps']), 'step'),
                 'href' => $firstPath,
                 'action_label' => 'Open page',
                 'ask_question' => $g['question'],
@@ -715,9 +717,9 @@ class AskAiService
         return [
             'title' => 'How-to guides for your role',
             'answer' => sprintf(
-                'I couldn\'t match "%s" to one procedure. Here are the %d step-by-step guides available for %s. Ask about any of them, for example "%s"',
+                'I could not match "%s" to one procedure. I can walk you through %s for %s, so ask about any of them, for example "%s".',
                 Str::limit($question, 80),
-                count($guides),
+                $this->plural(count($guides), 'guide'),
                 HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
                 $guides[0]['question'] ?? 'How do I use Ask AI?'
             ),
@@ -728,8 +730,8 @@ class AskAiService
             'sections' => [[
                 'id' => 'how-to-catalog',
                 'title' => 'What I can walk you through',
-                'description' => 'Ask "How do I …" with any of these, in your own words.',
-                'empty_message' => 'No guides for this role yet.',
+                'description' => 'Ask "How do I ..." about any of these, in your own words.',
+                'empty_message' => 'There are no guides for this role yet.',
                 'rows' => $rows,
             ]],
             'follow_ups' => array_map(fn (array $g) => [
@@ -1098,7 +1100,7 @@ class AskAiService
                 'follow_ups' => [
                     ['topic' => 'pending_approvals', 'label' => 'What needs my approval?', 'question' => 'What requests are waiting for my approval right now?'],
                     ['topic' => 'missing_submissions', 'label' => "Which college orgs haven't submitted?", 'question' => "Which college organizations haven't submitted compliance or financial reports?"],
-                    ['topic' => 'submitted_documents', 'label' => 'Who submitted reports or files?', 'question' => 'Who has submitted budgets, events, or financial reports for my review?'],
+                    ['topic' => 'submitted_documents', 'label' => 'Who submitted reports or files?', 'question' => 'Who has submitted compliance files or financial reports for my review?'],
                 ],
             ];
         }
@@ -1282,8 +1284,8 @@ class AskAiService
         if ($overdueTasks > 0) {
             $rows[] = [
                 'id' => 'org-overdue-tasks',
-                'primary' => $isOfficer ? 'Complete your overdue assigned tasks' : 'Resolve overdue organization tasks',
-                'secondary' => "{$overdueTasks} task(s) are past their deadline and need progress updates.",
+                'primary' => $isOfficer ? 'Finish your overdue tasks' : 'Follow up on overdue tasks',
+                'secondary' => ucfirst($this->plural($overdueTasks, 'task')).' '.$this->be($overdueTasks).' past '.($overdueTasks === 1 ? 'its' : 'their').' deadline and '.($overdueTasks === 1 ? 'needs' : 'need').' an update.',
                 'status' => 'Overdue',
                 'status_tone' => 'danger',
                 'meta' => "{$overdueTasks} overdue",
@@ -1294,9 +1296,9 @@ class AskAiService
         if ($pendingApprovals > 0) {
             $rows[] = [
                 'id' => 'org-approvals',
-                'primary' => 'Review pending organization approval requests',
-                'secondary' => "{$pendingApprovals} internal request(s) await administrator sign-off.",
-                'status' => 'Pending approval',
+                'primary' => 'Decide on requests from your officers',
+                'secondary' => ucfirst($this->plural($pendingApprovals, 'request')).' '.$this->be($pendingApprovals).' waiting for your approval.',
+                'status' => 'Waiting for the organization head',
                 'status_tone' => 'warning',
                 'meta' => "{$pendingApprovals} pending",
                 'href' => $this->routeAccess->hrefFor($role, '/dashboard/approvals'),
@@ -1306,8 +1308,8 @@ class AskAiService
         if ($missingComplianceCount > 0) {
             $rows[] = [
                 'id' => 'org-missing-compliance',
-                'primary' => 'Upload missing or returned compliance requirements',
-                'secondary' => "{$missingComplianceCount} active compliance requirement(s) for your organization are not yet submitted or were returned.",
+                'primary' => 'Upload your missing compliance files',
+                'secondary' => ucfirst($this->plural($missingComplianceCount, 'requirement')).' '.$this->be($missingComplianceCount).' not submitted yet or '.($missingComplianceCount === 1 ? 'was' : 'were').' returned.',
                 'status' => 'Incomplete',
                 'status_tone' => 'warning',
                 'meta' => "{$missingComplianceCount} missing",
@@ -1318,11 +1320,11 @@ class AskAiService
         if ($ordersToVerify > 0) {
             $rows[] = [
                 'id' => 'org-orders-verify',
-                'primary' => 'Verify student merchandise payment proofs',
-                'secondary' => "{$ordersToVerify} pending order(s) have uploaded payment proofs awaiting officer review.",
-                'status' => 'Awaiting review',
+                'primary' => 'Check the payment proofs on student orders',
+                'secondary' => ucfirst($this->plural($ordersToVerify, 'order')).' '.($ordersToVerify === 1 ? 'has' : 'have').' a payment proof waiting for an officer to check.',
+                'status' => 'Waiting for an officer',
                 'status_tone' => 'info',
-                'meta' => "{$ordersToVerify} order(s)",
+                'meta' => $this->plural($ordersToVerify, 'order'),
                 'href' => $this->routeAccess->hrefFor($role, '/dashboard/merchandise/manage-orders'),
                 'action_label' => 'Verify orders',
             ];
@@ -1330,11 +1332,11 @@ class AskAiService
         if ($staleEvents > 0) {
             $rows[] = [
                 'id' => 'org-stale-events',
-                'primary' => 'Mark ended events as completed',
-                'secondary' => "{$staleEvents} event(s) have passed their end time but remain marked approved or ongoing.",
+                'primary' => 'Close events that have ended',
+                'secondary' => ucfirst($this->plural($staleEvents, 'event')).' '.($staleEvents === 1 ? 'has' : 'have').' ended but still '.($staleEvents === 1 ? 'shows' : 'show').' as approved or ongoing.',
                 'status' => 'Needs closing',
                 'status_tone' => 'warning',
-                'meta' => "{$staleEvents} event(s)",
+                'meta' => $this->plural($staleEvents, 'event'),
                 'href' => $this->routeAccess->hrefFor($role, $isOfficer ? '/dashboard/events/activity-calendar' : '/dashboard/events/manage-events'),
                 'action_label' => 'Manage events',
             ];
@@ -1342,8 +1344,8 @@ class AskAiService
         if ($openTasks > 0 && $overdueTasks === 0) {
             $rows[] = [
                 'id' => 'org-open-tasks',
-                'primary' => $isOfficer ? 'Advance your active tasks' : 'Monitor active officer tasks',
-                'secondary' => "{$openTasks} task(s) are currently pending or in progress.",
+                'primary' => $isOfficer ? 'Keep your active tasks moving' : 'Check on the active officer tasks',
+                'secondary' => ucfirst($this->plural($openTasks, 'task')).' '.$this->be($openTasks).' pending or in progress.',
                 'status' => 'In progress',
                 'status_tone' => 'info',
                 'meta' => "{$openTasks} active",
@@ -1352,15 +1354,18 @@ class AskAiService
             ];
         }
 
-        $answer = sprintf(
-            'Today for %s: there are %d overdue task(s), %d active task(s), %d missing or returned compliance requirement(s), %d merchandise order(s) awaiting payment verification, and %d ended event(s) that need to be closed.',
-            $user->organization?->name ?? 'your organization',
-            $overdueTasks,
-            $openTasks,
-            $missingComplianceCount,
-            $ordersToVerify,
-            $staleEvents
-        );
+        $organizationName = $user->organization?->name ?? 'your organization';
+        $standing = array_values(array_filter([
+            $overdueTasks > 0 ? $this->plural($overdueTasks, 'overdue task') : null,
+            $openTasks > 0 ? $this->plural($openTasks, 'active task') : null,
+            $pendingApprovals > 0 ? $this->plural($pendingApprovals, 'request').' waiting for your approval' : null,
+            $missingComplianceCount > 0 ? $this->plural($missingComplianceCount, 'missing or returned compliance requirement') : null,
+            $ordersToVerify > 0 ? $this->plural($ordersToVerify, 'order').' waiting for a payment check' : null,
+            $staleEvents > 0 ? $this->plural($staleEvents, 'ended event').' to close' : null,
+        ]));
+        $answer = $standing !== []
+            ? "Today for {$organizationName} you have ".$this->joinPhrases($standing).'.'
+            : "Nothing needs you today for {$organizationName}. There are no open tasks, missing requirements, payment checks or ended events to close.";
 
         return [
             'title' => $isOfficer ? "Today's Officer Action Plan" : "Today's Organization Action Plan",
@@ -1374,16 +1379,16 @@ class AskAiService
             'sections' => [
                 [
                     'id' => 'org-daily-priorities',
-                    'title' => 'Prioritized Actions Today',
-                    'description' => 'Live operational queues for your organization.',
-                    'empty_message' => 'All organization tasks, compliance files, and order queues are up to date.',
+                    'title' => 'What needs you today',
+                    'description' => 'The most urgent come first.',
+                    'empty_message' => 'Your tasks, files and orders are all up to date.',
                     'rows' => $rows,
                 ],
             ],
             'follow_ups' => [
                 ['topic' => 'missing_submissions', 'label' => "What haven't we submitted?", 'question' => "What compliance requirements, event files, or reports haven't we submitted?"],
                 ['topic' => 'tasks_workload', 'label' => 'Who has overdue tasks?', 'question' => 'Who has overdue or pending tasks in our organization?'],
-                ['topic' => 'finance_health', 'label' => "Who hasn't paid fees & budget status?", 'question' => "Who hasn't paid collections/fees and how is our budget?"],
+                ['topic' => 'finance_health', 'label' => 'Our budget and unpaid fees', 'question' => 'How much budget is left, and how many student invoices are unpaid?'],
             ],
         ];
     }
@@ -1851,7 +1856,7 @@ class AskAiService
             ];
         }
 
-        $approvalsQuery = ApprovalRequest::with(['requester:school_id,first_name,last_name', 'organization:id,name,acronym'])
+        $approvalsQuery = ApprovalRequest::with('requester:school_id,first_name,last_name')
             ->where('status', 'pending')
             ->where('required_role', $user->approvalRole())
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
@@ -1868,9 +1873,12 @@ class AskAiService
         $totalPendingApprovals = (clone $approvalsQuery)->count();
         $approvals = $approvalsQuery->orderBy('requested_at')->limit(self::ROW_LIMIT)->get();
 
-        $approvalRows = $approvals->map(function (ApprovalRequest $req) use ($user, $role) {
+        $approvalOrgs = Organization::whereIn('id', $approvals->pluck('organization_id'))->get(['id', 'name', 'acronym'])->keyBy('id');
+
+        $approvalRows = $approvals->map(function (ApprovalRequest $req) use ($user, $role, $approvalOrgs) {
             $requester = trim(($req->requester?->first_name ?? '').' '.($req->requester?->last_name ?? '')) ?: 'Member';
-            $orgName = $req->organization?->acronym ?: ($req->organization?->name ?? 'Organization');
+            $organization = $approvalOrgs->get($req->organization_id);
+            $orgName = $organization?->acronym ?: ($organization?->name ?? 'Organization');
 
             return [
                 'id' => 'app-'.$req->id,
@@ -2145,14 +2153,15 @@ class AskAiService
             $owed = (float) ($row['total_debt'] ?? 0);
             $unpaidCount = (int) ($row['unpaid_invoice_count'] ?? 0);
 
-            $invoiceQuery = DB::table('invoices')
-                ->where('organization_id', $orgId)
-                ->where('student_id', $user->school_id);
+            $invoiceQuery = Invoice::where('organization_id', $orgId)->where('student_id', $user->school_id);
             $invoiceTotal = (clone $invoiceQuery)->count();
             $invoices = $invoiceQuery
+                ->with('payments')
                 ->orderByDesc('created_at')
+                ->orderByDesc('id')
                 ->limit(self::ROW_LIMIT)
-                ->get(['id', 'description', 'amount', 'paid_amount', 'status', 'due_date']);
+                ->get()
+                ->map(fn (Invoice $invoice) => (object) $this->balances->invoiceData($invoice));
 
             return [
                 'title' => 'Your Fees & Account Balance',
@@ -2175,7 +2184,7 @@ class AskAiService
                         'rows' => $invoices->map(fn ($inv) => [
                             'id' => 'inv-'.$inv->id,
                             'primary' => $inv->description ?: 'Invoice #'.$inv->id,
-                            'secondary' => sprintf('Amount: ₱%s · Paid: ₱%s', number_format((float) $inv->amount, 2), number_format((float) $inv->paid_amount, 2)),
+                            'secondary' => sprintf('Amount: ₱%s · Paid: ₱%s', number_format((float) $inv->amount_due, 2), number_format((float) $inv->amount_paid, 2)),
                             'status' => Str::headline($inv->status),
                             'status_tone' => match ($inv->status) {
                                 'paid' => 'success',
@@ -4146,17 +4155,30 @@ class AskAiService
 
     private function recentQueries(User $user): array
     {
+        $topics = [...self::TOPICS, ...AskAiRoleIntents::INTENTS];
+
         return AiOutput::where('requested_by', $user->school_id)
             ->where('feature_type', 'ASK_AI_ASSISTANT')
+            ->when(
+                $user->organization_id === null,
+                fn ($query) => $query->whereNull('organization_id'),
+                fn ($query) => $query->where('organization_id', $user->organization_id)
+            )
+            ->where('structured_input->role', $user->role)
             ->orderByDesc('id')
             ->limit(5)
-            ->get(['id', 'prompt_text', 'output_text', 'created_at'])
-            ->map(fn (AiOutput $out) => [
-                'id' => $out->id,
-                'question' => $out->prompt_text,
-                'answer' => $out->output_text,
-                'asked_at' => $out->created_at?->toIso8601String(),
-            ])
+            ->get(['id', 'prompt_text', 'output_text', 'created_at', 'structured_input'])
+            ->map(function (AiOutput $out) use ($topics) {
+                $topic = $out->structured_input['topic'] ?? $out->structured_input['intent'] ?? null;
+
+                return [
+                    'id' => $out->id,
+                    'question' => $out->prompt_text,
+                    'answer' => $out->output_text,
+                    'topic' => in_array($topic, $topics, true) ? $topic : null,
+                    'asked_at' => $out->created_at?->toIso8601String(),
+                ];
+            })
             ->all();
     }
 
@@ -4206,255 +4228,220 @@ class AskAiService
                 [
                     'id' => 'sao-today',
                     'topic' => 'daily_priorities',
-                    'label' => 'What should I do today?',
+                    'label' => "What's on my desk today",
                     'question' => 'What should I do today across student organizations?',
-                    'description' => 'Prioritized SAO review queues for registrations, compliance, approvals, venues, grievances, and clearances.',
+                    'description' => 'The registrations, files, approvals, venue bookings, grievances and clearances waiting for you, most urgent first.',
+                ],
+                [
+                    'id' => 'sao-applications',
+                    'topic' => 'applications_queue',
+                    'label' => 'Applications to approve',
+                    'question' => 'Which organization applications are waiting for my approval?',
+                    'description' => 'The applications the Department Heads have endorsed, oldest first.',
                 ],
                 [
                     'id' => 'sao-missing',
                     'topic' => 'missing_submissions',
-                    'label' => "Who hasn't submitted requirements?",
-                    'question' => "Which organizations haven't submitted compliance or financial reports?",
-                    'description' => 'Exact list of student organizations missing active compliance documents or financial reports.',
+                    'label' => 'Who is behind on requirements',
+                    'question' => "Which organizations haven't submitted their requirements?",
+                    'description' => 'The organizations that still owe compliance files or financial reports.',
                 ],
                 [
                     'id' => 'sao-submitted',
                     'topic' => 'submitted_documents',
-                    'label' => 'Who has submitted files for review?',
-                    'question' => 'Who has submitted compliance documents or reports for review?',
-                    'description' => 'Recent compliance uploads and financial statements awaiting SAO action.',
+                    'label' => 'Files waiting for review',
+                    'question' => 'Who has sent files that I still need to review?',
+                    'description' => 'Compliance files and reports that organizations have sent and nobody has reviewed yet.',
                 ],
                 [
-                    'id' => 'sao-approvals',
-                    'topic' => 'pending_approvals',
-                    'label' => 'Pending registrations & approvals',
-                    'question' => 'What registrations, event files, and approvals are pending?',
-                    'description' => 'Pending student organization applications and SAO approval requests.',
+                    'id' => 'sao-grievances',
+                    'topic' => 'grievances_status',
+                    'label' => 'Urgent student concerns',
+                    'question' => 'Are there any urgent student grievances I should read first?',
+                    'description' => 'The open grievances, with the high and critical ones first.',
                 ],
                 [
-                    'id' => 'sao-no-admin',
-                    'topic' => 'organizations_without_admin',
-                    'label' => 'Organizations needing an admin',
-                    'question' => 'Which active organizations still need an administrator or were returned?',
-                    'description' => 'Active student organizations without an active ADMIN profile and returned registrations.',
-                ],
-                [
-                    'id' => 'sao-howto-org',
+                    'id' => 'sao-howto-dean',
                     'topic' => 'how_to_guide',
-                    'label' => 'How do I create an organization?',
-                    'question' => 'How do I create an organization?',
-                    'description' => 'Step-by-step guide: academic year, requirements, college, organization, and its first admin.',
-                ],
-                [
-                    'id' => 'sao-finance',
-                    'topic' => 'finance_health',
-                    'label' => 'University-wide budget health',
-                    'question' => 'How is university-wide budget utilization and financial report status?',
-                    'description' => 'Approved budget allocations and remaining balances across student organizations.',
+                    'label' => 'Invite a dean',
+                    'question' => 'How do I invite a Department Head?',
+                    'description' => 'The steps for sending a college its Department Head invitation link.',
                 ],
             ],
             'DEPARTMENT_HEAD' => [
                 [
                     'id' => 'dh-today',
                     'topic' => 'daily_priorities',
-                    'label' => 'What should I do today?',
+                    'label' => "What's on my desk today",
                     'question' => 'What should I do today for my college?',
-                    'description' => 'Pending college endorsements, returned registrations, and leadership gaps.',
-                ],
-                [
-                    'id' => 'dh-missing',
-                    'topic' => 'missing_submissions',
-                    'label' => "Which college orgs haven't submitted?",
-                    'question' => "Which college organizations haven't submitted compliance or financial reports?",
-                    'description' => 'College student organizations with incomplete compliance or unsubmitted financial reports.',
-                ],
-                [
-                    'id' => 'dh-submitted',
-                    'topic' => 'submitted_documents',
-                    'label' => 'Who submitted files or reports?',
-                    'question' => 'Who has submitted budgets, events, or financial reports for my review?',
-                    'description' => 'Recent compliance and financial report submissions from your college organizations.',
+                    'description' => 'The requests to endorse, returned registrations and organizations without a head, most urgent first.',
                 ],
                 [
                     'id' => 'dh-approvals',
                     'topic' => 'pending_approvals',
-                    'label' => 'Pending college approvals',
-                    'question' => 'What requests are waiting for my approval right now?',
-                    'description' => 'Requests awaiting Department Head sign-off.',
+                    'label' => 'Waiting for my approval',
+                    'question' => 'What is waiting for my approval right now?',
+                    'description' => 'The events, budgets, reports and elections that need the Department Head.',
                 ],
                 [
                     'id' => 'dh-no-admin',
                     'topic' => 'organizations_without_admin',
-                    'label' => 'Returned or missing-admin orgs',
-                    'question' => 'Which organizations in my college are returned or missing an administrator?',
-                    'description' => 'Organizations needing registration edits or an organization head.',
+                    'label' => 'Which organizations need a head',
+                    'question' => 'Which organizations in my college have no head yet?',
+                    'description' => 'The active organizations in your college without an organization head, and the returned registrations.',
                 ],
                 [
-                    'id' => 'dh-howto-endorse',
-                    'topic' => 'how_to_guide',
-                    'label' => 'How do I endorse an application?',
-                    'question' => 'How do I endorse an application?',
-                    'description' => 'Step-by-step guide for reviewing and endorsing public organization applications.',
+                    'id' => 'dh-missing',
+                    'topic' => 'missing_submissions',
+                    'label' => 'Who is behind on requirements',
+                    'question' => 'Which of our organizations are behind on requirements?',
+                    'description' => 'The organizations in your college with missing compliance files or financial reports.',
                 ],
                 [
                     'id' => 'dh-events',
                     'topic' => 'events_attendance',
-                    'label' => 'Upcoming college events',
-                    'question' => 'What upcoming events are scheduled in my college?',
-                    'description' => 'Approved and ongoing events across your college organizations.',
+                    'label' => 'Events in my college',
+                    'question' => 'What events are coming up in my college?',
+                    'description' => 'The approved and ongoing events across your college organizations.',
+                ],
+                [
+                    'id' => 'dh-howto-endorse',
+                    'topic' => 'how_to_guide',
+                    'label' => 'Endorse an application',
+                    'question' => 'How do I endorse an application?',
+                    'description' => 'The steps for reviewing and endorsing an organization application.',
                 ],
             ],
             'ADMIN' => [
                 [
                     'id' => 'adm-today',
                     'topic' => 'daily_priorities',
-                    'label' => 'What should I do today?',
+                    'label' => "What's on my desk today",
                     'question' => 'What should I do today for our organization?',
-                    'description' => 'Overdue tasks, pending approvals, missing compliance requirements, and order queues.',
+                    'description' => 'The overdue tasks, requests, missing files and orders that need you, most urgent first.',
                 ],
                 [
                     'id' => 'adm-missing',
                     'topic' => 'missing_submissions',
-                    'label' => "What haven't we submitted yet?",
-                    'question' => "What compliance requirements, event files, or reports haven't we submitted?",
-                    'description' => 'Unsubmitted or returned compliance documents and missing event proposal files.',
-                ],
-                [
-                    'id' => 'adm-submitted',
-                    'topic' => 'submitted_documents',
-                    'label' => 'What have we already submitted?',
-                    'question' => 'What documents and reports have we already submitted?',
-                    'description' => 'Status of all compliance files and financial reports submitted by your organization.',
-                ],
-                [
-                    'id' => 'adm-tasks',
-                    'topic' => 'tasks_workload',
-                    'label' => 'Who has overdue or pending tasks?',
-                    'question' => 'Who has overdue or pending tasks in our organization?',
-                    'description' => 'Officer task assignments, deadlines, and completion progress.',
+                    'label' => 'What we still owe SAO',
+                    'question' => "What haven't we submitted yet?",
+                    'description' => 'The compliance files and event requirements your organization has not sent or that were returned.',
                 ],
                 [
                     'id' => 'adm-finance',
                     'topic' => 'finance_health',
-                    'label' => 'Budget & unpaid student fees',
-                    'question' => "Who hasn't paid collections/fees and how is our budget?",
-                    'description' => 'Approved budget balances and open student invoices.',
+                    'label' => 'Our budget and unpaid fees',
+                    'question' => 'How much budget is left, and how many student invoices are unpaid?',
+                    'description' => 'The approved budgets with what is left of each, and the open student invoices.',
+                ],
+                [
+                    'id' => 'adm-tasks',
+                    'topic' => 'tasks_workload',
+                    'label' => 'Overdue tasks',
+                    'question' => 'Who has overdue or unfinished tasks?',
+                    'description' => 'The overdue and open tasks, who has each one and when it is due.',
+                ],
+                [
+                    'id' => 'adm-orders',
+                    'topic' => 'merchandise_orders',
+                    'label' => 'Orders needing action',
+                    'question' => 'Which merchandise orders need my attention?',
+                    'description' => 'The orders with a payment proof to check and the paid orders waiting to be claimed.',
                 ],
                 [
                     'id' => 'adm-howto-event',
                     'topic' => 'how_to_guide',
-                    'label' => 'How do I create an event?',
+                    'label' => 'Plan an event',
                     'question' => 'How do I create an event?',
-                    'description' => 'Step-by-step guide for creating an event, uploading its requirements, and booking a venue.',
-                ],
-                [
-                    'id' => 'adm-clearances',
-                    'topic' => 'clearances_status',
-                    'label' => 'Pending student clearances',
-                    'question' => 'Which students have pending or held clearance signatures?',
-                    'description' => 'Students awaiting organization clearance sign-off.',
+                    'description' => 'The steps for creating an event, uploading its requirements and booking a venue.',
                 ],
             ],
             'SBO_OFFICER' => [
                 [
                     'id' => 'off-today',
                     'topic' => 'daily_priorities',
-                    'label' => 'What should I do today?',
+                    'label' => "What's on my desk today",
                     'question' => 'What should I do today as an officer?',
-                    'description' => 'Your assigned tasks, orders awaiting payment verification, and event queues.',
+                    'description' => 'Your tasks, the orders waiting for a payment check and the events that need you.',
                 ],
                 [
                     'id' => 'off-tasks',
                     'topic' => 'tasks_workload',
-                    'label' => 'My overdue & active tasks',
-                    'question' => 'What tasks are assigned to me or overdue?',
-                    'description' => 'Deadlines and progress for tasks assigned to you.',
+                    'label' => 'My tasks',
+                    'question' => 'Which tasks are mine, and which are overdue?',
+                    'description' => 'The tasks assigned to you, with their deadlines and progress.',
                 ],
                 [
                     'id' => 'off-orders',
                     'topic' => 'merchandise_orders',
-                    'label' => 'Orders needing verification',
-                    'question' => 'Which merchandise orders need payment verification or claiming?',
-                    'description' => 'Student orders with payment proofs to verify or ready for pickup.',
-                ],
-                [
-                    'id' => 'off-missing',
-                    'topic' => 'missing_submissions',
-                    'label' => 'Missing compliance & event files',
-                    'question' => 'Which event requirements or compliance documents are still missing?',
-                    'description' => 'Organization compliance requirements and event proposal files still needed.',
+                    'label' => 'Orders to check',
+                    'question' => 'Which orders need payment checking or claiming?',
+                    'description' => 'The student orders with a payment proof to check and the paid orders ready for pickup.',
                 ],
                 [
                     'id' => 'off-events',
                     'topic' => 'events_attendance',
-                    'label' => 'Upcoming & open events',
-                    'question' => 'What events are happening today or need to be closed?',
-                    'description' => 'Scheduled events and past events that need to be marked completed.',
+                    'label' => 'Events to run',
+                    'question' => 'What events need check-in today?',
+                    'description' => 'The events happening now and the ended ones that still need closing.',
+                ],
+                [
+                    'id' => 'off-finance',
+                    'topic' => 'finance_health',
+                    'label' => 'Our budget, read only',
+                    'question' => 'How much budget does our organization have left?',
+                    'description' => 'The approved budgets and what is left of each. You can read them but not change them.',
                 ],
                 [
                     'id' => 'off-howto-orders',
                     'topic' => 'how_to_guide',
-                    'label' => 'How do I verify orders?',
-                    'question' => 'How do I verify orders?',
-                    'description' => 'Step-by-step guide for checking GCash proof and releasing items at the claim desk.',
-                ],
-                [
-                    'id' => 'off-clearances',
-                    'topic' => 'clearances_status',
-                    'label' => 'Student clearances queue',
-                    'question' => 'How many student clearances are pending?',
-                    'description' => 'Pending and held student clearance lines for your organization.',
+                    'label' => 'Verify an order',
+                    'question' => 'How do I verify an order?',
+                    'description' => 'The steps for checking a GCash proof and releasing an item at the claim desk.',
                 ],
             ],
             default => [
                 [
                     'id' => 'stu-today',
                     'topic' => 'daily_priorities',
-                    'label' => 'What do I need to do today?',
+                    'label' => "What's on my plate",
                     'question' => 'What do I need to do today?',
-                    'description' => 'Your personal checklist across clearance, fees, elections, and orders.',
+                    'description' => 'Your clearance, fees, ballots and orders in one list.',
                 ],
                 [
                     'id' => 'stu-clearance',
                     'topic' => 'clearances_status',
-                    'label' => "Who hasn't signed my clearance?",
-                    'question' => "Who hasn't signed my clearance yet and why?",
-                    'description' => 'Status of each required signatory on your student clearance.',
+                    'label' => "Who hasn't signed",
+                    'question' => "Who hasn't signed my clearance yet, and why?",
+                    'description' => 'Each signatory on your clearance and whether they have signed.',
                 ],
                 [
                     'id' => 'stu-fees',
                     'topic' => 'finance_health',
-                    'label' => 'What fees or invoices do I owe?',
-                    'question' => 'What fees or invoices do I still need to pay?',
-                    'description' => 'Open invoices, paid amounts, and remaining balance on your account.',
+                    'label' => 'What I owe',
+                    'question' => 'What fees do I still need to pay?',
+                    'description' => 'Your open invoices, what you have paid and what is left.',
                 ],
                 [
                     'id' => 'stu-orders',
                     'topic' => 'merchandise_orders',
-                    'label' => 'Status of my merchandise orders',
-                    'question' => 'What is the status of my merchandise orders?',
-                    'description' => 'Orders under review and paid orders ready to claim.',
-                ],
-                [
-                    'id' => 'stu-events',
-                    'topic' => 'events_attendance',
-                    'label' => 'Upcoming events',
-                    'question' => 'What upcoming events are scheduled for my organization?',
-                    'description' => 'Approved and ongoing organization events.',
-                ],
-                [
-                    'id' => 'stu-howto-clearance',
-                    'topic' => 'how_to_guide',
-                    'label' => 'How do I check my clearance?',
-                    'question' => 'How do I check my clearance?',
-                    'description' => 'Step-by-step guide for reading your clearance lines and settling holds.',
+                    'label' => 'My orders',
+                    'question' => 'Is my merchandise order ready to claim?',
+                    'description' => 'Your orders that are being checked and the paid ones ready to claim.',
                 ],
                 [
                     'id' => 'stu-elections',
                     'topic' => 'elections_status',
-                    'label' => 'Active elections to vote in',
-                    'question' => 'Is there an active election I still need to vote in?',
-                    'description' => 'Active and upcoming elections in your organization.',
+                    'label' => 'Can I vote',
+                    'question' => 'Is there an election I can vote in right now?',
+                    'description' => 'The elections open to you, and whether you have already voted.',
+                ],
+                [
+                    'id' => 'stu-fee-usage',
+                    'topic' => 'fee_usage',
+                    'label' => 'Where my fees go',
+                    'question' => 'Where do my membership fees go?',
+                    'description' => 'How the fees your organization collected were spent, once the SAO has approved the report.',
                 ],
             ],
         };
