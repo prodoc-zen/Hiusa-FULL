@@ -108,15 +108,15 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant', [AskAiController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/ask', [AskAiController::class, 'ask'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/ai/assistant/chat', [AskAiController::class, 'chat'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/ai/assistant/chat', [AskAiController::class, 'chat'])->middleware(['throttle:ai-chat', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant/conversations', [AskAiController::class, 'conversations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::delete('/ai/assistant/conversations', [AskAiController::class, 'destroyConversations'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'showConversation'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
     Route::patch('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'renameConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
     Route::delete('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'destroyConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
     Route::post('/ai/assistant/messages/{message}/feedback', [AskAiController::class, 'feedback'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
-    Route::post('/ai/assistant/messages/{message}/action/confirm', [AskAiActionController::class, 'confirm'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
-    Route::post('/ai/assistant/messages/{message}/action/cancel', [AskAiActionController::class, 'cancel'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/confirm', [AskAiActionController::class, 'confirm'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/cancel', [AskAiActionController::class, 'cancel'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
     Route::get('/ai/assistant/memories', [AskAiController::class, 'memories'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/memories', [AskAiController::class, 'storeMemory'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::delete('/ai/assistant/memories', [AskAiController::class, 'destroyMemories'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);

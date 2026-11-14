@@ -164,7 +164,11 @@ class ClaudeMessagesService implements TextGenerator
         }
 
         $started = microtime(true);
-        $this->budgeted = false;
+        $seconds = $this->chatSeconds();
+        if ($this->timeBudget !== null) {
+            $seconds = max(1, min($seconds, (int) ceil($this->timeBudget)));
+        }
+        $this->budgeted = $seconds < $this->chatSeconds();
         $text = '';
         $reasoning = '';
         $model = $this->model();
@@ -186,7 +190,7 @@ class ClaudeMessagesService implements TextGenerator
         };
 
         try {
-            $stream = $this->client($apiKey, $this->chatSeconds(), $started + $this->chatSeconds())->messages->createStream(
+            $stream = $this->client($apiKey, $seconds, $started + $seconds)->messages->createStream(
                 maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
                 messages: array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
                 model: $this->model(),

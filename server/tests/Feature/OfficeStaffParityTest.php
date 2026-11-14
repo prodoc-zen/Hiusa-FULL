@@ -95,6 +95,8 @@ class OfficeStaffParityTest extends TestCase
         'POST api/ai/assistant/ask',
         'POST api/ai/assistant/chat',
         'POST api/ai/assistant/memories',
+        'POST api/ai/assistant/messages/{message}/action/cancel',
+        'POST api/ai/assistant/messages/{message}/action/confirm',
         'POST api/ai/assistant/messages/{message}/feedback',
         'POST api/announcements',
         'POST api/announcements/{id}/view',
