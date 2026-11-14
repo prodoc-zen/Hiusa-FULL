@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -149,7 +150,7 @@ class SaoAccountCommandsTest extends TestCase
 
     public function test_it_stops_when_the_install_has_no_sao_organization(): void
     {
-        \Illuminate\Support\Facades\DB::table('organizations')->where('organization_type', 'SYSTEM_ADMINISTRATION')->delete();
+        DB::table('organizations')->where('organization_type', 'SYSTEM_ADMINISTRATION')->delete();
 
         $this->assertSame(1, $this->createSao());
         $this->assertStringContainsString('migrate', Artisan::output());
