@@ -585,7 +585,7 @@ class AskAiChatTest extends TestCase
         {
             public function __construct() {}
 
-            public function respond($user, $conversation, $text, $topic, $regenerate, $emit, $aborted = null): array
+            public function respond($user, $conversation, $text, $topic, $regenerate, $emit, $aborted = null, $source = 'typed'): array
             {
                 $emit('meta', ['conversation' => [], 'user_message' => []]);
                 throw new \RuntimeException('database password is hunter2');
