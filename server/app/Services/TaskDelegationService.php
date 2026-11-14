@@ -222,7 +222,7 @@ class TaskDelegationService
             ->map(function (AccountProfile $profile) {
                 $profile->user->activateProfile($profile);
 
-                return $profile->user;
+                return $profile->user->listAmongOthers();
             })
             ->values();
     }

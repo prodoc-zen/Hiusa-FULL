@@ -342,6 +342,46 @@ class AskAiCoreAuditFixesTest extends TestCase
         $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', true);
     }
 
+    public function test_a_member_whose_only_club_is_archived_is_not_counted_as_in_a_student_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $archived = $this->org(['is_active' => false, 'lifecycle_status' => 'archived']);
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $archived->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        Sanctum::actingAs($student);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', false);
+        $this->assertStringContainsString('no organization records for you yet', $this->briefing($student->fresh())['answer']);
+    }
+
+    public function test_a_listed_member_skips_the_membership_lookup_so_the_list_costs_the_same_for_more_people(): void
+    {
+        $club = $this->org();
+        $admin = User::factory()->admin()->create(['organization_id' => $club->id]);
+        Sanctum::actingAs($admin);
+        $addMembers = fn (int $count) => User::factory()->student()->count($count)->create(['organization_id' => $club->id]);
+        $queriesFor = function () {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $response = $this->getJson('/api/users?per_page=50')->assertOk();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return [$count, $response];
+        };
+
+        $addMembers(3);
+        [$three, $response] = $queriesFor();
+        $response->assertJsonMissingPath('data.0.in_student_organization');
+        $response->assertJsonMissingPath('data.0.can_book_venues');
+
+        $addMembers(3);
+        [$six] = $queriesFor();
+
+        $this->assertSame($three, $six);
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('can_book_venues', true)->assertJsonPath('in_student_organization', true);
+    }
+
     private function election(Organization $org, array $overrides = []): Election
     {
         return Election::factory()->create([
