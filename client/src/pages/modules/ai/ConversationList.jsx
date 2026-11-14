@@ -146,6 +146,9 @@ export default function ConversationList({
   onRename,
   onDelete,
   onDeleteAll,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }) {
   const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -213,6 +216,10 @@ export default function ConversationList({
             </ul>
           </section>
         ))
+      )}
+
+      {hasMore && onLoadMore && (
+        <Button variant="secondary" onClick={onLoadMore} loading={loadingMore} className="w-full max-sm:h-[42px]">Show more</Button>
       )}
 
       {conversations.length > 0 && (
