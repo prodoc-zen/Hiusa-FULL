@@ -656,7 +656,7 @@ export default function TopBar({ onMenuToggle }) {
                     {current && <span className="text-xs font-medium text-ink-muted-strong">Current</span>}
                   </button>;
                 })}
-                {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-ink-muted-strong">{availableProfiles[0].organization?.organization_type === 'COLLEGE' ? 'Your college dashboard is available without an organization membership. If an organization adds you, its profile will appear here.' : 'This is your only active profile. Other profiles appear here when an organization adds you.'}</p>}
+                {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-ink-muted-strong">{availableProfiles[0].organization?.organization_type === 'COLLEGE' ? 'Other profiles appear here when an organization adds you.' : 'This is your only active profile. Other profiles appear here when an organization adds you.'}</p>}
               </div>}
               {switchingProfile && <p role="status" className="px-2 py-2 text-xs text-ink-muted-strong">Switching profile…</p>}
             </section>

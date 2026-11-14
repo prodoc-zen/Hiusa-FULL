@@ -87,7 +87,7 @@ function MembersTab({ space }) {
   ];
 
   return (
-    <Card title="People" description="Active members of this organization. Its own Admin gives and removes access.">
+    <Card title="People" description="Active members only. Its own Admin gives and removes access.">
       <DataTable
         columns={columns}
         rows={space.members}

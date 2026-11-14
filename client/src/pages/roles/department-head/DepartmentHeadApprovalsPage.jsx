@@ -357,7 +357,7 @@ export default function DepartmentHeadApprovalsPage() {
 
   function renderEmpty() {
     if (forbidden) {
-      return <EmptyState kind="restricted" title="Approvals are for the Admin and the Department Head" description="Only they can decide requests." />;
+      return <EmptyState kind="restricted" title="Approvals are for the Admin and the Department Head" />;
     }
 
     if (filtersActive) {

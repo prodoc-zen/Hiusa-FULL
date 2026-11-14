@@ -263,7 +263,7 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
         <div>
           <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-ink">Capture progress</p><span className="text-xs font-medium tabular-nums text-ink-muted">{captured} / 4</span></div>
           <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-brand-700' : 'bg-line'}`} />)}</div>
-          <p className="mt-3 text-xs leading-5 text-ink-muted-strong">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
+          <p className="mt-3 text-xs leading-5 text-ink-muted-strong">Use the same finger four times, lifting it fully after each accepted capture. Only an encrypted template is stored.</p>
         </div>
         <label className="flex min-h-11 items-start gap-3 text-sm leading-5 text-ink-muted-strong">
           <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-line" />
@@ -325,7 +325,7 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
           <p className="text-xs text-ink-muted-strong">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p>
         </div>
 
-        {busy && <p className="text-sm font-medium text-ink">Place one finger flat on the reader. HIUSA searches this organization's enrolled fingerprints.</p>}
+        {busy && <p className="text-sm font-medium text-ink">Place one finger flat on the reader.</p>}
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
         {result && <div role="status" className="border-t border-line pt-4">
           <p className={`text-sm font-semibold ${result.matchesExpected ? 'text-success-strong' : 'text-warning-strong'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>

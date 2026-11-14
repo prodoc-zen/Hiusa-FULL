@@ -111,7 +111,6 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
   return (
     <Card
       title="People and access"
-      description="Who can work in this organization, and what they can open."
       actions={canGrant && <Button variant="secondary" size="sm" onClick={() => setGiving(true)}><UserPlus size={16} aria-hidden="true" />Give access</Button>}
     >
       <div className="space-y-4">

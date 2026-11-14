@@ -98,7 +98,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
       open={open}
       onClose={issued ? finish : close}
       title={issued ? 'Temporary passwords' : 'Import members'}
-      description={issued ? 'Hand each member their password. They must change it when they first sign in.' : 'Add a whole roster at once from a CSV file.'}
+      description={issued ? 'Hand each member their password. They must change it when they first sign in.' : undefined}
       width="max-w-lg"
       footer={(
         <div className="flex flex-wrap justify-end gap-2">
