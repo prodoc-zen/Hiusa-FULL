@@ -63,6 +63,24 @@ describe('StudentGrievancesPage', () => {
     await waitFor(() => expect(mocks.createGrievance).toHaveBeenCalledWith(expect.objectContaining({ addressed_to: 'organization', organization_id: 9 })));
   });
 
+  it('says the organizations could not be loaded, offers a retry, and shows the server answer when the choice was needed', async () => {
+    mocks.getGrievanceFilingOptions.mockRejectedValueOnce(new Error('network'));
+    mocks.createGrievance.mockRejectedValue({ validationErrors: { organization_id: ['Choose which of your organizations this is for.'] } });
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
+
+    expect(await screen.findByText('Could not load your organizations.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/what's this about/i), { target: { value: 'Broken door' } });
+    fireEvent.change(screen.getByLabelText(/tell us what happened/i), { target: { value: 'The door is broken.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'File this grievance' }));
+
+    expect(await screen.findByText('Choose which of your organizations this is for.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/which organization/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(mocks.getGrievanceFilingOptions).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Could not load your organizations.')).not.toBeInTheDocument());
+  });
+
   it('does not ask a member of one organization to choose', async () => {
     render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
     await waitFor(() => expect(mocks.getGrievanceFilingOptions).toHaveBeenCalled());

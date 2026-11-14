@@ -184,6 +184,16 @@ function getRole() {
   }
 }
 
+// The organization of the profile the person is signed in to. GCash is paid only through the organization that sells the product.
+function getOrganizationId() {
+  try {
+    const id = JSON.parse(localStorage.getItem("user"))?.organization_id;
+    return id == null ? null : Number(id);
+  } catch {
+    return null;
+  }
+}
+
 const ORDER_TONE = {
   pending: "active",
   paid: "warning",
@@ -582,6 +592,7 @@ export default function MerchandisePage({ initialTab }) {
   const navigate = useNavigate();
   const [recordId, setRecordId] = useRecordParam();
   const role = getRole();
+  const currentOrgId = getOrganizationId();
   const isFulfillmentRole = role === "ADMIN" || role === "SBO_OFFICER";
   const defaultTab =
     role === "ADMIN"
@@ -1914,6 +1925,9 @@ export default function MerchandisePage({ initialTab }) {
   ).length;
 
   const gcashReady = Boolean(gcashSettings?.gcash_qr_open_url);
+  // A profile with no organization on record never blocks GCash; the server still refuses a payment through the wrong one.
+  const soldElsewhere = (organizationId) => organizationId != null && currentOrgId != null && Number(organizationId) !== currentOrgId;
+  const cartSoldElsewhere = cart.map((row) => row.item?.organization).find((organization) => soldElsewhere(organization?.id));
   const gcashUnavailable = gcashSettings !== null && !gcashReady;
 
 
@@ -1965,7 +1979,7 @@ export default function MerchandisePage({ initialTab }) {
       return {
         ...next,
         // A cash order is paid at pickup, so GCash proof stays a secondary button on the order card.
-        primary: gcashReady && order.payment_method === "gcash"
+        primary: gcashReady && order.payment_method === "gcash" && !soldElsewhere(order.organization_id)
           ? { label: "Submit GCash proof", onClick: () => openProofModal(order) }
           : reserved ? { label: "View order", onClick: () => openOrderDetails(order) } : undefined,
       };
@@ -2451,12 +2465,14 @@ export default function MerchandisePage({ initialTab }) {
                         <p className="text-sm text-ink-muted-strong">
                           {o.payment_proof_url
                             ? "Payment proof submitted and awaiting officer verification."
-                            : gcashReady
-                              ? "You can submit GCash proof now or pay cash on pickup."
-                              : "Online payment is not available. Pay cash at pickup."}
+                            : soldElsewhere(o.organization_id)
+                              ? `Pay cash at pickup, or switch to your ${o.organization?.name || "selling organization"} profile to pay by GCash.`
+                              : gcashReady
+                                ? "You can submit GCash proof now or pay cash on pickup."
+                                : "Online payment is not available. Pay cash at pickup."}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {gcashSettings?.gcash_qr_open_url && (
+                          {gcashSettings?.gcash_qr_open_url && !soldElsewhere(o.organization_id) && (
                             <Button
                               type="button"
                               variant="secondary"
@@ -2592,10 +2608,11 @@ export default function MerchandisePage({ initialTab }) {
                       <option value="cash">Cash on pickup</option>
                       <option
                         value="gcash"
-                        disabled={cart.length > 1 || !gcashSettings?.gcash_qr_open_url}
+                        disabled={cart.length > 1 || !gcashSettings?.gcash_qr_open_url || Boolean(cartSoldElsewhere)}
                       >
-                        GCash (single order only)
-                        {!gcashSettings?.gcash_qr_open_url ? " - unavailable" : ""}
+                        {cartSoldElsewhere
+                          ? `GCash - switch to your ${cartSoldElsewhere.name || "selling organization"} profile to pay online`
+                          : `GCash (single order only)${!gcashSettings?.gcash_qr_open_url ? " - unavailable" : ""}`}
                       </option>
                     </HiusaSelect>
                   </Field>

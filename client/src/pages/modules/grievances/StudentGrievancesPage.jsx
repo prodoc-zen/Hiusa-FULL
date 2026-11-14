@@ -42,6 +42,7 @@ export default function StudentGrievancesPage() {
   const [addressedTo, setAddressedTo] = useState('organization');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [filingOptions, setFilingOptions] = useState([]);
+  const [optionsError, setOptionsError] = useState(false);
   const [organizationId, setOrganizationId] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -63,11 +64,19 @@ export default function StudentGrievancesPage() {
   }, [load]);
 
   // A member of several organizations says which one the grievance is for; with one, the server addresses it.
-  useEffect(() => {
-    getGrievanceFilingOptions()
+  const loadFilingOptions = useCallback(() => {
+    setOptionsError(false);
+    return getGrievanceFilingOptions()
       .then((res) => setFilingOptions(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setFilingOptions([]));
+      .catch(() => {
+        setFilingOptions([]);
+        setOptionsError(true);
+      });
   }, []);
+
+  useEffect(() => {
+    loadFilingOptions();
+  }, [loadFilingOptions]);
 
   useEffect(() => {
     if (!recordId || tab !== 'mine' || loading || error) return;
@@ -155,13 +164,20 @@ export default function StudentGrievancesPage() {
               <SegmentedControl options={ADDRESSED_TO_OPTIONS} value={addressedTo} onChange={setAddressedTo} className="w-full" />
             </Field>
 
-            {addressedTo === 'organization' && filingOptions.length > 1 && (
+            {addressedTo === 'organization' && (filingOptions.length > 1 || fieldErrors.organization_id) && (
               <Field label="Which organization?" required error={fieldErrors.organization_id?.[0]}>
                 <Select id="grievance-organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
                   <option value="">Choose an organization</option>
                   {filingOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
                 </Select>
               </Field>
+            )}
+
+            {addressedTo === 'organization' && optionsError && (
+              <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-danger-strong">
+                <span>Could not load your organizations.</span>
+                <Button type="button" variant="secondary" onClick={loadFilingOptions}>Retry</Button>
+              </div>
             )}
 
             {addressedTo === 'organization' ? (

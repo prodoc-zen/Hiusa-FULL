@@ -726,6 +726,35 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.queryByRole("button", { name: "Submit GCash proof" })).not.toBeInTheDocument();
   });
 
+  it("hides Submit GCash proof on an order a club sells and points the buyer to that club's profile", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT", organization_id: 1 }));
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([buyerOrder({ id: 3, organization_id: 8, organization: { id: 8, name: "CCS Coders Guild" } })]),
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    expect(await screen.findByText("Pay cash at pickup, or switch to your CCS Coders Guild profile to pay by GCash.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit GCash proof" })).not.toBeInTheDocument();
+  });
+
+  it("disables GCash at checkout for a cart holding a club's product and says which profile to switch to", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT", organization_id: 1 }));
+    const clubShirt = { ...products[0], organization: { id: 8, name: "CCS Coders Guild" } };
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [clubShirt, products[1]], current_page: 1, last_page: 1 } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: clubShirt, quantity: 1 }]));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/dashboard/merchandise/order-merchandise", state: { openCartAt: 1, openCheckout: true } }]}>
+        <MerchandisePage initialTab="order" />
+      </MemoryRouter>,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm merchandise reservation" });
+    // The payment list is the shared custom select; its native twin carries every option and its state.
+    const option = dialog.querySelector('option[value="gcash"]');
+    expect(option).toBeDisabled();
+    expect(option).toHaveTextContent("GCash - switch to your CCS Coders Guild profile to pay online");
+  });
+
   it("says so on the shop when GCash is not set up and not when it is", async () => {
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
