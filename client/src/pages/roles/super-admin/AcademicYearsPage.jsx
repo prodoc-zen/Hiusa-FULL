@@ -372,6 +372,7 @@ export default function AcademicYearsPage() {
               {!year.can_be_removed && year.removal_blocker && <p className="mt-0.5 text-xs text-ink-muted">{year.removal_blocker}</p>}
               <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => {
                 const blocker = semester.status === 'completed' ? reopenBlocker(years.items) : (semester.status === 'active' ? '' : activateBlocker(semester, year, years.items));
+                const datesBeside = semester.status === 'upcoming' && !year.closed_at && !hasStarted(semester);
                 return <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-ink">{semester.number === 1 ? '1st' : '2nd'} semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span></div>
                 <div className="flex items-center gap-2">
@@ -400,7 +401,7 @@ export default function AcademicYearsPage() {
                       Close semester
                     </Button>
                   )}
-                  {semester.status !== 'active' && semester.status !== 'completed' && (
+                  {semester.status === 'upcoming' && !datesBeside && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -439,8 +440,17 @@ export default function AcademicYearsPage() {
                 {blocker && (
                   <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
                     <p id={`semester-note-${semester.id}`} className="text-xs text-ink-muted">{blocker}</p>
-                    {semester.status === 'upcoming' && !year.closed_at && !hasStarted(semester) && (
-                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => openDates(semester, year.label)}>Edit dates</Button>
+                    {datesBeside && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="max-md:min-h-[42px]"
+                        aria-label={`Edit dates of ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
+                        disabled={busy}
+                        onClick={() => openDates(semester, year.label)}
+                      >
+                        Edit dates
+                      </Button>
                     )}
                   </div>
                 )}
@@ -571,7 +581,7 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Remove academic year"
-        message={`The academic year and any semesters that never started are removed from the calendar. This cannot be undone. A year with a semester that has started, or with requirements or clearance periods of its own, cannot be removed.${deleteTarget?.is_current ? ' No academic year will be current afterwards.' : ''}`}
+        message={`The academic year and any semesters that never started are removed from the calendar, along with their requirement lists. This cannot be undone. A year with a semester that has started, or with requirements or clearance periods of its own, cannot be removed.${deleteTarget?.is_current ? ' No academic year will be current afterwards.' : ''}`}
         recordName={deleteTarget?.label}
         confirmText="Remove year"
         busy={busy}

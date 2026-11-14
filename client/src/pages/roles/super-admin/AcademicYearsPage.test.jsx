@@ -74,7 +74,9 @@ describe('AcademicYearsPage', () => {
       expect(activate).toHaveAccessibleDescription('Starts on August 7, 2999. Change its dates or activate it from that day.');
       expect(screen.getByText('Starts on August 7, 2999. Change its dates or activate it from that day.')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Edit dates' }));
+      // One Edit dates button for the semester, named for it, not a second one beside the row's own.
+      expect(screen.getAllByRole('button', { name: /Edit dates/ })).toHaveLength(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Edit dates of 1st semester of AY 2999-3000' }));
       const dialog = await screen.findByRole('dialog', { name: 'Edit dates of the 1st semester, AY 2999-3000' });
       expect(within(dialog).getByLabelText(/Starts on/)).toHaveValue('2999-08-07');
       expect(within(dialog).getByLabelText(/Ends on/)).toHaveValue('2999-12-15');
@@ -87,7 +89,7 @@ describe('AcademicYearsPage', () => {
       renderPage();
 
       await screen.findByText('2026-2027 is the current year');
-      expect(screen.queryByRole('button', { name: 'Edit dates' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Edit dates/ })).not.toBeInTheDocument();
     });
 
     it('says in one line what to do when no academic year is current', async () => {
