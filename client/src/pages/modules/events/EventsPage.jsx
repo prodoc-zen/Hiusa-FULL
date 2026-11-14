@@ -22,6 +22,7 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   UserCheck,
   Trash2,
   Wallet,
@@ -402,6 +403,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [dateFilter, setDateFilter] = useState('');
   const [eventStatusFilter, setEventStatusFilter] = useState('');
   const [eventSort, setEventSort] = useState('start_asc');
+  // A student sees the events first; the four filters open from one button.
+  const [studentFiltersOpen, setStudentFiltersOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [submissionVersion, setSubmissionVersion] = useState(0);
   const detailsRequestRef = useRef(0);
@@ -1412,9 +1415,19 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <Calendar size={15} aria-hidden="true" /> <span className="hidden sm:inline">Calendar</span>
               </button>
             </div>
+            {currentUserRole === 'STUDENT' && eventsView === 'list' && (
+              <button
+                type="button"
+                aria-expanded={studentFiltersOpen}
+                onClick={() => setStudentFiltersOpen((open) => !open)}
+                className="flex h-11 items-center gap-1.5 rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-subtle"
+              >
+                <SlidersHorizontal size={15} aria-hidden="true" /> Filter{hasEventFilters ? ' (on)' : ''}
+              </button>
+            )}
           </div>
 
-          {eventsView === 'list' && (
+          {eventsView === 'list' && (currentUserRole !== 'STUDENT' || studentFiltersOpen) && (
             <div className="flex flex-wrap items-end gap-3">
               <label className="relative min-w-0 flex-1 sm:max-w-xs">
                 <span className="sr-only">Search events</span>
