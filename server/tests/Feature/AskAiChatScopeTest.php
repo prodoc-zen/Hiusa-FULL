@@ -6,6 +6,7 @@ use App\Contracts\TextGenerator;
 use App\Models\AiConversation;
 use App\Models\AiMemory;
 use App\Models\AiMessage;
+use App\Models\AiOutput;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -161,5 +162,38 @@ class AskAiChatScopeTest extends TestCase
         $this->assertSame(0, AiConversation::count());
         $this->assertSame(0, AiMessage::count());
         $this->assertSame(0, AiMemory::count());
+    }
+
+    public function test_the_chat_route_uses_the_ai_generation_limit(): void
+    {
+        Sanctum::actingAs($this->adminIn(Organization::factory()->create()));
+        $this->fake();
+
+        for ($sent = 0; $sent < 5; $sent++) {
+            $this->postJson('/api/ai/assistant/chat', ['message' => 'What should I do today?'])->assertOk();
+        }
+
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'What should I do today?'], ['Accept' => 'text/event-stream'])
+            ->assertStatus(429)
+            ->assertJsonStructure(['message']);
+    }
+
+    public function test_deleting_an_account_deletes_its_ask_ai_text_from_ai_outputs(): void
+    {
+        $sao = User::factory()->superAdmin()->create();
+        $student = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
+        $other = User::factory()->student()->create(['organization_id' => $student->organization_id]);
+        $this->fake();
+
+        Sanctum::actingAs($student);
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'my secret question zebra-42'])->assertOk();
+        Sanctum::actingAs($other);
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'someone else question'])->assertOk();
+        $this->assertSame(2, AiOutput::count());
+
+        Sanctum::actingAs($sao);
+        $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])->assertOk();
+
+        $this->assertSame(['someone else question'], AiOutput::pluck('prompt_text')->all());
     }
 }
