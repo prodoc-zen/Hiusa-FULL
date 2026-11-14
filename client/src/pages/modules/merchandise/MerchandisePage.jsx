@@ -63,6 +63,7 @@ import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import Modal from "../../../components/Modal";
 import ReceiptDocument, { ClaimTicket, printClaimTicket } from "../../../components/receipts/ReceiptDocument";
 import GcashPaymentSettingsPage from "./GcashPaymentSettingsPage";
+import GcashQrImage from "./GcashQrImage";
 
 const STUDENT_CART_KEY = "hiusa_student_cart";
 const CATEGORIES = ["Apparel", "Accessories", "School Supplies", "Drinkware", "Bags", "Other"];
@@ -1897,7 +1898,7 @@ export default function MerchandisePage({ initialTab }) {
     ([key, value]) => !["sort", "per_page"].includes(key) && value,
   ).length;
 
-  const gcashReady = Boolean(gcashSettings?.gcash_qr_url);
+  const gcashReady = Boolean(gcashSettings?.gcash_qr_open_url);
   const gcashUnavailable = gcashSettings !== null && !gcashReady;
 
 
@@ -2439,7 +2440,7 @@ export default function MerchandisePage({ initialTab }) {
                               : "Online payment is not available. Pay cash at pickup."}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {gcashSettings?.gcash_qr_url && (
+                          {gcashSettings?.gcash_qr_open_url && (
                             <Button
                               type="button"
                               variant="secondary"
@@ -2575,10 +2576,10 @@ export default function MerchandisePage({ initialTab }) {
                       <option value="cash">Cash on pickup</option>
                       <option
                         value="gcash"
-                        disabled={cart.length > 1 || !gcashSettings?.gcash_qr_url}
+                        disabled={cart.length > 1 || !gcashSettings?.gcash_qr_open_url}
                       >
                         GCash (single order only)
-                        {!gcashSettings?.gcash_qr_url ? " - unavailable" : ""}
+                        {!gcashSettings?.gcash_qr_open_url ? " - unavailable" : ""}
                       </option>
                     </HiusaSelect>
                   </Field>
@@ -2601,15 +2602,16 @@ export default function MerchandisePage({ initialTab }) {
                 </div>
                 {checkoutPayment.method === "gcash" && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {gcashSettings?.gcash_qr_url && (
+                    {gcashSettings?.gcash_qr_open_url && (
                       <div className="text-center sm:col-span-2">
                         <p className="mb-2 text-xs font-semibold text-ink">
                           Scan the official HIUSA GCash QR code
                         </p>
-                        <img
-                          src={resolveAssetUrl(gcashSettings.gcash_qr_url)}
+                        <GcashQrImage
+                          openUrl={gcashSettings.gcash_qr_open_url}
                           alt="Official GCash payment QR code"
                           className="mx-auto max-h-52 max-w-full rounded-control object-contain"
+                          onUpload={role === "ADMIN" ? () => { setCheckoutOpen(false); setShowPaymentSettings(true); } : undefined}
                         />
                       </div>
                     )}
@@ -2670,15 +2672,16 @@ export default function MerchandisePage({ initialTab }) {
                 {fmt(paymentModal.order?.total_price)}
               </p>
               <div className="mt-4 space-y-4">
-                {gcashSettings?.gcash_qr_url && (
+                {gcashSettings?.gcash_qr_open_url && (
                   <div className="text-center">
                     <p className="mb-2 text-xs font-semibold text-ink">
                       Pay using the official HIUSA GCash QR code
                     </p>
-                    <img
-                      src={resolveAssetUrl(gcashSettings.gcash_qr_url)}
+                    <GcashQrImage
+                      openUrl={gcashSettings.gcash_qr_open_url}
                       alt="Official GCash payment QR code"
                       className="mx-auto max-h-44 max-w-full rounded-control object-contain"
+                      onUpload={role === "ADMIN" ? () => { setPaymentModal({ open: false, order: null, reference: "", proof_file: null, busy: false, error: "" }); setShowPaymentSettings(true); } : undefined}
                     />
                   </div>
                 )}

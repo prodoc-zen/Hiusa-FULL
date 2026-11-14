@@ -25,7 +25,7 @@ class OrganizationDeletionService
     ];
 
     private const FILES = [
-        'organizations' => ['public' => ['logo_url', 'gcash_qr_url'], 'uploads' => ['logo_url', 'gcash_qr_url']],
+        'organizations' => ['public' => ['logo_url', 'gcash_qr_url'], 'uploads' => ['logo_url', 'gcash_qr_url'], 'local' => ['gcash_qr_url']],
         'announcements' => ['public' => ['image_url'], 'uploads' => ['image_url']],
         'events' => ['public' => ['image_url'], 'uploads' => ['image_url']],
         'elections' => ['public' => ['image_url'], 'uploads' => ['image_url'], 'local' => ['informative_letter_path']],

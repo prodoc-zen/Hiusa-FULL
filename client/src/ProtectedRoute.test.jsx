@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import ProtectedRoute from './ProtectedRoute';
+import { footerNav, getNavLeaves } from './components/layout/navigation';
 
 function renderAt(path) {
   return render(
@@ -88,5 +89,58 @@ describe('ProtectedRoute password change guard', () => {
     renderAt('/change-password');
 
     expect(screen.getByText('Landing page')).toBeInTheDocument();
+  });
+});
+
+function Where() {
+  return <p>{`at ${useLocation().pathname}`}</p>;
+}
+
+function renderGuarded(path) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="*" element={<Where />} />
+        </Route>
+        <Route path="/" element={<p>Landing page</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('ProtectedRoute office staff guard', () => {
+  beforeEach(() => localStorage.clear());
+
+  const officeStaff = { role: 'ADMIN', organization: { organization_type: 'COLLEGE' } };
+
+  it.each([
+    '/dashboard/finance/financial-ledger',
+    '/dashboard/tasks/task-board',
+    '/dashboard/elections/manage-elections',
+    '/dashboard/admin/users',
+    '/dashboard/merchandise/manage-orders',
+  ])('sends office staff from %s to their home page', (path) => {
+    signIn(officeStaff);
+    renderGuarded(path);
+    expect(screen.getByText('at /dashboard/admin')).toBeInTheDocument();
+  });
+
+  it('lets office staff open every page their menu offers, and the account page', () => {
+    const paths = [...getNavLeaves('OFFICE_STAFF').map((item) => item.path), ...footerNav.map((item) => item.path)];
+    expect(paths.length).toBeGreaterThan(5);
+    paths.forEach((path) => {
+      localStorage.clear();
+      signIn(officeStaff);
+      const { unmount } = renderGuarded(path);
+      expect(screen.getByText(`at ${path}`)).toBeInTheDocument();
+      unmount();
+    });
+  });
+
+  it('leaves a real organization Admin free to open the finance, task and voting pages', () => {
+    signIn({ role: 'ADMIN', organization: { organization_type: 'STUDENT_ORGANIZATION' } });
+    renderGuarded('/dashboard/tasks/task-board');
+    expect(screen.getByText('at /dashboard/tasks/task-board')).toBeInTheDocument();
   });
 });
