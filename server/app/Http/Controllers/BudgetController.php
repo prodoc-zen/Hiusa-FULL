@@ -418,9 +418,7 @@ class BudgetController extends Controller
                 : null;
             $input = is_array($output?->structured_input) ? $output->structured_input : [];
             $budget->advice_stale = $budget->advice_generated_at !== null
-                && (! isset($input['current_available_budget'], $input['warning_threshold'])
-                    || abs((float) $input['current_available_budget'] - (float) ($budget->remaining_amount ?? $budget->allocated_amount)) > 0.005
-                    || abs((float) $input['warning_threshold'] - (float) $budget->warning_threshold) > 0.005);
+                && BudgetAdviceRules::isStale($input, (float) ($budget->remaining_amount ?? $budget->allocated_amount), (float) $budget->warning_threshold);
         }
     }
 

@@ -78,16 +78,24 @@ class OfficeStaffParityTest extends TestCase
      * belongs on EnsureRole::DEAN_ONLY, so a new route has to be placed on one list or the other.
      */
     private const OPEN_TO_STAFF = [
+        'DELETE api/ai/assistant/conversations',
+        'DELETE api/ai/assistant/conversations/{conversation}',
+        'DELETE api/ai/assistant/memories',
+        'DELETE api/ai/assistant/memories/{memory}',
         'DELETE api/announcements/{id}',
         'DELETE api/announcements/{id}/reaction',
         'DELETE api/events/{id}/registrations/mine',
         'DELETE api/organization-applications/{application}/review-files/{file}',
+        'PATCH api/ai/assistant/conversations/{conversation}',
         'PATCH api/announcements/{id}/publish',
         'PATCH api/approval-requests/{id}',
         'PATCH api/notifications/read-all',
         'PATCH api/notifications/{id}/read',
         'PATCH api/organization-applications/{application}/review',
         'POST api/ai/assistant/ask',
+        'POST api/ai/assistant/chat',
+        'POST api/ai/assistant/memories',
+        'POST api/ai/assistant/messages/{message}/feedback',
         'POST api/announcements',
         'POST api/announcements/{id}/view',
         'POST api/department-head-invitations/{token}/claim',
@@ -351,6 +359,7 @@ class OfficeStaffParityTest extends TestCase
     private function parameterCandidates(): array
     {
         return [
+            'api/ai/assistant/conversations/{conversation}' => [1],
             'api/events/{id}' => $this->ids['events'],
             'api/events/{event}' => $this->ids['events'],
             'api/events/{event}/submission/files/{file}' => $this->ids['requirementFiles'],
