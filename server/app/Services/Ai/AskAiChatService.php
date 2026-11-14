@@ -490,7 +490,7 @@ class AskAiChatService
         return implode("\n", $kept);
     }
 
-    private function answerSeconds(): int
+    protected function answerSeconds(): int
     {
         return max(1, min(300, (int) config('services.anthropic.chat_timeout', 60) ?: 60)) + 15;
     }

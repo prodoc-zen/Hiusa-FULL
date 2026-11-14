@@ -22,6 +22,7 @@ class AskAiChatFakeGenerator implements TextGenerator
         public ?string $reasoning = null,
         public ?string $model = 'claude-test',
         public bool $fails = false,
+        public bool $silentReasoning = false,
     ) {}
 
     public function generate(string $instructions, string $input, int $maxOutputTokens = 400, float $temperature = 0.2): ?array
@@ -42,7 +43,7 @@ class AskAiChatFakeGenerator implements TextGenerator
             return null;
         }
 
-        if ($this->reasoning !== null && $onEvent !== null) {
+        if ($this->reasoning !== null && $onEvent !== null && ! $this->silentReasoning) {
             $onEvent('reasoning', $this->reasoning);
         }
 
