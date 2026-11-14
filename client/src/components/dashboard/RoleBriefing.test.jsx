@@ -306,6 +306,17 @@ describe('RoleBriefing', () => {
       expect(screen.getByRole('link', { name: 'Set the academic year' })).toHaveClass('bg-brand-700');
     });
 
+    it('SAO: an application the dean endorsed fills the inbox and leads with Review applications', async () => {
+      const attention = [{ id: 'sao_queue-applications', type: 'applications_pending', count: 1, severity: 'medium', title: 'Applications awaiting your decision', detail: '1', due_at: null, href: '/dashboard/organization-applications' }];
+      vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { attention, organizations: [] }));
+      renderBriefing();
+
+      const inbox = (await screen.findByRole('heading', { name: 'Review inbox' })).closest('section');
+      expect(within(inbox).getAllByRole('listitem').map((row) => row.textContent)).toEqual(['1Applications awaiting your decision']);
+      expect(screen.queryByText('No reviews are waiting')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+    });
+
     it('SAO: the financial reports action leads when only a financial report waits', async () => {
       const attention = [{ id: 'approval-9', type: 'approval', severity: 'high', title: 'Report', detail: 'x', due_at: null, href: '/dashboard/super-admin/compliance?tab=financial' }];
       vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { attention, organizations: [] }));
