@@ -128,7 +128,7 @@ export default function SaoUsersPage() {
       header: 'User',
       render: (user) => (
         <span className="block min-w-0">
-          <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">
+          <span className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-ink">{fullName(user)}</span>
             {user.account_status && user.account_status !== 'active' && <StatusBadge status={user.account_status} />}
           </span>
