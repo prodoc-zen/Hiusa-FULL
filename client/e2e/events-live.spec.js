@@ -70,6 +70,8 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await expect(createToDoList).toBeEnabled();
   await createToDoList.click();
   await expect(page.getByText(/\d+ suggested to-do items/)).toBeVisible();
+  // The outline sections sit behind a disclosure so the draft stays short.
+  await page.getByText(/^Show the plan outline/).click();
   await expect(page.getByText('Plan outline', { exact: true })).toBeVisible();
   await expect(page.getByText('Key dates', { exact: true })).toBeVisible();
   await expect(page.getByText('What is needed', { exact: true })).toBeVisible();
@@ -85,6 +87,8 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
     'Complete logistics checklist',
     'Review delays, conflicts, and contingencies',
   ].entries()) {
+    await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: `Edit to-do ${index + 1}` }).click();
     await expect(page.getByLabel(`Task ${index + 1} title`)).toHaveValue(taskTitle);
   }
 
