@@ -29,6 +29,9 @@ class User extends Authenticatable
 
     private ?AccountProfile $activeAccountProfile = null;
 
+    /** True on an instance listed among others, which never carries the signed-in only fields. */
+    private bool $listedAmongOthers = false;
+
     /** True only on the instance a request is signed in as, when that person is the dean's office staff. */
     private bool $authorizesAsDean = false;
 
@@ -142,9 +145,10 @@ class User extends Authenticatable
             $attributes['role'] = $this->profileRole();
         }
 
-        // Only the signed-in payload says it; a user listed among others never costs a position lookup.
-        if ($this->activeAccountProfile) {
+        // Only the signed-in payload says it; a user marked as listed among others never costs a position or membership lookup.
+        if ($this->activeAccountProfile && ! $this->listedAmongOthers) {
             $attributes['can_book_venues'] = $this->canBookVenues();
+            $attributes['in_student_organization'] = $this->inStudentOrganization();
         }
 
         return $attributes;
@@ -170,6 +174,19 @@ class User extends Authenticatable
         }
 
         return $profile->position_title;
+    }
+
+    /**
+     * Whether this person holds an active profile in a student organization, whichever profile they are signed in to.
+     * The college profile is the member's own account, so the profile in use says nothing about membership.
+     */
+    public function inStudentOrganization(): bool
+    {
+        return AccountProfile::query()
+            ->where('user_school_id', $this->school_id)
+            ->where('account_status', 'active')
+            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'COLLEGE')->where('is_active', true))
+            ->exists();
     }
 
     /**
@@ -245,6 +262,14 @@ class User extends Authenticatable
         'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
         'is_active', 'logo_url', 'color', 'lifecycle_status', 'is_university_wide',
     ];
+
+    /** Marks this instance as one row of a list, so serializing it skips the fields only the signed-in person's payload carries. */
+    public function listAmongOthers(): static
+    {
+        $this->listedAmongOthers = true;
+
+        return $this;
+    }
 
     /** Only UseAccountProfile passes `$signedInRequest`: it is the one place a request takes on the dean's role for office staff. */
     public function activateProfile(AccountProfile $profile, bool $signedInRequest = false): void

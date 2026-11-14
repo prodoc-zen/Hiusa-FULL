@@ -25,7 +25,8 @@ describe('Officer DashboardPage stat cards', () => {
     // total below intentionally loads far FEWER rows than its true total - if
     // the page were counted with .length instead of reading `total`, Open
     // Tasks would render 1 instead of 42.
-    taskMocks.getTasks.mockImplementation(({ status }) => {
+    taskMocks.getTasks.mockImplementation(({ status, waiting }) => {
+      if (waiting) return Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 0 } });
       const byStatus = {
         pending: { data: [{ id: 1, deadline: '2026-09-01', status: 'pending' }], current_page: 1, last_page: 4, per_page: 10, total: 37 },
         in_progress: { data: [], current_page: 1, last_page: 1, per_page: 10, total: 5 },
@@ -67,6 +68,52 @@ describe('Officer DashboardPage stat cards', () => {
     expect(screen.getByText('Pending orders').closest('a')).toHaveAttribute('href', '/dashboard/merchandise/manage-orders');
     expect(screen.getByText('Upcoming events').closest('a')).toHaveAttribute('href', '/dashboard/events/activity-calendar');
     expect(screen.queryByText('Completed tasks')).not.toBeInTheDocument();
+  });
+
+  const inDays = (days) => new Date(Date.now() + days * 86400000).toISOString();
+  const page = (rows, total = rows.length) => ({ data: { data: rows, current_page: 1, last_page: 1, per_page: 10, total } });
+  const serve = ({ pending = [], overdue = [], waiting = 0, pendingTotal = pending.length }) => taskMocks.getTasks.mockImplementation(({ status, waiting: onlyWaiting }) => Promise.resolve(
+    onlyWaiting ? page([], waiting) : page({ pending, overdue }[status] ?? [], status === 'pending' ? pendingTotal : (status === 'overdue' ? overdue.length : 0)),
+  ));
+
+  it('says a task is waiting on another task instead of leaving its status blank', async () => {
+    serve({ pending: [{ id: 9, title: 'Settle expenses', deadline: inDays(2), status: 'pending', workflow_status: 'blocked', dependency: { id: 4, title: 'Run the event' } }], waiting: 1 });
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Waiting on Run the event')).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('counts a task waiting on another in its own Waiting row, not under Pending', async () => {
+    serve({ pending: [{ id: 1, title: 'Ready task', deadline: inDays(1), status: 'pending' }], pendingTotal: 2, waiting: 1 });
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    const row = (label) => screen.getByText(label, { selector: 'span' }).closest('li');
+    await waitFor(() => expect(row('Waiting')).toHaveTextContent('1 (50%)'));
+    expect(row('Pending')).toHaveTextContent('1 (50%)');
+    expect(taskMocks.getTasks).toHaveBeenCalledWith({ status: 'pending', waiting: 1, per_page: 1 });
+  });
+
+  it('lists only tasks that are overdue or due within three days as urgent', async () => {
+    serve({
+      pending: [
+        { id: 1, title: 'soon task', deadline: inDays(2), status: 'pending' },
+        { id: 2, title: 'distant task', deadline: inDays(23), status: 'pending' },
+      ],
+      overdue: [{ id: 3, title: 'late task', deadline: inDays(-2), status: 'overdue' }],
+    });
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Soon Task')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Late Task').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Distant Task')).not.toBeInTheDocument();
+  });
+
+  it('says Nothing urgent when every open task is further off than that', async () => {
+    serve({ pending: [{ id: 2, title: 'distant task', deadline: inDays(23), status: 'pending' }] });
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Nothing urgent')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Distant Task')).not.toBeInTheDocument();
   });
 
   it('names the first action when nothing has been assigned yet, instead of showing zeros', async () => {

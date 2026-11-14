@@ -15,7 +15,7 @@ namespace App\Services\Dashboard;
  */
 class ClientRouteAccess
 {
-    private const QUERY_PARAMETERS = ['tab', 'status', 'view', 'record', 'review', 'event', 'organization', 'create', 'new'];
+    private const QUERY_PARAMETERS = ['tab', 'status', 'view', 'record', 'review', 'event', 'organization', 'create', 'new', 'show'];
 
     public function hrefFor(string $role, ?string $path): ?string
     {

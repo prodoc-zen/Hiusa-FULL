@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -48,11 +48,32 @@ function AiLink({ href, children }) {
   return <>{children}</>;
 }
 
+// A wide table hides its last columns on a phone with nothing to say so; the cue stays until the reader reaches the end.
 function AiTable({ children }) {
+  const scrollerRef = useRef(null);
+  const [more, setMore] = useState(false);
+
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (el) setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [measure]);
+
   return (
-    <div className="ai-table-scroll" tabIndex={0} role="region" aria-label="Table, scrolls sideways">
-      <table>{children}</table>
-    </div>
+    <>
+      <div ref={scrollerRef} onScroll={measure} className="ai-table-scroll" tabIndex={0} role="region" aria-label="Table, scrolls sideways">
+        <table>{children}</table>
+      </div>
+      {more && <p aria-hidden="true" className="mt-1 text-xs font-medium text-ink-muted-strong">Scroll sideways to see all columns.</p>}
+    </>
   );
 }
 

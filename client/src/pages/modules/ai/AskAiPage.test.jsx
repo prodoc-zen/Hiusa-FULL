@@ -140,12 +140,14 @@ describe('AskAiPage', () => {
     expect(screen.getByRole('button', { name: 'Who has not submitted?' })).toBeInTheDocument();
   });
 
-  it('shows an error state with retry when the overview fails', async () => {
+  it('says the briefing did not load, keeps the page usable, and retries', async () => {
     service.getAiAssistantOverview.mockRejectedValueOnce(new Error('down'));
     renderPage();
-    await screen.findByText('Could not load Ask AI');
+    await screen.findByText("Could not load today's briefing.");
+    expect(composer()).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await ready();
+    expect(screen.getByText('Three items need you today.')).toBeInTheDocument();
   });
 
   it('sends a starter with its topic', async () => {

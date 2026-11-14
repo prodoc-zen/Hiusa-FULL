@@ -14,14 +14,32 @@ const TASK_STATUS_BAR = {
   pending:     'bg-warning',
   in_progress: 'bg-brand-600',
   completed:   'bg-success',
+  waiting:     'bg-ink-soft',
   overdue:     'bg-danger',
 };
 
-const TASK_STATUS_ORDER = ['pending', 'in_progress', 'completed', 'overdue'];
+// Waiting is a pending task that cannot start yet, so it has its own row and is not counted as Pending.
+const TASK_STATUS_ORDER = ['pending', 'waiting', 'in_progress', 'completed', 'overdue'];
+
+// Urgent means late, or due inside the window the briefing's "due soon" attention uses (three days).
+const URGENT_WITHIN_DAYS = 3;
+const NOTHING_URGENT = 'Tasks that are overdue or due in the next 3 days show here.';
+
+function isUrgent(task) {
+  if (task.status === 'overdue') return true;
+  if (task.status === 'completed' || !task.deadline) return false;
+  return new Date(task.deadline).getTime() <= Date.now() + URGENT_WITHIN_DAYS * 86400000;
+}
 
 function capitalize(s) {
   const words = (s || '').replace(/_/g, ' ').toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// A task that cannot start yet says what it waits on, so a pending row is never mistaken for one to start now.
+function waitingLabel(task) {
+  if (task.workflow_status !== 'blocked') return null;
+  return task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task';
 }
 
 const TASK_COLUMNS = [
@@ -39,7 +57,15 @@ const TASK_COLUMNS = [
     render: (task) => (task.deadline ? new Date(task.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : null),
   },
   // Pending is the default state and carries no badge.
-  { key: 'status', header: 'Status', render: (task) => (task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />) },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (task) => {
+      const waiting = waitingLabel(task);
+      if (waiting) return <StatusBadge tone="warning" label={waiting} />;
+      return task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />;
+    },
+  },
 ];
 
 // A phone gets one line per task instead of the table's stacked cards, so four tasks stay short.
@@ -47,7 +73,7 @@ function UrgentTaskList({ tasks, loading }) {
   if (loading) {
     return <div role="status" className="space-y-2 md:hidden"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><span className="sr-only">Loading urgent tasks</span></div>;
   }
-  if (tasks.length === 0) return <p className="text-sm text-ink-muted md:hidden">No open tasks. Tasks assigned to you show here.</p>;
+  if (tasks.length === 0) return <p className="text-sm text-ink-muted md:hidden">Nothing urgent. {NOTHING_URGENT}</p>;
   return (
     <ul className="divide-y divide-line-soft md:hidden" aria-label="Urgent tasks by deadline">
       {tasks.map((task) => (
@@ -56,6 +82,7 @@ function UrgentTaskList({ tasks, loading }) {
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted-strong">
             {task.deadline && <span>Due {new Date(task.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>}
             {task.status === 'overdue' && <StatusBadge tone="danger" label="Overdue" />}
+            {waitingLabel(task) && <StatusBadge tone="warning" label={waitingLabel(task)} />}
           </p>
         </li>
       ))}
@@ -76,7 +103,7 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
   const [urgentTasks, setUrgentTasks] = useState([]);
-  const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
+  const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, waiting: 0, in_progress: 0, completed: 0, overdue: 0 });
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -89,18 +116,20 @@ export default function DashboardPage() {
         // /tasks and /events are paginated (default 20/page). Task status has a
         // server-side filter, so each status total is read from its own filtered
         // response rather than counting a loaded page; "urgent tasks" only needs
-        // the nearest few deadlines, so pending/in_progress are fetched with a
-        // small per_page (already deadline-ascending) and merged. Events has no
+        // the nearest few deadlines, so pending/in_progress/overdue are fetched with a
+        // small per_page (already deadline-ascending), merged and cut to the urgent
+        // ones. Waiting is the pending tasks that cannot start yet. Events has no
         // status filter at all, so the full org event list is walked once via
         // fetchAllPages so the upcoming-event count is not limited to one page.
         const [
-          pendingRes, inProgressRes, completedRes, overdueRes,
+          pendingRes, inProgressRes, completedRes, overdueRes, waitingRes,
           events, pendingOrdersRes,
         ] = await Promise.all([
           canTasks ? getTasks({ status: 'pending', per_page: 10 }) : EMPTY_PAGE,
           canTasks ? getTasks({ status: 'in_progress', per_page: 10 }) : EMPTY_PAGE,
           canTasks ? getTasks({ status: 'completed', per_page: 1 }) : EMPTY_PAGE,
-          canTasks ? getTasks({ status: 'overdue', per_page: 1 }) : EMPTY_PAGE,
+          canTasks ? getTasks({ status: 'overdue', per_page: 10 }) : EMPTY_PAGE,
+          canTasks ? getTasks({ status: 'pending', waiting: 1, per_page: 1 }) : EMPTY_PAGE,
           canEvents ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : [],
           // /orders only accepts per_page=10 (its validation rejects any other
           // value with a 422); the true pending count still comes from
@@ -114,6 +143,7 @@ export default function DashboardPage() {
         const inProgressMeta = listMeta(inProgressRes?.data);
         const completedMeta = listMeta(completedRes?.data);
         const overdueMeta = listMeta(overdueRes?.data);
+        const waitingMeta = listMeta(waitingRes?.data);
         const pendingOrdersMeta = listMeta(pendingOrdersRes?.data);
 
         setStats({
@@ -124,12 +154,14 @@ export default function DashboardPage() {
         });
 
         setUrgentTasks(
-          [...unwrapList(pendingRes?.data), ...unwrapList(inProgressRes?.data)]
+          [...unwrapList(pendingRes?.data), ...unwrapList(inProgressRes?.data), ...unwrapList(overdueRes?.data)]
+            .filter(isUrgent)
             .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
             .slice(0, 4)
         );
         setTaskStatusTotals({
-          pending: pendingMeta.total,
+          pending: Math.max(0, pendingMeta.total - waitingMeta.total),
+          waiting: waitingMeta.total,
           in_progress: inProgressMeta.total,
           completed: completedMeta.total,
           overdue: overdueMeta.total,
@@ -206,7 +238,7 @@ export default function DashboardPage() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 id="urgent-tasks-title" className="text-base font-semibold text-ink">Urgent tasks</h2>
-              <p className="text-sm text-ink-muted">The next 4 open tasks by deadline.</p>
+              <p className="text-sm text-ink-muted">Overdue, or due in the next 3 days.</p>
             </div>
             <NavLink to="/dashboard/tasks" className="inline-flex min-h-11 items-center gap-1 rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">
               View all <ChevronRight size={13} aria-hidden="true" />
@@ -219,7 +251,7 @@ export default function DashboardPage() {
               rows={urgentTasks}
               rowKey={(task) => task.id}
               loading={loading}
-              emptyState={<EmptyState title="No open tasks" description="Tasks assigned to you show here." />}
+              emptyState={<EmptyState title="Nothing urgent" description={NOTHING_URGENT} />}
             />
           </div>
           <UrgentTaskList tasks={urgentTasks} loading={loading} />

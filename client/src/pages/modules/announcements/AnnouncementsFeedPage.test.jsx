@@ -60,8 +60,26 @@ describe('AnnouncementsFeedPage', () => {
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
     renderFeed();
     expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
-    expect(screen.getByText('Your officers post them here.')).toBeInTheDocument();
+    expect(screen.getByText('Announcements show here once your organization or the university posts them.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('tells a student who belongs only to the college to join one, not to wait for its officers', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', in_student_organization: false, organization: { organization_type: 'COLLEGE' } }));
+    mocks.getAnnouncements.mockResolvedValue({ data: [] });
+    renderFeed();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
+    expect(screen.getByText('Join an organization to see its announcements.')).toBeInTheDocument();
+    expect(screen.queryByText(/once your organization/)).not.toBeInTheDocument();
+  });
+
+  it('does not tell a member on the college profile who is in a club to join an organization', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', in_student_organization: true, organization: { organization_type: 'COLLEGE' } }));
+    mocks.getAnnouncements.mockResolvedValue({ data: [] });
+    renderFeed();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
+    expect(screen.queryByText('Join an organization to see its announcements.')).not.toBeInTheDocument();
+    expect(screen.getByText('Announcements show here once your organization or the university posts them.')).toBeInTheDocument();
   });
 
   it('offers Clear filters when a search finds nothing', async () => {

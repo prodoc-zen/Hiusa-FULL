@@ -107,6 +107,12 @@ describe('ElectionPickerPage', () => {
     expect(within(row).queryByRole('button', { name: /Finalize ballot/ })).not.toBeInTheDocument();
   });
 
+  it('writes the voting period on one line with a to between the two dates', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Oct 1 to Oct 2, 2026, 4:00 PM')).toBeInTheDocument();
+  });
+
   it('marks a returned election with the reason and an edit and resubmit action', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Add the voting room.' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
@@ -474,6 +480,24 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
     expect(payload.positions[0]).not.toHaveProperty('is_executive');
     ['draft', 'filing_starts_at', 'rules', 'tie_break_rule', 'min_units', 'description'].forEach((key) => expect(payload).not.toHaveProperty(key));
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
+  });
+
+  it('counts the positions of a new election from the saved record, not as 0', async () => {
+    electionMocks.createElection.mockResolvedValue({
+      id: 32, title: 'Demo Representative', status: 'pending_approval', start_time: '2026-11-13T08:00:00Z', end_time: '2026-11-14T17:00:00Z',
+      positions: [{ id: 1, title: 'Representative', max_winners: 1 }],
+    });
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Students file their own candidacy' }));
+    setValue('Election title', 'Demo Representative');
+    setValue('Voting starts', '2026-11-13T08:00');
+    setValue('Voting ends', '2026-11-14T17:00');
+    setValue('Position 1 title', 'Representative');
+    fireEvent.submit(document.getElementById('create-election-form'));
+
+    const row = await rowFor('Demo Representative');
+    const cells = within(row).getAllByRole('cell').map((cell) => cell.textContent.trim());
+    expect(cells).toContain('1');
   });
 
   it('says when a date in the schedule is out of order', async () => {

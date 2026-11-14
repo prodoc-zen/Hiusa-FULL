@@ -184,7 +184,8 @@ class AskAiActionRequestsTest extends TestCase
                 $this->assertSame('how_to_guide', $answer['intent'], $context);
                 $this->assertSame($this->guideTitle($guideId), $answer['title'], $context);
                 $this->assertButtonOpensForRole($answer, $role, $context);
-                $this->assertSame('Start here', $this->firstRow($answer)['status'], $context);
+                // A guide that opens one page is the sentence and one row with the button; the pill is for longer ones.
+                $this->assertSame($answer['highlights'] === [] ? null : 'Start here', $this->firstRow($answer)['status'], $context);
                 $this->assertStringStartsWith('Yes, you can', $answer['answer'], $context);
                 $this->assertStringNotContainsString('Here is how', $answer['answer'], $context);
                 $this->assertStringNotContainsString('(s)', $answer['answer'], $context);

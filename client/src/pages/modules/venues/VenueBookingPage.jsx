@@ -10,7 +10,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
-import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
+import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
@@ -127,18 +127,46 @@ export default function VenueBookingPage() {
 
   // Off-campus requests start from the Venue type choice in the form, so no separate entry point.
   // The form opens blank unless an event or a rejected request supplies the details, so a stray click files nothing.
-  function openRequestForm(linkedEvent = null) {
-    setRequestError(null);
-    const planned = linkedEvent?.planning_details ?? {};
-    setRequestForm(linkedEvent ? {
+  // What an event brings to the form: the venue its organizers planned, its times, and the link itself.
+  function eventFormFields(linkedEvent) {
+    const planned = linkedEvent.planning_details ?? {};
+    return {
       venue_type: planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
-      venue_id: planned.venue_id ? String(planned.venue_id) : selectedVenueId,
+      venue_id: planned.venue_id ? String(planned.venue_id) : '',
       off_campus_location: planned.venue_type === 'off_campus' ? (linkedEvent.location || '') : '',
       event_id: String(linkedEvent.id),
-      start_time: linkedEvent.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : (range.from ? `${range.from}T09:00` : ''),
-      end_time: linkedEvent.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : (range.from ? `${range.from}T17:00` : ''),
+      start_time: linkedEvent.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : '',
+      end_time: linkedEvent.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : '',
+    };
+  }
+
+  function openRequestForm(linkedEvent = null) {
+    setRequestError(null);
+    const fields = linkedEvent ? eventFormFields(linkedEvent) : null;
+    setRequestForm(fields ? {
+      ...fields,
+      venue_id: fields.venue_id || selectedVenueId,
+      start_time: fields.start_time || (range.from ? `${range.from}T09:00` : ''),
+      end_time: fields.end_time || (range.from ? `${range.from}T17:00` : ''),
     } : EMPTY_REQUEST_FORM);
     setRequestOpen(true);
+  }
+
+  // Picking an event by hand fills in its venue and times, but only where the form is still empty, so nothing typed is lost.
+  function linkEvent(eventId) {
+    const picked = eventId ? events.find((item) => String(item.id) === String(eventId)) : null;
+    setRequestForm((form) => {
+      if (!picked) return { ...form, event_id: eventId };
+      const fields = eventFormFields(picked);
+      const venueEmpty = form.venue_type === 'off_campus' ? !form.off_campus_location.trim() : !form.venue_id;
+      const timesEmpty = !form.start_time && !form.end_time;
+      return {
+        ...form,
+        event_id: fields.event_id,
+        ...(venueEmpty && (fields.venue_id || fields.off_campus_location) ? { venue_type: fields.venue_type, venue_id: fields.venue_id, off_campus_location: fields.off_campus_location } : {}),
+        ...(timesEmpty ? { start_time: fields.start_time, end_time: fields.end_time } : {}),
+      };
+    });
   }
 
   function bookAgain(booking) {
@@ -162,6 +190,13 @@ export default function VenueBookingPage() {
     if (linkedEvent) openRequestForm(linkedEvent);
     else notify.error('That event is not available for a venue booking.');
   }, [eventParam, eventsLoaded, events, venues.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Only a warning: a booking for setup or rehearsal may fall just outside the event, but a different month is usually a slip.
+  const linkedEvent = requestForm.event_id ? events.find((item) => String(item.id) === String(requestForm.event_id)) : null;
+  const bookingDay = String(requestForm.start_time || '').slice(0, 10);
+  const linkedEventOutOfDates = linkedEvent && bookingDay && linkedEvent.start_time && linkedEvent.end_time
+    && (bookingDay < isoToLocalDateTimeInput(linkedEvent.start_time).slice(0, 10) || bookingDay > isoToLocalDateTimeInput(linkedEvent.end_time).slice(0, 10))
+    ? linkedEvent : null;
 
   const openBooking = recordId ? bookings.items.find((booking) => String(booking.id) === recordId) ?? null : null;
 
@@ -359,11 +394,12 @@ export default function VenueBookingPage() {
           </Field>
           <p className="text-xs text-ink-muted">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
           <Field label="Link to an event" optional>
-            <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
+            <Select value={requestForm.event_id} onChange={(event) => linkEvent(event.target.value)}>
               <option value="">Not linked to an event</option>
               {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{formatDisplayText(eventItem.title)}</option>)}
             </Select>
           </Field>
+          {linkedEventOutOfDates && <p className="-mt-2 text-xs font-medium text-warning-strong">This day is outside the dates of {formatDisplayText(linkedEventOutOfDates.title)}, which runs {formatDateTime(linkedEventOutOfDates.start_time)} to {formatDateTime(linkedEventOutOfDates.end_time)}. Check the day before you send it.</p>}
           {requestError && <p role="alert" className="text-sm font-medium text-danger-strong">{requestError}</p>}
         </form>
       </Drawer>

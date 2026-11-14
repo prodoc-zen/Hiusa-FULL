@@ -3,7 +3,11 @@
 namespace App\Services\Ai;
 
 use App\Models\ApprovalRequest;
+use App\Models\Attendance;
+use App\Models\College;
+use App\Models\Order;
 use App\Models\OrganizationApplication;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use App\Models\VenueBooking;
 use App\Services\ApprovalEntityLabel;
@@ -12,18 +16,20 @@ use App\Services\Finance\ApprovedFeeUsage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
- * Four questions the roles ask every day that the older Ask AI intents cannot route: the applications waiting on the
+ * Questions the roles ask every day that the older Ask AI intents cannot route: the applications waiting on the
  * SAO or the Department Head, where an organization's own submissions stand, what an AI tool does and where it lives,
- * and where a student's membership fees went. Every answer is read from the same records the pages read, scoped to the
+ * where a student's membership fees went, which students have not signed up yet, a person's own attendance and claim
+ * token, and what a HIUSA word means. Every answer is read from the same records the pages read, scoped to the
  * person asking, and never approves, assigns or publishes anything.
  */
 class AskAiRoleIntents
 {
-    public const INTENTS = ['applications_queue', 'my_submissions', 'ai_tools', 'fee_usage'];
+    public const INTENTS = ['applications_queue', 'my_submissions', 'ai_tools', 'fee_usage', 'unclaimed_students', 'my_attendance', 'claim_token', 'glossary'];
 
     private const ROW_LIMIT = 12;
 
@@ -32,6 +38,10 @@ class AskAiRoleIntents
         'my_submissions' => ['ADMIN'],
         'ai_tools' => ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'],
         'fee_usage' => ['STUDENT'],
+        'unclaimed_students' => ['SUPER_ADMIN', 'DEPARTMENT_HEAD'],
+        'my_attendance' => ['STUDENT'],
+        'claim_token' => ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
+        'glossary' => ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'],
     ];
 
     private const APPROVAL_TYPES = ['event', 'budget', 'election', 'announcement', 'financial_report'];
@@ -119,6 +129,7 @@ class AskAiRoleIntents
         private readonly ClientRouteAccess $routeAccess,
         private readonly ApprovalEntityLabel $entityLabels,
         private readonly ApprovedFeeUsage $feeUsage,
+        private readonly AskAiGlossary $glossary,
     ) {}
 
     public function match(string $question, string $role): ?string
@@ -127,8 +138,12 @@ class AskAiRoleIntents
 
         $intent = match (true) {
             $this->isHowTo($q) => null,
+            $this->glossary->lookup($q) !== null => 'glossary',
             $this->toolFor($q) !== null => 'ai_tools',
+            $this->asksClaimToken($q) => 'claim_token',
+            $this->asksAttendance($q) => 'my_attendance',
             $this->asksFeeUsage($q) => 'fee_usage',
+            $this->asksUnclaimedStudents($q) => 'unclaimed_students',
             $this->asksApplications($q) => 'applications_queue',
             $this->asksVenueBookings($q), $this->asksSubmissions($q) => 'my_submissions',
             default => null,
@@ -149,6 +164,10 @@ class AskAiRoleIntents
             'my_submissions' => $this->buildMySubmissions($user, $question),
             'ai_tools' => $this->buildAiTools($user, $question),
             'fee_usage' => $this->buildFeeUsage($user),
+            'unclaimed_students' => $this->buildUnclaimedStudents($user),
+            'my_attendance' => $this->buildMyAttendance($user),
+            'claim_token' => $this->buildClaimToken($user),
+            'glossary' => $this->buildGlossary($user, $question),
             default => throw new InvalidArgumentException("Unknown role intent [{$intent}]."),
         };
     }
@@ -207,7 +226,44 @@ class AskAiRoleIntents
         return preg_match('/\\bwhere (do|does|did|will|are|is) (my|our|the) (\\w+ ){0,4}(fees?|dues|money|funds|payments?|contributions?) (\\w+ )?(go|goes|going|went)\\b/', $q) === 1
             || preg_match('/\\bhow (is|are|was|were) (my|our|the) (\\S+ ){0,5}(money|funds|fees?|dues|contributions?) (being )?(spent|used)\\b/', $q) === 1
             || preg_match('/\\b(fees?|dues|contributions?) (\\w+ ){0,3}(spent|used on|used for)\\b/', $q) === 1
-            || preg_match('/\\bwhat (is|are) (my|our) (\\w+ )?(fees?|dues|contributions?) (used|spent) (for|on)\\b/', $q) === 1;
+            || preg_match('/\\bwhat (is|are) (my|our) (\\w+ )?(fees?|dues|contributions?) (used|spent) (for|on)\\b/', $q) === 1
+            || preg_match('/\\bhow much (did|has|have|does|do|will) (the|our|my|your) (\\w+ ){0,3}(organi[sz]ation|org|sbo|council|club|society)\\b.{0,30}\\b(spend|spent|use|used)\\b/', $q) === 1
+            || preg_match('/\\bhow much (did|have) we (spend|spent)\\b/', $q) === 1
+            || preg_match('/\\bwhat (did|does|do|has|have) (the|our|my|your) (\\w+ ){0,3}(organi[sz]ation|org|sbo|council|club|society) (spend|spent|use|used)\\b/', $q) === 1;
+    }
+
+    // Students the school records list that have no account: the dean's People page and the SAO's Student records page
+    // call them "Not signed up" and "Not yet". Words about an event, an election or an organization are a different sign-up.
+    private function asksUnclaimedStudents(string $q): bool
+    {
+        if (preg_match('/\\b(students?|people|accounts?)\\b/', $q) !== 1
+            || preg_match('/\\b(events?|seminars?|workshops?|elections?|votes?|voting|trainings?|class(?:es)?|subjects?|orgs?|organi[sz]ations?|clubs?|tournaments?|activit(?:y|ies)|programs?)\\b/', $q) === 1) {
+            return false;
+        }
+
+        $negative = "(?:not|haven't|havent|hasn't|hasnt|never|yet to|no|without|still need to|didn't|didnt|aren't|arent|isn't|isnt)";
+        $action = '(?:signed up|sign up|signed in|registered|register|created (?:an |their |any )?accounts?|create (?:an |their |any )?accounts?|made (?:an |their |any )?accounts?|joined|activated|claimed (?:their|the|an) (?:accounts?|records?))';
+
+        return preg_match("/\\b{$negative}(?: \\w+){0,3} {$action}\\b/", $q) === 1
+            || preg_match('/\\b(?:with no|without|lacking|missing) (?:an |any )?accounts?\\b/', $q) === 1
+            || preg_match('/\\bunregistered students?\\b|\\bstudents? (?:who|that) (?:have|has) no accounts?\\b/', $q) === 1;
+    }
+
+    // "My claim token" and "my claim code": the code on a paid order. A question about orders to claim is the order queue.
+    private function asksClaimToken(string $q): bool
+    {
+        return preg_match('/\\b(?:claim|pick ?up|pickup) (?:tokens?|codes?)\\b/', $q) === 1
+            || preg_match('/\\bmy (?:\\w+ ){0,2}tokens?\\b/', $q) === 1;
+    }
+
+    // A student's own attendance, as the Events page shows it. The organizer's attendance sheet is the events intent.
+    private function asksAttendance(string $q): bool
+    {
+        return preg_match('/\\bmy (?:\\w+ )?attendance\\b/', $q) === 1
+            || preg_match('/\\b(?:did|have|do) i (?:\\w+ ){0,2}(?:attend|attended|miss|missed|absent)\\b/', $q) === 1
+            || preg_match('/\\bhow many (?:events|meetings|activities) (?:did|have|do) i\\b/', $q) === 1
+            || preg_match('/\\b(?:events|meetings) i (?:attended|missed|was absent)\\b/', $q) === 1
+            || preg_match('/\\bam i (?:marked )?(?:present|absent)\\b/', $q) === 1;
     }
 
     private function toolFor(string $q): ?string
@@ -707,6 +763,22 @@ class AskAiRoleIntents
                         'empty_message' => 'No approved financial report yet.',
                         'rows' => [],
                     ],
+                    ...($href === null ? [] : [[
+                        'id' => 'fee-usage-page',
+                        'title' => 'Where To Look',
+                        'description' => null,
+                        'empty_message' => '',
+                        'rows' => [[
+                            'id' => 'fee-usage-link',
+                            'primary' => 'Where your fees go',
+                            'secondary' => 'The page shows each approved report as soon as the SAO approves it.',
+                            'status' => 'Open page',
+                            'status_tone' => 'info',
+                            'meta' => null,
+                            'href' => $href,
+                            'action_label' => 'See where fees go',
+                        ]],
+                    ]]),
                 ],
                 'follow_ups' => $followUps,
             ];
@@ -757,6 +829,293 @@ class AskAiRoleIntents
                 ],
             ],
             'follow_ups' => $followUps,
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // Which students have not signed up yet
+    // -------------------------------------------------------------------------
+
+    private function buildUnclaimedStudents(User $user): array
+    {
+        $isSao = $user->role === 'SUPER_ADMIN';
+        $collegeId = $isSao ? null : $this->collegeIdOf($user);
+        $href = $this->routeAccess->hrefFor($user->role, $isSao ? '/dashboard/super-admin/student-records' : '/dashboard/department-head/people?show=not_signed_up');
+        $followUps = [['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?']];
+        $empty = fn (string $answer) => [
+            'title' => 'Students Who Have Not Signed Up',
+            'answer' => $answer,
+            'highlights' => [],
+            'sections' => [],
+            'follow_ups' => $followUps,
+        ];
+
+        if (! $isSao && $collegeId === null) {
+            return $empty('Your account is not linked to a college, so there are no student records to count. Ask the SAO to link your account to your college.');
+        }
+
+        $records = StudentRegistryEntry::query()->students()->when($collegeId !== null, fn ($query) => $query->where('college_id', $collegeId));
+        $total = (clone $records)->count();
+        // The same rule as the People page: a school record nobody has claimed and no account carries its number.
+        $notSignedUp = (clone $records)->whereNull('claimed_at')
+            ->whereNotExists(fn ($account) => $account->select(DB::raw(1))->from('users')->whereColumn('users.school_id', 'student_registry.school_id'));
+        $missing = (clone $notSignedUp)->count();
+        $scope = $isSao ? '' : ' in your college';
+
+        if ($total === 0) {
+            return $empty($isSao
+                ? 'There are no student records loaded yet, so there is nobody to count. The school records are uploaded from the Student records page.'
+                : 'There are no student records loaded for your college yet, so there is nobody to count. The school records are uploaded from the People page.');
+        }
+
+        $groups = $isSao
+            ? (clone $notSignedUp)->selectRaw('college_id as grouped, count(*) as total')->groupBy('college_id')
+            : (clone $notSignedUp)->selectRaw('program as grouped, count(*) as total')->groupBy('program');
+        $groups = $groups->orderByDesc('total')->orderBy('grouped')->limit(self::ROW_LIMIT)->pluck('total', 'grouped');
+        $names = $isSao ? College::withTrashed()->whereIn('id', $groups->keys()->all())->pluck('name', 'id') : collect();
+
+        $rows = $groups->map(fn ($count, $key) => [
+            'id' => 'unclaimed-'.Str::slug((string) ($isSao ? ($names[$key] ?? $key) : $key)),
+            'primary' => (string) ($isSao ? ($names[$key] ?? 'Unknown college') : ($key ?: 'No program on record')),
+            'secondary' => $count.' not signed up',
+            'status' => 'Not signed up',
+            'status_tone' => 'warning',
+            'meta' => (string) $count,
+            'href' => $href,
+            'action_label' => $isSao ? 'Open Student records' : 'Open People',
+        ])->values()->all();
+
+        $where = $isSao
+            ? 'Open Student records and choose Not yet under Account to see who they are.'
+            : 'Open People and choose Not signed up in the Show box to see who they are.';
+        $answer = match (true) {
+            $missing === 0 => $isSao ? 'Every student in the school records has signed up.' : 'Every student in your college\'s records has signed up.',
+            $missing === $total => sprintf('None of the %d student records%s has signed up yet. %s', $total, $scope, $where),
+            default => sprintf('%d of the %d student records%s %s not signed up yet. %s', $missing, $total, $scope, $missing === 1 ? 'has' : 'have', $where),
+        };
+
+        return [
+            'title' => 'Students Who Have Not Signed Up',
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'Not signed up', 'value' => (string) $missing, 'tone' => $missing > 0 ? 'warning' : 'success'],
+                ['label' => 'Signed up', 'value' => (string) ($total - $missing), 'tone' => 'success'],
+                ['label' => 'Student records', 'value' => (string) $total, 'tone' => 'neutral'],
+            ],
+            'sections' => [[
+                'id' => 'unclaimed-students',
+                'title' => $isSao ? 'By College' : 'By Program',
+                'description' => 'Counts only; the names are on the page.',
+                'empty_message' => 'Everyone has signed up.',
+                'rows' => $rows,
+            ]],
+            'follow_ups' => $followUps,
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // A student's own attendance
+    // -------------------------------------------------------------------------
+
+    private function buildMyAttendance(User $user): array
+    {
+        $href = $this->routeAccess->hrefFor($user->role, '/dashboard/events/activity-calendar');
+        // The same records and rule as the My attendance summary on the Events page: this organization's approved,
+        // ongoing and completed events, with excused records left out of the rate.
+        $records = Attendance::query()
+            ->where('user_id', $user->school_id)
+            ->whereHas('event', fn ($event) => $event->where('organization_id', $user->organization_id)->whereIn('status', ['approved', 'ongoing', 'completed']));
+        $attended = (clone $records)->whereIn('status', ['present', 'late'])->count();
+        $missed = (clone $records)->where('status', 'absent')->count();
+        $latest = (clone $records)->with('event:id,title,start_time')->orderByDesc('id')->limit(self::ROW_LIMIT)->get();
+        $followUps = [
+            ['topic' => 'events_attendance', 'label' => 'What events are coming up?', 'question' => 'What events are coming up?'],
+            ['topic' => 'daily_priorities', 'label' => 'What do I need to do today?', 'question' => 'What do I need to do today?'],
+        ];
+
+        if ($latest->isEmpty()) {
+            return [
+                'title' => 'Your Attendance',
+                'answer' => 'No attendance has been recorded for you yet. It appears once an organizer checks you in to an event.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => $followUps,
+            ];
+        }
+
+        $counted = $attended + $missed;
+        $rate = $counted > 0 ? (int) round($attended * 100 / $counted) : null;
+        $answer = $rate === null
+            ? 'None of your recorded attendance counts toward a rate yet, because the records are excused.'
+            : sprintf('You attended %s and missed %d, an attendance rate of %d%%. Excused records are not counted. The Events page shows the same under My attendance.', $this->count($attended, 'event', 'events'), $missed, $rate);
+        $tones = ['present' => 'success', 'late' => 'warning', 'absent' => 'danger', 'excused' => 'neutral'];
+
+        return [
+            'title' => 'Your Attendance',
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'Events attended', 'value' => (string) $attended, 'tone' => 'success'],
+                ['label' => 'Events missed', 'value' => (string) $missed, 'tone' => $missed > 0 ? 'warning' : 'success'],
+                ['label' => 'Attendance rate', 'value' => $rate === null ? 'Not available' : $rate.'%', 'tone' => 'primary'],
+            ],
+            'sections' => [[
+                'id' => 'my-attendance',
+                'title' => 'Your Latest Records',
+                'description' => 'Most recent first.',
+                'empty_message' => 'No attendance has been recorded for you yet.',
+                'rows' => $latest->map(fn (Attendance $record) => [
+                    'id' => 'attendance-'.$record->id,
+                    'primary' => (string) ($record->event?->title ?? 'Event'),
+                    'secondary' => $record->event?->start_time?->format('M j, Y'),
+                    'status' => ucfirst((string) ($record->status ?? 'present')),
+                    'status_tone' => $tones[$record->status ?? 'present'] ?? 'neutral',
+                    'meta' => null,
+                    'href' => $href,
+                    'action_label' => 'Open the events page',
+                ])->all(),
+            ]],
+            'follow_ups' => $followUps,
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // Where a person's claim token is
+    // -------------------------------------------------------------------------
+
+    // The token itself stays on the Claim tokens page: an answer here is stored and may be sent to a writing service, so it
+    // names the orders and where their tokens are and never prints a code.
+    private function buildClaimToken(User $user): array
+    {
+        $tokens = $this->routeAccess->hrefFor($user->role, '/dashboard/merchandise/claim-tokens');
+        $shop = $this->routeAccess->hrefFor($user->role, '/dashboard/merchandise/order-merchandise');
+        $orders = Order::query()->where('student_id', $user->school_id);
+        $counts = (clone $orders)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $ready = (int) ($counts['paid'] ?? 0);
+        $waiting = (int) ($counts['pending'] ?? 0);
+        $claimed = (int) ($counts['claimed'] ?? 0);
+        $followUps = [
+            ['topic' => 'merchandise_orders', 'label' => 'Is my order ready to claim?', 'question' => 'Is my merchandise order ready to claim?'],
+            ['topic' => 'daily_priorities', 'label' => 'What do I need to do today?', 'question' => 'What do I need to do today?'],
+        ];
+        $page = fn (string $label, ?string $link) => $link === null ? [] : [[
+            'id' => 'claim-token-page',
+            'title' => 'Where To Look',
+            'description' => null,
+            'empty_message' => '',
+            'rows' => [[
+                'id' => 'claim-token-link',
+                'primary' => $label,
+                'secondary' => null,
+                'status' => 'Open page',
+                'status_tone' => 'info',
+                'meta' => null,
+                'href' => $link,
+                'action_label' => $label,
+            ]],
+        ]];
+
+        if ($ready === 0 && $waiting === 0 && $claimed === 0) {
+            return [
+                'title' => 'Your Claim Token',
+                'answer' => 'You have no orders yet, so there is no claim token. You can order from the shop, and the token appears on the Claim tokens page once your payment is verified.',
+                'highlights' => [],
+                'sections' => $page('Open the shop', $shop),
+                'follow_ups' => $followUps,
+            ];
+        }
+
+        if ($ready === 0) {
+            return [
+                'title' => 'Your Claim Token',
+                'answer' => $waiting > 0
+                    ? sprintf('None of your orders is paid yet, so you have no claim token yet. %s still waiting for payment to be checked, and the token appears on the Claim tokens page once it is.', $this->count($waiting, 'order is', 'orders are'))
+                    : 'All of your orders have already been claimed, so there is no token left to use.',
+                'highlights' => [
+                    ['label' => 'Waiting for payment', 'value' => (string) $waiting, 'tone' => $waiting > 0 ? 'warning' : 'neutral'],
+                    ['label' => 'Already claimed', 'value' => (string) $claimed, 'tone' => 'neutral'],
+                ],
+                'sections' => $page('Open my orders', $this->routeAccess->hrefFor($user->role, '/dashboard/merchandise/my-orders')),
+                'follow_ups' => $followUps,
+            ];
+        }
+
+        $rows = (clone $orders)->where('status', 'paid')->with('merchandise:id,name')->orderByDesc('id')->limit(self::ROW_LIMIT)->get()
+            ->map(fn (Order $order) => [
+                'id' => 'claim-order-'.$order->id,
+                'primary' => 'Order ORD-'.$order->id,
+                'secondary' => trim(($order->merchandise?->name ?? 'Merchandise').' x '.(int) $order->quantity.' · ₱'.number_format((float) $order->total_price, 2)),
+                'status' => 'Ready to claim',
+                'status_tone' => 'success',
+                'meta' => '₱'.number_format((float) $order->total_price, 2),
+                'href' => $tokens,
+                'action_label' => 'Open Claim tokens',
+            ])->all();
+
+        $answer = sprintf('%s paid and ready to claim. Your claim token for each one is on the Claim tokens page; show it at the claim desk to receive the item.', $this->count($ready, 'of your orders is', 'of your orders are'));
+        if ($waiting > 0) {
+            $answer .= sprintf(' %s still waiting for payment to be checked, and its token appears once it is.', $this->count($waiting, 'more order is', 'more orders are'));
+        }
+
+        return [
+            'title' => 'Your Claim Token',
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'Ready to claim', 'value' => (string) $ready, 'tone' => 'success'],
+                ['label' => 'Waiting for payment', 'value' => (string) $waiting, 'tone' => $waiting > 0 ? 'warning' : 'neutral'],
+                ['label' => 'Already claimed', 'value' => (string) $claimed, 'tone' => 'neutral'],
+            ],
+            'sections' => [[
+                'id' => 'claim-orders',
+                'title' => 'Orders Ready To Claim',
+                'description' => 'The token for each is on the Claim tokens page.',
+                'empty_message' => 'No order is ready to claim.',
+                'rows' => $rows,
+            ]],
+            'follow_ups' => $followUps,
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // What a HIUSA word means
+    // -------------------------------------------------------------------------
+
+    private function buildGlossary(User $user, string $question): array
+    {
+        $key = $this->glossary->lookup($this->normalize($question));
+        if ($key === null) {
+            return [
+                'title' => 'What a word means',
+                'answer' => 'I can explain these words: '.implode(', ', array_column(AskAiGlossary::TERMS, 'title')).'. Ask, for example, "What is the SAO?".',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [['topic' => 'glossary', 'label' => 'What is the SAO?', 'question' => 'What is the SAO?']],
+            ];
+        }
+        $term = AskAiGlossary::TERMS[$key];
+        [$path, $label] = $term['pages'][$user->role] ?? [null, null];
+        $href = $path === null ? null : $this->routeAccess->hrefFor($user->role, $path);
+
+        return [
+            'title' => $term['title'],
+            'answer' => $term['means'],
+            'highlights' => [],
+            'sections' => $href === null ? [] : [[
+                'id' => 'glossary-page',
+                'title' => 'Where To See It',
+                'description' => null,
+                'empty_message' => '',
+                'rows' => [[
+                    'id' => 'glossary-link',
+                    'primary' => $label,
+                    'secondary' => null,
+                    'status' => 'Open page',
+                    'status_tone' => 'info',
+                    'meta' => null,
+                    'href' => $href,
+                    'action_label' => $label,
+                ]],
+            ]],
+            'follow_ups' => [['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?']],
         ];
     }
 

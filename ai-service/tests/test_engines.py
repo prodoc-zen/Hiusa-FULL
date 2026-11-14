@@ -265,9 +265,30 @@ def test_task_delegation_recency_favors_officers_not_recently_assigned() -> None
     # Everything else is equal, so recency alone decides the order (ties by officer id).
     assert [ranking["officer_id"] for ranking in result["rankings"]] == [3, 4, 2, 1]
     just_assigned = next(r for r in result["rankings"] if r["officer_id"] == 1)
-    assert "assignment recency 0.00 (last assigned 0 day(s) ago)" in just_assigned["explanation"]
+    assert "assignment recency 0.00 (last assigned today)" in just_assigned["explanation"]
     never = next(r for r in result["rankings"] if r["officer_id"] == 3)
     assert "never assigned a task here" in never["explanation"]
+
+
+def test_task_delegation_sentence_reads_in_plain_words() -> None:
+    # The same rows are pinned word for word in server/tests/Feature/AiFallbackParityTest.php
+    # (test_the_task_delegation_sentence_reads_in_plain_words), so the two engines cannot drift apart.
+    def explanation(officer: dict) -> str:
+        result = delegate_task(TaskDelegationRequest.model_validate({
+            "task_title": "Prepare the budget liquidation report",
+            "max_active_tasks": 5,
+            "officers": [{"officer_id": 1, "name": "Ana Reyes", "role": "SBO_OFFICER", "position_title": "Treasurer", "account_status": "active", **officer}],
+        }))
+        return result["rankings"][0]["explanation"]
+
+    lead = "Ana Reyes scored {} for a task inferred as 'finance': position 'Treasurer' is a primary match for this area (100.00 pts), "
+    assert explanation({"active_tasks": 3, "completed_tasks": 3, "overdue_tasks": 1, "days_since_last_assignment": 7}) == (
+        lead.format("69.50") + "workload 40.00 (3 open tasks, up to 5 allowed), past performance 75.00, and assignment recency 50.00 (last assigned 7 days ago)."
+    )
+    assert explanation({"active_tasks": 1, "days_since_last_assignment": 0}) == (
+        lead.format("73.00") + "workload 80.00 (1 open task, up to 5 allowed), past performance 70.00 (no task history yet, so a starting score of 70 was used), and assignment recency 0.00 (last assigned today)."
+    )
+    assert "assignment recency 7.14 (last assigned 1 day ago)." in explanation({"active_tasks": 3, "completed_tasks": 3, "overdue_tasks": 1, "days_since_last_assignment": 1})
 
 
 def test_task_delegation_final_score_is_the_four_factor_weighted_sum() -> None:

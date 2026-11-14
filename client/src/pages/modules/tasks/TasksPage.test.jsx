@@ -475,6 +475,84 @@ describe('TasksPage', () => {
     });
   });
 
+  describe('waiting and overdue wording', () => {
+    const base = { event_id: null, priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 };
+    const serve = (...records) => mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(records)));
+
+    it('shows a task waiting on another as a badge that names it, with no Blocked word in the row', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'earlier task' } });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+
+      expect((await screen.findAllByText('Waiting on Earlier Task')).length).toBeGreaterThan(0);
+      expect(document.body.textContent).not.toContain('Blocked');
+    });
+
+    it('says waiting on another task when the one it waits on is not named', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      serve({ ...base, id: 1, title: 'stage task', status: 'pending', workflow_status: 'blocked' });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+
+      expect((await screen.findAllByText('Waiting on another task')).length).toBeGreaterThan(0);
+    });
+
+    it('keeps the Overdue badge beside the Waiting badge on a late task that is also waiting', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      serve({ ...base, id: 1, title: 'stage task', status: 'overdue', workflow_status: 'blocked', dependency: { id: 9, title: 'earlier task' } });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+
+      const waiting = (await screen.findAllByText('Waiting on Earlier Task'))[0];
+      expect(within(waiting.parentElement).getByText('Overdue')).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain('Blocked');
+    });
+
+    it('keeps the word Blocked out of the stepper of an overdue task', async () => {
+      serve({ ...base, id: 1, title: 'stage task', status: 'overdue' });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+
+      expect((await screen.findAllByText('Overdue')).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('progressbar', { name: 'Stage of Stage Task' })[0]).toHaveAttribute('aria-valuetext', 'Step 2 of 3: In progress');
+      expect(document.body.textContent).not.toContain('Blocked');
+    });
+  });
+
+  describe('a long board on a phone', () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({ id: index + 1, title: `task ${index + 1}`, event_id: null, status: 'pending', priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 }));
+
+    it('lists five tasks and opens the rest from Show more', async () => {
+      mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(many)));
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      const list = await screen.findByRole('list', { name: 'Tasks' });
+
+      expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+      fireEvent.click(screen.getByRole('button', { name: 'Show 5 more tasks' }));
+      expect(within(screen.getByRole('list', { name: 'Tasks' })).getAllByRole('listitem')).toHaveLength(10);
+      expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
+    });
+
+    it('offers no Show more when the page already fits', async () => {
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Monthly Records');
+
+      expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('the AI delegation page in plain words', () => {
+    it('names no engine beside the ranking or the suggestions', async () => {
+      const task = {
+        id: 5, title: 'scored task', event_id: null, status: 'pending', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', final_score: 82.5, role_score: 90,
+        delegation: { engine: 'php-fallback', task_area: 'publicity', recommended_officer_id: 'OFF-1', rankings: [{ officer_id: 'OFF-1', name: 'Ana Reyes', role_score: 90, final_score: 82.5, explanation: 'Ana Reyes scored 82.50.' }] },
+      };
+      mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([task])));
+      render(<MemoryRouter initialEntries={['/dashboard/tasks/ai-delegation']}><TasksPage initialTab="ai" /></MemoryRouter>);
+
+      expect(await screen.findByText('Full officer ranking')).toBeInTheDocument();
+      expect(screen.getByText('Scored Task')).toBeInTheDocument();
+      expect(screen.queryByText(/fallback engine|Python AI service|Built-in rules/)).not.toBeInTheDocument();
+    });
+  });
+
   describe('empty states', () => {
     it('asks the Admin to create the first task and opens the form', async () => {
       mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([])));

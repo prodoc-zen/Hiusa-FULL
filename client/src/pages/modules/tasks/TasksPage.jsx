@@ -23,7 +23,6 @@ import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import PaginationControls from '../../../components/PaginationControls';
-import EngineBadge from '../../../components/ai/EngineBadge';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import TableFilterBar from '../../../components/TableFilterBar';
@@ -79,6 +78,12 @@ function formatDate(d) {
 function TaskStatus({ task }) {
   const status = task.workflow_status || task.status;
   if (status === 'pending') return <span className="text-xs text-ink-muted">Pending</span>;
+  if (status === 'blocked') {
+    const waiting = <StatusBadge tone="warning" label={task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task'} />;
+    // A late task that is also waiting keeps both facts: the wait is the reason, the lateness is still true.
+    if (task.status !== 'overdue') return waiting;
+    return <span className="inline-flex flex-wrap items-center gap-1">{waiting}<StatusBadge status="overdue" label="Overdue" /></span>;
+  }
   return <StatusBadge status={status} label={capitalize(status)} />;
 }
 
@@ -116,6 +121,9 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [lastDelegation, setLastDelegation] = useState(null);
   const [rankingOpen, setRankingOpen] = useState(true);
   const pageSize = 10;
+  // A phone shows this many of the page's tasks until Show more is pressed, so the list stays short.
+  const phoneBatch = 5;
+  const [phoneRows, setPhoneRows] = useState(phoneBatch);
 
   const [form, setForm] = useState({ title: '', description: '', task_kind: 'standalone', category: '', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
   const [preview, setPreview] = useState(null);
@@ -418,6 +426,11 @@ export default function TasksPage({ initialTab = 'board' }) {
     setPage(1);
   }, [taskFilters, appliedSearch]);
 
+  // A new page or filter starts the phone list short again.
+  useEffect(() => {
+    setPhoneRows(phoneBatch);
+  }, [page, taskFilters, appliedSearch]);
+
   async function exportVisibleTasks() {
     // Export every task matching the active filters, not just the page on screen.
     const exportRows = await fetchAllPages((p) => getTasks(p).then((r) => r.data), serverFilters);
@@ -486,7 +499,9 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   function taskStepper(task) {
     const lifecycle = taskLifecycle(task, currentUserRole);
-    return <FlowStepper variant="compact" steps={lifecycle.steps} summary={lifecycle.nextAction.title} ariaLabel={`Stage of ${formatDisplayText(task.title)}`} className="mt-2" />;
+    // An overdue task is late, not waiting on another task, and its row already says Overdue, so its step reads as in progress.
+    const steps = task.status === 'overdue' ? lifecycle.steps.map((step) => (step.state === 'blocked' ? { ...step, state: 'current' } : step)) : lifecycle.steps;
+    return <FlowStepper variant="compact" steps={steps} summary={lifecycle.nextAction.title} ariaLabel={`Stage of ${formatDisplayText(task.title)}`} className="mt-2" />;
   }
 
   const firstRunTasks = tasksMeta.total === 0 && activeTaskFilters.length === 0;
@@ -629,7 +644,7 @@ export default function TasksPage({ initialTab = 'board' }) {
           ) : (
             <>
             <ul className="divide-y divide-line lg:hidden" aria-label="Tasks">
-              {tasks.map((t) => <li key={t.id} className="min-w-0 py-4">
+              {tasks.slice(0, phoneRows).map((t) => <li key={t.id} className="min-w-0 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-ink">{formatDisplayText(t.title)}</h3><TaskStatus task={t} /></div>
                 <TaskProgress task={t} />
                 {taskStepper(t)}
@@ -637,6 +652,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => openTaskDetails(t)}>View details</Button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)).catch(failedStatusChange)}>Start</Button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <Button variant="secondary" onClick={() => setCompletionTask(t)}>Complete</Button>}{canManageTasks && t.status === 'completed' && <Button variant="secondary" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0).catch(failedStatusChange)}>Reopen</Button>}{canManageTasks && <Button variant="secondary" onClick={() => openEditTask(t)}>Edit</Button>}{canManageTasks && <Button variant="secondary" className="text-danger-strong" onClick={() => { setDeleteError(null); setTaskToDelete(t); }}>Delete</Button>}</div>
               </li>)}
             </ul>
+            {tasks.length > phoneRows && <Button variant="secondary" className="mt-3 w-full lg:hidden" onClick={() => setPhoneRows((rows) => rows + phoneBatch)}>Show {Math.min(phoneBatch, tasks.length - phoneRows)} more tasks</Button>}
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[820px] text-left">
                 <caption className="sr-only">Tasks</caption>
@@ -756,7 +772,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <ChevronDown size={14} className={`transition-transform duration-150 ${rankingOpen ? 'rotate-180' : ''}`} />
                     Full officer ranking
                   </span>
-                  <EngineBadge engine={activeDelegation.engine} />
                 </button>
                 {rankingOpen && (
                   <div className="mt-3">
@@ -821,9 +836,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <p className="mt-1 text-xs text-ink-muted-strong">
                       Recommended: {formatDisplayText(task.assignee.first_name)} {formatDisplayText(task.assignee.last_name)}
                     </p>
-                    <div className="mt-2">
-                      <EngineBadge engine={(task.id === activeDelegation?.taskId ? activeDelegation.engine : null) || getDelegationDetail(task)?.engine || null} />
-                    </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-ink-muted sm:grid-cols-4">
                       {[['Position', task.role_score], ['Workload', task.workload_score], ['Performance', task.performance_score], ['Recency', task.recency_score]]
                         .filter(([, score]) => hasScore(score))
@@ -899,7 +911,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <div><dt className="text-xs text-ink-muted">Assigned officer</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.assignee ? `${formatDisplayText(selectedTask.assignee.first_name)} ${formatDisplayText(selectedTask.assignee.last_name)}` : 'Unassigned'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Assigned by</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.creator ? `${formatDisplayText(selectedTask.creator.first_name)} ${formatDisplayText(selectedTask.creator.last_name)}` : ''}</dd></div>
               <div><dt className="text-xs text-ink-muted">Priority</dt><dd className="mt-0.5 font-medium text-ink">{capitalize(selectedTask.priority || 'medium')}</dd></div>
-              <div><dt className="text-xs text-ink-muted">Category</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.category ? capitalize(selectedTask.category) : 'Decided from the title'}</dd></div>
+              <div><dt className="text-xs text-ink-muted">Category</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.category ? capitalize(selectedTask.category) : 'Not set'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Required position</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.preferred_role || 'Any eligible position'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Progress</dt><dd className="mt-0.5 font-medium tabular-nums text-ink">{selectedTask.progress_percent || 0}%</dd></div>
               <div><dt className="text-xs text-ink-muted">Academic period</dt><dd className="mt-0.5 font-medium text-ink">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} semester` : ''}</dd></div>

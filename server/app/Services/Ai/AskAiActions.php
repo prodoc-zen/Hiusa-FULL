@@ -52,7 +52,12 @@ class AskAiActions
 
     private const QUESTION_PHRASES = ['how to', 'how do', 'how can', 'how would', 'how should', 'steps to'];
 
-    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|tomorrow|today|tonight|next|this|with|for)\b|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
+    private const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    /** The start a card gets when the message names a day but no time. The person can change it before pressing confirm. */
+    private const DEFAULT_START_MINUTES = 540;
+
+    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|next|this|with|for)\b|\s+(?:tomorrow|today|tonight)\b(?![\'’]\w)|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
 
     private const NAME_STOPWORDS = ['the', 'and', 'for', 'let', 'allow', 'apply', 'new', 'organization', 'student', 'start', 'create', 'make', 'please', 'her', 'his', 'she', 'can', 'to', 'a', 'an'];
 
@@ -128,8 +133,8 @@ class AskAiActions
             'fields' => [
                 $this->field('title', 'Title', 'text', true, 255, null, null, ['parse' => 'title']),
                 $this->field('description', 'Description', 'textarea', false, 5000),
-                $this->field('start_time', 'Starts', 'datetime', true),
-                $this->field('end_time', 'Ends', 'datetime', true, null, 'Must be after the start.'),
+                $this->field('start_time', 'Starts', 'datetime', true, null, null, null, ['parse' => 'start']),
+                $this->field('end_time', 'Ends', 'datetime', true, null, 'Must be after the start.', null, ['parse' => 'end']),
                 $this->field('location', 'Location', 'text', false, 255),
             ],
             'route' => ['POST', '/api/events'],
@@ -154,7 +159,7 @@ class AskAiActions
             'fields' => [
                 $this->field('title', 'Title', 'text', true, 255, null, null, ['parse' => 'title']),
                 $this->field('description', 'Description', 'textarea', false, 5000),
-                $this->field('deadline', 'Due date', 'date', true, null, 'Today or later.'),
+                $this->field('deadline', 'Due date', 'date', true, null, 'Today or later.', null, ['parse' => 'due']),
                 $this->field('assigned_to', 'Assign to', 'select', true, null, 'Only officers who can take more work are accepted.', fn (User $user, string $message, array $values): array => $this->eligibleOfficers($user, (string) ($values['title'] ?? $message))),
             ],
             'route' => ['POST', '/api/tasks'],
@@ -704,7 +709,12 @@ class AskAiActions
             }
         }
 
+        // An end worked out from the message's own start would contradict a start the model read differently.
+        $startGiven = collect($definition['fields'])->contains(fn (array $field) => ($field['parse'] ?? null) === 'start' && isset($values[$field['name']]));
         foreach ($this->parsed($definition, $options, $message) as $name => $value) {
+            if ($startGiven && collect($definition['fields'])->contains(fn (array $field) => $field['name'] === $name && ($field['parse'] ?? null) === 'end')) {
+                continue;
+            }
             $values[$name] ??= $value;
         }
 
@@ -784,6 +794,17 @@ class AskAiActions
             $dates = $matches;
         }
 
+        $parses = array_column($definition['fields'], 'parse');
+        $time = $this->statedTime($message);
+        $start = null;
+        $due = null;
+        if ($dates === [] && in_array('start', $parses, true)) {
+            $day = $this->relativeDay($message, $time ?? self::DEFAULT_START_MINUTES);
+            $start = $day?->addMinutes($time ?? self::DEFAULT_START_MINUTES);
+        } elseif ($dates === [] && in_array('due', $parses, true)) {
+            $due = $this->relativeDay($message, null);
+        }
+
         foreach ($definition['fields'] as $field) {
             $name = $field['name'];
             $candidate = null;
@@ -793,7 +814,15 @@ class AskAiActions
                     $candidate = $quoted[1];
                 } elseif (preg_match('/\b(?:called|named|titled|entitled)\s+(?:the\s+)?(.+?)'.self::BOUNDARY.'/iu', $message, $named) === 1) {
                     $candidate = $named[1];
+                } else {
+                    $candidate = $this->titleAfterFor($message, ! in_array('start', $parses, true));
                 }
+            } elseif (($field['parse'] ?? null) === 'due' && $due !== null) {
+                $candidate = $due->format('Y-m-d');
+            } elseif (($field['parse'] ?? null) === 'start' && $start !== null) {
+                $candidate = $start->format('Y-m-d\TH:i');
+            } elseif (($field['parse'] ?? null) === 'end' && $start !== null) {
+                $candidate = $start->copy()->addHour()->format('Y-m-d\TH:i');
             } elseif (($field['parse'] ?? null) === 'amount' && preg_match('/(?:₱|\bphp\b|\bpesos?\b|\bp(?=\d))\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:pesos?\b|\bphp\b)/iu', $message, $amount) === 1) {
                 $candidate = $amount[1] !== '' ? $amount[1] : $amount[2];
             } elseif (($field['parse'] ?? null) === 'email' && preg_match('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', $message, $email) === 1) {
@@ -821,6 +850,73 @@ class AskAiActions
         }
 
         return $found;
+    }
+
+    /**
+     * The day a message names with today, tomorrow, a weekday or next + a weekday, as midnight in the app zone, or null.
+     * A weekday means its next occurrence: today counts only when it is that day and the start (minutes after midnight)
+     * is still ahead, and a date-only field ($minutes null) counts today. "next Friday" is the Friday of the next calendar week.
+     * A quoted or called/named title is ignored, so "named Monday Mixer" names no day.
+     */
+    private function relativeDay(string $message, ?int $minutes): ?Carbon
+    {
+        $text = preg_replace(['/["“][^"”]{0,255}["”]/u', '/\b(?:called|named|titled|entitled)\s+(?:the\s+)?.{1,255}?'.self::BOUNDARY.'/iu'], ' ', $message) ?? $message;
+        $now = now(self::ZONE);
+        $today = $now->copy()->startOfDay();
+        $days = implode('|', self::DAYS);
+
+        if (preg_match('/\btoday\b(?![\'’]\w)/iu', $text) === 1) {
+            return $today;
+        }
+        if (preg_match('/\btomorrow\b(?![\'’]\w)/iu', $text) === 1) {
+            return $today->addDay();
+        }
+        if (preg_match('/\bnext\s+('.$days.')\b/iu', $text, $next) === 1) {
+            $index = (array_search(strtolower($next[1]), self::DAYS, true) + 6) % 7;
+
+            return $today->copy()->startOfWeek(Carbon::MONDAY)->addWeek()->addDays($index);
+        }
+        if (preg_match('/\b(?:on|by|due|this|until|till|before|from|starting|starts)\s+(?:on\s+)?('.$days.')\b/iu', $text, $named) === 1) {
+            $ahead = (array_search(strtolower($named[1]), self::DAYS, true) - $today->dayOfWeek + 7) % 7;
+            if ($ahead === 0 && $minutes !== null && $today->copy()->addMinutes($minutes) <= $now) {
+                $ahead = 7;
+            }
+
+            return $today->addDays($ahead);
+        }
+
+        return null;
+    }
+
+    /** Minutes after midnight for a time the message states ("3pm", "3:30 pm", "15:00"), or null. */
+    private function statedTime(string $message): ?int
+    {
+        if (preg_match('/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s?([ap])\.?m\b/iu', $message, $twelve) === 1) {
+            return (((int) $twelve[1]) % 12 + (strtolower($twelve[3]) === 'p' ? 12 : 0)) * 60 + (int) $twelve[2];
+        }
+        if (preg_match('/\b([01]?\d|2[0-3]):([0-5]\d)\b/', $message, $twentyFour) === 1) {
+            return ((int) $twentyFour[1]) * 60 + (int) $twentyFour[2];
+        }
+
+        return null;
+    }
+
+    /** The words after "for" up to the next boundary: "for the talent show on Friday" gives "the talent show" without its article. */
+    private function titleAfterFor(string $message, bool $articleRequired): ?string
+    {
+        $article = $articleRequired ? '(?:the|a|an)\s+' : '(?:(?:the|a|an)\s+)?';
+        if (preg_match('/\bfor\s+'.$article.'(.{2,200}?)'.self::BOUNDARY.'/iu', $message, $found) !== 1) {
+            return null;
+        }
+        $title = trim($found[1]);
+        if (preg_match('/^(?:at\s+)?(?:(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s?[ap]\.?m|(?:[01]?\d|2[0-3]):[0-5]\d)\.?$/iu', $title) === 1 && $this->statedTime($title) !== null) {
+            return null;
+        }
+        if (preg_match('/^(?:today|tomorrow|tonight|next|this|'.implode('|', self::DAYS).')\b/iu', $title) === 1) {
+            return null;
+        }
+
+        return mb_strtoupper(mb_substr($title, 0, 1)).mb_substr($title, 1);
     }
 
     /** The one option whose label or alias the message names as a whole phrase, or null when none or several do. */

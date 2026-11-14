@@ -149,6 +149,7 @@ class UserController extends Controller
             $profile = $user->accountProfiles->first();
             $user->is_primary_profile = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
             $user->activateProfile($profile);
+            $user->listAmongOthers();
         });
 
         return response()->json([

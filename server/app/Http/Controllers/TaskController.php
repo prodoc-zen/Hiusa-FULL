@@ -58,6 +58,7 @@ class TaskController extends Controller
             'deadline_from' => ['nullable', 'date'],
             'deadline_to' => ['nullable', 'date', 'after_or_equal:deadline_from'],
             'search' => ['nullable', 'string', 'max:120'],
+            'waiting' => ['nullable', 'boolean'],
         ]);
 
         $query = Task::with([
@@ -89,6 +90,12 @@ class TaskController extends Controller
 
         if ($request->filled('status')) {
             $query->whereIn('status', FilterValues::values($request->status));
+        }
+
+        // Waiting is the same test as the workflow_status 'blocked': unfinished, and its earlier task is not done.
+        if ($request->boolean('waiting')) {
+            $query->where('status', '!=', 'completed')
+                ->whereHas('dependency', fn (Builder $earlier) => $earlier->where('status', '!=', 'completed'));
         }
 
         if ($request->filled('task_type')) {

@@ -207,6 +207,8 @@ class FinanceAiAuditFixesTest extends TestCase
             ->assertJsonPath('model_details.budget_advice.overspending_risk', 'high')
             ->assertJsonPath('model_details.budget_advice.forecast_risk', 'overspending');
         $this->assertStringStartsWith('Overspending risk is high.', $response->json('model_details.budget_advice.advice'));
+        $this->assertStringContainsString('spending may outrun income', $response->json('confidence_note'));
+        $this->assertStringNotContainsString('forecast is overspending', $response->json('confidence_note'));
     }
 
     public function test_the_advice_rules_cover_the_threshold_and_ninety_percent_branches(): void

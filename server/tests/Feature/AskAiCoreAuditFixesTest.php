@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\ComplianceRequirementType;
@@ -300,6 +301,85 @@ class AskAiCoreAuditFixesTest extends TestCase
 
         Order::query()->delete();
         $this->assertStringContainsString('caught up', $this->briefing($student)['answer']);
+    }
+
+    public function test_a_student_who_only_belongs_to_the_college_is_told_there_are_no_records_yet_not_that_they_are_caught_up(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+
+        $payload = $this->briefing($student);
+
+        $this->assertStringNotContainsString('caught up', $payload['answer']);
+        $this->assertStringNotContainsString('you owe nothing', $payload['answer']);
+        $this->assertStringContainsString('no organization records for you yet', $payload['answer']);
+    }
+
+    public function test_a_member_signed_in_on_the_college_profile_with_a_club_profile_is_not_told_they_are_in_no_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $club = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $answer = $this->briefing($student->fresh())['answer'];
+
+        $this->assertStringNotContainsString('not in an organization', $answer);
+        $this->assertStringContainsString('caught up', $answer);
+    }
+
+    public function test_the_signed_in_payload_says_whether_the_member_is_in_a_student_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $club = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        Sanctum::actingAs($student);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', false);
+
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', true);
+    }
+
+    public function test_a_member_whose_only_club_is_archived_is_not_counted_as_in_a_student_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $archived = $this->org(['is_active' => false, 'lifecycle_status' => 'archived']);
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $archived->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        Sanctum::actingAs($student);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', false);
+        $this->assertStringContainsString('no organization records for you yet', $this->briefing($student->fresh())['answer']);
+    }
+
+    public function test_a_listed_member_skips_the_membership_lookup_so_the_list_costs_the_same_for_more_people(): void
+    {
+        $club = $this->org();
+        $admin = User::factory()->admin()->create(['organization_id' => $club->id]);
+        Sanctum::actingAs($admin);
+        $addMembers = fn (int $count) => User::factory()->student()->count($count)->create(['organization_id' => $club->id]);
+        $queriesFor = function () {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $response = $this->getJson('/api/users?per_page=50')->assertOk();
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return [$count, $response];
+        };
+
+        $addMembers(3);
+        [$three, $response] = $queriesFor();
+        $response->assertJsonMissingPath('data.0.in_student_organization');
+        $response->assertJsonMissingPath('data.0.can_book_venues');
+
+        $addMembers(3);
+        [$six] = $queriesFor();
+
+        $this->assertSame($three, $six);
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('can_book_venues', true)->assertJsonPath('in_student_organization', true);
     }
 
     private function election(Organization $org, array $overrides = []): Election

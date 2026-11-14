@@ -81,6 +81,6 @@ describe('AdminUsersPage add existing student', () => {
     expect(within(table).getByText('Fingerprint enrolled')).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: 'Fingerprint' })).not.toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
-    expect(mocks.getUsers).toHaveBeenCalledWith(expect.objectContaining({ per_page: 20 }));
+    expect(mocks.getUsers).toHaveBeenCalledWith(expect.objectContaining({ per_page: 10 }));
   });
 });

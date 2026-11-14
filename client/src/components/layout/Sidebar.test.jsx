@@ -44,6 +44,26 @@ describe('desktop sidebar rail', () => {
     expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
   });
 
+  it('scrolls the active child of an expanded group into view when the route changes', () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<MemoryRouter initialEntries={['/dashboard/finance/budget-allocation']}><SidebarHarness /></MemoryRouter>);
+      const active = screen.getAllByRole('link').find((link) => link.getAttribute('aria-current') === 'page');
+      expect(active).toHaveTextContent('Budgets');
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+      expect(scrollIntoView.mock.contexts).toContain(active);
+
+      scrollIntoView.mockClear();
+      fireEvent.click(screen.getByRole('link', { name: 'Ledger' }));
+      const next = screen.getAllByRole('link').find((link) => link.getAttribute('aria-current') === 'page');
+      expect(next).toHaveTextContent('Ledger');
+      expect(scrollIntoView.mock.contexts).toContain(next);
+    } finally {
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
   it('uses the visible sidebar edge for modal bounds', () => {
     const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ right: 218 });
     const view = render(<MemoryRouter><SidebarHarness /></MemoryRouter>);

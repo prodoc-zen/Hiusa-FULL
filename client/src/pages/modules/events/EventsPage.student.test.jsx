@@ -35,9 +35,25 @@ describe('Student events list sort', () => {
     eventMocks.getPersonalAttendance.mockResolvedValue(summary());
   });
 
+  it('keeps search, date, sort and status behind one Filter button so the list starts under the view toggle', async () => {
+    renderEvents();
+    await screen.findByText('Sports Fest 2024');
+    expect(screen.queryByPlaceholderText('Search events')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Sort by')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Event date')).not.toBeInTheDocument();
+    const filter = screen.getByRole('button', { name: 'Filter' });
+    expect(filter).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(filter);
+    expect(filter).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByPlaceholderText('Search events')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort by')).toBeInTheDocument();
+    expect(screen.getByLabelText('Event date')).toBeInTheDocument();
+  });
+
   it('defaults to Soonest and offers exactly the four orders', async () => {
     renderEvents();
     await screen.findByText('Sports Fest 2024');
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
     const select = screen.getByLabelText('Sort by');
     expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['Soonest', 'Latest date', 'Newest created', 'Title']);
     expect(select.value).toBe('start_asc');
@@ -47,6 +63,7 @@ describe('Student events list sort', () => {
   it.each([['start_desc', 'Latest date'], ['newest', 'Newest created'], ['title', 'Title']])('asks the server for %s when %s is chosen, keeping the search', async (sort) => {
     renderEvents();
     await screen.findByText('Sports Fest 2024');
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
     fireEvent.change(screen.getByPlaceholderText('Search events'), { target: { value: 'sports' } });
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: sort } });
     await waitFor(() => expect(lastListParams()).toMatchObject({ sort, search: 'sports', page: 1 }));
@@ -58,6 +75,7 @@ describe('Student events list sort', () => {
     await screen.findByText('Sports Fest 2024');
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
     await waitFor(() => expect(lastListParams().page).toBe(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title' } });
     await waitFor(() => expect(lastListParams()).toMatchObject({ sort: 'title', page: 1 }));
   });

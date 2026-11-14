@@ -17,33 +17,18 @@ import {
   Tabs,
   Textarea,
 } from '../../../components/ui';
-import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { getGrievances, getGrievanceFilingOptions, createGrievance, deleteGrievance } from '../../../services/grievanceService';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import useRecordParam from '../../../lib/useRecordParam';
-import { UrgencyCell } from './GrievanceCells';
 import { addressedToLabel, grievanceStage, grievanceStageText } from './grievanceLabels';
 
 const ADDRESSED_TO_OPTIONS = [
   { value: 'organization', label: 'My organization' },
   { value: 'sao', label: 'Student Affairs Office' },
 ];
-
-function ClassificationAdvisory({ grievance }) {
-  return (
-    <div className="border-t border-line pt-3">
-      <p className="text-xs font-medium text-ink-muted">Suggested classification</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <UrgencyCell urgency={grievance.urgency} suffix=" urgency" />
-        <span className="text-sm text-ink-muted">{grievance.category}</span>
-      </div>
-      <RulesDisclosure label="Why this classification?" items={grievance.classification_reasoning ? [grievance.classification_reasoning] : []} />
-    </div>
-  );
-}
 
 export default function StudentGrievancesPage() {
   const [recordId, setRecordId] = useRecordParam();
@@ -144,7 +129,7 @@ export default function StudentGrievancesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader primary={tab === 'mine' && grievances.length > 0 && <Button onClick={() => setTab('file')}>File a grievance</Button>} />
+      <PageHeader />
 
       <Tabs
         tabs={[
@@ -234,8 +219,6 @@ export default function StudentGrievancesPage() {
 
                 <FlowStepper steps={grievanceStage(grievance, 'STUDENT').steps} ariaLabel={`Progress of ${formatDisplayText(grievance.title)}`} />
                 <p className="text-sm text-ink">{grievanceStageText(grievance)}</p>
-
-                <ClassificationAdvisory grievance={grievance} />
 
                 {grievance.remarks && (
                   <div className="border-t border-line pt-3">

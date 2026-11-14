@@ -48,6 +48,18 @@ describe('ConversationList', () => {
     expect(screen.getByRole('button', { name: /Show more/ })).toBeDisabled();
   });
 
+  it('names the row options button without a tooltip that would run off a phone screen', async () => {
+    render(<ConversationList {...props} conversations={many(2)} />);
+    const options = screen.getByRole('button', { name: 'Options for Chat 1' });
+    fireEvent.focus(options);
+    fireEvent.mouseEnter(options);
+    await new Promise((resolve) => { setTimeout(resolve, 450); });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    fireEvent.click(options);
+    expect(screen.getByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+  });
+
   it('shows an empty state', () => {
     render(<ConversationList {...props} conversations={[]} />);
     expect(screen.getByText('Your conversations will show up here.')).toBeInTheDocument();

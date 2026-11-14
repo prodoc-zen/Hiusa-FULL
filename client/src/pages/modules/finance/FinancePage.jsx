@@ -86,6 +86,16 @@ function forecastOrder(period) {
   return Number.POSITIVE_INFINITY;
 }
 
+// A forecast looks ahead, so one whose period is over (the old placeholder quarters, say) only adds zero rows
+// and flat points to the chart. A month ends with itself, a quarter two months after its first.
+function forecastHasEnded(period, now = new Date()) {
+  const text = String(period ?? '').trim();
+  const order = forecastOrder(text);
+  if (!Number.isFinite(order)) return false;
+  const lastMonth = /^Q[1-4]\s/i.test(text) ? order + 2 : order;
+  return lastMonth < now.getFullYear() * 12 + now.getMonth();
+}
+
 function sortForecasts(forecasts) {
   return [...forecasts].sort((a, b) => forecastOrder(a.forecast_period) - forecastOrder(b.forecast_period)
     || String(a.forecast_period ?? '').localeCompare(String(b.forecast_period ?? '')));
@@ -250,6 +260,10 @@ function getClampNotice(forecast) {
     : 'The raw projected expense was negative and has been clamped to ₱0.00 for display.';
 }
 
+// The stored risk is a code. "Overspending" read as a verdict beside a healthy balance, so it says what the
+// forecast measures: this month's spending against this month's income.
+const FORECAST_RISK_LABELS = { overspending: 'Spending may outrun income' };
+
 const REPORT_STATUS_LABELS = { draft: 'Draft', pending_department_head: 'Pending Department Head', pending_sao: 'Pending SAO', approved: 'Approved', rejected: 'Returned' };
 
 function sentence(value) {
@@ -411,6 +425,13 @@ function downloadBlobResponse(response, fallbackName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+// A new transaction starts on today's date, so the form only needs a description and an amount.
+function todayInputValue() {
+  const now = new Date();
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
@@ -591,19 +612,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
-      .then(async (first) => [first, await fetchLists()])
-      .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes], [forecasts, reports]]) => {
+      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes]) => {
         if (ticket !== loadTicket.current) return;
+        // What the screen shows first lands as soon as it is read, so a saved budget is on the list
+        // without waiting for the slower forecast and report reads.
         if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
-        setForecasts(forecasts);
         setBudgets(budgetsList);
         setEvents(eventsList);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
-        setReports(reports);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
         setStudentDebt(debtRowFrom(debtRes));
+        const [forecasts, reports] = await fetchLists();
+        if (ticket !== loadTicket.current) return;
+        setForecasts(forecasts);
+        setReports(reports);
       })
       .catch(() => {
         if (ticket === loadTicket.current) setError('Failed to load financial data.');
@@ -1107,7 +1131,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       budget_id: tx.budget_id || '',
       event_id: tx.event_id || '',
       receipt_reference: tx.receipt_reference || '',
-    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: todayInputValue(), budget_id: '', event_id: '', receipt_reference: '' });
     setFormError(null);
     setShowForm(true);
   }
@@ -1160,7 +1184,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       })
       .catch(() => setReportSemesters([]));
   }, [activeTab, reportFormVisible, reportSemesters]);
-  const sortedForecasts = sortForecasts(forecasts);
+  const sortedForecasts = sortForecasts(forecasts.filter((forecast) => !forecastHasEnded(forecast.forecast_period)));
 
   // A form drawer carries its own filled button, so the header's one is hidden while it is open.
   let headerPrimary = null;
@@ -1306,7 +1330,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             />
           </TableFilterBar>
 
-          {loading || ledgerLoading ? (
+          {error ? null : loading || ledgerLoading ? (
             <div className="p-4"><SkeletonTable rows={5} columns={5} className="border-0" /></div>
           ) : filtered.length === 0 ? (
             <div className="px-4 sm:px-5">
@@ -1463,7 +1487,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'budgets' && !requestFlow && (
+      {activeTab === 'budgets' && !requestFlow && !error && (
         <section aria-label="Budgets" className="overflow-hidden rounded-card border border-line bg-surface">
           {recordMissing && <div className="border-b border-line p-4">{missingRecordNotice('budget')}</div>}
 
@@ -1589,7 +1613,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'forecasting' && (
+      {activeTab === 'forecasting' && !error && (
         <section aria-label="Forecast" className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
           <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
             {forecastGenError && (
@@ -1600,7 +1624,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             )}
             {loading ? (
               <SkeletonTable rows={3} columns={3} className="border-0" />
-            ) : forecasts.length === 0 ? (
+            ) : sortedForecasts.length === 0 ? (
               canGenerateForecast ? (
                 <EmptyState
                   icon={TrendingUp}
@@ -1632,9 +1656,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                             <div><dt className="text-ink-muted">Income</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-success-strong">{fmt(f.predicted_income)}</dd></div>
                             <div><dt className="text-ink-muted">Expenses</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-danger-strong">{fmt(f.predicted_expense)}</dd></div>
                             <div><dt className="text-ink-muted">Balance</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.predicted_balance)}</dd></div>
-                            {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
+                            {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Left in approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
                             <div><dt className="text-ink-muted">Safe spend</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.safe_spending_limit)}</dd></div>
-                            {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{sentence(f.model_details.risk)}</dd></div>}
+                            {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{FORECAST_RISK_LABELS[f.model_details.risk] || sentence(f.model_details.risk)}</dd></div>}
                           </dl>
                         ) : (
                           <p className="mt-3 text-sm text-ink-muted">Not enough ledger history to project this period. Record income and expenses over a few months, then generate again.</p>
@@ -1700,7 +1724,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'reports' && (
+      {activeTab === 'reports' && !error && (
         <div className="space-y-6">
           {reportFormVisible && <section aria-labelledby="prepare-report-title" className="rounded-card border border-line bg-surface p-4 sm:p-5">
             <h2 id="prepare-report-title" className="text-base font-semibold text-ink">Prepare a report</h2>
@@ -1888,7 +1912,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </div>
       )}
 
-      {activeTab === 'receipts' && (
+      {activeTab === 'receipts' && !error && (
         <section aria-label="Receipts">
           {loading ? (
             <SkeletonTable rows={3} columns={3} />
@@ -1947,7 +1971,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         {selectedReceipt && <div data-finance-receipt><ReceiptDocument transaction={selectedReceipt} /></div>}
       </Drawer>
 
-      {activeTab === 'invoices' && (
+      {activeTab === 'invoices' && !error && (
         <section aria-label="Statement of account" className="space-y-5">
           {currentUserRole === 'STUDENT' && !loading && !error && <AccountSummary debt={studentDebt} clearances={clearances} />}
           <DataTable

@@ -113,11 +113,12 @@ describe('grievance lists and details', () => {
     expect(await screen.findByRole('button', { name: 'File this grievance' })).toBeInTheDocument();
   });
 
-  it('puts the one primary File a grievance button in the header once there are rows', async () => {
+  it('leaves File a grievance to its tab, with no second button in the header once there are rows', async () => {
     renderAt('/dashboard/my-grievances', <StudentGrievancesPage />);
     fireEvent.click(screen.getByRole('tab', { name: /Filed grievances/ }));
     await screen.findByText('Noisy lab');
-    expect(screen.getAllByRole('button', { name: 'File a grievance' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'File a grievance' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'File a grievance' })).toBeInTheDocument();
   });
 
   it('opens the Admin drawer from ?record= by fetching the one grievance, with the stage and an action callout', async () => {

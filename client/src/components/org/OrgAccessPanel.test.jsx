@@ -58,6 +58,15 @@ describe('OrgAccessPanel', () => {
     expect(mocks.getManagedAccountProfiles).toHaveBeenCalledWith({ organization_id: 5, per_page: 20, page: 1 });
   });
 
+  it('pages at the size the page asks for, five at a time on the People page', async () => {
+    mocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [MARIA, JUAN, ANA, { ...ANA, id: 14 }, { ...ANA, id: 15 }], current_page: 1, last_page: 3, per_page: 5, total: 12 } });
+    renderPanel({ pageSize: 5 });
+
+    expect(await seen('Maria Santos')).not.toHaveLength(0);
+    expect(mocks.getManagedAccountProfiles).toHaveBeenCalledWith({ organization_id: 5, per_page: 5, page: 1 });
+    expect(screen.getByRole('button', { name: 'Next page of people' })).toBeInTheDocument();
+  });
+
   it('shows only the email for an internal account number', async () => {
     mocks.getManagedAccountProfiles.mockResolvedValue(envelope([{ ...JUAN, school_id: 95000002 }]));
     renderPanel();

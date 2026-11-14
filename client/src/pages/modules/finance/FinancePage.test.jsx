@@ -2,11 +2,19 @@ import process from 'node:process';
 import { findRowAction } from '../../../test/rowActions';
 import { act, fireEvent, render as renderUi, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancePage from './FinancePage';
 import { getEvents } from '../../../services/eventService';
 
 const render = (ui, route = '/dashboard/finance') => renderUi(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>);
+
+// The forecast list leaves out months that are already over, so these tests fix "today" and build their
+// periods around it instead of aging out as the calendar moves.
+const pinToday = () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-15T08:00:00+08:00'));
+};
+afterEach(() => vi.useRealTimers());
 
 // The two export tests build a real workbook. exceljs is a large module that the page imports on first
 // use, so under a full parallel run that first import used to land inside a test and outlast its
@@ -618,6 +626,7 @@ describe('FinancePage deleting budgets and transactions', () => {
 
 describe('FinancePage forecast explainability', () => {
   beforeEach(() => {
+    pinToday();
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     financeMocks.getTransactions.mockResolvedValue({
@@ -656,18 +665,49 @@ describe('FinancePage forecast explainability', () => {
   it('lists the newest forecast first and the chart oldest to newest, whether the period is a month or a quarter', async () => {
     const base = { predicted_expense: 800, predicted_balance: 200, safe_spending_limit: 160, model_details: { sample_months: 6, income: { r_squared: 0.9 }, expense: { r_squared: 0.9 } } };
     financeMocks.getForecasts.mockResolvedValue({ data: [
-      { ...base, id: 1, forecast_period: 'Q1 2025', predicted_income: 1000 },
-      { ...base, id: 2, forecast_period: 'Q3 2024', predicted_income: 1000 },
-      { ...base, id: 3, forecast_period: 'Q4 2024', predicted_income: 1000 },
+      { ...base, id: 1, forecast_period: 'Q1 2027', predicted_income: 1000 },
+      { ...base, id: 2, forecast_period: 'Q3 2026', predicted_income: 1000 },
+      { ...base, id: 3, forecast_period: 'Q4 2026', predicted_income: 1000 },
     ] });
 
     render(<FinancePage initialTab="forecasting" />);
 
-    await screen.findByText('Forecast for Q3 2024');
+    await screen.findByText('Forecast for Q3 2026');
     const titles = screen.getAllByText(/^Forecast for /).map((node) => node.textContent);
-    expect(titles).toEqual(['Forecast for Q1 2025', 'Forecast for Q4 2024', 'Forecast for Q3 2024']);
+    expect(titles).toEqual(['Forecast for Q1 2027', 'Forecast for Q4 2026', 'Forecast for Q3 2026']);
     const chartPeriods = screen.getAllByRole('row').map((row) => row.cells[0]?.textContent).filter((text) => /^Q\d/.test(text));
-    expect(chartPeriods).toEqual(['Q3 2024', 'Q4 2024', 'Q1 2025']);
+    expect(chartPeriods).toEqual(['Q3 2026', 'Q4 2026', 'Q1 2027']);
+  });
+
+  it('leaves out forecasts whose period ended before this month, from the list and the chart', async () => {
+    const base = { predicted_income: 1000, predicted_expense: 800, predicted_balance: 200, safe_spending_limit: 160, model_details: { sample_months: 6, income: { r_squared: 0.9 }, expense: { r_squared: 0.9 } } };
+    financeMocks.getForecasts.mockResolvedValue({ data: [
+      { ...base, id: 1, forecast_period: 'Q3 2024' },
+      { ...base, id: 2, forecast_period: 'Q4 2024' },
+      { ...base, id: 3, forecast_period: '2026-08' },
+      { ...base, id: 4, forecast_period: 'Q3 2026' },
+      { ...base, id: 5, forecast_period: '2026-09' },
+      { ...base, id: 6, forecast_period: '2026-12' },
+    ] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    await screen.findByText('Forecast for 2026-12');
+    const titles = screen.getAllByText(/^Forecast for /).map((node) => node.textContent);
+    expect(titles).toEqual(['Forecast for 2026-12', 'Forecast for 2026-09', 'Forecast for Q3 2026']);
+    expect(screen.queryByText(/Q3 2024|Q4 2024|2026-08/)).not.toBeInTheDocument();
+  });
+
+  it('says what the overspending risk measures instead of calling the organization overspending', async () => {
+    financeMocks.getForecasts.mockResolvedValue({ data: [{
+      id: 1, forecast_period: '2026-12', predicted_income: 1000, predicted_expense: 950, predicted_balance: 50, safe_spending_limit: 40,
+      model_details: { sample_months: 6, risk: 'overspending', income: { r_squared: 0.9 }, expense: { r_squared: 0.9 } },
+    }] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText('Spending may outrun income')).toBeInTheDocument();
+    expect(screen.queryByText('Overspending')).not.toBeInTheDocument();
   });
 
   it('shows no balance, safe spend or risk for a forecast that has no ledger history behind it', async () => {
@@ -843,6 +883,7 @@ describe('FinancePage forecast delete and approved budgets', () => {
   const forecast = { id: 9, forecast_period: '2026-11', predicted_income: 5000, predicted_expense: 3000, predicted_balance: 2000, safe_spending_limit: 1600, model_details: { sample_months: 6, engine: 'python-fastapi', income: { r_squared: 0.95 }, expense: { r_squared: 0.9 } } };
 
   beforeEach(() => {
+    pinToday();
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
@@ -903,6 +944,7 @@ describe('FinancePage forecast delete and approved budgets', () => {
 
 describe('FinancePage finance AI results', () => {
   beforeEach(() => {
+    pinToday();
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
@@ -925,7 +967,7 @@ describe('FinancePage finance AI results', () => {
 
     expect(await screen.findByText('Expenses')).toBeInTheDocument();
     expect(screen.getByText('₱8,000.00')).toBeInTheDocument();
-    expect(screen.getByText('Approved budgets')).toBeInTheDocument();
+    expect(screen.getByText('Left in approved budgets')).toBeInTheDocument();
     expect(screen.getByText('₱50,000.00')).toBeInTheDocument();
   });
 
@@ -1199,6 +1241,27 @@ describe('FinancePage plain ledger rows and page-level states', () => {
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+  });
+
+  it.each([
+    ['budgets', /No budgets yet/],
+    ['forecasting', /No forecasts yet/],
+    ['reports', /No saved reports/],
+    ['receipts', /No receipts/],
+    ['invoices', /No invoices/],
+    ['transactions', /No transactions/],
+  ])('says the data did not load, and not that the %s tab is empty, when the load fails', async (tab, emptyText) => {
+    financeMocks.getBudgets.mockRejectedValue(new Error('down'));
+    financeMocks.getForecasts.mockRejectedValue(new Error('down'));
+    financeMocks.getFinancialReports.mockRejectedValue(new Error('down'));
+    financeMocks.getTransactions.mockRejectedValue(new Error('down'));
+    financeMocks.getPersonalReceipts.mockRejectedValue(new Error('down'));
+    financeMocks.getInvoices.mockRejectedValue(new Error('down'));
+
+    render(<FinancePage initialTab={tab} />);
+
+    expect(await screen.findByText('Financial data did not load')).toBeInTheDocument();
+    expect(screen.queryByText(emptyText)).not.toBeInTheDocument();
   });
 
   it('leaves out a payer, a recorder and a reference the system already shows in the description', async () => {

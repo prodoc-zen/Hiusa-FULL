@@ -104,6 +104,8 @@ export default function ChatMessage({
   // The card already says it once: the result of a done card, or the sentence a failed card was closed with.
   const resultShown = Boolean(action?.result?.message)
     && (action.status === 'done' || (action.status === 'failed' && action.result.message === message.content));
+  // A plain sentence from the server naming where the answer came from; anything else is ignored.
+  const sources = typeof payload?.sources === 'string' ? payload.sources.trim() : '';
   const stopped = message.status === 'stopped';
   const failed = message.status === 'failed';
   const stored = typeof message.id === 'number' || (typeof message.id === 'string' && message.id !== '');
@@ -134,6 +136,7 @@ export default function ChatMessage({
         />
       )}
       {payload?.notice && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{payload.notice}</p>}
+      {!streaming && sources && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{sources}</p>}
       {stopped && <p className="mt-2 text-xs font-medium text-ink-muted-strong">You stopped this answer.</p>}
       {failed && <p className="mt-2 text-xs font-medium text-danger-strong">This answer did not finish.</p>}
       {!streaming && (

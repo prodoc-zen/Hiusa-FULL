@@ -166,6 +166,16 @@ function readStudentCart() {
   }
 }
 
+// The server says whether the person holds a profile in a student organization; the college profile alone never tells.
+// A payload without the field is treated as "in an organization".
+function belongsOnlyToCollege() {
+  try {
+    return JSON.parse(localStorage.getItem("user"))?.in_student_organization === false;
+  } catch {
+    return false;
+  }
+}
+
 function getRole() {
   try {
     return JSON.parse(localStorage.getItem("user"))?.role || null;
@@ -1002,6 +1012,11 @@ export default function MerchandisePage({ initialTab }) {
     );
     return () => clearTimeout(timeoutId);
   }, [feedback.open]);
+
+  // The added-to-cart notice would sit over the top of the reservation dialog.
+  useEffect(() => {
+    if (checkoutOpen) setFeedback((prev) => (prev.open ? { ...prev, open: false } : prev));
+  }, [checkoutOpen]);
 
   function showFeedback(type, message) {
     setFeedback({ open: true, type, message });
@@ -1949,7 +1964,8 @@ export default function MerchandisePage({ initialTab }) {
     if (order.status === "pending" && props.tone === "action") {
       return {
         ...next,
-        primary: gcashReady
+        // A cash order is paid at pickup, so GCash proof stays a secondary button on the order card.
+        primary: gcashReady && order.payment_method === "gcash"
           ? { label: "Submit GCash proof", onClick: () => openProofModal(order) }
           : reserved ? { label: "View order", onClick: () => openOrderDetails(order) } : undefined,
       };
@@ -2105,7 +2121,7 @@ export default function MerchandisePage({ initialTab }) {
                 <EmptyState
                   icon={Package}
                   title="Nothing to buy yet"
-                  description="Your officers add merchandise here."
+                  description={belongsOnlyToCollege() ? "Join an organization to see its shop." : "Merchandise shows here once your organization adds it."}
                 />
               )
             ) : (

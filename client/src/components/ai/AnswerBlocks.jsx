@@ -48,6 +48,7 @@ function sentenceCase(value) {
       const letters = word.replace(/[^A-Za-z]/g, '');
       if (letters.length > 1 && letters === letters.toUpperCase()) return word;
       if (/[a-z][A-Z]/.test(word)) return word;
+      if (word === 'I' || /^I'/.test(word)) return word;
       return word.charAt(0).toLowerCase() + word.slice(1);
     })
     .join(' ');

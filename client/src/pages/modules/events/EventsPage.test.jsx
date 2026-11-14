@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import EventsPage from './EventsPage';
 import { searchPeople } from '../../../services/peopleService';
+import { getTasks } from '../../../services/taskService';
 
 vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
 
@@ -165,6 +166,19 @@ describe('EventsPage approval-request launch', () => {
     expect((await row('Food fund')).queryByText(/Waiting for/)).not.toBeInTheDocument();
   });
 
+  it('shows a blocked event task as a badge that names the task it waits on', async () => {
+    const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00Z', end_time: '2026-10-10T12:00:00Z', location: 'Main Hall' };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    getTasks.mockResolvedValueOnce({ data: { data: [
+      { id: 1, event_id: 9, title: 'Settle expenses', status: 'pending', workflow_status: 'blocked', dependency: { id: 2, title: 'Run the event' }, deadline: '2026-10-12T08:00:00Z', event },
+    ], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/event-planner']}><EventsPage initialTab="tasks" /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Waiting on Run the event')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Blocked')).not.toBeInTheDocument();
+  });
+
   it('shows a readable AI-created to-do list without raw API dates or technical labels', async () => {
     const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00.000000Z', end_time: '2026-10-10T12:00:00.000000Z', location: 'Main Hall' };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
@@ -208,6 +222,8 @@ describe('EventsPage approval-request launch', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
 
     expect(await screen.findByText('1 suggested to-do item')).toBeInTheDocument();
+    expect(screen.queryByText('Why Alex Santos was suggested')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
     expect(screen.getByText('Why Alex Santos was suggested')).toBeInTheDocument();
     expect(screen.getByLabelText('Task 1 deadline')).not.toHaveValue(expect.stringContaining('Z'));
     expect(document.body.textContent).not.toContain('000000Z');
@@ -215,8 +231,17 @@ describe('EventsPage approval-request launch', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to-do' }));
     expect(screen.getByLabelText('Task 2 officer')).toHaveValue('');
+    expect(screen.getByLabelText('Task 2 title')).toHaveValue('');
     expect(screen.getByText('Review eligible officers, then choose the final assignee.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeDisabled();
+    expect(screen.getByText('Choose an officer for each to-do before saving.')).toBeInTheDocument();
+    // Each to-do opens to its inputs; the rest of them sit under one more toggle.
+    const more = screen.getAllByText(/^More options/);
+    expect(more).toHaveLength(2);
+    expect(more[0].closest('details')).not.toHaveAttribute('open');
+    expect(more[0].closest('details')).toContainElement(screen.getByLabelText('Task 1 priority'));
+    expect(more[0].closest('details')).not.toContainElement(screen.getByLabelText('Task 1 officer'));
+    expect(screen.getByText(/^Show the plan outline/).closest('details')).not.toHaveAttribute('open');
   });
 
   it('shows a retryable error above check-in when the member roster fails to load', async () => {
@@ -514,9 +539,11 @@ describe('EventsPage walkthrough fixes', () => {
 
       expect(screen.getByLabelText('SAO venue')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      expect(screen.getByText('Add where the event will be held to send the proposal.')).toBeInTheDocument();
       await screen.findByRole('option', { name: 'Audio-Visual Room' });
       fireEvent.change(screen.getByLabelText('SAO venue'), { target: { value: '3' } });
       expect(screen.getByRole('button', { name: 'Send proposal' })).toBeEnabled();
+      expect(screen.queryByText(/^Add .* to send the proposal\.$/)).not.toBeInTheDocument();
 
       fireEvent.change(screen.getByLabelText(/^Venue type/), { target: { value: 'off_campus' } });
       expect(screen.getByLabelText('Off-campus location')).toBeInTheDocument();
@@ -610,8 +637,36 @@ describe('EventsPage walkthrough fixes', () => {
       await screen.findByText('1 suggested to-do item');
     };
 
+    it('shows each to-do as one summary row and renders its inputs only once Edit is opened', async () => {
+      await openDraft(draft());
+
+      expect(screen.getByText('Prepare the venue')).toBeInTheDocument();
+      expect(screen.getByText('Alex Santos')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Task 1 title')).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Task name' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Review officers' })).not.toBeInTheDocument();
+      // An assigned to-do needs no select on the row.
+      expect(screen.queryByLabelText('Task 1 officer')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
+
+      expect(screen.getByLabelText('Task 1 title')).toHaveValue('Prepare the venue');
+      expect(screen.getByRole('button', { name: 'Review officers' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close editing to-do 1' })).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('keeps the officer pick on the row while a to-do has no officer', async () => {
+      await openDraft(draft({ assigned_to: null }));
+
+      expect(screen.getByLabelText('Task 1 officer')).toHaveValue('');
+      expect(screen.queryByLabelText('Task 1 title')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Task 1 officer'), { target: { value: '900007' } });
+      expect(screen.queryByLabelText('Task 1 officer')).not.toBeInTheDocument();
+      expect(screen.getByText('Alex Santos')).toBeInTheDocument();
+    });
+
     it('keeps the chosen officer when the task name is edited', async () => {
       await openDraft(draft());
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       fireEvent.change(screen.getByLabelText('Task 1 title'), { target: { value: 'Prepare the venue and stage' } });
 
       expect(screen.getByLabelText('Task 1 officer')).toHaveValue('900007');
@@ -620,6 +675,7 @@ describe('EventsPage walkthrough fixes', () => {
 
     it('says why when no officer is eligible instead of leaving an empty list', async () => {
       await openDraft(draft({ assigned_to: null, recommendation: { rankings: [] } }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       taskMocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [] } } });
       fireEvent.click(screen.getByRole('button', { name: 'Review officers' }));
 
@@ -644,6 +700,7 @@ describe('EventsPage walkthrough fixes', () => {
       fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
       fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
       await screen.findByText('2 suggested to-do items');
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 2' }));
       expect(screen.getByLabelText('Task 2 dependency')).toHaveValue('confirm-plan');
       fireEvent.click(screen.getByRole('button', { name: 'Delete to-do 1' }));
 
@@ -657,6 +714,7 @@ describe('EventsPage walkthrough fixes', () => {
       const response = draft();
       response.data.allowed_positions = ['Secretary', 'Treasurer'];
       await openDraft(response);
+      fireEvent.click(screen.getByRole('button', { name: 'Edit to-do 1' }));
       const select = screen.getByLabelText('Task 1 recommended role');
 
       expect(select.tagName).toBe('SELECT');

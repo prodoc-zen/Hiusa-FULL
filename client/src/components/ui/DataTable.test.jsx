@@ -159,6 +159,16 @@ describe('DataTable', () => {
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
   });
 
+  it('lines a card label up with the first line of its value, text or badge alike', () => {
+    render(<DataTable columns={COLUMNS} rows={ROWS} />);
+    const list = document.querySelector('[data-view="cards"] dl');
+    const pair = list.querySelector(':scope > div');
+    expect(pair.className).toContain('items-baseline');
+    expect(pair.className).not.toMatch(/items-(start|center)/);
+    expect(list.className).toContain('items-baseline');
+    expect(list.className).not.toContain('items-center');
+  });
+
   it('shows a table-shaped, non-shimmering skeleton while loading', () => {
     render(<DataTable columns={COLUMNS} rows={ROWS} loading />);
     const skeleton = screen.getByRole('status', { name: 'Loading table' });

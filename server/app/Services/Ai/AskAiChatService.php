@@ -56,11 +56,17 @@ class AskAiChatService
         'tasks_workload' => 'tasks and workload',
         'finance_health' => 'finance',
         'merchandise_orders' => 'merchandise orders',
+        'merchandise_stock' => 'merchandise stock',
         'events_attendance' => 'events and attendance',
+        'event_readiness' => 'whether an event is ready',
         'clearances_status' => 'clearances',
         'elections_status' => 'elections',
         'grievances_status' => 'grievances',
         'how_to_guide' => 'how to do something in HIUSA',
+        'unclaimed_students' => 'students who have not signed up',
+        'my_attendance' => 'your attendance',
+        'claim_token' => 'your claim token',
+        'glossary' => 'what a word means',
     ];
 
     public function __construct(
@@ -392,7 +398,8 @@ class AskAiChatService
         $memories = AiMemory::ownedBy($user)->orderBy('id')->limit(AiMemory::LIMIT)->pluck('content')->all();
         $facts = $this->facts($user, $question, $intent, $payloadBase, $det, $memories);
         $deterministicText = trim(AnswerMarkdown::sanitize(AnswerMarkdown::escape((string) $det['answer']), $linkCheck));
-        $allowedModel = $this->askAi->canAsk($user, $intent);
+        // An answer that matched nothing has no records behind it for a writer to put into words.
+        $allowedModel = $this->askAi->canAsk($user, $intent) && empty($det['no_answer']);
 
         $messages = $this->modelMessages($history, $facts, $question);
         // Numbers may come from the facts built for this question, which carry the question itself, and nowhere else:
@@ -551,7 +558,10 @@ class AskAiChatService
 
         $modelText = $result === null ? '' : trim(AnswerMarkdown::sanitize($raw === '' ? (string) $result['text'] : $raw, $linkCheck));
         if ($result === null || $modelText === '') {
-            $why = $allowedModel ? 'provider' : (isset($det['rag_metadata']) ? null : 'refused');
+            // Without a key nothing failed: the answer was never going to be written by a model.
+            $why = $allowedModel
+                ? ($this->writerConfigured() ? 'provider' : 'no_key')
+                : (! empty($det['no_answer']) ? 'no_match' : (isset($det['rag_metadata']) ? null : 'refused'));
             $notice = null;
             if ($released !== '') {
                 $notice = $why === 'provider' ? self::PROVIDER_NOTICE : null;
@@ -601,6 +611,12 @@ class AskAiChatService
         return implode("\n", $kept);
     }
 
+    /** Whether a writing service has a key at all; without one the records answer is the normal path, not a fallback. */
+    private function writerConfigured(): bool
+    {
+        return trim((string) config('services.anthropic.key')) !== '' || trim((string) config('services.groq.key')) !== '';
+    }
+
     protected function answerSeconds(): int
     {
         return FallbackTextGenerator::chatDeadlineSeconds();
@@ -634,10 +650,13 @@ class AskAiChatService
         $steps = $this->steps($intent, $det);
         if ($why === 'refused') {
             $steps = [$steps[0], 'This is outside what your account can open, so no records were read'];
+        } elseif ($why === 'no_match') {
+            $steps = ['Could not match your question to anything I can answer', 'No records were used for this answer'];
         } else {
             $steps[] = match ($why) {
                 'guard' => 'Found a figure that did not match your records, so used the verified summary instead',
                 'provider' => 'The writing service did not finish, so this is the summary from your records',
+                'no_key' => 'Answered directly from your records. No AI writer was used.',
                 default => 'Wrote the answer directly from your records',
             };
         }
@@ -657,6 +676,7 @@ class AskAiChatService
             'charts' => $payloadBase['charts'] ?? [],
             'recommended_action' => $payloadBase['formatted_blocks']['recommended_action'] ?? null,
             'follow_ups' => $payloadBase['follow_ups'] ?? [],
+            'sources' => $payloadBase['sources'] ?? $this->askAi->sourcesFor($user, $intent, $payloadBase),
             'reasoning' => $reasoning,
             'notice' => $notice,
         ];

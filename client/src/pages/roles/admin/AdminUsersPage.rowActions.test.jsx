@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getUsers: vi.fn(),
   updateUser: vi.fn(),
   disableUser: vi.fn(),
+  accessPanel: vi.fn(),
 }));
 
 vi.mock('../../../services/userService', () => ({
@@ -20,7 +21,7 @@ vi.mock('../../../services/userService', () => ({
 }));
 vi.mock('../../../services/authService', () => ({ getProfileOrganizations: vi.fn(), inviteAccountProfile: vi.fn() }));
 vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
-vi.mock('../../../components/org/OrgAccessPanel', () => ({ default: () => null }));
+vi.mock('../../../components/org/OrgAccessPanel', () => ({ default: (props) => { mocks.accessPanel(props); return null; } }));
 vi.mock('../../../services/financeService', () => ({ getStudentDebts: vi.fn() }));
 vi.mock('../../../hooks/useFingerprintReader', () => ({ useFingerprintReader: () => ({ connected: false, scanning: false, mock: false, error: null, retry: vi.fn() }) }));
 
@@ -69,6 +70,13 @@ describe('AdminUsersPage row actions and empty values', () => {
 
     expect(await screen.findByText('Administrator accounts are managed only from SAO Administration.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Deactivate user' })).not.toBeInTheDocument());
+  });
+
+  it('asks the People and access list for four people at a time so the page stays short', async () => {
+    render(<AdminUsersPage />);
+    await screen.findAllByText('Ben Cruz');
+
+    expect(mocks.accessPanel).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 8, pageSize: 4 }));
   });
 
   it('leaves the Program label off a phone card that has nothing to show under it', async () => {

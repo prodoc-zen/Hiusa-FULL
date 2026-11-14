@@ -34,6 +34,7 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
+import { formatSchedule } from './votingPeriod';
 
 const statusTones = {
   pending_approval: 'warning',
@@ -85,13 +86,6 @@ const blankElection = () => ({
   rules: '', tie_break_rule: '', min_units: '10', min_gpa: '',
   positions: [blankPosition()],
 });
-
-function formatDateTime(value) {
-  if (!value) return 'Not scheduled';
-  return new Date(value).toLocaleString('en-PH', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
-}
 
 function getVotingPeriodError(startTime, endTime) {
   if (!startTime || !endTime) return 'Set both the voting start and end time.';
@@ -724,15 +718,14 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       header: 'Voting period',
       render: (election) => (
         <div className="text-left text-xs text-ink-muted-strong">
-          <p>{formatDateTime(election.start_time)}</p>
-          <p>{formatDateTime(election.end_time)}</p>
+          <p>{election.start_time && election.end_time ? formatSchedule(election.start_time, election.end_time) : 'Not scheduled'}</p>
           <p>{election.room || 'Online ballot'}</p>
         </div>
       ),
     },
   ];
   const countColumns = {
-    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
+    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? election.positions?.length ?? 0 },
     candidates_count: { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
     votes_count: { key: 'votes_count', header: 'Ballots', align: 'right', render: (election) => election.voters_count ?? 0 },
   };

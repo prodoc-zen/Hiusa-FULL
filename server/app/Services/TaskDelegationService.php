@@ -222,7 +222,7 @@ class TaskDelegationService
             ->map(function (AccountProfile $profile) {
                 $profile->user->activateProfile($profile);
 
-                return $profile->user;
+                return $profile->user->listAmongOthers();
             })
             ->values();
     }
@@ -369,6 +369,20 @@ class TaskDelegationService
         return self::TIER_PHRASE[$tier] ?? $tier;
     }
 
+    private function openTasksPhrase(int $openTasks, int $limit): string
+    {
+        return sprintf('%d open task%s, up to %d allowed', $openTasks, $openTasks === 1 ? '' : 's', $limit);
+    }
+
+    private function lastAssignedPhrase(?int $days): string
+    {
+        return match (true) {
+            $days === null => 'never assigned a task here',
+            $days === 0 => 'last assigned today',
+            default => sprintf('last assigned %d day%s ago', $days, $days === 1 ? '' : 's'),
+        };
+    }
+
     /** The sentence ai-service/app/engines/task_delegation.py builds for a ranking row. */
     public function explanation(array $ranking, string $area, bool $hasHistory): string
     {
@@ -376,7 +390,7 @@ class TaskDelegationService
         $days = $ranking['days_since_last_assignment'] ?? null;
 
         return sprintf(
-            "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), past performance %.2f%s, and assignment recency %.2f (%s).",
+            "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%s), past performance %.2f%s, and assignment recency %.2f (%s).",
             $ranking['name'],
             $ranking['final_score'],
             $area,
@@ -384,12 +398,11 @@ class TaskDelegationService
             $this->tierPhrase($ranking['position_tier']),
             $ranking['role_score'],
             $ranking['workload_score'],
-            $ranking['active_tasks'],
-            $ranking['max_active_tasks'],
+            $this->openTasksPhrase((int) $ranking['active_tasks'], (int) $ranking['max_active_tasks']),
             $ranking['performance_score'],
-            $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE),
+            $hasHistory ? '' : sprintf(' (no task history yet, so a starting score of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE),
             $ranking['recency_score'],
-            $days === null ? 'never assigned a task here' : sprintf('last assigned %d day(s) ago', $days)
+            $this->lastAssignedPhrase($days === null ? null : (int) $days)
         );
     }
 }
