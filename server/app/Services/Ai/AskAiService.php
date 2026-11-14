@@ -145,7 +145,7 @@ class AskAiService
         ));
 
         $lines = array_map(fn (array $q) => '- **'.$q['label'].'**: '.$q['description'], $prompts);
-        $answer = "I can read the records your account can already open and put them in plain words. As ".$this->roleName($user->role)." for ".$this->scopeLabel($user).", you can ask me things like:\n\n"
+        $answer = 'I can read the records your account can already open and put them in plain words. As '.$this->roleName($user->role).' for '.$this->scopeLabel($user).", you can ask me things like:\n\n"
             .implode("\n", $lines)
             ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I only read: I never approve, assign or publish anything for you.";
 
