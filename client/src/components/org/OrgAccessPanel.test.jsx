@@ -260,6 +260,32 @@ describe('OrgAccessPanel', () => {
     expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toBeEnabled();
   });
 
+  it('shows the dean why the last profile cannot be deleted as a visible line, with one id per layout', async () => {
+    renderPanel();
+    await seen('Ana Reyes');
+
+    const buttons = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' });
+    expect(buttons.length).toBeGreaterThan(1);
+    const ids = buttons.map((button) => button.getAttribute('aria-describedby'));
+    expect(new Set(ids).size).toBe(ids.length);
+    buttons.forEach((button, index) => {
+      const line = document.getElementById(ids[index]);
+      expect(line).toHaveTextContent('Ask the SAO to remove the account');
+      expect(line).not.toHaveClass('sr-only');
+      expect(line.className).toMatch(/text-(xs|\[12px\]|\[13px\])/);
+      expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account');
+    });
+    // Every dean-blocked row in every layout has its own line: two people, table and cards.
+    expect(screen.getAllByText('Ask the SAO to remove the account')).toHaveLength(4);
+  });
+
+  it('adds no helper line when the person keeps another profile or the actor is not a dean', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
+    await seen('Ana Reyes');
+
+    expect(screen.queryByText('Ask the SAO to remove the account')).not.toBeInTheDocument();
+  });
+
   it('names the organization on Remove when the person keeps another profile, and says Delete account on their last one', async () => {
     renderPanel({ actorRole: 'ADMIN' });
     await seen('Maria Santos');

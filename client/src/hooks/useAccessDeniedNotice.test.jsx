@@ -82,6 +82,14 @@ describe('useAccessDeniedNotice', () => {
     expect(mocks.info).toHaveBeenCalledWith('You do not have access to that page.');
   });
 
+  it('gives the plain notice, never a Switch, when no role can open the page (office staff sent home by their menu)', async () => {
+    mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [profile(1, 'ADMIN', 'College of Computing'), profile(2, 'ADMIN', 'Arts Guild')] } });
+    renderDenied({ path: '/dashboard/finance/financial-ledger', allowedRoles: [] });
+
+    await waitFor(() => expect(mocks.info).toHaveBeenCalledWith('You do not have access to that page.'));
+    expect(mocks.info).toHaveBeenCalledTimes(1);
+  });
+
   it('gives the plain notice when they own no profile that can open it', async () => {
     mocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [profile(1, 'STUDENT', 'College of Computing')] } });
     renderDenied();

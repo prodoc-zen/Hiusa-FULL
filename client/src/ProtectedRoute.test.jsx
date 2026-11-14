@@ -150,6 +150,22 @@ describe('ProtectedRoute office staff guard', () => {
     expect(screen.getByText('at /dashboard/admin')).toBeInTheDocument();
   });
 
+  it('tells the home page which page was refused, with no role that could open it, so no Switch is offered', () => {
+    signIn(officeStaff);
+    render(
+      <MemoryRouter initialEntries={['/dashboard/finance/financial-ledger?x=1']}>
+        <Routes>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard/finance/financial-ledger" element={<p>Ledger</p>} />
+          </Route>
+          <Route path="/dashboard/admin" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Ledger')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/finance/financial-ledger?x=1","allowedRoles":[]}}');
+  });
+
   it('lets office staff open every page their menu offers, and the account page', () => {
     const paths = [...getNavLeaves('OFFICE_STAFF').map((item) => item.path), ...footerNav.map((item) => item.path)];
     expect(paths.length).toBeGreaterThan(5);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import PaginationControls from '../PaginationControls';
@@ -13,6 +13,40 @@ import { ACCESS_LEVELS, grantableLevels, modulesLabel } from './orgAccess';
 const PER_PAGE = 20;
 // The server refuses a dean who removes the last profile of an account (AccountProfileDeletionService), so the button says so up front.
 const DEAN_LAST_PROFILE_REASON = 'Ask the SAO to remove the account';
+
+// A component, not inline markup, so each rendering of the row (table and card layouts both render) gets its own id for the reason.
+// Removing a person's last profile deletes the whole account, so the button says so.
+function PersonActions({ row, actorRole, onChange, onRemove }) {
+  const reasonId = useId();
+  const name = `${row.first_name} ${row.last_name}`;
+  const isLastProfile = !(row.profiles_count > 1);
+  const organizationName = row.organization?.name || 'this organization';
+  const blocked = Boolean(row.deletion_block_reason);
+  const deanAtLastProfile = isLastProfile && actorRole === 'DEPARTMENT_HEAD';
+  const removalBlocked = blocked || deanAtLastProfile;
+  const removalReason = row.deletion_block_reason || (deanAtLastProfile ? DEAN_LAST_PROFILE_REASON : null);
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" disabled={blocked} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${name}`} onClick={onChange}>Change</Button>
+        <Button
+          variant={isLastProfile ? 'danger' : 'secondary'}
+          size="sm"
+          className="max-w-48 [&>span]:min-w-0 [&>span]:max-w-full"
+          disabled={removalBlocked}
+          title={removalReason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
+          aria-describedby={deanAtLastProfile ? reasonId : undefined}
+          aria-label={isLastProfile ? `Delete account for ${name}` : `Remove ${name} from ${organizationName}`}
+          onClick={onRemove}
+        >
+          <span className="truncate">{isLastProfile ? 'Delete account' : `Remove from ${organizationName}`}</span>
+        </Button>
+      </div>
+      {deanAtLastProfile && <p id={reasonId} className="text-xs font-normal text-ink-muted">{DEAN_LAST_PROFILE_REASON}</p>}
+    </div>
+  );
+}
 
 export default function OrgAccessPanel({ organizationId, actorRole }) {
   const canGrant = grantableLevels(actorRole).length > 0;
@@ -93,36 +127,9 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
     { key: 'modules', header: 'Can open', render: (row) => <span className="text-xs font-normal text-ink-muted">{modulesLabel(row)}</span> },
   ];
 
-  // Removing a person's last profile deletes the whole account, so the button says so.
-  const actions = canGrant ? (row) => {
-    const name = `${row.first_name} ${row.last_name}`;
-    const isLastProfile = !(row.profiles_count > 1);
-    const organizationName = row.organization?.name || 'this organization';
-    const blocked = Boolean(row.deletion_block_reason);
-    const deanAtLastProfile = isLastProfile && actorRole === 'DEPARTMENT_HEAD';
-    const removalBlocked = blocked || deanAtLastProfile;
-    const removalReason = row.deletion_block_reason || (deanAtLastProfile ? DEAN_LAST_PROFILE_REASON : null);
-    const reasonId = `remove-reason-${row.id}`;
-
-    return (
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" disabled={blocked} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${name}`} onClick={() => setEditing(row)}>Change</Button>
-        <Button
-          variant={isLastProfile ? 'danger' : 'secondary'}
-          size="sm"
-          className="max-w-48 [&>span]:min-w-0 [&>span]:max-w-full"
-          disabled={removalBlocked}
-          title={removalReason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
-          aria-describedby={deanAtLastProfile ? reasonId : undefined}
-          aria-label={isLastProfile ? `Delete account for ${name}` : `Remove ${name} from ${organizationName}`}
-          onClick={() => { setRemoveError(''); setRemoving(row); }}
-        >
-          <span className="truncate">{isLastProfile ? 'Delete account' : `Remove from ${organizationName}`}</span>
-        </Button>
-        {deanAtLastProfile && <span id={reasonId} className="sr-only">{DEAN_LAST_PROFILE_REASON}</span>}
-      </div>
-    );
-  } : undefined;
+  const actions = canGrant ? (row) => (
+    <PersonActions row={row} actorRole={actorRole} onChange={() => setEditing(row)} onRemove={() => { setRemoveError(''); setRemoving(row); }} />
+  ) : undefined;
 
   const removingLastProfile = Boolean(removing) && !(removing.profiles_count > 1);
   const filtersActive = Boolean(term);
