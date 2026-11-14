@@ -113,12 +113,49 @@ class AskAiActionsTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
 
-        $this->assertSame(['title' => 'Foundation Day'], array_filter($this->values($this->ask('i wanna make an event named Foundation Day on friday'))));
+        $this->assertSame('Foundation Day', $this->values($this->ask('i wanna make an event named Foundation Day on friday'))['title']);
 
         foreach (['how do i create an event?', 'What is an event?', 'can i create an event?', 'paano mag create ng event', 'show me my events'] as $question) {
             $this->assertArrayNotHasKey('action', $this->ask($question)['payload'] ?? [], $question);
         }
         $this->assertSame(0, Event::count());
+    }
+
+    public function test_a_task_due_a_weekday_gets_that_date_in_manila_and_a_day_name_in_a_title_is_not_a_date(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $this->travelTo(Carbon::parse('2026-11-18 10:00', 'Asia/Manila'));
+
+        $this->assertSame('2026-11-23', $this->values($this->ask('Create a task for the poster design due Monday'))['deadline']);
+        $this->assertSame('Poster design', $this->values($this->ask('Create a task for the poster design due Monday'))['title']);
+        $this->assertSame('2026-11-18', $this->values($this->ask('create a task Prepare minutes due today'))['deadline']);
+        $this->assertSame('2026-11-19', $this->values($this->ask('create a task Prepare minutes due tomorrow'))['deadline']);
+        $this->assertSame('2026-11-27', $this->values($this->ask('create a task Prepare minutes due next Friday'))['deadline']);
+        $this->assertSame('2026-11-18', $this->values($this->ask('create a task Prepare minutes by Wednesday'))['deadline']);
+        $this->assertNull($this->values($this->ask('create a task called Monday cleanup'))['deadline']);
+    }
+
+    public function test_an_event_on_a_weekday_gets_a_start_and_end_and_a_title_from_the_words_after_for(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $this->travelTo(Carbon::parse('2026-11-18 10:00', 'Asia/Manila'));
+
+        $values = $this->values($this->ask('Create an event for the talent show on Friday'));
+        $this->assertSame('Talent show', $values['title']);
+        $this->assertSame('2026-11-20T09:00', $values['start_time']);
+        $this->assertSame('2026-11-20T10:00', $values['end_time']);
+
+        $timed = $this->values($this->ask('Create an event for the talent show on Friday at 3pm'));
+        $this->assertSame('2026-11-20T15:00', $timed['start_time']);
+        $this->assertSame('2026-11-20T16:00', $timed['end_time']);
+
+        // Today counts only while the start is still ahead.
+        $this->assertSame('2026-11-18T15:00', $this->values($this->ask('Create an event for the talent show on Wednesday at 3pm'))['start_time']);
+        $this->assertSame('2026-11-25T09:00', $this->values($this->ask('Create an event for the talent show on Wednesday'))['start_time']);
+        $this->assertSame('2026-11-19T09:00', $this->values($this->ask('Create an event for the talent show tomorrow'))['start_time']);
+        $this->assertSame('2026-11-27T09:00', $this->values($this->ask('Create an event for the talent show next Friday'))['start_time']);
+        $this->assertNull($this->values($this->ask('Create an event named Monday Mixer'))['start_time']);
+        $this->assertSame('2026-12-01T09:00', $this->values($this->ask('Create an event named Monday Mixer on 2026-12-01 09:00'))['start_time']);
     }
 
     public function test_a_statement_that_asks_for_information_is_answered_not_turned_into_a_card(): void
@@ -308,7 +345,7 @@ class AskAiActionsTest extends TestCase
         $this->model(['title' => str_repeat('x', 300), 'description' => ['not', 'text'], 'deadline' => 'next friday', 'assigned_to' => '999999']);
         Sanctum::actingAs($this->admin($org));
 
-        $message = $this->ask('create a task for next friday');
+        $message = $this->ask('create a task for someone');
 
         $this->assertSame(['title' => null, 'description' => null, 'deadline' => null, 'assigned_to' => null], $this->values($message));
 

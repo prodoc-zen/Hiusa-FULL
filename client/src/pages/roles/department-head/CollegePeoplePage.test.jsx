@@ -58,6 +58,22 @@ describe('College people page', () => {
     expect(screen.queryByRole('button', { name: 'Add staff' })).not.toBeInTheDocument();
   });
 
+  it('opens on Not signed up when the link says so, and ignores a value it does not know', async () => {
+    render(<MemoryRouter initialEntries={['/dashboard/department-head/people?show=not_signed_up']}><CollegePeoplePage /></MemoryRouter>);
+    expect(await screen.findByRole('combobox', { name: 'Show' })).toHaveValue('not_signed_up');
+    expect(people.getCollegePeople).toHaveBeenCalledWith(expect.objectContaining({ tab: 'students', show: 'not_signed_up' }));
+  });
+
+  it('treats an unknown show value as all students and keeps the control in the address', async () => {
+    render(<MemoryRouter initialEntries={['/dashboard/department-head/people?show=everyone']}><CollegePeoplePage /></MemoryRouter>);
+    const select = await screen.findByRole('combobox', { name: 'Show' });
+    expect(select).toHaveValue('all');
+    expect(people.getCollegePeople).toHaveBeenCalledWith(expect.objectContaining({ show: undefined }));
+    fireEvent.change(select, { target: { value: 'signed_up' } });
+    await waitFor(() => expect(people.getCollegePeople).toHaveBeenLastCalledWith(expect.objectContaining({ show: 'signed_up' })));
+    expect(screen.getByRole('combobox', { name: 'Show' })).toHaveValue('signed_up');
+  });
+
   it('shows loading, then an error with a working retry', async () => {
     people.getCollegePeople.mockRejectedValueOnce({ response: { data: { message: 'Server is busy.' } } });
     renderPage();

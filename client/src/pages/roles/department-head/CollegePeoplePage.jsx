@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Upload, UserPlus } from 'lucide-react';
 import { Button, DataTable, Drawer, EmptyState, Input, PageHeader, Select, StatusBadge, Tabs } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -93,7 +94,10 @@ export default function CollegePeoplePage() {
   const [reload, setReload] = useState(0);
   const [state, setState] = useState({ tab: 'students', loading: true, error: '', rows: [], meta: { total: 0, perPage: PAGE_SIZE } });
   const [inviting, setInviting] = useState(false);
-  const [show, setShow] = useState('all');
+  const [params, setParams] = useSearchParams();
+  // The sign-up filter lives in the address, so a link such as ?show=not_signed_up opens on it. Anything else means all.
+  const requested = params.get('show');
+  const show = SHOW_OPTIONS.some((option) => option.value === requested) ? requested : 'all';
   const [uploading, setUploading] = useState(false);
   const [granting, setGranting] = useState(false);
   const [removing, setRemoving] = useState(null);
@@ -115,6 +119,15 @@ export default function CollegePeoplePage() {
       .catch((cause) => { if (current) setState({ tab, loading: false, error: getApiErrorMessage(cause, 'Could not load this list.'), rows: [], meta: { total: 0, perPage: PAGE_SIZE } }); });
     return () => { current = false; };
   }, [tab, query, show, page, reload]);
+
+  function setShow(next) {
+    setParams((current) => {
+      const updated = new URLSearchParams(current);
+      if (next === 'all') updated.delete('show');
+      else updated.set('show', next);
+      return updated;
+    }, { replace: true });
+  }
 
   function recordsSaved() {
     setShow('all');
