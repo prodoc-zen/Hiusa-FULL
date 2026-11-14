@@ -110,7 +110,7 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
         <Button
           variant={isLastProfile ? 'danger' : 'secondary'}
           size="sm"
-          className="max-w-48"
+          className="max-w-48 [&>span]:min-w-0 [&>span]:max-w-full"
           disabled={removalBlocked}
           title={removalReason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
           aria-describedby={deanAtLastProfile ? reasonId : undefined}
