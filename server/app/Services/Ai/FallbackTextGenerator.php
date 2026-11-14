@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\Log;
  * Logs which provider served, never the prompt or the data in it.
  *
  * generate() and generateStructured() run inside a web request, so both attempts share one deadline. A provider
- * that timed out or could not connect is skipped for services.ai.cooldown_seconds; converse() keeps its own longer
- * timeout but honours the same cooling-off.
+ * that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one longer
+ * deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off.
  */
 class FallbackTextGenerator implements TextGenerator
 {
@@ -23,6 +23,9 @@ class FallbackTextGenerator implements TextGenerator
 
     // Both attempts together; matches the cap each provider applies to a single call.
     private const DEADLINE_SECONDS = 12;
+
+    // Added to the chat timeout for the secondary provider's turn.
+    private const CHAT_MARGIN_SECONDS = 15;
 
     public function __construct(
         private readonly TextGenerator $primary,
@@ -57,6 +60,7 @@ class FallbackTextGenerator implements TextGenerator
             $onEvent($type, $delta);
         };
         $secondaryTurn = false;
+        $chatSeconds = self::chatSeconds();
 
         return $this->serve('converse', function (TextGenerator $generator) use ($instructions, $messages, $maxOutputTokens, $onEvent, $track, &$emitted, &$secondaryTurn) {
             if ($secondaryTurn && $emitted && $onEvent !== null) {
@@ -66,15 +70,26 @@ class FallbackTextGenerator implements TextGenerator
             $secondaryTurn = true;
 
             return $generator->converse($instructions, $messages, $maxOutputTokens, $track);
-        });
+        }, true, $chatSeconds + self::CHAT_MARGIN_SECONDS, $chatSeconds);
+    }
+
+    /** The longest a chat answer may take across both providers: Claude's own timeout plus room for Groq. */
+    public static function chatDeadlineSeconds(): int
+    {
+        return self::chatSeconds() + self::CHAT_MARGIN_SECONDS;
+    }
+
+    private static function chatSeconds(): int
+    {
+        return max(1, min(300, (int) config('services.anthropic.chat_timeout', 60) ?: 60));
     }
 
     /**
      * @param  \Closure(TextGenerator): ?array  $call
      */
-    private function serve(string $operation, \Closure $call, bool $bounded = false): ?array
+    private function serve(string $operation, \Closure $call, bool $bounded = false, int $deadlineSeconds = self::DEADLINE_SECONDS, float $primaryShare = self::DEADLINE_SECONDS * 2 / 3): ?array
     {
-        $deadline = microtime(true) + self::DEADLINE_SECONDS;
+        $deadline = microtime(true) + $deadlineSeconds;
 
         foreach ([[$this->primary, 'primary'], [$this->secondary, 'secondary']] as [$generator, $position]) {
             $name = $this->providerName($generator);
@@ -89,7 +104,7 @@ class FallbackTextGenerator implements TextGenerator
             if ($bounded) {
                 $remaining = $deadline - microtime(true);
                 // The primary may not use the whole deadline, or a hung primary would leave the secondary nothing.
-                $budget = $position === 'primary' ? min($remaining, self::DEADLINE_SECONDS * 2 / 3) : $remaining;
+                $budget = $position === 'primary' ? min($remaining, $primaryShare) : $remaining;
                 if ($budget < 1) {
                     Log::info('AI provider skipped, the shared deadline is spent.', ['operation' => $operation, 'provider' => $name, 'position' => $position]);
 
