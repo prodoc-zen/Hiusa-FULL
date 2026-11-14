@@ -3,6 +3,8 @@
 namespace App\Services\Dashboard;
 
 use App\Models\AccountProfile;
+use App\Models\Budget;
+use App\Services\BudgetAdviceRules;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -49,14 +51,27 @@ class DashboardInsightEngine
 
     private function budgetRisk(int $organizationId, string $role): ?array
     {
-        $budget = DB::table('budgets')
+        $candidates = DB::table('budgets')
             ->where('organization_id', $organizationId)
             ->where('submission_status', 'approved')
             ->whereIn('overspending_risk', ['high', 'medium'])
             ->whereNotNull('advice_generated_at')
             ->orderByRaw("CASE overspending_risk WHEN 'high' THEN 0 ELSE 1 END")
             ->orderByDesc('advice_generated_at')
-            ->first();
+            ->get();
+
+        $inputs = DB::table('ai_outputs')
+            ->where('feature_type', 'BUDGET_EXPLANATION')
+            ->where('reference_type', Budget::class)
+            ->whereIn('reference_id', $candidates->pluck('id'))
+            ->orderBy('id')
+            ->pluck('structured_input', 'reference_id');
+
+        $budget = $candidates->first(fn ($candidate) => ! BudgetAdviceRules::isStale(
+            json_decode((string) ($inputs[$candidate->id] ?? ''), true),
+            (float) ($candidate->remaining_amount ?? $candidate->allocated_amount),
+            (float) $candidate->warning_threshold,
+        ));
 
         if (! $budget) {
             return null;

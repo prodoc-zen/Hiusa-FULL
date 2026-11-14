@@ -5,6 +5,23 @@ namespace App\Services;
 // Mirrors ai-service/app/engines/budget_advisory.py - keep in sync (AiFallbackParityTest compares them).
 class BudgetAdviceRules
 {
+    public static function riskFor(float $available, float $warningThreshold): string
+    {
+        return self::evaluate([
+            'predicted_income' => 0,
+            'predicted_expense' => 0,
+            'current_available_budget' => $available,
+            'warning_threshold' => $warningThreshold,
+        ])['overspending_risk'];
+    }
+
+    public static function isStale(?array $storedInputs, float $remaining, float $warningThreshold): bool
+    {
+        return ! isset($storedInputs['current_available_budget'], $storedInputs['warning_threshold'])
+            || abs((float) $storedInputs['current_available_budget'] - $remaining) > 0.005
+            || abs((float) $storedInputs['warning_threshold'] - $warningThreshold) > 0.005;
+    }
+
     public static function evaluate(array $payload): array
     {
         $income = (float) $payload['predicted_income'];

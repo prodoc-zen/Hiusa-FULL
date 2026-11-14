@@ -887,6 +887,11 @@ class DashboardBriefingTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $risky = ['organization_id' => $organization->id, 'title' => 'Draft Budget', 'overspending_risk' => 'high', 'advisory_note' => 'Watch this.', 'advice_generated_at' => now()];
         $draft = Budget::factory()->create([...$risky, 'submission_status' => 'pending_department_head']);
+        DB::table('ai_outputs')->insert([
+            'organization_id' => $organization->id, 'feature_type' => 'BUDGET_EXPLANATION', 'reference_type' => Budget::class, 'reference_id' => $draft->id,
+            'prompt_text' => 'x', 'output_text' => '', 'status' => 'completed', 'created_at' => now(),
+            'structured_input' => json_encode(['current_available_budget' => (float) ($draft->remaining_amount ?? $draft->allocated_amount), 'warning_threshold' => (float) $draft->warning_threshold]),
+        ]);
 
         Sanctum::actingAs($admin);
         $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());

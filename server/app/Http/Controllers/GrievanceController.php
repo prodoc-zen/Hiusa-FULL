@@ -361,7 +361,7 @@ class GrievanceController extends Controller
      * Keep both in sync: this is what runs when the AI service is unreachable
      * or returns 401.
      */
-    private function localClassification(string $title, string $description): array
+    public function localClassification(string $title, string $description): array
     {
         $text = mb_strtolower($title.' '.$description);
 
