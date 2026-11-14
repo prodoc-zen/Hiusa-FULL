@@ -307,8 +307,8 @@ class ClaudeEndpointsTest extends TestCase
         $response = $this->postJson('/api/ai/assistant/ask', ['question' => 'What should I do today?'])->assertOk();
 
         match ($mode) {
-            'claude' => $response->assertJsonPath('engine', 'claude+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Hybrid Semantic RAG + Claude LLM'),
-            'groq' => $response->assertJsonPath('engine', 'groq+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Hybrid Semantic RAG + Groq LLM'),
+            'claude' => $response->assertJsonPath('engine', 'claude+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Record search + Claude'),
+            'groq' => $response->assertJsonPath('engine', 'groq+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Record search + Groq'),
             'none' => $response->assertJsonPath('engine', 'semantic_rag+deterministic'),
         };
         $this->assertSame(['claude' => 'claude-sonnet-5-5', 'groq' => 'groq-test-model', 'none' => null][$mode], AiOutput::where('feature_type', 'ASK_AI_ASSISTANT')->latest('id')->value('model_name'));
