@@ -266,7 +266,8 @@ class GrievanceController extends Controller
             ]);
         }
 
-        return response()->json($this->redact($grievance->fresh(), $request->user()->role));
+        // Same relations as show() and the list, or the filer's name falls back to "Student <id>" after a status change.
+        return response()->json($this->redact($grievance->fresh(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']), $request->user()->role));
     }
 
     public function updateClassification(Request $request, Grievance $grievance)

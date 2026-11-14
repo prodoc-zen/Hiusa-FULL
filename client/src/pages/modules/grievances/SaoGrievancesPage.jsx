@@ -9,6 +9,7 @@ import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
 import { StatusCell, UrgencyCell } from './GrievanceCells';
+import { GRIEVANCE_STATUS_LABEL } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUSES = ['submitted', 'under_review', 'resolved', 'dismissed'];
@@ -19,7 +20,7 @@ const TILE_URGENCIES = ['Critical'];
 // The API reads a multi-value filter as a JSON list (App\Support\FilterValues), never a comma list.
 const OPEN_STATUSES = JSON.stringify(TILE_STATUSES);
 
-const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...STATUSES.map((value) => ({ value, label: value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1) }))];
+const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...STATUSES.map((value) => ({ value, label: GRIEVANCE_STATUS_LABEL[value] }))];
 const URGENCY_OPTIONS = [{ value: '', label: 'All urgencies' }, ...URGENCIES.map((value) => ({ value, label: value }))];
 const UNAVAILABLE_COUNTS = { submitted: null, under_review: null, Critical: null };
 
@@ -149,7 +150,7 @@ export default function SaoGrievancesPage() {
       <div className="grid grid-cols-3 gap-3">
         {TILE_STATUSES.map((value) => (
           <button key={value} type="button" onClick={() => changeStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
-            <p className="text-xs font-medium text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
+            <p className="text-xs font-medium text-ink-muted">{GRIEVANCE_STATUS_LABEL[value]}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-ink" title={counts[value] === null ? 'Count unavailable' : undefined}>{counts[value] ?? '–'}</p>
           </button>
         ))}

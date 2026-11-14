@@ -538,6 +538,52 @@ class GrievanceTest extends TestCase
         }
     }
 
+    public function test_a_reopened_grievance_shows_its_filer_the_same_way_as_before_the_reopen(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active', 'first_name' => 'Nico', 'last_name' => 'Valdez']);
+        $admin = $this->user('ADMIN', $organization->id);
+        $sao = $this->user('SUPER_ADMIN');
+        $named = $this->grievance($student, ['status' => 'resolved', 'remarks' => 'Done.', 'resolved_at' => now()]);
+        $anonymous = $this->grievance($student, ['is_anonymous' => true, 'status' => 'resolved', 'remarks' => 'Done.', 'resolved_at' => now()]);
+
+        $filerOf = fn (array $body) => ($body['submitter']['first_name'] ?? null).' '.($body['submitter']['last_name'] ?? null);
+
+        // The SAO sees the filer named in every status, anonymous or not, and the status response matches the detail response.
+        Sanctum::actingAs($sao);
+        foreach ([$named, $anonymous] as $grievance) {
+            $before = $this->getJson("/api/grievances/{$grievance->id}")->assertOk()->json();
+            $reopened = $this->patchJson("/api/grievances/{$grievance->id}/status", ['status' => 'under_review', 'remarks' => 'The student sent new facts.'])
+                ->assertOk()->assertJsonPath('status', 'under_review')->json();
+            $after = $this->getJson("/api/grievances/{$grievance->id}")->assertOk()->json();
+
+            $this->assertSame('Nico Valdez', $filerOf($before));
+            $this->assertSame('Nico Valdez', $filerOf($reopened));
+            $this->assertSame('Nico Valdez', $filerOf($after));
+            $this->assertSame($student->school_id, $reopened['submitted_by']);
+        }
+
+        // The organization admin sees the named grievance named, and the anonymous one masked, before and after the reopen.
+        Sanctum::actingAs($admin);
+        $named->update(['status' => 'resolved']);
+        $anonymous->update(['status' => 'resolved']);
+        foreach ([$named, $anonymous] as $grievance) {
+            $closed = $this->getJson("/api/grievances/{$grievance->id}")->assertOk()->json();
+            $grievance->update(['status' => 'under_review', 'resolved_at' => null]);
+            $reopened = $this->getJson("/api/grievances/{$grievance->id}")->assertOk()->json();
+
+            if ($grievance->is_anonymous) {
+                foreach ([$closed, $reopened] as $body) {
+                    $this->assertArrayNotHasKey('submitted_by', $body);
+                    $this->assertArrayNotHasKey('submitter', $body);
+                }
+            } else {
+                $this->assertSame('Nico Valdez', $filerOf($closed));
+                $this->assertSame('Nico Valdez', $filerOf($reopened));
+            }
+        }
+    }
+
     public function test_only_the_sao_can_reopen_and_a_closed_grievance_cannot_jump_to_another_closed_state(): void
     {
         $organization = Organization::factory()->create();

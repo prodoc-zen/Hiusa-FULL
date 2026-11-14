@@ -11,6 +11,7 @@ import { manilaDate, relativeTime } from '../../../lib/format';
 import {
   ALLOWED_TRANSITIONS,
   CATEGORIES,
+  GRIEVANCE_STATUS_LABEL,
   URGENCY_ORDER,
   TRANSITION_ACTION_LABEL,
   addressedToKey,
@@ -223,7 +224,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
         {grievance && (
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
+              <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} label={GRIEVANCE_STATUS_LABEL[grievance.status]} />
               <StatusBadge tone={urgencyTone(grievance.urgency)} label={grievance.classification_engine === 'reviewer' ? `${grievance.urgency} urgency` : `Suggested urgency: ${grievance.urgency}`} />
               <StatusBadge tone="neutral" label={grievance.classification_engine === 'reviewer' ? grievance.category : `Suggested category: ${grievance.category}`} />
             </div>
