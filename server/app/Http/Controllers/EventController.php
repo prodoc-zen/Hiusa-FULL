@@ -936,7 +936,7 @@ class EventController extends Controller
                 return response()->json(['message' => "The due date for '{$task['title']}' must be {$guidance}."], 422);
             }
             if (! empty($task['recommended_role'])) {
-                $canonical = $activePositions->first(fn ($title) => strcasecmp(trim($title), trim($task['recommended_role'])) === 0);
+                $canonical = $this->delegation->canonicalPosition($task['recommended_role'], $activePositions->all());
                 if ($canonical === null) {
                     return response()->json(['message' => "Choose an active officer role for '{$task['title']}'."], 422);
                 }
@@ -945,6 +945,9 @@ class EventController extends Controller
         }
 
         $created = DB::transaction(function () use ($request, $event, $aiOutput, $data) {
+            // The event row is locked before any draft row, in every confirm, so two confirms of different
+            // drafts queue here instead of each holding one draft and waiting on the other's.
+            Event::whereKey($event->id)->lockForUpdate()->first();
             $current = AiOutput::whereKey($aiOutput->id)->lockForUpdate()->first();
             if (! $current || $current->decision_status !== 'pending') {
                 abort(409, 'This draft has already been saved or removed.');
@@ -1183,7 +1186,11 @@ class EventController extends Controller
         if ($aiOutput->decision_status !== 'pending') {
             return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
         }
-        $aiOutput->update(['decision_status' => 'discarded', 'decided_by' => $request->user()->school_id, 'decided_at' => now()]);
+        $changed = AiOutput::whereKey($aiOutput->id)->where('decision_status', 'pending')
+            ->update(['decision_status' => 'discarded', 'decided_by' => $request->user()->school_id, 'decided_at' => now()]);
+        if ($changed === 0) {
+            return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
+        }
         $this->auditAiAction($request, 'workflow_discarded', $event, ['ai_output_id' => $aiOutput->id]);
 
         return response()->json(['message' => 'Draft removed. No tasks were created.']);

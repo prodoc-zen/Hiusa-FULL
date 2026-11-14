@@ -99,7 +99,7 @@ export function createSseParser(onEvent) {
 
 export async function streamAiChat({ conversationId = null, message, topic = null, regenerate = false, signal, onEvent } = {}) {
   const headers = {
-    Accept: 'text/event-stream',
+    Accept: 'text/event-stream, application/json',
     'Content-Type': 'application/json',
   };
   const token = localStorage.getItem('auth_token');
@@ -115,6 +115,7 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
     method: 'POST',
     headers,
     signal,
+    redirect: 'manual',
     body: JSON.stringify({
       conversation_id: conversationId,
       message: message ?? null,
@@ -122,6 +123,8 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
       regenerate: Boolean(regenerate),
     }),
   });
+
+  if (response.type === 'opaqueredirect') throw streamError(GENERIC_ERROR, 422);
 
   if (response.status === 401) {
     endSession();

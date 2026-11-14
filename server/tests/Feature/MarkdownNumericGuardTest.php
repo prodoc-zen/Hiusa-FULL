@@ -38,6 +38,13 @@ class MarkdownNumericGuardTest extends TestCase
             'date as iso' => ['Today is 2026-11-14.', $facts],
             'day and month parts' => ['That is 11/14.', $facts],
             'html attribute in the facts' => ['<progress value="3" max="3"></progress>', $facts],
+            'percentage bar out of 100' => ['<progress value="66.67" max="100"></progress>', ['completion' => '66.67%']],
+            'progress with value and total from the facts' => ['<progress value="2" max="5"></progress>', ['done' => 2, 'total' => 5]],
+            'digits separated by a comma' => ['Members 1,2 are overdue.', ['a' => 1, 'b' => 2]],
+            'thousands separator' => ['Dues total PHP 1,234,567.50.', ['dues' => 1234567.5]],
+            'real reference definition with a title' => ["See [the page][a] now.\n\n[a]: /dashboard/events/99 \"Event 99\"", $facts],
+            'list numbering up to twenty' => ["19. Nineteenth step\n20) Twentieth step", $facts],
+            'letter and digit code from the facts' => ['Q4 is the quarter in question.', ['period' => 'Q4 2026']],
         ];
     }
 
@@ -64,6 +71,12 @@ class MarkdownNumericGuardTest extends TestCase
             'html attribute value with a stat' => ['<div class="stat"><span class="stat-value">88</span></div>', $facts],
             'number glued to a list marker' => ['1. 500 pesos', $facts],
             'text after a link' => ['[Open](/dashboard/x) then pay 600.', $facts],
+            'bracketed label that is not a reference definition' => ['[Total]: PHP 99,999.00 is missing from the fund.', $facts],
+            'bracketed reminder line' => ['[Reminder]: 7 members still owe.', $facts],
+            'large number that looks like a list marker' => ['250. members have not paid.', $facts],
+            'amount glued to its currency' => ['The fund is short by PHP9999.', $facts],
+            'code that the facts do not carry' => ['Q4 has 9 files.', $facts],
+            'comma joins two invented numbers' => ['Members 41,7 are overdue.', $facts],
         ];
     }
 

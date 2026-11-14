@@ -69,8 +69,11 @@ function failureMessage(err) {
   if (err?.status === 429 || err?.response?.status === 429) {
     return 'Too many questions at once. Wait a moment, then try again.';
   }
-  if (navigator.onLine === false || err instanceof TypeError) {
+  if (navigator.onLine === false) {
     return 'You seem to be offline. Check your connection, then try again.';
+  }
+  if (err instanceof TypeError) {
+    return 'Could not reach HIUSA. Try again in a moment.';
   }
   return 'Could not answer that right now. Try again.';
 }
@@ -210,6 +213,7 @@ export default function AskAiPage() {
   const runRef = useRef(0);
   const abortRef = useRef(null);
   const loadRef = useRef(0);
+  const loadingRef = useRef(false);
   const atBottomRef = useRef(true);
   const handledQueryRef = useRef('');
 
@@ -274,6 +278,7 @@ export default function AskAiPage() {
   const resetToNew = useCallback(() => {
     cancelRun();
     loadRef.current += 1;
+    loadingRef.current = false;
     convIdRef.current = null;
     setActiveId(null);
     setMessages([]);
@@ -285,11 +290,12 @@ export default function AskAiPage() {
   }, [cancelRun]);
 
   const send = useCallback(async (rawText, { topic = null, regenerate = false } = {}) => {
-    if (sendingRef.current) return false;
+    if (sendingRef.current || loadingRef.current) return false;
     const text = (rawText ?? '').trim();
     if (!regenerate && (!text || text.length > 2000)) return false;
 
     sendingRef.current = true;
+    const requestedId = convIdRef.current;
     const runId = ++runRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -310,6 +316,7 @@ export default function AskAiPage() {
       return [...base, ...asked, { key: answerKey, role: 'assistant', content: '', streaming: true, statusLabel: '', reasoningText: '' }];
     });
 
+    let gone = false;
     let finished = false;
     let metaReceived = false;
     const finish = (result) => {
@@ -317,7 +324,7 @@ export default function AskAiPage() {
       finished = true;
       setMessages((list) => list.map((m) => (m.key === answerKey ? withKey(result.message) : m)));
       upsertConversation(result.conversation);
-      setAnnouncement(`Answer ready. ${String(result.message.content || '').slice(0, 140)}`);
+      setAnnouncement(`Answer ready. ${result.conversation?.preview || ''}`.trim());
     };
 
     const onEvent = (first, second) => {
@@ -349,7 +356,7 @@ export default function AskAiPage() {
 
     try {
       const result = await streamAiChat({
-        conversationId: convIdRef.current,
+        conversationId: requestedId,
         message: regenerate ? undefined : text,
         topic,
         regenerate,
@@ -361,8 +368,19 @@ export default function AskAiPage() {
       if (!current()) return true;
       if (err?.name === 'AbortError') {
         patchAnswer(() => ({ streaming: false, status: 'stopped' }));
+        setAnnouncement('Answer stopped.');
+      } else if (err?.status === 404 && requestedId !== null) {
+        gone = true;
+        convIdRef.current = null;
+        setActiveId(null);
+        setConversations((list) => list.filter((item) => item.id !== requestedId));
+        updateParams((params) => params.delete('c'));
+        setMessages([]);
       } else {
-        setMessages((list) => list.filter((m) => m.key !== answerKey));
+        setMessages((list) => list.flatMap((m) => {
+          if (m.key !== answerKey) return [m];
+          return m.content ? [{ ...m, streaming: false, status: 'failed' }] : [];
+        }));
         setSendError({ message: failureMessage(err), text, topic, regenerate: regenerate || metaReceived });
       }
     } finally {
@@ -372,6 +390,10 @@ export default function AskAiPage() {
         setStreaming(false);
         focusComposer();
       }
+    }
+    if (gone) {
+      if (!regenerate) send(text, { topic });
+      setNotice('That conversation is no longer available, so this is a new one.');
     }
     return true;
   }, [focusComposer, updateParams, upsertConversation]);
@@ -399,6 +421,7 @@ export default function AskAiPage() {
   const openConversation = useCallback(async (id) => {
     cancelRun();
     const ticket = ++loadRef.current;
+    loadingRef.current = true;
     setConvLoading(true);
     setConvError(null);
     setSendError(null);
@@ -424,13 +447,16 @@ export default function AskAiPage() {
         setConvError(id);
       }
     } finally {
-      if (loadRef.current === ticket) setConvLoading(false);
+      if (loadRef.current === ticket) {
+        loadingRef.current = false;
+        setConvLoading(false);
+      }
     }
   }, [cancelRun, updateParams]);
 
   useEffect(() => {
     if (!cParam) {
-      if (convIdRef.current !== null && !sendingRef.current) resetToNew();
+      if (convIdRef.current !== null || sendingRef.current) resetToNew();
       return;
     }
     if (String(convIdRef.current) === cParam) return;
@@ -439,7 +465,7 @@ export default function AskAiPage() {
 
   useEffect(() => {
     const question = (qParam || '').trim();
-    if (!question) return;
+    if (!question || cParam) return;
     const signature = `${question}|${topicParam || ''}`;
     if (handledQueryRef.current === signature) return;
     handledQueryRef.current = signature;
@@ -448,7 +474,7 @@ export default function AskAiPage() {
       params.delete('topic');
     });
     send(question.slice(0, 2000), { topic: topicParam || null });
-  }, [qParam, topicParam, send, updateParams]);
+  }, [qParam, topicParam, cParam, send, updateParams]);
 
   const newChat = useCallback(() => {
     resetToNew();
@@ -550,6 +576,12 @@ export default function AskAiPage() {
     onDeleteAll: removeAllConversations,
   };
 
+  const sendFromComposer = (text) => {
+    if (sendingRef.current || loadingRef.current) return false;
+    send(text);
+    return true;
+  };
+
   const lastIndex = messages.length - 1;
   const isNew = messages.length === 0 && !convLoading && !convError;
 
@@ -629,7 +661,8 @@ export default function AskAiPage() {
                 ref={composerRef}
                 streaming={streaming}
                 offline={!online}
-                onSend={(text) => send(text)}
+                blockedReason={convLoading ? 'Opening your conversation. You can send once it has loaded.' : ''}
+                onSend={sendFromComposer}
                 onStop={stop}
               />
             </div>

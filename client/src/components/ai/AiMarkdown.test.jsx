@@ -3,10 +3,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import AiMarkdown from './AiMarkdown';
 
-function renderMarkdown(content) {
+function renderMarkdown(content, streaming = false) {
   return render(
     <MemoryRouter>
-      <AiMarkdown content={content} />
+      <AiMarkdown content={content} streaming={streaming} />
     </MemoryRouter>,
   );
 }
@@ -125,10 +125,30 @@ describe('AiMarkdown', () => {
       '',
     ];
     partials.forEach((partial) => {
-      const { container, unmount } = renderMarkdown(partial);
+      const { container, unmount } = renderMarkdown(partial, true);
       expect(container.innerHTML).not.toMatch(/&lt;div|&lt;span|&lt;details/);
       unmount();
     });
+  });
+
+  it('keeps a finished answer whole, including a "<" that never closes', () => {
+    const text = 'Pick the option where turnout<quorum is false.\n\nThen open the page and submit.';
+    const { container } = render(<AiMarkdown content={text} />);
+    expect(container).toHaveTextContent('turnout<quorum is false.');
+    expect(container).toHaveTextContent('Then open the page and submit.');
+  });
+
+  it('trims an unfinished tag only while streaming, never across a line or after a letter', () => {
+    const { container, rerender } = render(<AiMarkdown content={'Overdue <span class="badge bad'} streaming />);
+    expect(container).toHaveTextContent('Overdue');
+    expect(container).not.toHaveTextContent('badge');
+    rerender(<AiMarkdown content={'Overdue <span class="badge bad'} />);
+    expect(container).toHaveTextContent('<span class="badge bad');
+    rerender(<AiMarkdown content={'Votes: turnout<quorum is false.\n\nNext step.'} streaming />);
+    expect(container).toHaveTextContent('turnout<quorum is false.');
+    expect(container).toHaveTextContent('Next step.');
+    rerender(<AiMarkdown content={'A line <b\n\nNext step.'} streaming />);
+    expect(container).toHaveTextContent('Next step.');
   });
 
   it('renders nothing for non-string content', () => {

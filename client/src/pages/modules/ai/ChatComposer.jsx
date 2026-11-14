@@ -22,7 +22,7 @@ function useNarrow() {
   return narrow;
 }
 
-export default function ChatComposer({ ref, streaming, offline, onSend, onStop, initialText = '' }) {
+export default function ChatComposer({ ref, streaming, offline, blockedReason = '', onSend, onStop, initialText = '' }) {
   const [text, setText] = useState(initialText);
   const textareaRef = useRef(null);
   const id = useId();
@@ -40,7 +40,7 @@ export default function ChatComposer({ ref, streaming, offline, onSend, onStop, 
   const trimmed = text.trim();
 
   const submit = () => {
-    if (streaming || offline || !trimmed) return;
+    if (streaming || offline || blockedReason || !trimmed) return;
     if (onSend(trimmed) !== false) setText('');
   };
 
@@ -76,16 +76,16 @@ export default function ChatComposer({ ref, streaming, offline, onSend, onStop, 
             Stop
           </Button>
         ) : (
-          <Button type="submit" leftIcon={ArrowUp} disabled={!trimmed || offline} aria-label="Send message">
+          <Button type="submit" leftIcon={ArrowUp} disabled={!trimmed || offline || Boolean(blockedReason)} aria-label="Send message">
             Send
           </Button>
         )}
       </div>
       <div className="mt-1.5 flex items-start justify-between gap-3 px-1 text-xs font-medium text-ink-muted-strong">
         <p>
-          {offline
-            ? 'You are offline. Reconnect to send a message.'
-            : 'Answers can be wrong. The linked record is the source of truth.'}
+          {offline && 'You are offline. Reconnect to send a message.'}
+          {!offline && blockedReason}
+          {!offline && !blockedReason && 'Answers can be wrong. The linked record is the source of truth.'}
         </p>
         {text.length >= COUNTER_FROM && (
           <span className={`shrink-0 tabular-nums ${text.length >= MAX_MESSAGE_LENGTH ? 'text-danger-strong' : ''}`}>

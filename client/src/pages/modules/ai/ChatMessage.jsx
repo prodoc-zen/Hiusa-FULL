@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Tooltip } from '../../../components/ui';
 import AiMarkdown from '../../../components/ai/AiMarkdown';
 import AnswerBlocks from '../../../components/ai/AnswerBlocks';
+import answerText from '../../../components/ai/answerText';
 import ReasoningDisclosure from '../../../components/ai/ReasoningDisclosure';
 
 const ACTION_CLASS =
@@ -44,7 +45,7 @@ function FeedbackButton({ icon: Icon, label, pressed, onClick }) {
   );
 }
 
-function CopyAction({ text }) {
+function CopyAction({ getText }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ function CopyAction({ text }) {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(getText());
       setCopied(true);
     } catch {
       setCopied(false);
@@ -79,6 +80,7 @@ export default function ChatMessage({
 }) {
   const streaming = Boolean(message.streaming);
   const seconds = useElapsedSeconds(streaming);
+  const proseRef = useRef(null);
 
   if (message.role === 'user') {
     return (
@@ -99,18 +101,22 @@ export default function ChatMessage({
     : payload?.reasoning || null;
 
   return (
-    <article aria-label="Answer" className="min-w-0">
+    <article aria-label="Answer" aria-busy={streaming || undefined} className="min-w-0">
       {(streaming || reasoning) && (
         <ReasoningDisclosure reasoning={reasoning} live={streaming} seconds={streaming ? seconds : reasoning?.seconds} />
       )}
-      {message.content && <AiMarkdown content={message.content} className="mt-2" />}
+      {message.content && (
+        <div ref={proseRef}>
+          <AiMarkdown content={message.content} streaming={streaming} className="mt-2" />
+        </div>
+      )}
       {!streaming && payload && <AnswerBlocks payload={payload} onAsk={onAsk} disabled={busy} />}
       {payload?.notice && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{payload.notice}</p>}
       {stopped && <p className="mt-2 text-xs font-medium text-ink-muted-strong">You stopped this answer.</p>}
       {failed && <p className="mt-2 text-xs font-medium text-danger-strong">This answer did not finish.</p>}
       {!streaming && (
         <div className="-ml-2.5 mt-2 flex flex-wrap items-center gap-0.5">
-          {message.content && <CopyAction text={message.content} />}
+          {message.content && <CopyAction getText={() => answerText(proseRef.current) || message.content} />}
           {isLast && onRegenerate && (
             <ActionButton icon={RefreshCw} onClick={onRegenerate} disabled={busy}>
               Regenerate

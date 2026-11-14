@@ -3,13 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\AiOutput;
+use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -187,6 +190,44 @@ class EventWorkflowAuditFixesTest extends TestCase
         $this->postJson("/api/events/{$this->event->id}/workflows/{$outputId}/confirm", $payload)->assertStatus(409);
 
         $this->assertSame(count($tasks), Task::where('event_id', $this->event->id)->count());
+    }
+
+    public function test_removing_a_draft_that_was_saved_in_the_meantime_is_refused_and_leaves_it_accepted(): void
+    {
+        [$outputId] = $this->template();
+        AiOutput::retrieved(function (AiOutput $output) {
+            if ($output->decision_status === 'pending') {
+                DB::table('ai_outputs')->where('id', $output->id)->update(['decision_status' => 'accepted']);
+            }
+        });
+
+        $this->patchJson("/api/events/{$this->event->id}/workflows/{$outputId}/discard")->assertStatus(409);
+
+        $this->assertSame('accepted', AiOutput::find($outputId)->decision_status);
+        $this->assertSame(0, AuditLog::where('action', 'workflow_discarded')->count());
+    }
+
+    public function test_confirm_locks_the_event_before_any_draft(): void
+    {
+        $officer = $this->officer('President');
+        [$outputId, $tasks] = $this->template();
+        $statements = [];
+        $recording = false;
+        DB::listen(function ($query) use (&$statements, &$recording) {
+            if ($recording) {
+                $statements[] = $query->sql;
+            }
+        });
+        $this->app['events']->listen(TransactionBeginning::class, function () use (&$recording) {
+            $recording = true;
+        });
+
+        $this->postJson("/api/events/{$this->event->id}/workflows/{$outputId}/confirm", ['tasks' => $this->assign($tasks, $officer->school_id)])->assertCreated();
+
+        $firstEvent = collect($statements)->search(fn ($sql) => str_contains($sql, 'from "events"'));
+        $firstDraft = collect($statements)->search(fn ($sql) => str_contains($sql, 'from "ai_outputs"'));
+        $this->assertNotFalse($firstEvent);
+        $this->assertLessThan($firstDraft, $firstEvent);
     }
 
     public function test_the_template_says_the_suggested_plan_failed_checks_when_the_model_answered(): void

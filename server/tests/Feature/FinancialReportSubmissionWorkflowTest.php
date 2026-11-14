@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
-use App\Models\ApprovalRequest;
 use App\Models\AiOutput;
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\FinancialReport;
 use App\Models\Notification;

@@ -117,13 +117,19 @@ describe('streamAiChat', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/ai\/assistant\/chat$/);
     expect(init.method).toBe('POST');
+    expect(init.redirect).toBe('manual');
     expect(init.headers).toMatchObject({
       Authorization: 'Bearer tok',
-      Accept: 'text/event-stream',
+      Accept: 'text/event-stream, application/json',
       'Content-Type': 'application/json',
       'X-Academic-Semester': '7',
     });
     expect(JSON.parse(init.body)).toEqual({ conversation_id: 12, message: 'hi', topic: 'x', regenerate: false });
+  });
+
+  it('turns a redirect into a 422 error instead of following it', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0, ok: false, headers: new Headers() }));
+    await expect(streamAiChat({ message: '' })).rejects.toMatchObject({ status: 422, message: 'Could not answer that right now. Try again.' });
   });
 
   it('treats a JSON body like a stream that only sent meta and done', async () => {
