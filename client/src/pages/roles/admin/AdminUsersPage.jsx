@@ -407,7 +407,8 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [sboPositions, setSboPositions] = useState([]);
   const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
-  const pageSize = 20;
+  // Ten a page keeps the phone list near three screens.
+  const pageSize = 10;
   const [showImport, setShowImport] = useState(false);
   const loadRequestRef = useRef(0);
 

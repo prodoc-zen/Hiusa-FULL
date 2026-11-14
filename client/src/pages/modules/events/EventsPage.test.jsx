@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import EventsPage from './EventsPage';
 import { searchPeople } from '../../../services/peopleService';
+import { getTasks } from '../../../services/taskService';
 
 vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
 
@@ -165,6 +166,19 @@ describe('EventsPage approval-request launch', () => {
     expect((await row('Food fund')).queryByText(/Waiting for/)).not.toBeInTheDocument();
   });
 
+  it('shows a blocked event task as a badge that names the task it waits on', async () => {
+    const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00Z', end_time: '2026-10-10T12:00:00Z', location: 'Main Hall' };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    getTasks.mockResolvedValueOnce({ data: { data: [
+      { id: 1, event_id: 9, title: 'Settle expenses', status: 'pending', workflow_status: 'blocked', dependency: { id: 2, title: 'Run the event' }, deadline: '2026-10-12T08:00:00Z', event },
+    ], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/event-planner']}><EventsPage initialTab="tasks" /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Waiting on Run the event')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Blocked')).not.toBeInTheDocument();
+  });
+
   it('shows a readable AI-created to-do list without raw API dates or technical labels', async () => {
     const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00.000000Z', end_time: '2026-10-10T12:00:00.000000Z', location: 'Main Hall' };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
@@ -217,6 +231,14 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByLabelText('Task 2 officer')).toHaveValue('');
     expect(screen.getByText('Review eligible officers, then choose the final assignee.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save and assign tasks' })).toBeDisabled();
+    expect(screen.getByText('Choose an officer for each to-do before saving.')).toBeInTheDocument();
+    // Name, due date and the officer stay in view; the rest of each to-do sits under one toggle.
+    const more = screen.getAllByText(/^More options/);
+    expect(more).toHaveLength(2);
+    expect(more[0].closest('details')).not.toHaveAttribute('open');
+    expect(more[0].closest('details')).toContainElement(screen.getByLabelText('Task 1 priority'));
+    expect(more[0].closest('details')).not.toContainElement(screen.getByLabelText('Task 1 officer'));
+    expect(screen.getByText(/^Show the plan outline/).closest('details')).not.toHaveAttribute('open');
   });
 
   it('shows a retryable error above check-in when the member roster fails to load', async () => {
@@ -514,9 +536,11 @@ describe('EventsPage walkthrough fixes', () => {
 
       expect(screen.getByLabelText('SAO venue')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Send proposal' })).toBeDisabled();
+      expect(screen.getByText('Add where the event will be held to send the proposal.')).toBeInTheDocument();
       await screen.findByRole('option', { name: 'Audio-Visual Room' });
       fireEvent.change(screen.getByLabelText('SAO venue'), { target: { value: '3' } });
       expect(screen.getByRole('button', { name: 'Send proposal' })).toBeEnabled();
+      expect(screen.queryByText(/^Add .* to send the proposal\.$/)).not.toBeInTheDocument();
 
       fireEvent.change(screen.getByLabelText(/^Venue type/), { target: { value: 'off_campus' } });
       expect(screen.getByLabelText('Off-campus location')).toBeInTheDocument();

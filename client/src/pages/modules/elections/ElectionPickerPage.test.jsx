@@ -476,6 +476,24 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
   });
 
+  it('counts the positions of a new election from the saved record, not as 0', async () => {
+    electionMocks.createElection.mockResolvedValue({
+      id: 32, title: 'Demo Representative', status: 'pending_approval', start_time: '2026-11-13T08:00:00Z', end_time: '2026-11-14T17:00:00Z',
+      positions: [{ id: 1, title: 'Representative', max_winners: 1 }],
+    });
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Students file their own candidacy' }));
+    setValue('Election title', 'Demo Representative');
+    setValue('Voting starts', '2026-11-13T08:00');
+    setValue('Voting ends', '2026-11-14T17:00');
+    setValue('Position 1 title', 'Representative');
+    fireEvent.submit(document.getElementById('create-election-form'));
+
+    const row = await rowFor('Demo Representative');
+    const cells = within(row).getAllByRole('cell').map((cell) => cell.textContent.trim());
+    expect(cells).toContain('1');
+  });
+
   it('says when a date in the schedule is out of order', async () => {
     render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
     await screen.findByLabelText('Filing opens');

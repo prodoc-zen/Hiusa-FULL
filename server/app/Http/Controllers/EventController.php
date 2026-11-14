@@ -1000,7 +1000,7 @@ class EventController extends Controller
                     'recency_score' => $selected['recency_score'],
                     'final_score' => $selected['final_score'],
                     'delegation_snapshot' => $recommendation,
-                    'ai_recommendation_note' => "Rank {$selected['rank']} by deterministic weighted scoring.",
+                    'ai_recommendation_note' => "Ranked {$selected['rank']} among the officers who can take this task.",
                     'created_by' => $request->user()->school_id,
                     'organization_id' => $event->organization_id,
                 ]);

@@ -24,6 +24,12 @@ function capitalize(s) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+// A task that cannot start yet says what it waits on, so a pending row is never mistaken for one to start now.
+function waitingLabel(task) {
+  if (task.workflow_status !== 'blocked') return null;
+  return task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task';
+}
+
 const TASK_COLUMNS = [
   { key: 'title', header: 'Task', className: 'max-w-[220px] font-medium', render: (task) => formatDisplayText(task.title) },
   {
@@ -39,7 +45,15 @@ const TASK_COLUMNS = [
     render: (task) => (task.deadline ? new Date(task.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : null),
   },
   // Pending is the default state and carries no badge.
-  { key: 'status', header: 'Status', render: (task) => (task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />) },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (task) => {
+      const waiting = waitingLabel(task);
+      if (waiting) return <StatusBadge tone="warning" label={waiting} />;
+      return task.status === 'pending' ? null : <StatusBadge tone={task.status === 'overdue' ? 'danger' : 'active'} label={capitalize(task.status)} />;
+    },
+  },
 ];
 
 // A phone gets one line per task instead of the table's stacked cards, so four tasks stay short.
@@ -56,6 +70,7 @@ function UrgentTaskList({ tasks, loading }) {
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted-strong">
             {task.deadline && <span>Due {new Date(task.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>}
             {task.status === 'overdue' && <StatusBadge tone="danger" label="Overdue" />}
+            {waitingLabel(task) && <StatusBadge tone="warning" label={waitingLabel(task)} />}
           </p>
         </li>
       ))}

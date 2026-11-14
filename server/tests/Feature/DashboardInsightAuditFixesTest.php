@@ -105,7 +105,7 @@ class DashboardInsightAuditFixesTest extends TestCase
         $this->assertSame(['months_of_records', 'how_far_to_trust_it'], array_keys($forecast['why']['inputs']));
         $this->assertSame(2, $forecast['why']['inputs']['months_of_records']);
         $this->assertSame('Based on only 2 months of records, and they follow no clear trend. Treat this projection as directional only.', $forecast['why']['inputs']['how_far_to_trust_it']);
-        $this->assertSame('Spending is forecast to run ahead of income in '.$thisMonth->format('F Y').'.', $forecast['body']);
+        $this->assertSame('Spending is forecast to run ahead of income in '.$thisMonth->format('F Y').'. '.$forecast['why']['inputs']['how_far_to_trust_it'], $forecast['body']);
 
         FinancialForecast::factory()->create([
             'organization_id' => $organization->id,
