@@ -85,8 +85,10 @@ class LatestForecastSelectionTest extends TestCase
     public function test_forecasts_generated_in_the_same_second_are_ordered_by_id(): void
     {
         $moment = now();
-        FinancialForecast::factory()->create(['organization_id' => $this->admin->organization_id, 'forecast_period' => '2026-12', 'created_at' => $moment]);
-        $newest = FinancialForecast::factory()->create(['organization_id' => $this->admin->organization_id, 'forecast_period' => '2026-10', 'created_at' => $moment]);
+        $next = now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m');
+        $details = ['engine' => 'php-fallback'];
+        FinancialForecast::factory()->create(['organization_id' => $this->admin->organization_id, 'forecast_period' => $next, 'model_details' => $details, 'created_at' => $moment, 'updated_at' => $moment]);
+        $newest = FinancialForecast::factory()->create(['organization_id' => $this->admin->organization_id, 'forecast_period' => $this->period, 'model_details' => $details, 'created_at' => $moment, 'updated_at' => $moment]);
 
         $this->getJson("/api/events/{$this->event->id}")->assertOk()
             ->assertJsonPath('financial_summary.latest_forecast.id', $newest->id);

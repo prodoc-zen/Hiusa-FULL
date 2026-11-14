@@ -433,6 +433,7 @@ class EventPlanningWorkflowTest extends TestCase
             'predicted_income' => 900,
             'predicted_expense' => 1100,
             'predicted_balance' => -200,
+            'model_details' => ['engine' => 'php-fallback'],
         ]);
 
         $this->getJson("/api/events/{$eventId}")->assertOk()

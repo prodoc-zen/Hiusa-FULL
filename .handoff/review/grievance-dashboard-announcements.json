@@ -1,0 +1,72 @@
+[
+  {
+    "id": "gda-01",
+    "title": "Negation rule downgrades genuine harassment, bullying and assault grievances to Low (regression from Critical)",
+    "severity": "high",
+    "file": "ai-service/app/engines/grievance_classification.py (and server/app/Http/Controllers/GrievanceController.php, its PHP copy)",
+    "line": "py 38-40, 77; php 366, 455-461",
+    "evidence": "py: `clause = _CLAUSE_BREAK.split(text[:start])[-1]` / `return any(word in NEGATORS for word in re.findall(r\"[\\w']+\", clause)[-2:])` and `text = f\"{request.title} {request.description}\".lower()`; php: `return array_intersect(array_slice($words[0], -2), self::NEGATORS) !== [];` and `$text = mb_strtolower($title.' '.$description);`",
+    "impact": "Any negator among the two words before a critical keyword cancels it, whatever the negator is attached to. Run through both engines (they agree, so parity holds): title 'Officer' / 'They did not stop bullying me even after I reported it.' -> Low, General; 'Officer conduct' / 'The vice president would not stop harassing me after the meeting.' -> Low; 'No more bullying in our org' / 'Please act on this.' -> Low. Title and description are joined with a space and no clause break, so a title ending in a negator also cancels the first word of the description: 'No response' / 'Harassment by the treasurer during the meeting.' -> Low, General; 'Not again' / 'Threatened by an officer at the venue.' -> Low. Before today each of these was Critical. The SAO table now sorts by urgency, so these land at the bottom of the queue, and the reasoning shown to the reviewer says 'No urgent or category words were found', which hides that a harassment word was there. An under-rated urgent grievance is the worst failure for this feature. The new tests only check negations that really mean 'not an emergency' and never 'not stop' or 'no more'.",
+    "fix": "Make the classifier safe when it is unsure, in both engines and in the same commit: (1) join title and description with '. ' instead of ' ' so the title is its own clause; (2) never let negation drop a CRITICAL keyword entirely: when every critical match is negated, still return at least High (or keep Critical with a lower confidence such as 0.6) and add a reasoning clause that names the word and says it may be negated (e.g. 'mentions \"harassing\" after \"not\", so a reviewer should check it'); (3) count a negator only when it is directly before the keyword or before 'a/an/any' + keyword, and do not count it when the word after the negator is a continuation verb or quantifier ('stop', 'stopping', 'only', 'just', 'more', 'longer', 'tumigil', 'tumitigil'); (4) add these cases to GrievanceAiAuditFixesTest and test_grievance_classification.py: 'did not stop bullying me', 'would not stop harassing me', 'No more bullying', title 'No response' + description 'Harassment ...', each expected at Critical or High, never Low."
+  },
+  {
+    "id": "gda-02",
+    "title": "The numeric check rejects ordinary drafts that restate the officer's time or add the year, and blames an outage",
+    "severity": "medium",
+    "file": "server/app/Http/Controllers/AnnouncementController.php",
+    "line": "111-115, 151",
+    "evidence": "`|| ! $this->ai->preservesNumericFacts($generated['text'], [$data['title'], $data['details'] ?? ''])) { $generated = null; }` and `'notice' => $isTemplate ? 'This is a template draft because the AI writer is not available right now. '...`",
+    "impact": "The check splits every digit run, so '3:00' becomes 3 and 00 (0), and 0 is not in the officer's text. With details 'Nov 20, 3pm, Room 204', a draft saying 'starts at 3:00 PM on November 20 in Room 204' fails (checked with GroqResponsesService::preservesNumericFacts: false). Details '8 to 10:30am' with 'from 8:00 to 10:30 AM' fails, and 'Friday Nov 20' with 'Friday, November 20, 2026' fails. Restating a time as 'h:00' and adding the current year are what the model usually does, so many good drafts are thrown away and replaced by the template. The officer then reads 'the AI writer is not available right now', which is not true, and tries again; every retry calls the provider again (see gda-03).",
+    "fix": "Before comparing, normalise times in both the facts and the draft: parse `(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?` into one hour/minute value, so '3pm', '3 PM' and '3:00 PM' are equal and ':00' is never read as a separate 0. Allow the current and next calendar year as known values for announcement drafts. Give a separate notice when the draft was rejected by the check, e.g. 'The AI draft added a detail you did not give, so a template was used instead. Check the date, time and fees in your notes.', and keep 'not available' for real provider failures. Add tests for '3pm' -> '3:00 PM' and 'Nov 20' -> 'November 20, 2026' being accepted."
+  },
+  {
+    "id": "gda-03",
+    "title": "Provider calls whose output is rejected or empty do not count toward the daily draft quota, so paid generations have no daily cap",
+    "severity": "medium",
+    "file": "server/app/Http/Controllers/AnnouncementController.php",
+    "line": "104-137, 771",
+    "evidence": "Reservation: `'context_version' => self::DRAFT_CONTEXT` ... then `$aiOutput->update([... 'context_version' => $isTemplate ? 'announcement-template-v1' : self::DRAFT_CONTEXT ...])`; quota: `->where('context_version', self::DRAFT_CONTEXT)`",
+    "impact": "The fix for 'template drafts use up the quota' frees the slot whenever the result is a template. But a template also comes back when the provider DID answer and was billed, and its text was then rejected by plainText() being empty or by the numeric check. Those calls never count. An officer whose details keep tripping the numeric check (gda-02), or anyone who adds such details on purpose, can call the paid provider without limit; only the 5-per-minute `ai-generation` throttle applies (up to about 7,200 calls a day per user against a daily limit of 20). The slot is also freed during a slow outage, so each retry holds a web worker for the full provider deadline with no daily bound.",
+    "fix": "Keep the slot whenever a provider was actually called. Have generate() report whether a provider produced text (or compare the returned model with 'template-draft'), and store a separate context_version such as 'announcement-rejected-v1' for rejected provider output, counting it in announcementGenerationQuota() alongside DRAFT_CONTEXT. Free the slot (template-v1) only when no provider produced text: no key configured, every provider failed, or the breaker is open. Add a test where the faked provider returns a draft with an invented number three times under a limit of 2 and the third request gets a 429."
+  },
+  {
+    "id": "gda-04",
+    "title": "A reservation left behind by a request that dies is counted for the rest of the day and can be attached to an announcement",
+    "severity": "low",
+    "file": "server/app/Http/Controllers/AnnouncementController.php",
+    "line": "74-96, 117-121, 400-405",
+    "evidence": "`'output_text' => '', 'status' => 'pending', 'decision_status' => 'pending'` and `} catch (\\Throwable $e) { $aiOutput->delete(); throw $e; }`; store(): `->where('feature_type', 'ANNOUNCEMENT_DRAFT')->where('decision_status', 'pending')->find($data['ai_output_id'])`",
+    "impact": "The catch only handles PHP exceptions. If PHP-FPM kills the worker, max_execution_time fires (a fatal error, not a Throwable) or the connection drops during the provider wait, the 'pending' row with empty output stays. It counts toward that officer's quota until midnight. Because its decision_status is 'pending', store() also accepts its id as ai_output_id and links an announcement to a draft that was never written.",
+    "fix": "In announcementGenerationQuota() ignore rows `status = 'pending'` older than the provider deadline plus a margin (e.g. created_at < now()->subMinutes(2)), or delete such rows in the existing scheduler. In store() add `->where('status', 'completed')` to the ai_output_id lookup."
+  },
+  {
+    "id": "gda-05",
+    "title": "Template draft shows system wording to members and pastes the officer's AI instructions into the announcement",
+    "severity": "low",
+    "file": "server/app/Http/Controllers/AnnouncementController.php",
+    "line": "751-762",
+    "evidence": "`$lines = [\"This announcement for {$audience} is about {$data['title']}.\"]; ... $lines[] = 'Category: '.ucfirst($data['category']).'.'; ... $lines[] = $details !== '' ? $details : 'Date and venue: to be announced.';`",
+    "impact": "The template body is posted to members. It opens with 'This announcement for Everyone in the organization is about General Assembly.' (a sentence about the announcement, with a capital E in the middle of the sentence), adds the internal field 'Category: Events.', and inserts the 'Instructions for AI draft' text word for word. The field's own placeholder is 'Formal tone. Assembly is on September 30 at 2:00 PM. Bring your ID.', so 'Formal tone.' ends up in the member-facing text. An audience of 'Organization admins' or 'SBO officers' is told to 'ask your organization officers'.",
+    "fix": "Open with a sentence written for the reader, e.g. \"{$data['title']}: please read the details below.\" Drop the 'Category:' line, since the category is already stored on the announcement. Before inserting the details, remove tone instructions (sentences that match /^(use |write |make it |formal|informal|friendly|casual)[^.]*tone[^.]*\\.?/i, or simply any sentence containing 'tone'). Choose the closing line by audience ('ask your organization officers' only when target_role is STUDENT or all)."
+  },
+  {
+    "id": "gda-06",
+    "title": "Student grievance notifications still drop the record id and open the filing form instead of the updated grievance",
+    "severity": "low",
+    "file": "client/src/utils/notificationLinks.js",
+    "line": "150-154",
+    "evidence": "`SUPER_ADMIN: record('/dashboard/super-admin/grievances', id), ADMIN: record('/dashboard/grievances', id), STUDENT: '/dashboard/my-grievances',`; StudentGrievancesPage.jsx:49 `const [tab, setTab] = useState(recordId ? 'mine' : 'file');`",
+    "impact": "The fix for audit item 17 covered the SAO and the Admin only. A student who taps 'Your grievance was updated' (sent by updateStatus with reference_id) lands on My grievances with no record, so the page opens the 'file' tab. They see an empty filing form instead of the grievance and its remarks, although the student page already supports ?record= (it switches to 'mine' and scrolls to the card).",
+    "fix": "Change the STUDENT entry to `record('/dashboard/my-grievances', id)` and add a case to the notificationLinks test asserting '/dashboard/my-grievances?record=<id>'."
+  },
+  {
+    "id": "gda-07",
+    "title": "Admin grievance briefing item reads wrongly when more than one grievance is open",
+    "severity": "low",
+    "file": "server/app/Services/Dashboard/DashboardBriefingService.php",
+    "line": "450-451",
+    "evidence": "`($count === 1 ? '1 grievance filed against your organization is unresolved' : \"{$count} grievances filed against your organization are unresolved\") ... .'. You review it and decide the outcome.'`",
+    "impact": "With 3 open grievances the Admin reads '3 grievances filed against your organization are unresolved, 1 of high or critical urgency. You review it and decide the outcome.' 'it' is singular, and '1 of high or critical urgency' is hard to parse. The count, the scope (organization_id, soft-deleted rows left out) and the link are correct.",
+    "fix": "Use `$count === 1 ? ' You review it and decide the outcome.' : ' You review each one and decide the outcome.'` and word the urgent part as \", {$urgent} of them marked high or critical\"."
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "fin-01",
+    "title": "Budget advice gives a budget outside the active semester an inflated share of the forecast, up to all of it",
+    "severity": "medium",
+    "file": "server/app/Http/Controllers/BudgetController.php",
+    "line": 354,
+    "evidence": "$approved = (float) SemesterScope::budgets(Budget::where('organization_id', $budget->organization_id)\n    ->where('submission_status', 'approved'), AcademicSemester::active())->sum('allocated_amount');\n\nreturn $allocated / max($approved, $allocated);",
+    "impact": "The denominator holds only active-semester budgets, so a budget from an earlier semester is not in it. Run in a scratch test (today 2026-11-15, forecast income 20,000 / expense 40,000, approved budget of 10,000 created 2026-03-01, active semester Aug-Dec): with no active-semester approvals the share is 1.0 and the untouched budget comes back deficit, safe limit 0, available -10,000, which is the original finance-ai-01 defect, and it is written to the budget row. With 20,000 approved in the active semester the share is 0.5 instead of 10,000/30,000. Every carried-over budget is affected, most of all at the start of a semester before new budgets are approved. With no active semester the denominator is every approved budget ever.",
+    "fix": "In allocationShare(), decide first whether the budget belongs to the active semester: SemesterScope::budgets(Budget::whereKey($budget->id), $semester)->exists(). If it does not (or there is no active semester), return 0.0 and let advice() report forecast_status 'not_applied' with the sentence 'This budget is outside the current semester, so the advice uses its balance only.' Add a test with a budget created before the active semester, once with and once without active-semester approvals."
+  },
+  {
+    "id": "fin-02",
+    "title": "Financial report still quotes out-of-date advice next to the recomputed risk (finance-ai-03 not fixed on the report path)",
+    "severity": "medium",
+    "file": "server/app/Http/Controllers/FinancialReportController.php",
+    "line": 189,
+    "evidence": "$budgets = SemesterScope::budgets(...)\n    ->where('submission_status', 'approved')\n    ->whereNotNull('advice_generated_at')\n    ->when(! $event, fn ($query) => $query->whereBetween('advice_generated_at', [...]))\n    ->get([... 'recommended_allocation', 'safe_spending_limit', 'overspending_risk', 'advisory_note', 'advice_generated_at']);  // no BudgetAdviceRules::isStale check, unlike BudgetController::attachAdviceDetails and DashboardInsightEngine::budgetRisk",
+    "impact": "Run in a scratch test: budget 1,000 gets advice 'A deficit is projected...' (risk high), then 9,000 income is posted against it. /api/budgets marks it advice_stale=true and hides the note, but the generated report's budget_advisories carries remaining 10,000.00, overspending_risk 'low', recommended_allocation 0.00, safe_spending_limit 0.00 and the deficit note together. That contradiction goes into the AI summary and the saved report the Department Head and SAO approve.",
+    "fix": "After loading $budgets, load the latest BUDGET_EXPLANATION AiOutput structured_input per budget (same query as attachAdviceDetails) and drop every budget for which BudgetAdviceRules::isStale($input, remaining, threshold) is true, so only current advice reaches budget_advisories and the summary context. Add a test: advice, then a ledger movement, then generate a report and assert budget_advisories is empty."
+  },
+  {
+    "id": "fin-03",
+    "title": "A fully spent budget with no warning threshold is now labelled low risk (was medium)",
+    "severity": "medium",
+    "file": "server/app/Services/BudgetAdviceRules.php",
+    "line": 8,
+    "evidence": "public static function riskFor(float $available, float $warningThreshold): string { return self::evaluate(['predicted_income' => 0, 'predicted_expense' => 0, 'current_available_budget' => $available, 'warning_threshold' => $warningThreshold])['overspending_risk']; }\n// evaluate(): $possibleDeficit = $available < 0; ... ($warningThreshold > 0 && $available <= $warningThreshold)\n// BudgetRiskScaleTest:73 pins it: $this->assertSame('low', Budget::overspendingRiskFor(0, 0));",
+    "impact": "warning_threshold 0 is allowed by the form and the API (min:0). Run in a scratch test: budget 1,000, threshold 0, one 1,000 expense gives remaining 0.00 and overspending_risk 'low', so the Budgets tab shows 'Low overspending risk' on a budget with nothing left and the dashboard budget insight never lists it. Before today the same state stored 'medium' ($remaining <= $warningThreshold).",
+    "fix": "In riskFor() return 'high' when $available <= 0 before calling evaluate() (the balance-only label has no forecast to offset an empty budget); leave evaluate() untouched so it still mirrors budget_advisory.py. Change BudgetRiskScaleTest line 73 to expect 'high' for (0, 0) and take [0, 0] out of the loop that compares riskFor with evaluate."
+  },
+  {
+    "id": "fin-04",
+    "title": "Two edited semester-report tests only pass until 2026-12-31",
+    "severity": "medium",
+    "file": "server/tests/Feature/FinancialReportSubmissionWorkflowTest.php",
+    "line": 35,
+    "evidence": "$budget = Budget::create([... 'submission_status' => 'approved', 'advice_generated_at' => now()]);  // semester is 2026-08-01..2026-12-31; same line at FinancialSemesterTest.php:97\n// controller: ->when(! $event, fn ($query) => $query->whereBetween('advice_generated_at', [Carbon::parse($start)->startOfDay(), Carbon::parse($end)->endOfDay()]))",
+    "impact": "Today's report change filters advisories by advice_generated_at inside the report period. Both tests stamp the advice with the real clock and neither freezes time, so they pass only while the real date is inside the fixed Aug-Dec 2026 semester. Run with the clock at 2027-01-05, the same setup returns 0 budget_advisories instead of 1, so both tests fail from 2027-01-01 and block CI and deploys.",
+    "fix": "In test_semester_report_includes_only_budgets_that_belong_to_that_semester and test_semester_report_lists_the_budgets_that_belong_to_the_semester set 'advice_generated_at' => '2026-10-15 09:00:00' (inside the first semester) instead of now()."
+  },
+  {
+    "id": "fin-05",
+    "title": "Student fee page shows a balance that moves with the live ledger for reports saved before snapshots",
+    "severity": "medium",
+    "file": "server/app/Services/Finance/ApprovedFeeUsage.php",
+    "line": 108,
+    "evidence": "if ($report->opening_balance_snapshot !== null) { return (float) $report->opening_balance_snapshot; }\n...\n$totals = Transaction::query()->where('organization_id', $report->organization_id)\n    ->whereDate('transaction_date', '<', $report->period_start->toDateString()) ...",
+    "impact": "Reports generated before the 2026-09-28 snapshot migration have no snapshot and the migration backfilled none. For those, the closing balance students see is rebuilt from today's ledger: run in a scratch test, an approved legacy report showed balance 2,500; recording one unapproved 400 expense dated before the period start changed the student figure to 2,100 with no new approval. Entries listed in an approved report are locked in the API, so the period rows hold, but entries dated before the period are not. The page says the figures come 'from reports the SAO approved'.",
+    "fix": "In summaryFor() add ->whereNotNull('transactions_snapshot')->whereNotNull('opening_balance_snapshot') so legacy reports are not shown to students, and delete the Transaction fallback in openingBalance(). If old periods must appear, backfill both snapshot columns once for approved reports in a migration and keep the same filter. Add a test that an approved report without snapshots is absent from /api/student/fee-usage."
+  },
+  {
+    "id": "fin-06",
+    "title": "Budget advice parity tests fail on the 29th-31st of some months",
+    "severity": "low",
+    "file": "server/tests/Feature/AiFallbackParityTest.php",
+    "line": 549,
+    "evidence": "'forecast_period' => now('Asia/Manila')->addMonth()->format('Y-m'),  // also line 624",
+    "impact": "addMonth() overflows: Carbon::parse('2027-01-31','Asia/Manila')->addMonth()->format('Y-m') prints 2027-03 (same on Oct 31, Mar 31, May 31, Aug 31, Jan 29-30). The controller now accepts only this month or next (currentForecast), so on those days the forecast is ignored, the advice becomes stable/low and assertBudgetAdviceFallsBackToPhpEngine plus the live-engine test fail. Before today any period was accepted, so the edit introduced the flake.",
+    "fix": "Use now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m') on lines 549 and 624, as line 443 of the same file already does."
+  },
+  {
+    "id": "fin-07",
+    "title": "Forecast summary sentence lost its full stop: '...PHP 8,000.00 With PHP 50,000.00 in approved budgets'",
+    "severity": "low",
+    "file": "server/app/Http/Controllers/FinancialForecastController.php",
+    "line": 463,
+    "evidence": ": \"The {$period} forecast is {$risk}. Expected income is PHP \".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).\"{$fundsSentence} The safe spending limit is PHP \"...  // $fundsSentence = ' With PHP '...",
+    "impact": "Whenever the written explanation is unavailable and the forecast is stable or overspending, the stored confidence_note reads 'Expected income is PHP 10,000.00, expected expenses are PHP 8,000.00 With PHP 50,000.00 in approved budgets, the estimated available budget is PHP 52,000.00.' (output of a scratch run). It is shown on the forecast card and as the dashboard forecast insight body. The new test only checks the 'With PHP...' substring, so it passes.",
+    "fix": "Write ', and expected expenses are PHP '.number_format($expense, 2).\".{$fundsSentence} The safe spending limit...\" (add the full stop before $fundsSentence) and assert the whole fallback sentence in test_the_forecast_summary_names_the_approved_funds_behind_the_safe_limit."
+  },
+  {
+    "id": "fin-08",
+    "title": "One-month warning says the projection 'repeats that month' when zero-filling now projects zero",
+    "severity": "low",
+    "file": "server/app/Http/Controllers/FinancialForecastController.php",
+    "line": 125,
+    "evidence": ": 'Only one month has transactions. This projection repeats that month and is not a reliable trend.';",
+    "impact": "The sentence was true while the series was a single point. With today's zero-filling a single month of 12,000 income in March 2026 becomes an 8-point series (scratch run on 2026-11-15: sample_months 8, predicted_income 0.00), so the Admin reads 'repeats that month' above a forecast of zero.",
+    "fix": "Replace the text with 'Only one month has transactions, so there is no trend to project. Treat these amounts as placeholders, not a forecast.' and add a test with one populated month several months back."
+  },
+  {
+    "id": "fin-09",
+    "title": "Budget create and update still accept a risk label typed by the client",
+    "severity": "low",
+    "file": "server/app/Http/Controllers/BudgetController.php",
+    "line": 62,
+    "evidence": "'overspending_risk' => ['nullable', 'in:low,medium,high'],  // store(), Budget::create([...$data, ...]); same rule in update() at line 111, overwritten only when allocated_amount or warning_threshold is also sent",
+    "impact": "No writer is left on the old scale (TransactionController:485, ApprovalRequestController:370 and update() all go through BudgetAdviceRules), but an Admin can POST or PUT overspending_risk directly, for example 'low' on a budget in the warning band, and it stays until the next ledger movement. The client never sends the field. The label then disagrees with the one scale the fix set out to enforce.",
+    "fix": "Remove 'overspending_risk' (and 'advisory_note') from the validation rules in store() and update() so only the server writes them; in store() set overspending_risk from Budget::overspendingRiskFor(allocated, threshold)."
+  },
+  {
+    "id": "fin-10",
+    "title": "Fee page totals do not add up for a student: Balance includes money carried over that the page never shows",
+    "severity": "low",
+    "file": "client/src/pages/roles/student/FeeUsagePage.jsx",
+    "line": 64,
+    "evidence": "<Stat label=\"Collected\" value={peso(report.totals.collected)} />\n<Stat label=\"Spent\" value={peso(report.totals.spent)} />\n<Stat label=\"Balance\" value={peso(report.totals.balance)} context=\"Closing balance\" />",
+    "impact": "balance is the report's closing balance (opening balance + income - expenses, plus cash advance repayments minus releases), but the opening balance is not returned or shown. In the endpoint's own test a student sees Collected 4,000, Spent 2,500, Balance 1,600; with a large carry-over the gap is larger. On a page meant to build trust in how fees were used, three figures that do not reconcile invite the opposite.",
+    "fix": "Return 'opening' => $statement['totals']['opening_balance'] in ApprovedFeeUsage::summarize() totals and change the third Stat's context to `Includes ${peso(report.totals.opening)} carried over from before this period` when opening is not zero (keep 'Closing balance' otherwise). Update StudentFeeUsageTest and FeeUsagePage.test.jsx."
+  }
+]

@@ -820,22 +820,22 @@ class DashboardBriefingTest extends TestCase
         }
     }
 
-    public function test_forecast_insight_handles_free_text_and_month_periods(): void
+    public function test_forecast_insight_skips_free_text_periods_and_names_the_current_month(): void
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
         Sanctum::actingAs($admin);
 
-        // Seeded and older forecasts use a quarter label rather than "Y-m".
-        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => 'Q4 2024 (Oct-Dec)']);
+        // Seeded and older forecasts use a quarter label rather than "Y-m", and never speak for this month.
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => 'Q4 2024 (Oct-Dec)', 'model_details' => ['engine' => 'python-fastapi']]);
         $quarter = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
-        $this->assertStringContainsString('Q4 2024 (Oct-Dec)', $quarter['title']);
+        $this->assertNull($quarter);
 
-        // A newer generated forecast is "Y-m" and wins as the latest.
         $this->travel(1)->minutes();
-        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => '2026-11']);
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => $thisMonth->format('Y-m'), 'model_details' => ['engine' => 'python-fastapi']]);
         $month = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
-        $this->assertStringContainsString('November 2026', $month['title']);
+        $this->assertStringContainsString($thisMonth->format('F Y'), $month['title']);
     }
 
     public function test_finance_pillar_counts_only_approved_budgets_and_explains_income(): void
