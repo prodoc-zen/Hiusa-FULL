@@ -119,7 +119,7 @@ class AskAiActionsTest extends TestCase
             'SBO_OFFICER' => ['gusto ko mag draft ng announcement' => 'draft_announcement', 'write an announcement for students' => 'draft_announcement'],
             'STUDENT' => ['gusto ko mag file ng grievance' => 'file_grievance', 'i want to file a complaint about the canteen' => 'file_grievance'],
             'DEPARTMENT_HEAD' => ['i want to start a new student organization' => 'allow_applicant', 'let maria apply for a new organization' => 'allow_applicant'],
-            'SUPER_ADMIN' => ['add a college called College of Law' => 'add_college', 'invite a department head to the College of Law' => 'invite_department_head', 'add a dean for the college of arts' => 'invite_department_head'],
+            'SUPER_ADMIN' => ['add a college called College of Law' => 'add_college'],
         ];
 
         foreach ($cases as $role => $messages) {
@@ -178,7 +178,7 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(['Draft an announcement'], $actions->titlesFor(new User(['role' => 'SBO_OFFICER'])));
         $this->assertSame(['File a grievance'], $actions->titlesFor(new User(['role' => 'STUDENT'])));
         $this->assertSame(['Let a student apply for a new organization'], $actions->titlesFor(new User(['role' => 'DEPARTMENT_HEAD'])));
-        $this->assertSame(['Add a college', 'Invite a Department Head'], $actions->titlesFor(new User(['role' => 'SUPER_ADMIN'])));
+        $this->assertSame(['Add a college'], $actions->titlesFor(new User(['role' => 'SUPER_ADMIN'])));
     }
 
     // -------------------------------------------------------------------------
@@ -240,17 +240,8 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(['title' => 'Notice', 'body' => 'Hello.', 'target_role' => null, 'category' => 'general'], $this->values($announcement));
     }
 
-    public function test_without_a_model_a_phrase_amount_email_and_option_are_still_read_honestly(): void
+    public function test_without_a_model_a_phrase_and_an_amount_are_still_read_honestly(): void
     {
-        $this->admin();
-        $sao = $this->sao();
-        College::create(['name' => 'College of Law', 'code' => 'LAW', 'is_active' => true]);
-        Sanctum::actingAs($sao);
-
-        $values = $this->values($this->ask('invite a dean for the College of Law, send it to dean@example.edu'));
-
-        $this->assertSame(['college_id' => (string) College::where('code', 'LAW')->value('id'), 'email' => 'dean@example.edu'], $values);
-
         Sanctum::actingAs($this->admin());
         $budget = $this->values($this->ask('propose a budget called Fun Run Budget of ₱5,000'));
         $this->assertSame(['title' => 'Fun Run Budget', 'allocated_amount' => '5000', 'warning_threshold' => null], $budget);
@@ -498,7 +489,7 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(1, OrganizationApplicantGrant::count());
     }
 
-    public function test_the_sao_adds_a_college_and_invites_its_department_head(): void
+    public function test_the_sao_adds_a_college_and_is_not_offered_a_dean_invitation_card(): void
     {
         $sao = $this->sao();
         Sanctum::actingAs($sao);
@@ -517,18 +508,9 @@ class AskAiActionsTest extends TestCase
         $duplicate = $this->ask('add a college called Another');
         $this->confirm($duplicate['id'], ['name' => 'College of Law', 'code' => 'NEW'])->assertUnprocessable()->assertJsonPath('errors.name.0', fn ($error) => is_string($error));
 
-        $invite = $this->ask('invite a department head to the College of Law');
-        $this->assertSame((string) $college->id, $this->values($invite)['college_id']);
+        $invite = $this->postJson('/api/ai/assistant/chat', ['message' => 'invite a department head to the College of Law'])->assertOk();
+        $this->assertNull($invite->json('message.payload.action'));
         $this->assertSame(0, DepartmentHeadInvitation::count());
-
-        $done = $this->confirm($invite['id'], ['college_id' => (string) $college->id])->assertOk();
-
-        $invitation = DepartmentHeadInvitation::sole();
-        $this->assertSame($college->id, $invitation->college_id);
-        $this->assertSame('DEPARTMENT_HEAD', $invitation->role);
-        $this->assertSame($sao->school_id, (int) $invitation->invited_by);
-        $this->assertStringContainsString('accept-invitation', $done->json('message.payload.action.result.message'));
-        $this->assertStringContainsString('expires in 48 hours', $done->json('message.payload.action.result.message'));
     }
 
     // -------------------------------------------------------------------------
@@ -663,22 +645,6 @@ class AskAiActionsTest extends TestCase
         $this->assertSame('failed', $response->json('message.payload.action.status'));
         $this->assertSame('I could not do that. Only the dean can do this.', $response->json('message.content'));
         $this->assertSame(0, OrganizationApplicantGrant::count());
-    }
-
-    public function test_a_college_archived_after_the_proposal_is_no_longer_a_listed_option_and_no_invitation_is_made(): void
-    {
-        $sao = $this->sao();
-        $college = College::create(['name' => 'College of Law', 'code' => 'LAW', 'is_active' => true]);
-        $this->makeCollegeHome($college);
-        Sanctum::actingAs($sao);
-        $message = $this->ask('invite a dean to the College of Law');
-        $college->update(['is_active' => false]);
-
-        $this->confirm($message['id'], ['college_id' => (string) $college->id])
-            ->assertUnprocessable()->assertJsonPath('errors.college_id.0', 'Choose one of the listed options.');
-
-        $this->assertSame(0, DepartmentHeadInvitation::count());
-        $this->assertSame('awaiting_confirmation', AiMessage::find($message['id'])->payload['action']['status']);
     }
 
     public function test_an_organization_archived_after_the_proposal_is_refused_and_nothing_is_created(): void

@@ -6,7 +6,6 @@ use App\Contracts\TextGenerator;
 use App\Models\AccountProfile;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
-use App\Models\College;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\User;
@@ -86,7 +85,6 @@ class AskAiActions
             'file_grievance' => $this->fileGrievance(),
             'allow_applicant' => $this->allowApplicant(),
             'add_college' => $this->addCollege(),
-            'invite_department_head' => $this->inviteDepartmentHead(),
         ];
     }
 
@@ -304,40 +302,10 @@ class AskAiActions
             'route' => ['POST', '/api/system/colleges'],
             'body' => fn (array $v): array => $this->present($v, ['name', 'code', 'description']),
             'result' => fn (array $json, array $v): array => [
-                'message' => trim((string) data_get($json, 'name', 'The college')).' was added with its home organization. Next, invite its Department Head.',
+                'message' => trim((string) data_get($json, 'name', 'The college')).' was added with its home organization. Invite its Department Head from the college page.',
                 'path' => '/dashboard/super-admin/colleges',
                 'label' => 'Open colleges',
             ],
-        ];
-    }
-
-    private function inviteDepartmentHead(): array
-    {
-        return [
-            'roles' => ['SUPER_ADMIN'],
-            'title' => 'Invite a Department Head',
-            'submit' => 'Create invitation',
-            'intro' => 'Here is the Department Head invitation I can create.',
-            'verbs' => ['invite', 'send', 'create', 'make', 'add', 'assign', 'gawa', 'gumawa'],
-            'nouns' => ['dean', 'deans', 'department head', 'department heads', 'head'],
-            'fields' => [
-                $this->field('college_id', 'College', 'select', true, null, null, fn (): array => College::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code'])
-                    ->map(fn (College $college) => ['value' => (string) $college->id, 'label' => $college->name, 'aliases' => array_filter([$college->name, $college->code])])->all()),
-                $this->field('email', 'Email', 'text', false, 100, 'Optional. When given, the link is sent to this address.', null, ['parse' => 'email']),
-            ],
-            'route' => ['POST', '/api/system/colleges/{college_id}/invite-department-head'],
-            'body' => fn (array $v): array => $this->present($v, ['email']),
-            'result' => function (array $json, array $v): array {
-                $emailed = (bool) data_get($json, 'emailed');
-                $link = (string) data_get($json, 'magic_link', '');
-                $message = $emailed
-                    ? 'The invitation link was emailed. It works once and expires in 48 hours.'
-                    : ($link !== ''
-                        ? "The invitation link is ready. It works once and expires in 48 hours, so copy it now and send it to the Department Head: {$link}"
-                        : 'The invitation link is ready.');
-
-                return ['message' => $message, 'path' => '/dashboard/super-admin/colleges', 'label' => 'Open colleges'];
-            },
         ];
     }
 
