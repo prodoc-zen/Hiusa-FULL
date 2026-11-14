@@ -163,8 +163,18 @@ class AskAiChatService
             'status' => $message->status,
             'feedback' => $message->feedback,
             'created_at' => $message->created_at?->toIso8601String(),
-            'payload' => $message->role === 'user' ? null : $message->payload,
+            'payload' => $message->role === 'user' ? null : $this->withErrorsAsMap($message->payload),
         ];
+    }
+
+    /** The stored JSON turns an empty map into a list, but the action card's errors are a map from field name to messages. */
+    private function withErrorsAsMap(mixed $payload): mixed
+    {
+        if (is_array($payload) && is_array($payload['action'] ?? null) && ($payload['action']['errors'] ?? null) === []) {
+            $payload['action']['errors'] = new \stdClass;
+        }
+
+        return $payload;
     }
 
     /** An answer from an area the person's access no longer covers is shown as unavailable and never sent to the model. */

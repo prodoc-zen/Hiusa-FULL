@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsurePeriodWritable;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AccountProfile;
+use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
@@ -948,6 +949,71 @@ class AskAiActionsTest extends TestCase
 
         $this->assertSame('I could not do that. Nothing was confirmed, so check the page before trying again.', $method->invoke($actions, 500, ['message' => 'SQLSTATE[HY000]: secret table users']));
         $this->assertSame('I could not do that. This college is archived.', $method->invoke($actions, 409, ['message' => 'This college is archived.']));
+    }
+
+    public function test_no_action_that_returns_an_invitation_link_is_offered_or_accepted_for_any_role(): void
+    {
+        $actions = app(AskAiActions::class);
+        $definitions = (new \ReflectionMethod($actions, 'definitions'))->invoke($actions);
+        $roles = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
+
+        foreach ($definitions as $key => $definition) {
+            $this->assertDoesNotMatchRegularExpression('/invit|magic|link/i', $key.' '.$definition['title'].' '.$definition['route'][1], $key);
+        }
+        $this->assertStringNotContainsString('magic_link', (string) file_get_contents((new \ReflectionClass($actions))->getFileName()));
+
+        foreach ($roles as $role) {
+            $user = new User(['role' => $role]);
+            $this->assertNull($actions->definitionFor($user, 'invite_department_head'), $role);
+            $this->assertSame([], preg_grep('/invit|link/i', $actions->titlesFor($user)), $role);
+            foreach (['invite a department head to the College of Law', 'send the dean an invitation link', 'create an invitation for the department head'] as $text) {
+                $this->assertNull($actions->recognise($user, $text), "{$role}: {$text}");
+            }
+        }
+    }
+
+    public function test_a_stored_invite_card_is_not_found_when_confirmed(): void
+    {
+        $sao = $this->sao();
+        $conversation = AiConversation::create(['user_id' => $sao->school_id, 'organization_id' => $sao->organization_id, 'role' => $sao->role, 'title' => 'Invite', 'last_message_at' => now()]);
+        $card = AiMessage::create([
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+            'content' => 'Here is the invitation I can create.',
+            'payload' => ['action' => ['key' => 'invite_department_head', 'status' => 'awaiting_confirmation', 'fields' => [], 'errors' => [], 'result' => null, 'expires_at' => now()->addMinutes(30)->toIso8601String()]],
+            'status' => 'completed',
+            'created_at' => now(),
+        ]);
+        $college = College::create(['name' => 'College of Law', 'code' => 'LAW', 'is_active' => true]);
+        Sanctum::actingAs($sao);
+
+        $this->confirm($card->id, ['college_id' => (string) $college->id])->assertNotFound();
+
+        $this->assertSame(0, DepartmentHeadInvitation::count());
+        $this->assertSame('awaiting_confirmation', AiMessage::find($card->id)->payload['action']['status']);
+    }
+
+    public function test_an_empty_error_list_is_sent_as_an_object_like_the_contract_says(): void
+    {
+        Sanctum::actingAs($this->admin());
+
+        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk();
+
+        $this->assertStringContainsString('"errors":{}', $response->getContent());
+        $this->assertStringNotContainsString('"errors":[]', $response->getContent());
+    }
+
+    public function test_confirming_and_cancelling_do_not_draw_on_the_generation_allowance(): void
+    {
+        Sanctum::actingAs($this->admin());
+        RateLimiter::for('ai-generation', fn () => Limit::perMinute(1));
+        $first = $this->ask('create an event called Fun Run');
+        $second = $this->ask('create an event called Open Mic');
+        $third = $this->ask('create an event called Quiz Night');
+
+        $this->confirm($first['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+        $this->postJson("/api/ai/assistant/messages/{$second['id']}/action/cancel")->assertOk();
+        $this->confirm($third['id'], ['title' => 'Quiz Night', 'start_time' => '2026-12-06T15:00', 'end_time' => '2026-12-06T17:00'])->assertOk();
     }
 
     // -------------------------------------------------------------------------
