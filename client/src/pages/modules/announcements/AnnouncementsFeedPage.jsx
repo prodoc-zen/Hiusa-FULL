@@ -69,7 +69,7 @@ export default function AnnouncementsFeedPage() {
     </div>
     {loading && <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>}
     {error && <ErrorState title="Could not load announcements" description={error} onRetry={load} />}
-    {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Your officers post them here." />)}
+    {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Announcements show here once your organization or the university posts them." />)}
     {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} showSource={showSource} />)}
     {!loading && !error && <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}
     </div>

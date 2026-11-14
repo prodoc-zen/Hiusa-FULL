@@ -603,4 +603,29 @@ describe('student registration path', () => {
     expect(within(steps).getByText('Check in at the event').closest('li')).toHaveAttribute('aria-current', 'step');
     expect(within(drawer).queryByRole('list', { name: 'Event progress' })).not.toBeInTheDocument();
   });
+
+  it('keeps organizer-only progress and empty fields out of the student drawer', async () => {
+    const event = { ...FIXTURES.approved, start_time: '2099-10-01T08:00:00Z', end_time: '2099-10-01T10:00:00Z', tasks_count: 1, completed_tasks_count: 0 };
+    useViewer('STUDENT', event);
+    renderPage('/dashboard/events/activity-calendar?view=list');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Founders Day' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Event details' });
+    await within(drawer).findByText('Schedule');
+
+    expect(within(drawer).queryByText('Preparation progress')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Attendance summary')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Approval stage')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Event type')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Expected participants')).not.toBeInTheDocument();
+  });
+
+  it('offers a student only the statuses the server returns', async () => {
+    useViewer('STUDENT', { ...FIXTURES.approved });
+    renderPage('/dashboard/events/activity-calendar?view=list');
+
+    const status = await screen.findByLabelText('Status');
+    expect(Array.from(status.options).map((option) => option.textContent)).toEqual(['All statuses', 'Approved', 'Ongoing', 'Completed']);
+  });
 });
