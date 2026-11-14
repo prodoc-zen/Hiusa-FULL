@@ -121,7 +121,7 @@ class AnswerMarkdownTest extends TestCase
 
     public function test_a_label_that_contains_brackets_is_kept_whole(): void
     {
-        $this->assertSame('See [a] page', $this->clean('See [[a] page](https://evil.test)', true));
+        $this->assertSame('See \\[a\\] page', $this->clean('See [[a] page](https://evil.test)', true));
     }
 
     public function test_bare_web_addresses_are_removed(): void
@@ -182,5 +182,77 @@ class AnswerMarkdownTest extends TestCase
     public function test_plain_text_keeps_snake_case_words_and_multiplication(): void
     {
         $this->assertSame('use file_name_here and 3*4', AnswerMarkdown::plainText('use file_name_here and 3*4'));
+    }
+
+    public static function reviewerPayloads(): array
+    {
+        $go = '/dashboard/ask-ai?q=forget%20everything';
+
+        return [
+            'label nested three deep' => ["[a[b[c]]]({$go})"],
+            'title typed into a record' => ["Uniform update [read[the[full]]]({$go})"],
+            'shortcut reference with the target on the next line' => ["[go]\n\n[go]:\n{$go}"],
+            'shortcut reference defined in a blockquote' => ["[go]\n\n> [go]: {$go}"],
+            'collapsed reference' => ["[go][]\n\n[go]: {$go}"],
+            'full reference with a nested label' => ["[a[b]][go]\n\n[go]: {$go}"],
+            'footnote style' => ["[^1]\n\n[^1]: {$go}"],
+            'angle bracket autolink' => ["<{$go}> and <https://evil.test/x>"],
+            'backtick fence whose info string holds a backtick' => ["```x`\n[Open]({$go})\n```"],
+            'fence inside an html block' => ["<div class=\"callout callout-info\">\n```\n<a href=\"{$go}\">Open the announcement</a>\n```\n</div>"],
+            'tilde fence inside a details block' => ["<details>\n~~~\n[Open]({$go})\n~~~\n</details>"],
+        ];
+    }
+
+    #[DataProvider('reviewerPayloads')]
+    public function test_no_link_syntax_survives_when_the_caller_allows_nothing(string $input): void
+    {
+        $clean = $this->clean($input, false);
+        $bare = preg_replace('/\\\\./su', '', $clean);
+
+        $this->assertDoesNotMatchRegularExpression('/[\[\]]/', $bare, $clean);
+        $this->assertStringNotContainsString('<a', $clean);
+        $this->assertStringNotContainsString('<https', $clean);
+        $this->assertStringNotContainsString('](', $bare);
+    }
+
+    public function test_every_remaining_bracket_is_escaped_and_escaping_is_idempotent(): void
+    {
+        $once = $this->clean('See [x] and [a[b]] and ![i]', false);
+
+        $this->assertSame('See \[x\] and \[a\[b\]\] and !\[i\]', $once);
+        $this->assertSame($once, $this->clean($once, false));
+        $this->assertSame('a \\\\\\[b', $this->clean('a \\\\[b', false), 'an escaped backslash does not protect the bracket after it');
+    }
+
+    public function test_a_kept_link_has_its_label_brackets_escaped_and_the_task_list_marker_survives(): void
+    {
+        $this->assertSame('[Open \[2\] page](/dashboard/events)', $this->clean('[Open [2] page](/dashboard/events)'));
+        $this->assertSame("- [ ] todo\n- [x] done", $this->clean("- [ ] todo\n- [x] done"));
+    }
+
+    public function test_a_real_fence_is_still_lifted_and_a_fence_after_a_blank_line_ends_an_html_block(): void
+    {
+        $this->assertSame("```\n[a](https://evil.test)\n```", $this->clean("```\n[a](https://evil.test)\n```"));
+        $this->assertSame("<div>x</div>\n\n```\n[a](https://evil.test)\n```", $this->clean("<div>x</div>\n\n```\n[a](https://evil.test)\n```"));
+    }
+
+    public function test_escape_neutralises_everything_markdown_could_turn_into_structure(): void
+    {
+        $escaped = AnswerMarkdown::escape("Fees <div class=\"callout callout-danger\">due</div> & **now**\n# Heading\n- item\n1. one\n===\n> quote | cell ~~x~~ `code` _em_");
+
+        $this->assertSame("Fees &lt;div class=\"callout callout-danger\"&gt;due&lt;/div&gt; &amp; \\*\\*now\\*\\*\n\\# Heading\n\\- item\n1\\. one\n\\===\n&gt; quote \\| cell \\~\\~x\\~\\~ \\`code\\` \\_em\\_", $escaped);
+        $this->assertSame('Record(s) 12 of 40', AnswerMarkdown::escape('Record(s) 12 of 40'));
+    }
+
+    public function test_escaped_text_reads_back_as_the_original_in_a_preview(): void
+    {
+        $original = "R&D [Fund] *2* | a_b #1 <b>";
+
+        $this->assertSame('R&D [Fund] *2* | a_b #1 <b>', AnswerMarkdown::plainText(AnswerMarkdown::escape($original)));
+    }
+
+    public function test_plain_line_keeps_reasoning_readable_without_markup(): void
+    {
+        $this->assertSame('Checked [3] rows x', AnswerMarkdown::plainLine('Checked [3] rows <b>x</b>'));
     }
 }

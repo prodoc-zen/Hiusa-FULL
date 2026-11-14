@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AskAiPage from './AskAiPage';
 
@@ -68,10 +68,17 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname + location.search}</output>;
 }
 
+function BackProbe() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>history back</button>;
+}
+
 function renderPage(url = '/dashboard/ask-ai') {
+  const entries = Array.isArray(url) ? url : [url];
   return render(
-    <MemoryRouter initialEntries={[url]}>
+    <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
       <AskAiPage />
+      <BackProbe />
       <LocationProbe />
     </MemoryRouter>,
   );
@@ -113,6 +120,8 @@ async function ready() {
 describe('AskAiPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    service.streamAiChat.mockReset();
+    service.getAiConversation.mockReset();
     service.getAiAssistantOverview.mockResolvedValue({ data: overview });
     service.listAiConversations.mockResolvedValue({ data: [] });
     service.sendAiMessageFeedback.mockResolvedValue({ data: {} });
@@ -379,6 +388,194 @@ describe('AskAiPage', () => {
     await screen.findByText('Could not open that conversation');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Budget is on track.')).toBeInTheDocument();
+  });
+
+  describe('sending and loading', () => {
+    const loaded = (id = 7) => ({
+      data: {
+        conversation: conversation(id, 'Missing requirements'),
+        messages: [
+          { id: 1, role: 'user', content: 'who is missing?', status: 'completed', payload: null },
+          storedAnswer(2, 'Three organizations are missing files.'),
+        ],
+      },
+    });
+
+    it('refuses a send while a conversation loads, keeps the text and says why, then sends into that conversation', async () => {
+      let resolveLoad;
+      service.getAiConversation.mockReturnValue(new Promise((resolve) => { resolveLoad = resolve; }));
+      renderPage('/dashboard/ask-ai?c=7');
+      await screen.findByRole('status', { name: 'Loading conversation' });
+
+      type('hello');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      expect(service.streamAiChat).not.toHaveBeenCalled();
+      expect(composer()).toHaveValue('hello');
+      expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+      expect(screen.getByText(/once it has loaded/)).toBeInTheDocument();
+
+      await act(async () => resolveLoad(loaded()));
+      expect(await screen.findByText('Three organizations are missing files.')).toBeInTheDocument();
+      expect(service.streamAiChat).not.toHaveBeenCalled();
+      expect(composer()).toHaveValue('hello');
+      expect(screen.queryByText(/once it has loaded/)).not.toBeInTheDocument();
+
+      const stream = deferredStream();
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      expect(service.streamAiChat).toHaveBeenCalledWith(expect.objectContaining({ conversationId: 7, message: 'hello' }));
+      await stream.reject(new Error('x'));
+    });
+
+    it('does not let a late load replace the conversation the person moved to', async () => {
+      let resolveSlow;
+      service.getAiConversation.mockImplementation((id) => (
+        id === '7'
+          ? new Promise((resolve) => { resolveSlow = resolve; })
+          : Promise.resolve({ data: { conversation: conversation(8, 'Other'), messages: [storedAnswer(9, 'The other answer.')] } })
+      ));
+      service.listAiConversations.mockResolvedValue({ data: [conversation(7, 'Slow'), conversation(8, 'Other')] });
+      renderPage(['/dashboard/ask-ai?c=7']);
+      await screen.findByRole('status', { name: 'Loading conversation' });
+      fireEvent.click(screen.getByRole('button', { name: 'History' }));
+      const list = await screen.findByRole('navigation', { name: 'Conversations' });
+      fireEvent.click(await within(list).findByRole('button', { name: 'Other' }));
+      expect(await screen.findByText('The other answer.')).toBeInTheDocument();
+
+      await act(async () => resolveSlow(loaded(7)));
+      expect(screen.getByText('The other answer.')).toBeInTheDocument();
+      expect(screen.queryByText('Three organizations are missing files.')).not.toBeInTheDocument();
+      expect(screen.getByTestId('location')).toHaveTextContent('?c=8');
+    });
+
+    it('does not send ?q while a conversation is named by ?c', async () => {
+      service.getAiConversation.mockResolvedValue(loaded());
+      renderPage('/dashboard/ask-ai?c=7&q=hello');
+      await screen.findByText('Three organizations are missing files.');
+      expect(service.streamAiChat).not.toHaveBeenCalled();
+    });
+
+    it('keeps the question text when the send is refused', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('first');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      type('second');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      expect(composer()).toHaveValue('second');
+      await stream.reject(new Error('x'));
+    });
+
+    it('regenerates after an early Stop, when nothing was stored for the answer', async () => {
+      const first = deferredStream();
+      renderPage();
+      await ready();
+      type('question');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await first.emit('meta', { conversation: conversation(14, 'Question'), user_message: { id: 1, role: 'user', content: 'question' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Stop answering' }));
+      await screen.findByText('You stopped this answer.');
+
+      const second = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+      expect(service.streamAiChat).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 14, regenerate: true }));
+      expect(screen.queryByText('You stopped this answer.')).not.toBeInTheDocument();
+      expect(screen.getAllByText('question', { selector: 'p' })).toHaveLength(1);
+      await second.reject(new Error('x'));
+    });
+
+    it('announces plain text from the preview, announces Stop, and marks the streaming answer busy', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('question');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await stream.emit('meta', { conversation: conversation(12, 'Q'), user_message: { id: 1, role: 'user', content: 'question' } });
+      await stream.emit('delta', { text: '**Bold** start' });
+      expect(screen.getByRole('article', { name: 'Answer' })).toHaveAttribute('aria-busy', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'Stop answering' }));
+      await waitFor(() => expect(screen.getByText('Answer stopped.')).toBeInTheDocument());
+      expect(screen.getByRole('article', { name: 'Answer' })).not.toHaveAttribute('aria-busy');
+
+      const second = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+      const message = storedAnswer(2, '**Marco**, all good.');
+      await second.resolve({ conversation: conversation(12, 'Q', { preview: 'Marco, all good.' }), message });
+      expect(screen.getByText('Answer ready. Marco, all good.')).toBeInTheDocument();
+    });
+
+    it('drops the dead conversation on a 404 and asks the same question in a new one', async () => {
+      service.listAiConversations.mockResolvedValue({ data: [conversation(7, 'Missing requirements')] });
+      service.getAiConversation.mockResolvedValue(loaded());
+      renderPage('/dashboard/ask-ai?c=7');
+      await screen.findByText('Three organizations are missing files.');
+
+      const first = deferredStream();
+      type('and finance?');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      const second = deferredStream();
+      await first.reject(Object.assign(new Error('Not found.'), { status: 404 }));
+
+      expect(service.streamAiChat).toHaveBeenCalledTimes(2);
+      expect(service.streamAiChat.mock.calls[0][0].conversationId).toBe(7);
+      expect(service.streamAiChat.mock.calls[1][0]).toEqual(expect.objectContaining({ conversationId: null, message: 'and finance?', regenerate: false }));
+      expect(screen.getByText(/no longer available/)).toBeInTheDocument();
+      expect(screen.queryByText('Three organizations are missing files.')).not.toBeInTheDocument();
+      expect(screen.getAllByText('and finance?', { selector: 'p' })).toHaveLength(1);
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/dashboard\/ask-ai$/);
+
+      await second.reject(Object.assign(new Error('Not found.'), { status: 404 }));
+      expect(service.streamAiChat).toHaveBeenCalledTimes(2);
+    });
+
+    it('says the connection failed, not that the person is offline, for a network error while online', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('question');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await stream.reject(new TypeError('Failed to fetch'));
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach HIUSA');
+    });
+
+    it('keeps the partial answer, marked unfinished, when the stream fails after text arrived', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('question');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await stream.emit('meta', { conversation: conversation(12, 'Question'), user_message: { id: 1, role: 'user', content: 'question' } });
+      await stream.emit('delta', { text: 'Half an answer' });
+      await stream.reject(new Error('dropped'));
+
+      expect(screen.getByTestId('markdown')).toHaveTextContent('Half an answer');
+      expect(screen.getByText('This answer did not finish.')).toBeInTheDocument();
+      const alert = await screen.findByRole('alert');
+      expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+
+      const retry = deferredStream();
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+      expect(service.streamAiChat).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 12, regenerate: true }));
+      expect(screen.queryByText('Half an answer')).not.toBeInTheDocument();
+      await retry.reject(new Error('x'));
+    });
+
+    it('treats Back to the page without ?c during a stream like New chat', async () => {
+      service.getAiConversation.mockResolvedValue(loaded());
+      renderPage(['/dashboard/ask-ai', '/dashboard/ask-ai?c=7']);
+      await screen.findByText('Three organizations are missing files.');
+      const stream = deferredStream();
+      type('and finance?');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await stream.emit('delta', { text: 'Streaming' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'history back' }));
+      await ready();
+      expect(stream.signal.aborted).toBe(true);
+      expect(screen.queryByText('Three organizations are missing files.')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('markdown')).not.toBeInTheDocument();
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/dashboard\/ask-ai$/);
+    });
   });
 
   describe('history', () => {

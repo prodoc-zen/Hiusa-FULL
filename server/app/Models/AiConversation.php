@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class AiConversation extends Model
 {
@@ -38,11 +39,36 @@ class AiConversation extends Model
     {
         return $query
             ->withCount('messages')
-            ->addSelect(['preview_source' => AiMessage::select('content')
-                ->whereColumn('conversation_id', 'ai_conversations.id')
-                ->where('role', 'assistant')
-                ->orderByDesc('id')
-                ->limit(1)]);
+            ->addSelect([
+                'preview_source' => AiMessage::select('content')
+                    ->whereColumn('conversation_id', 'ai_conversations.id')
+                    ->where('role', 'assistant')
+                    ->orderByDesc('id')
+                    ->limit(1),
+                'preview_payload' => AiMessage::select('payload')
+                    ->whereColumn('conversation_id', 'ai_conversations.id')
+                    ->where('role', 'assistant')
+                    ->orderByDesc('id')
+                    ->limit(1),
+            ]);
+    }
+
+    /**
+     * Deletes the matching conversations, their messages and the ai_outputs rows those messages point to, so the
+     * question and answer text is gone everywhere and not only from the conversation list.
+     */
+    public static function eraseWithOutputs(Builder $conversations): void
+    {
+        DB::transaction(function () use ($conversations): void {
+            $ids = (clone $conversations)->select('ai_conversations.id');
+
+            AiOutput::query()->whereIn('id', AiMessage::query()
+                ->select('ai_output_id')
+                ->whereIn('conversation_id', $ids)
+                ->whereNotNull('ai_output_id'))->delete();
+            AiMessage::query()->whereIn('conversation_id', $ids)->delete();
+            $conversations->delete();
+        });
     }
 
     public function user(): BelongsTo

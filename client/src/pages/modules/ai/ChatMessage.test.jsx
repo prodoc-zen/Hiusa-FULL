@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import ChatMessage from './ChatMessage';
 
 const answer = (extra = {}) => ({
@@ -53,5 +53,58 @@ describe('ChatMessage actions', () => {
     renderMessage(answer());
     fireEvent.focus(screen.getByRole('button', { name: 'Not helpful' }));
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Not helpful');
+  });
+
+  it('marks a streaming answer busy and a finished one not', () => {
+    const { rerender } = renderMessage(answer({ streaming: true }));
+    expect(screen.getByRole('article', { name: 'Answer' })).toHaveAttribute('aria-busy', 'true');
+    rerender(
+      <MemoryRouter>
+        <ChatMessage message={answer()} isLast />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('article', { name: 'Answer' })).not.toHaveAttribute('aria-busy');
+  });
+});
+
+describe('ChatMessage Copy', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('copies the text as it reads on screen, not the Markdown or HTML source', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const content = [
+      '## Late files',
+      '',
+      'Three **organizations** are [late](/dashboard/compliance) <span class="badge badge-danger">Overdue</span>.',
+      '',
+      '1. Open compliance',
+      '2. Send a reminder',
+      '   - to the treasurer',
+      '',
+      '| Organization | Due |',
+      '|---|---|',
+      '| Chess Club | Dec 1 |',
+      '| Drama Club | Dec 5 |',
+      '',
+      '<div class="callout callout-warning">Deadline is close.</div>',
+    ].join('\n');
+    renderMessage(answer({ content }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await screen.findByRole('button', { name: 'Copied' });
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0][0]).toBe([
+      'Late files',
+      '',
+      'Three organizations are late Overdue.',
+      '',
+      '1. Open compliance\n2. Send a reminder\n  - to the treasurer',
+      '',
+      'Organization\tDue\nChess Club\tDec 1\nDrama Club\tDec 5',
+      '',
+      'Deadline is close.',
+    ].join('\n'));
   });
 });

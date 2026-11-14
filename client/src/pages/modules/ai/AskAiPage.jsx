@@ -214,6 +214,8 @@ export default function AskAiPage() {
   const abortRef = useRef(null);
   const loadRef = useRef(0);
   const loadingRef = useRef(false);
+  const sendRef = useRef(null);
+  const prevCParamRef = useRef(cParam);
   const atBottomRef = useRef(true);
   const handledQueryRef = useRef('');
 
@@ -392,11 +394,15 @@ export default function AskAiPage() {
       }
     }
     if (gone) {
-      if (!regenerate) send(text, { topic });
+      if (!regenerate) sendRef.current(text, { topic });
       setNotice('That conversation is no longer available, so this is a new one.');
     }
     return true;
   }, [focusComposer, updateParams, upsertConversation]);
+
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -455,8 +461,13 @@ export default function AskAiPage() {
   }, [cancelRun, updateParams]);
 
   useEffect(() => {
+    const previous = prevCParamRef.current;
+    prevCParamRef.current = cParam;
     if (!cParam) {
-      if (convIdRef.current !== null || sendingRef.current) resetToNew();
+      const openId = convIdRef.current;
+      // While a send runs, only a Back away from the very conversation on screen resets it; a stale
+      // address update from an earlier conversation must not cancel the run.
+      if (openId !== null && (!sendingRef.current || String(openId) === previous)) resetToNew();
       return;
     }
     if (String(convIdRef.current) === cParam) return;
