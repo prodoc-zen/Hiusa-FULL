@@ -6,7 +6,9 @@ use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\College;
+use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -141,11 +143,45 @@ class ProfileWorkspaceTest extends TestCase
         $this->assertDatabaseMissing('audit_logs', ['action' => 'student_profile_restored']);
     }
 
+    public function test_an_account_wide_admin_role_does_not_hide_a_registry_student_when_a_council_profile_is_promoted(): void
+    {
+        $club = Organization::factory()->create(['name' => 'Chess Club', 'college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => true]);
+        $person = User::factory()->admin()->create(['organization_id' => $club->id, 'account_status' => 'active']);
+        StudentRegistryEntry::create([
+            'record_type' => 'student', 'school_id' => $person->school_id, 'first_name' => 'Ana', 'last_name' => 'Cruz',
+            'birth_date' => '2005-03-04', 'college_id' => $this->college->id, 'program' => 'BS Computer Science', 'year_level' => '2nd Year',
+        ]);
+        $profile = $person->accountProfiles()->create(['organization_id' => $this->council->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        Sanctum::actingAs($this->admin);
+
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'SBO_OFFICER'])->assertOk();
+
+        $this->assertSame(1, AccountProfile::where('user_school_id', $person->school_id)->where('organization_id', $this->home->id)->where('role', 'STUDENT')->where('account_status', 'active')->count());
+        $this->assertDatabaseHas('audit_logs', ['action' => 'student_profile_restored', 'organization_id' => $this->home->id]);
+    }
+
+    public function test_an_employee_in_the_registry_with_an_admin_role_gets_no_student_profile_when_promoted(): void
+    {
+        $club = Organization::factory()->create(['name' => 'Chess Club', 'college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => true]);
+        $person = User::factory()->admin()->create(['organization_id' => $club->id, 'account_status' => 'active']);
+        StudentRegistryEntry::create([
+            'record_type' => 'employee', 'school_id' => $person->school_id, 'first_name' => 'Marites', 'last_name' => 'Faculty',
+            'birth_date' => '1988-05-17', 'college_id' => $this->college->id, 'program' => null, 'year_level' => null, 'position' => 'Department Secretary',
+        ]);
+        $profile = $person->accountProfiles()->create(['organization_id' => $this->council->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        Sanctum::actingAs($this->admin);
+
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'SBO_OFFICER'])->assertOk();
+
+        $this->assertSame(0, AccountProfile::where('user_school_id', $person->school_id)->where('organization_id', $this->home->id)->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'student_profile_restored']);
+    }
+
     public function test_applicant_notice_points_to_the_menu_while_a_semester_is_active(): void
     {
         $this->grantNotice(withActiveSemester: true);
 
-        $notice = \App\Models\Notification::where('title', 'You can apply for an organization')->firstOrFail();
+        $notice = Notification::where('title', 'You can apply for an organization')->firstOrFail();
         $this->assertStringContainsString('Open Apply for an organization in your menu.', $notice->message);
     }
 
@@ -153,7 +189,7 @@ class ProfileWorkspaceTest extends TestCase
     {
         $this->grantNotice(withActiveSemester: false);
 
-        $notice = \App\Models\Notification::where('title', 'You can apply for an organization')->firstOrFail();
+        $notice = Notification::where('title', 'You can apply for an organization')->firstOrFail();
         $this->assertStringContainsString('Applications open once the SAO starts a semester.', $notice->message);
         $this->assertStringNotContainsString('Open Apply for an organization in your menu.', $notice->message);
     }
