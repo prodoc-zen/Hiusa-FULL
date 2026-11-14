@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\Grammars\SQLiteGrammar;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -87,6 +89,51 @@ class SystemUserAccountControlTest extends TestCase
             ->assertStatus(409)->assertJsonPath('message', 'The last active SAO account cannot be deactivated.');
         $this->assertTrue($switched);
         $this->assertSame('active', $last->fresh()->getRawOriginal('account_status'));
+    }
+
+    public function test_the_active_sao_rows_are_locked_before_the_last_sao_check_decides(): void
+    {
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $target = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $original = DB::connection()->getQueryGrammar();
+        $recorder = new class(DB::connection()) extends SQLiteGrammar
+        {
+            public array $locked = [];
+
+            public function compileSelect(Builder $query)
+            {
+                if ($query->lock) {
+                    $this->locked[] = ['table' => $query->from, 'bindings' => $query->getBindings()];
+                }
+
+                return parent::compileSelect($query);
+            }
+        };
+        DB::connection()->setQueryGrammar($recorder);
+
+        Sanctum::actingAs($actor);
+        $this->patchJson('/api/system/users/'.$target->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+        DB::connection()->setQueryGrammar($original);
+
+        $this->assertNotEmpty($recorder->locked);
+        $first = $recorder->locked[0];
+        $this->assertSame('users', $first['table']);
+        $this->assertContains('SUPER_ADMIN', $first['bindings']);
+        $this->assertContains('active', $first['bindings']);
+    }
+
+    public function test_a_sao_who_was_just_deactivated_cannot_deactivate_the_other_one_back(): void
+    {
+        $first = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $second = User::factory()->superAdmin()->create(['account_status' => 'active']);
+
+        Sanctum::actingAs($first);
+        $this->patchJson('/api/system/users/'.$second->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+
+        Sanctum::actingAs($second);
+        $this->patchJson('/api/system/users/'.$first->school_id.'/status', ['account_status' => 'disabled'])
+            ->assertForbidden();
+        $this->assertSame('active', $first->fresh()->getRawOriginal('account_status'));
     }
 
     public function test_a_department_head_is_managed_from_colleges_not_here(): void
