@@ -60,7 +60,7 @@ export default function StudentFinancialAccountsPage() {
   // Every member: ask the server who would be charged before anything is saved, so the count and the total are on screen first.
   const everyMember = charge?.target === 'all';
   const feeReady = Boolean(charge?.description?.trim() && Number(charge?.amount_due) > 0);
-  const bulkBody = charge ? { all_members: true, description: charge.description.trim(), amount_due: charge.amount_due, due_date: charge.due_date || null } : null;
+  const bulkBody = charge ? { all_members: true, description: charge.description.trim(), amount_due: charge.amount_due, due_date: charge.due_date || null, ...(charge.charge_already_paid ? { charge_already_paid: true } : {}) } : null;
   useEffect(() => {
     if (!everyMember || !feeReady) { setCount({ state: 'idle', data: null, message: '' }); return undefined; }
     let current = true;
@@ -71,8 +71,9 @@ export default function StudentFinancialAccountsPage() {
     }, 300);
     return () => { current = false; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [everyMember, feeReady, charge?.description, charge?.amount_due, charge?.due_date]);
+  }, [everyMember, feeReady, charge?.description, charge?.amount_due, charge?.due_date, charge?.charge_already_paid]);
   const toCharge = count.state === 'ready' ? Number(count.data?.to_charge || 0) : 0;
+  const alreadyPaid = count.state === 'ready' ? Number(count.data?.already_paid || 0) : 0;
 
   const submitCharge = async (event) => {
     event.preventDefault(); setBusy(true); setFormError('');
@@ -188,7 +189,7 @@ export default function StudentFinancialAccountsPage() {
         <SegmentedControl options={CHARGE_TARGETS} value={charge?.target || 'one'} onChange={(target) => setCharge({ ...charge, target })} />
         {!everyMember && <PersonPicker label="Student" scope="college" role="STUDENT" value={charge?.student ?? null} onSelect={(person) => setCharge({ ...charge, student: person, student_id: person?.school_id ?? '' })} disabled={busy} />}
         <Field label="Amount due" required><Input type="number" min="0.01" step="0.01" value={charge?.amount_due || ''} onChange={(event) => setCharge({ ...charge, amount_due: event.target.value })} /></Field>
-        <Field label="Description" required><Input maxLength={255} value={charge?.description || ''} onChange={(event) => setCharge({ ...charge, description: event.target.value })} placeholder="e.g. Organization fee" /></Field>
+        <Field label="Description" required><Input maxLength={255} value={charge?.description || ''} onChange={(event) => setCharge({ ...charge, description: event.target.value, charge_already_paid: false })} placeholder="e.g. Organization fee" /></Field>
         <Field label="Due date" optional><Input type="date" value={charge?.due_date || ''} onChange={(event) => setCharge({ ...charge, due_date: event.target.value })} /></Field>
         {everyMember && <div aria-live="polite" className="rounded-control bg-subtle p-3 text-sm text-ink">
           {count.state === 'idle' && <p className="text-ink-muted">Enter the amount and a description to see who will be charged.</p>}
@@ -197,9 +198,15 @@ export default function StudentFinancialAccountsPage() {
           {count.state === 'ready' && (count.data.members === 0
             ? <p>Your organization has no active members to charge. Add members first.</p>
             : toCharge === 0
-              ? <p>Every active member already has an open charge named {charge.description.trim()}.</p>
-              : <><p className="font-semibold">{plural(toCharge, 'member')} will be charged {money(count.data.total)} in all.</p>{count.data.skipped > 0 && <p className="mt-1 text-xs text-ink-muted">{count.data.skipped} already {count.data.skipped === 1 ? 'has' : 'have'} an open charge named {charge.description.trim()} and {count.data.skipped === 1 ? 'is' : 'are'} skipped.</p>}</>)}
+              ? <p>{alreadyPaid > 0 ? `Every active member already has or has paid a charge named ${charge.description.trim()}.` : `Every active member already has an open charge named ${charge.description.trim()}.`}</p>
+              : <><p className="font-semibold">{plural(toCharge, 'member')} will be charged {money(count.data.total)} in all.</p>{count.data.skipped > 0 && <p className="mt-1 text-xs text-ink-muted">{count.data.skipped} already {count.data.skipped === 1 ? 'has' : 'have'} an open charge named {charge.description.trim()} and {count.data.skipped === 1 ? 'is' : 'are'} skipped.</p>}{alreadyPaid > 0 && <p className="mt-1 text-xs text-ink-muted">{alreadyPaid} already paid a charge named {charge.description.trim()} and {charge.charge_already_paid ? 'will be charged again' : (alreadyPaid === 1 ? 'is' : 'are') + ' skipped'}.</p>}</>)}
         </div>}
+        {everyMember && (alreadyPaid > 0 || charge.charge_already_paid) && (
+          <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink">
+            <input type="checkbox" checked={Boolean(charge.charge_already_paid)} onChange={(event) => setCharge({ ...charge, charge_already_paid: event.target.checked })} disabled={busy} className="mt-1 h-4 w-4 accent-brand-700" />
+            <span>Charge members who already paid a charge with this name</span>
+          </label>
+        )}
         {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
       </form>
     </Drawer>
