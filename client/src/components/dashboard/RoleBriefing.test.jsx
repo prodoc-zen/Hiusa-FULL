@@ -317,7 +317,7 @@ describe('RoleBriefing', () => {
     describe('while the process tracker shows', () => {
       const setup = withProgress([step('contact', 'Add your contact number'), step('academic-year', 'Set the current academic year'), step('positions', 'Set up your officer positions')]);
 
-      it.each(['SUPER_ADMIN', 'STUDENT'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
+      it.each(['SUPER_ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
         setTrackerShown(true);
         vi.mocked(getBriefing).mockResolvedValue(briefing(role, { setup, organizations: [] }));
         renderBriefing();

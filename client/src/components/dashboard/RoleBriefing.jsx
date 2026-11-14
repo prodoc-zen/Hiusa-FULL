@@ -39,7 +39,7 @@ function storedSchoolId() {
 const PROCESS_LED_ROLES = new Set(['ADMIN']);
 
 // On these homes the process tracker is the one progress widget: while it shows, the first-run checklist stays out.
-const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT']);
+const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT', 'DEPARTMENT_HEAD']);
 
 const ACTIONS = {
   ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],
