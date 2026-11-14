@@ -8,17 +8,22 @@ const reasoning = {
 };
 
 describe('ReasoningDisclosure', () => {
-  it('shows a Thinking line with the latest status label while live', () => {
+  it('shows one word while live: the latest status label', () => {
     render(<ReasoningDisclosure live reasoning={{ steps: ['Reading your records'], label: 'Writing the answer' }} />);
     const line = screen.getByRole('status');
-    expect(line).toHaveTextContent('Thinking');
     expect(line).toHaveTextContent('Writing the answer');
+    expect(line).not.toHaveTextContent('Thinking');
     expect(document.querySelector('details')).toBeNull();
   });
 
   it('falls back to the last step as the live label', () => {
     render(<ReasoningDisclosure live reasoning={{ steps: ['Reading your records', 'Checking numbers'] }} />);
     expect(screen.getByRole('status')).toHaveTextContent('Checking numbers');
+  });
+
+  it('reads Thinking before the first status arrives', () => {
+    render(<ReasoningDisclosure live reasoning={{ steps: [] }} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/^Thinking$/);
   });
 
   it('turns off its pulse for reduced motion', () => {
@@ -36,6 +41,11 @@ describe('ReasoningDisclosure', () => {
     expect(details).toHaveAttribute('open');
     expect(screen.getByText('Read 142 records')).toBeInTheDocument();
     expect(screen.getByText('Checked the three overdue files first.')).toHaveClass('text-ink-muted');
+  });
+
+  it('gives the summary a 42px hit area on touch screens', () => {
+    render(<ReasoningDisclosure reasoning={reasoning} seconds={6} />);
+    expect(document.querySelector('summary')).toHaveClass('pointer-coarse:min-h-[42px]');
   });
 
   it('uses the singular for one second', () => {

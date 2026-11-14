@@ -24,6 +24,7 @@ const BAR_TONE_STYLES = {
 const BADGE_TONES = { primary: 'info' };
 
 const OPEN_ROW_LIMIT = 6;
+const MIN_CHART_ITEMS = 3;
 
 // The server writes counts as "3 item(s)". Show "3 items" or "1 item" instead.
 function plainText(value) {
@@ -161,7 +162,7 @@ function TableRows({ section, rows, onAsk, disabled }) {
                   <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
                 ) : ''}
               </td>
-              <td data-label="Count" className={`${cell} tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
+              <td data-label="Count" className={`${cell} whitespace-nowrap tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
                 {plainText(row.meta) || ''}
               </td>
               <td className={`${cell} max-sm:col-start-3 max-sm:row-start-1 sm:text-right`}>
@@ -192,14 +193,8 @@ function SectionDisclosure({ section, defaultOpen, onAsk, disabled }) {
           aria-hidden="true"
           className="shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
         />
-        <span className="text-sm font-semibold text-ink">{title}</span>
-        <span className="text-xs font-medium text-ink-muted-strong">
-          {rows.length} {rows.length === 1 ? 'row' : 'rows'}
-        </span>
+        <span className="text-sm font-semibold text-ink">{`${title} (${rows.length})`}</span>
       </summary>
-      {section.description && (
-        <p className="mt-1 text-xs text-ink-muted-strong">{plainText(section.description)}</p>
-      )}
       <div className="mt-2.5">
         {section.layout === 'steps'
           ? <StepsRows section={section} rows={rows} onAsk={onAsk} disabled={disabled} />
@@ -257,8 +252,11 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
   const sections = list(payload.sections).filter(
     (section) => list(section.rows).length > 0 || section.empty_message,
   );
-  const charts = list(payload.charts).filter((chart) => list(chart.items).length > 0);
-  const recommended = payload.recommended_action?.title ? payload.recommended_action : null;
+  const charts = list(payload.charts).filter(
+    (chart) => chart.type === 'distribution' && list(chart.items).length >= MIN_CHART_ITEMS,
+  );
+  const modelWritten = payload.model_written === true;
+  const recommended = !modelWritten && payload.recommended_action?.title ? payload.recommended_action : null;
   const followUps = list(payload.follow_ups).filter((item) => item?.question);
   const firstWithRows = sections.findIndex((section) => list(section.rows).length > 0);
 
@@ -267,7 +265,24 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mt-4 space-y-4">
+      {recommended && (
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+          <p className="min-w-0 text-sm text-ink">
+            <span className="font-medium">Recommended next step: </span>
+            {plainText(recommended.title)}
+            {recommended.detail && (
+              <span className="mt-0.5 block text-xs text-ink-muted-strong">{plainText(recommended.detail)}</span>
+            )}
+          </p>
+          {recommended.href && (
+            <Button to={recommended.href} variant="secondary" size="sm" className="shrink-0 self-start max-sm:h-11 sm:self-center">
+              {recommended.action_label || 'Take action'}
+            </Button>
+          )}
+        </div>
+      )}
+
       {highlights.length > 0 && (
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
           {highlights.map((item, idx) => (
@@ -290,7 +305,7 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
               <SectionDisclosure
                 key={section.id || idx}
                 section={section}
-                defaultOpen={idx === firstWithRows && list(section.rows).length <= OPEN_ROW_LIMIT}
+                defaultOpen={!modelWritten && idx === firstWithRows && list(section.rows).length <= OPEN_ROW_LIMIT}
                 onAsk={onAsk}
                 disabled={disabled}
               />
@@ -302,23 +317,6 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
       {charts.length > 0 && (
         <div className="space-y-4">
           {charts.map((chart, idx) => <Chart key={chart.id || idx} chart={chart} />)}
-        </div>
-      )}
-
-      {recommended && (
-        <div className="flex flex-col justify-between gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
-          <p className="min-w-0 text-sm text-ink">
-            <span className="font-medium">Recommended next step: </span>
-            {plainText(recommended.title)}
-            {recommended.detail && (
-              <span className="mt-0.5 block text-xs text-ink-muted-strong">{plainText(recommended.detail)}</span>
-            )}
-          </p>
-          {recommended.href && (
-            <Button to={recommended.href} variant="secondary" size="sm" className="shrink-0 self-start max-sm:h-11 sm:self-center">
-              {recommended.action_label || 'Take action'}
-            </Button>
-          )}
         </div>
       )}
 

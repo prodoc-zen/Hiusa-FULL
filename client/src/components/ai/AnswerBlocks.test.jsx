@@ -24,7 +24,16 @@ const payload = {
       rows: [row(1, { step: 1, href: '/dashboard/files' }), row(2, { step: 2 })],
     },
   ],
-  charts: [{ id: 'c1', type: 'bar', title: 'By College', items: [{ label: 'CAS', value: 3, display_value: '3', percent: 60, tone: 'danger' }] }],
+  charts: [{
+    id: 'c1',
+    type: 'distribution',
+    title: 'By College',
+    items: [
+      { label: 'CAS', value: 3, display_value: '3', percent: 60, tone: 'danger' },
+      { label: 'CBA', value: 1, display_value: '1', percent: 20, tone: 'warning' },
+      { label: 'COE', value: 1, display_value: '1', percent: 20, tone: 'success' },
+    ],
+  }],
   recommended_action: { title: 'Follow up with the three organizations', detail: 'They are overdue.', href: '/dashboard/compliance', action_label: 'Open compliance' },
   follow_ups: [{ label: 'What about finance?', question: 'What about finance?', topic: 'finance' }],
 };
@@ -53,13 +62,12 @@ describe('AnswerBlocks', () => {
     expect(screen.getByText('3', { selector: 'dd' })).toHaveClass('text-danger-strong');
   });
 
-  it('labels each section disclosure with title and row count, opening only the first', () => {
+  it('labels each section disclosure with title and count, opening only the first of a records-only answer', () => {
     renderBlocks();
     const [first, second] = document.querySelectorAll('details');
-    expect(first).toHaveTextContent('Missing requirements');
-    expect(first).toHaveTextContent('2 rows');
+    expect(first).toHaveTextContent('Missing requirements (2)');
     expect(first).toHaveAttribute('open');
-    expect(second).toHaveTextContent('How to submit');
+    expect(second).toHaveTextContent('How to submit (2)');
     expect(second).not.toHaveAttribute('open');
   });
 
@@ -67,7 +75,7 @@ describe('AnswerBlocks', () => {
     const rows = Array.from({ length: 7 }, (_, i) => row(i + 1));
     renderBlocks({ payload: { sections: [{ id: 'big', title: 'Big', layout: 'table', rows }] } });
     expect(document.querySelector('details')).not.toHaveAttribute('open');
-    expect(document.querySelector('details')).toHaveTextContent('7 rows');
+    expect(document.querySelector('details')).toHaveTextContent('Big (7)');
   });
 
   it('renders table rows with a status badge, a link button and a Show steps button', () => {
@@ -87,18 +95,65 @@ describe('AnswerBlocks', () => {
     expect(within(steps).getByRole('link', { name: 'Go to page', hidden: true })).toHaveAttribute('href', '/dashboard/files');
   });
 
-  it('renders charts as labelled bars in the tone colour', () => {
+  it('keeps every section closed when the model wrote the answer', () => {
+    renderBlocks({ payload: { ...payload, model_written: true } });
+    const all = document.querySelectorAll('details');
+    expect(all).toHaveLength(2);
+    all.forEach((details) => expect(details).not.toHaveAttribute('open'));
+  });
+
+  it('hides a section description that has rows and keeps the message of an empty section', () => {
+    renderBlocks({
+      payload: {
+        sections: [
+          { id: 'a', title: 'Late Files', description: 'Late files restated.', layout: 'table', rows: [row(1)] },
+          { id: 'b', title: 'Done', description: 'Done restated.', rows: [], empty_message: 'Nothing is done.' },
+        ],
+      },
+    });
+    expect(screen.queryByText('Late files restated.')).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing is done.')).toBeInTheDocument();
+  });
+
+  it('renders a distribution chart with 3 or more items as labelled bars in the tone colour', () => {
     renderBlocks();
     expect(screen.getByText('By college')).toBeInTheDocument();
-    const bar = document.querySelector('.bg-danger');
-    expect(bar).toHaveStyle({ width: '60%' });
+    expect(document.querySelector('.bg-danger')).toHaveStyle({ width: '60%' });
     expect(screen.getByText('CAS')).toBeInTheDocument();
   });
 
-  it('renders the recommended action as one line with a link button', () => {
+  it('never renders a bar chart or a distribution with fewer than 3 items', () => {
+    const items = payload.charts[0].items;
+    renderBlocks({
+      payload: {
+        highlights: payload.highlights,
+        charts: [
+          { id: 'bar', type: 'bar', title: 'Key metrics comparison', items },
+          { id: 'few', type: 'distribution', title: 'Record status breakdown', items: items.slice(0, 2) },
+        ],
+      },
+    });
+    expect(screen.queryByText('Key metrics comparison')).not.toBeInTheDocument();
+    expect(screen.queryByText('Record status breakdown')).not.toBeInTheDocument();
+  });
+
+  it('shows the recommended action as one line above the stats when the answer is records only', () => {
     renderBlocks();
-    expect(screen.getByText(/Recommended next step/)).toBeInTheDocument();
+    const line = screen.getByText(/Recommended next step/);
     expect(screen.getByRole('link', { name: 'Open compliance' })).toHaveAttribute('href', '/dashboard/compliance');
+    const stats = document.querySelector('dl');
+    expect(line.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('leaves the recommended action out when the model wrote the answer', () => {
+    renderBlocks({ payload: { ...payload, model_written: true } });
+    expect(screen.queryByText(/Recommended next step/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open compliance' })).not.toBeInTheDocument();
+  });
+
+  it('keeps short count values on one line', () => {
+    renderBlocks();
+    expect(screen.getByText('2 items')).toHaveClass('whitespace-nowrap');
   });
 
   it('calls onAsk with the question and topic from a follow-up chip', () => {

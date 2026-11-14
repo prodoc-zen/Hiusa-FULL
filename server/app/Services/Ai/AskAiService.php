@@ -21,6 +21,7 @@ use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
 use App\Services\StudentAccountBalances;
+use App\Support\SemesterScope;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +38,59 @@ class AskAiService
         'finance_health' => 'finance',
         'merchandise_orders' => 'merchandise',
         'events_attendance' => 'events',
-        'tasks_workload' => 'tasks',
+    ];
+
+    // 'tasks_workload' has no module here on purpose: an officer limited to other areas still reads their own tasks, and that answer is already cut to them.
+    private const TOPICS = [
+        'daily_priorities',
+        'missing_submissions',
+        'submitted_documents',
+        'pending_approvals',
+        'organizations_without_admin',
+        'tasks_workload',
+        'finance_health',
+        'merchandise_orders',
+        'events_attendance',
+        'clearances_status',
+        'elections_status',
+        'grievances_status',
+        'semantic_rag',
+        'how_to_guide',
+    ];
+
+    // Most specific first: the first pattern that matches the lowercased question decides the intent. 'missing_requirements'
+    // is the plainer wording of missing_submissions, tried only after the task and file questions that share its words.
+    private const INTENT_PATTERNS = [
+        'daily_priorities' => '~\b(?:what (?:should|do|can|must) (?:i|we) (?:need to )?do today|what to do today|what(?:\'s| is) on (?:my|our) (?:desk|plate|list|agenda)|daily (?:priorities|briefing|checklist)|(?:action plan|checklist|priorities) (?:for )?today|today\'s (?:priorities|action plan)|where (?:do|should) (?:i|we) start|what needs (?:me|my attention|our attention))\b~',
+        'organizations_without_admin' => '~\b(?:(?:without|no|missing|lacking|lacks?|needs?|needing|awaiting|vacant)(?: \w+){0,3} (?:admins?|administrators?|org(?:anization)? heads?|(?<!department )heads?)|(?:admins?|administrators?|org(?:anization)? heads?)(?: \w+){0,3} (?:missing|needed|vacant|unfilled)|returned registrations?)\b~',
+        'semantic_rag' => '~\b(?:who (?:are|is) the (?:officers|president|vice|secretary|treasurer|auditor|advis[eo]r|dean|candidates)|officer directory|leadership roster|list of officers|organization members|stocks?|inventory|catalog|price of|low stock|partylist|platform|tell me about|compare|search|everything about)\b~',
+        'grievances_status' => '~\b(?:grievances?|complaints?|concerns?)\b~',
+        'clearances_status' => '~\b(?:clearances?|signator(?:y|ies)|signed my clearance)\b~',
+        'missing_submissions' => '~\b(?:(?:haven\'t|havent|hasn\'t|hasnt|have not|has not|not|never|yet to|failed to|still need to|didn\'t|didnt)(?: \w+){0,3} (?:submit|submitted|upload|uploaded|file|filed|passed)|unsubmitted|overdue reports?)\b~',
+        'submitted_documents' => '~\b(?:who (?:has |have |had )?(?:submitted|sent|uploaded|filed)|(?:already|recently) submitted|submitted (?:documents?|files?|compliance|reports?|requirements?)|what (?:have|did) (?:we|i) (?:already )?submit(?:ted)?|what documents were submitted|files? (?:\w+ ){0,6}review)\b~',
+        'elections_status' => '~\b(?:elections?|votes?|voted|voting|voters?|ballots?|turnout|candidates?)\b~',
+        'merchandise_orders' => '~\b(?:(?<!in )orders?|merch(?:andise)?|claim(?:s|ed|ing)?|payment proofs?|verify payments?|pick-?up)\b~',
+        'tasks_workload' => '~\b(?:tasks?|workloads?|assigned|assignees?|assign|delegate|delegation|to-?do)\b~',
+        'missing_requirements' => '~\b(?:missing|incomplete|lacking|outstanding|requirements?|compliance|deadlines?|accreditation)\b~',
+        'pending_approvals' => '~\b(?:approvals?|approve|approving|endorse\w*|pending review|waiting for (?:my |our |the )?(?:review|approval|decision)|my decision|venues?|bookings?|(?:pending|new|waiting|awaiting) registrations?|applications?)\b~',
+        'finance_health' => '~\b(?:budgets?|finance|finances|financial|spent|spending|spend|fees?|invoices?|debts?|owe|owed|owes|owing|unpaid|collections?|paid|balances?|receipts?|payments?|dues|how much (?:is |do we have |do i have )?(?:left|remaining))\b~',
+        'events_attendance' => '~\b(?:events?|attendance|attendees?|calendar|check[- ]?in)\b~',
+    ];
+
+    private const ROLE_INTENT_CAPABILITIES = [
+        'applications_queue' => ['Organization applications', 'The applications waiting for your decision, and who each one is waiting for.'],
+        'my_submissions' => ['Where our submissions stand', 'Where your event proposals, budget requests and reports are, and who has to act on them next.'],
+        'ai_tools' => ['The AI tools', 'What each tool does, who can use it and where to open it.'],
+        'fee_usage' => ['Where my fees go', 'How the fees your organization collected were spent, once the SAO has approved the report.'],
+    ];
+
+    private const STUDENT_REDIRECTS = [
+        'tasks_workload' => ['organization tasks, which are given to officers', 'The closest thing for you is your own list for today, and I can show it.', 'daily_priorities'],
+        'pending_approvals' => ['approval queues, which officers, the Department Head and the SAO review', 'I can show your clearance, your fees and your orders instead.', 'clearances_status'],
+        'missing_submissions' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
+        'submitted_documents' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
+        'organizations_without_admin' => ['the list of organizations that still need an organization head', 'I can show what you need to do today instead.', 'daily_priorities'],
+        'grievances_status' => ['the grievance queue that the SAO reads', 'If you have a concern of your own, you can file it on the My grievances page.', 'daily_priorities'],
     ];
 
     private const STUDENT_INTENTS = [
@@ -58,6 +111,7 @@ class AskAiService
         private readonly StudentAccountBalances $balances,
         private readonly TextGenerator $ai,
         private readonly HowToGuideLibrary $guides,
+        private readonly AskAiRoleIntents $roleIntents,
     ) {}
 
     public function overview(User $user): array
@@ -145,6 +199,12 @@ class AskAiService
         ));
 
         $lines = array_map(fn (array $q) => '- **'.$q['label'].'**: '.$q['description'], $prompts);
+        $listed = array_column($prompts, 'topic');
+        foreach (self::ROLE_INTENT_CAPABILITIES as $intent => [$label, $description]) {
+            if (! in_array($intent, $listed, true) && $this->roleIntents->allowed($user, $intent)) {
+                $lines[] = '- **'.$label.'**: '.$description;
+            }
+        }
         $answer = 'I can read the records your account can already open and put them in plain words. As '.$this->roleName($user->role).' for '.$this->scopeLabel($user).", you can ask me things like:\n\n"
             .implode("\n", $lines)
             ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I only read: I never approve, assign or publish anything for you.";
@@ -231,28 +291,11 @@ class AskAiService
 
     public function classifyIntent(string $question, ?string $topic, string $role): string
     {
-        $validTopics = [
-            'daily_priorities',
-            'missing_submissions',
-            'submitted_documents',
-            'pending_approvals',
-            'organizations_without_admin',
-            'tasks_workload',
-            'finance_health',
-            'merchandise_orders',
-            'events_attendance',
-            'clearances_status',
-            'elections_status',
-            'grievances_status',
-            'semantic_rag',
-            'how_to_guide',
-        ];
-
-        if ($topic !== null && in_array($topic, $validTopics, true)) {
+        if ($topic !== null && in_array($topic, [...self::TOPICS, ...AskAiRoleIntents::INTENTS], true)) {
             return $topic;
         }
 
-        $q = Str::lower($question);
+        $q = trim((string) preg_replace('/\s+/', ' ', Str::lower(str_replace(['’', '‘'], "'", $question))));
 
         // Procedural "how do I ..." questions get step-by-step guidance. Data
         // questions such as "how many" / "how much" / "how is our budget"
@@ -261,138 +304,21 @@ class AskAiService
             return 'how_to_guide';
         }
 
-        if (Str::contains($q, [
-            'what should i do today',
-            'what do i need to do today',
-            'what to do today',
-            'daily priorities',
-            'daily briefing',
-            'action plan today',
-            'my checklist today',
-        ])) {
-            return 'daily_priorities';
+        $roleIntent = $this->roleIntents->match($question, $role);
+        if ($roleIntent !== null) {
+            return $roleIntent;
         }
 
-        // Dynamic RAG intents for leadership/roster, catalog inventory, ledger transactions, venues, announcements, candidates, or specific entity queries
-        if (Str::contains($q, [
-            'who are the officers',
-            'who is the president',
-            'who is the vice',
-            'who is the secretary',
-            'who is the treasurer',
-            'who is the auditor',
-            'who is the adviser',
-            'who is the dean',
-            'officer directory',
-            'leadership roster',
-            'list of officers',
-            'organization members',
-            'stock',
-            'inventory',
-            'catalog',
-            'price of',
-            'how much is',
-            'low stock',
-            'transaction',
-            'expense',
-            'income',
-            'receipt',
-            'cash advance',
-            'ledger',
-            'announcement',
-            'bulletin',
-            'pinned post',
-            'who are the candidates',
-            'partylist',
-            'platform',
-            'tell me about',
-            'compare',
-            'search',
-            'everything about',
-        ])) {
-            return 'semantic_rag';
-        }
+        foreach (self::INTENT_PATTERNS as $intent => $pattern) {
+            if (preg_match($pattern, $q) !== 1) {
+                continue;
+            }
 
-        if (Str::contains($q, [
-            "haven't submitted",
-            'havent submitted',
-            "hasn't submitted",
-            'hasnt submitted',
-            'not submitted',
-            'not yet submitted',
-            'unsubmitted',
-            'missing',
-            'incomplete',
-            'lacking',
-            'overdue report',
-            'who has not submitted',
-            'which orgs have not',
-        ])) {
-            return 'missing_submissions';
-        }
-
-        if (Str::contains($q, [
-            'who submitted',
-            'who has submitted',
-            'who have submitted',
-            'already submitted',
-            'submitted document',
-            'submitted file',
-            'submitted compliance',
-            'submitted report',
-            'what have we submitted',
-            'what documents were submitted',
-        ])) {
-            return 'submitted_documents';
-        }
-
-        if (Str::contains($q, ['without admin', 'no admin', 'missing admin', 'awaiting admin', 'returned registration'])) {
-            return 'organizations_without_admin';
-        }
-
-        if (Str::contains($q, ['grievance', 'complaint', 'concern'])) {
-            return $role === 'SUPER_ADMIN' ? 'grievances_status' : 'semantic_rag';
-        }
-
-        if (Str::contains($q, ['clearance', 'signatory', 'signatories', 'held clearance', 'signed my clearance'])) {
-            return 'clearances_status';
-        }
-
-        if (Str::contains($q, ['order', 'merch', 'claim', 'payment proof', 'verify payment'])) {
-            return 'merchandise_orders';
-        }
-
-        if (Str::contains($q, ['task', 'workload', 'assigned', 'assignee', 'overdue task', 'officer task'])) {
-            return 'tasks_workload';
-        }
-
-        if (Str::contains($q, [
-            'budget',
-            'finance',
-            'financial',
-            'spent',
-            'spending',
-            'fee',
-            'invoice',
-            'debt',
-            'owe',
-            'unpaid',
-            'collection',
-            'paid',
-        ])) {
-            return 'finance_health';
-        }
-
-        if (Str::contains($q, ['election', 'vote', 'voted', 'ballot', 'turnout', 'candidate'])) {
-            return 'elections_status';
-        }
-
-        if (Str::contains($q, ['event', 'attendance', 'calendar', 'check-in', 'ongoing event'])) {
-            return 'events_attendance';
-        }
-
-        if (Str::contains($q, ['approval', 'approve', 'pending review', 'waiting for review', 'venue booking', 'registration'])) {
-            return 'pending_approvals';
+            return match ($intent) {
+                'missing_requirements' => 'missing_submissions',
+                'grievances_status' => $role === 'SUPER_ADMIN' ? 'grievances_status' : 'semantic_rag',
+                default => $intent,
+            };
         }
 
         return 'semantic_rag';
@@ -2042,9 +1968,11 @@ class AskAiService
             $owed = (float) ($row['total_debt'] ?? 0);
             $unpaidCount = (int) ($row['unpaid_invoice_count'] ?? 0);
 
-            $invoices = DB::table('invoices')
+            $invoiceQuery = DB::table('invoices')
                 ->where('organization_id', $orgId)
-                ->where('student_id', $user->school_id)
+                ->where('student_id', $user->school_id);
+            $invoiceTotal = (clone $invoiceQuery)->count();
+            $invoices = $invoiceQuery
                 ->orderByDesc('created_at')
                 ->limit(self::ROW_LIMIT)
                 ->get(['id', 'description', 'amount', 'paid_amount', 'status', 'due_date']);
@@ -2052,9 +1980,10 @@ class AskAiService
             return [
                 'title' => 'Your Fees & Account Balance',
                 'answer' => sprintf(
-                    'Your current organization balance is ₱%s across %d open invoice(s).',
+                    'You owe your organization ₱%s across %d open %s.',
                     number_format($owed, 2),
-                    $unpaidCount
+                    $unpaidCount,
+                    Str::plural('invoice', $unpaidCount)
                 ),
                 'highlights' => [
                     ['label' => 'Total balance owed', 'value' => '₱'.number_format($owed, 2), 'tone' => $owed > 0 ? 'warning' : 'success'],
@@ -2064,16 +1993,20 @@ class AskAiService
                     [
                         'id' => 'student-invoices',
                         'title' => 'Your Invoices & Collections',
-                        'description' => 'Invoices issued to your student account.',
+                        'description' => $this->showingFirst($invoiceTotal, 'newest first'),
                         'empty_message' => 'No invoices have been issued to your account.',
                         'rows' => $invoices->map(fn ($inv) => [
                             'id' => 'inv-'.$inv->id,
                             'primary' => $inv->description ?: 'Invoice #'.$inv->id,
                             'secondary' => sprintf('Amount: ₱%s · Paid: ₱%s', number_format((float) $inv->amount, 2), number_format((float) $inv->paid_amount, 2)),
                             'status' => Str::headline($inv->status),
-                            'status_tone' => $inv->status === 'paid' ? 'success' : 'warning',
+                            'status_tone' => match ($inv->status) {
+                                'paid' => 'success',
+                                'cancelled', 'waived' => 'neutral',
+                                default => 'warning',
+                            },
                             'meta' => $inv->due_date ? 'Due '.Carbon::parse($inv->due_date)->format('M j, Y') : 'Open',
-                            'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/statement-of-account'),
+                            'href' => $this->linkTo($user, '/dashboard/finance/statement-of-account'),
                             'action_label' => 'View account',
                         ])->all(),
                     ],
@@ -2089,24 +2022,20 @@ class AskAiService
             ? $organizationIds->all()
             : [(int) $user->organization_id];
 
-        $approvedBudgets = DB::table('budgets')
-            ->join('organizations', 'organizations.id', '=', 'budgets.organization_id')
-            ->whereIn('budgets.organization_id', $orgIds)
-            ->where('budgets.submission_status', 'approved')
-            ->orderByDesc('budgets.allocated_amount')
-            ->limit(self::ROW_LIMIT)
-            ->get([
-                'budgets.id',
-                'budgets.title',
-                'budgets.allocated_amount',
-                'budgets.remaining_amount',
-                'organizations.name as org_name',
-                'organizations.acronym as org_acronym',
-            ]);
-
-        $totals = DB::table('budgets')
+        $approvedBudgetQuery = Budget::query()
             ->whereIn('organization_id', $orgIds)
             ->where('submission_status', 'approved')
+            ->tap(fn ($budgets) => SemesterScope::budgets($budgets, AcademicSemester::selected()));
+        $budgetTotal = (clone $approvedBudgetQuery)->count();
+        $approvedBudgets = (clone $approvedBudgetQuery)
+            ->orderByDesc('allocated_amount')
+            ->orderBy('id')
+            ->limit(self::ROW_LIMIT)
+            ->get(['id', 'organization_id', 'title', 'allocated_amount', 'remaining_amount']);
+        $budgetOrgs = Organization::whereIn('id', $approvedBudgets->pluck('organization_id'))->get(['id', 'name', 'acronym'])->keyBy('id');
+        $spentByBudget = Budget::spentAmounts($approvedBudgets->pluck('id'));
+
+        $totals = (clone $approvedBudgetQuery)
             ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining')
             ->first();
 
@@ -2115,18 +2044,20 @@ class AskAiService
 
         $unpaidInvoicesCount = DB::table('invoices')
             ->whereIn('organization_id', $orgIds)
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'cancelled', 'waived'])
             ->count();
 
-        $budgetHref = $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation');
+        $budgetHref = $this->linkTo($user, '/dashboard/finance/budget-allocation');
 
         return [
             'title' => 'Budget Utilization & Financial Status',
             'answer' => sprintf(
-                'Approved budgets in scope total ₱%s allocated with ₱%s remaining, and there are %d unpaid student invoice(s).',
+                'Approved budgets in scope total ₱%s allocated with ₱%s remaining, and %d student %s %s unpaid.',
                 number_format($allocated, 2),
                 number_format($remaining, 2),
-                $unpaidInvoicesCount
+                $unpaidInvoicesCount,
+                Str::plural('invoice', $unpaidInvoicesCount),
+                $unpaidInvoicesCount === 1 ? 'is' : 'are'
             ),
             'highlights' => [
                 ['label' => 'Approved allocated', 'value' => '₱'.number_format($allocated, 2), 'tone' => 'primary'],
@@ -2137,18 +2068,24 @@ class AskAiService
                 [
                     'id' => 'approved-budgets-list',
                     'title' => 'Approved Budgets',
-                    'description' => 'Allocated and remaining balances across approved budgets.',
+                    'description' => $this->showingFirst($budgetTotal, 'largest allocation first'),
                     'empty_message' => 'No approved budgets recorded in scope.',
-                    'rows' => $approvedBudgets->map(fn ($b) => [
-                        'id' => 'bud-'.$b->id,
-                        'primary' => $b->title.' — '.($b->org_acronym ?: $b->org_name),
-                        'secondary' => sprintf('Allocated: ₱%s · Remaining: ₱%s', number_format((float) $b->allocated_amount, 2), number_format((float) $b->remaining_amount, 2)),
-                        'status' => 'Approved',
-                        'status_tone' => ((float) $b->remaining_amount <= ((float) $b->allocated_amount * 0.15)) ? 'warning' : 'success',
-                        'meta' => '₱'.number_format((float) $b->remaining_amount, 2).' left',
-                        'href' => $budgetHref,
-                        'action_label' => 'Open budget',
-                    ])->all(),
+                    'rows' => $approvedBudgets->map(function ($b) use ($budgetOrgs, $spentByBudget, $budgetHref) {
+                        $org = $budgetOrgs->get($b->organization_id);
+                        $spent = (float) ($spentByBudget[$b->id] ?? 0);
+                        $used = (float) $b->allocated_amount > 0 ? $spent / (float) $b->allocated_amount : 0;
+
+                        return [
+                            'id' => 'bud-'.$b->id,
+                            'primary' => $b->title.' — '.($org?->acronym ?: ($org?->name ?? 'Organization')),
+                            'secondary' => sprintf('Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s', number_format((float) $b->allocated_amount, 2), number_format($spent, 2), number_format((float) $b->remaining_amount, 2)),
+                            'status' => round($used * 100).'% spent',
+                            'status_tone' => $used >= 0.9 ? 'danger' : ($used >= 0.8 ? 'warning' : 'success'),
+                            'meta' => '₱'.number_format((float) $b->remaining_amount, 2).' left',
+                            'href' => $budgetHref,
+                            'action_label' => 'Open budget',
+                        ];
+                    })->all(),
                 ],
             ],
             'follow_ups' => [
@@ -2167,6 +2104,18 @@ class AskAiService
         $role = $user->role;
         $orgId = (int) $user->organization_id;
 
+        if (in_array($role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
+            return [
+                'title' => 'Merchandise Orders Queue',
+                'answer' => 'Merchandise orders are handled by each student organization, so there is no order queue on your account. Ask the organization to check its own orders.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+                ],
+            ];
+        }
+
         $query = DB::table('orders')
             ->leftJoin('users', 'orders.student_id', '=', 'users.school_id')
             ->where('orders.organization_id', $orgId);
@@ -2175,8 +2124,13 @@ class AskAiService
             $query->where('orders.student_id', $user->school_id);
         }
 
-        $pendingVerify = (clone $query)->where('orders.status', 'pending')->count();
+        $readyForReview = fn ($orders) => $orders->where('orders.status', 'pending')->where('orders.officer_review_status', 'pending')
+            ->where(fn ($ready) => $ready->whereNotNull('orders.payment_proof_url')
+                ->orWhereNull('orders.payment_method')->orWhere('orders.payment_method', '!=', 'gcash'));
+        $awaitingVerification = $readyForReview(clone $query)->count();
+        $awaitingPayment = (clone $query)->where('orders.status', 'pending')->whereNull('orders.payment_proof_url')->where('orders.payment_method', 'gcash')->count();
         $readyToClaim = (clone $query)->where('orders.status', 'paid')->count();
+        $queueTotal = (clone $query)->whereIn('orders.status', ['pending', 'paid'])->count();
 
         $orders = $query
             ->whereIn('orders.status', ['pending', 'paid'])
@@ -2187,38 +2141,57 @@ class AskAiService
                 'orders.total_price',
                 'orders.status',
                 'orders.officer_review_status',
+                'orders.payment_method',
                 'orders.payment_proof_url',
                 'users.first_name',
                 'users.last_name',
             ]);
 
-        $href = $this->routeAccess->hrefFor(
-            $role,
+        $href = $this->linkTo(
+            $user,
             $role === 'STUDENT' ? '/dashboard/merchandise/my-orders' : '/dashboard/merchandise/manage-orders'
         );
 
+        $orderPhrase = fn (int $count) => $count.' '.($role === 'STUDENT' ? 'of your orders' : Str::plural('order', $count));
+
         return [
             'title' => 'Merchandise Orders Queue',
-            'answer' => "There are {$pendingVerify} pending order(s) awaiting verification and {$readyToClaim} paid order(s) ready to be claimed.",
+            'answer' => sprintf(
+                '%s %s waiting for payment verification, %s %s waiting for payment, and %s %s ready to be claimed.',
+                $orderPhrase($awaitingVerification),
+                $awaitingVerification === 1 ? 'is' : 'are',
+                $orderPhrase($awaitingPayment),
+                $awaitingPayment === 1 ? 'is' : 'are',
+                $orderPhrase($readyToClaim),
+                $readyToClaim === 1 ? 'is' : 'are'
+            ),
             'highlights' => [
-                ['label' => 'Pending verification', 'value' => (string) $pendingVerify, 'tone' => $pendingVerify > 0 ? 'warning' : 'neutral'],
+                ['label' => 'Awaiting verification', 'value' => (string) $awaitingVerification, 'tone' => $awaitingVerification > 0 ? 'warning' : 'neutral'],
+                ['label' => 'Awaiting payment', 'value' => (string) $awaitingPayment, 'tone' => 'neutral'],
                 ['label' => 'Ready to claim', 'value' => (string) $readyToClaim, 'tone' => $readyToClaim > 0 ? 'success' : 'neutral'],
             ],
             'sections' => [
                 [
                     'id' => 'orders-active-list',
                     'title' => 'Pending & Claimable Merchandise Orders',
-                    'description' => 'Orders awaiting payment proof verification or pickup.',
+                    'description' => $this->showingFirst($queueTotal, 'most recently updated first'),
                     'empty_message' => 'No pending or unclaimed merchandise orders right now.',
                     'rows' => $orders->map(function ($ord) use ($href) {
                         $buyer = trim(($ord->first_name ?? '').' '.($ord->last_name ?? '')) ?: 'Student';
+                        $needsReview = $ord->officer_review_status === 'pending' && ($ord->payment_proof_url || $ord->payment_method !== 'gcash');
+                        [$status, $tone, $note] = match (true) {
+                            $ord->status === 'paid' => ['Ready to claim', 'success', 'Paid'],
+                            $needsReview => ['Awaiting verification', 'warning', $ord->payment_proof_url ? 'Payment proof uploaded' : 'No online payment proof needed'],
+                            $ord->payment_proof_url === null => ['Awaiting payment', 'neutral', 'No payment proof uploaded yet'],
+                            default => ['Reviewed', 'neutral', 'Payment proof reviewed'],
+                        };
 
                         return [
                             'id' => 'ord-'.$ord->id,
                             'primary' => "Order ORD-{$ord->id} ({$buyer})",
-                            'secondary' => 'Total: ₱'.number_format((float) $ord->total_price, 2).' · '.($ord->payment_proof_url ? 'Payment proof uploaded' : 'Awaiting payment proof'),
-                            'status' => $ord->status === 'paid' ? 'Ready to claim' : 'Pending verification',
-                            'status_tone' => $ord->status === 'paid' ? 'success' : 'warning',
+                            'secondary' => 'Total: ₱'.number_format((float) $ord->total_price, 2).' · '.$note,
+                            'status' => $status,
+                            'status_tone' => $tone,
                             'meta' => '₱'.number_format((float) $ord->total_price, 2),
                             'href' => $href,
                             'action_label' => 'Open order',
@@ -2243,11 +2216,15 @@ class AskAiService
             ? $organizationIds->all()
             : [(int) $user->organization_id];
 
-        $upcomingEvents = DB::table('events')
+        $semesterId = AcademicSemester::selected()?->id;
+        $upcomingQuery = DB::table('events')
             ->join('organizations', 'organizations.id', '=', 'events.organization_id')
             ->whereIn('events.organization_id', $orgIds)
             ->whereIn('events.status', ['approved', 'ongoing'])
             ->where('events.end_time', '>=', now())
+            ->when($semesterId, fn ($events) => $events->where('events.academic_semester_id', $semesterId));
+        $upcomingTotal = (clone $upcomingQuery)->count();
+        $upcomingEvents = $upcomingQuery
             ->orderBy('events.start_time')
             ->limit(self::ROW_LIMIT)
             ->get([
@@ -2264,26 +2241,29 @@ class AskAiService
             ->whereIn('organization_id', $orgIds)
             ->whereIn('status', ['approved', 'ongoing'])
             ->where('end_time', '<', now())
+            ->when($semesterId, fn ($events) => $events->where('academic_semester_id', $semesterId))
             ->count();
 
-        $href = $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar');
+        $href = $this->linkTo($user, '/dashboard/events/activity-calendar');
 
         return [
             'title' => 'Upcoming Events & Attendance Status',
             'answer' => sprintf(
-                'There are %d upcoming or ongoing event(s) scheduled and %d past event(s) still open that need to be marked completed.',
-                $upcomingEvents->count(),
-                $staleEventsCount
+                '%d %s upcoming or ongoing, and %d past %s still open and should be marked completed.',
+                $upcomingTotal,
+                $upcomingTotal === 1 ? 'event is' : 'events are',
+                $staleEventsCount,
+                $staleEventsCount === 1 ? 'event is' : 'events are'
             ),
             'highlights' => [
-                ['label' => 'Upcoming / ongoing', 'value' => (string) $upcomingEvents->count(), 'tone' => 'primary'],
+                ['label' => 'Upcoming / ongoing', 'value' => (string) $upcomingTotal, 'tone' => 'primary'],
                 ['label' => 'Needs closing', 'value' => (string) $staleEventsCount, 'tone' => $staleEventsCount > 0 ? 'warning' : 'neutral'],
             ],
             'sections' => [
                 [
                     'id' => 'upcoming-events-list',
                     'title' => 'Scheduled & Ongoing Events',
-                    'description' => 'Approved and ongoing events across your scope.',
+                    'description' => $this->showingFirst($upcomingTotal, 'soonest first'),
                     'empty_message' => 'No upcoming events are currently scheduled.',
                     'rows' => $upcomingEvents->map(fn ($ev) => [
                         'id' => 'ev-'.$ev->id,
@@ -2333,7 +2313,15 @@ class AskAiService
 
             return [
                 'title' => 'Your Clearance Signatories Breakdown',
-                'answer' => "On your clearance record, {$signed} signatory line(s) are signed, {$pending} are pending, and {$held} are held.",
+                'answer' => sprintf(
+                    'On your clearance, %d %s signed, %d %s pending and %d %s on hold.',
+                    $signed,
+                    $signed === 1 ? 'signature is' : 'signatures are',
+                    $pending,
+                    $pending === 1 ? 'is' : 'are',
+                    $held,
+                    $held === 1 ? 'is' : 'are'
+                ),
                 'highlights' => [
                     ['label' => 'Signed', 'value' => (string) $signed, 'tone' => 'success'],
                     ['label' => 'Pending', 'value' => (string) $pending, 'tone' => $pending > 0 ? 'warning' : 'neutral'],
@@ -2343,7 +2331,7 @@ class AskAiService
                     [
                         'id' => 'student-clearance-lines',
                         'title' => 'Signatory Statuses',
-                        'description' => 'Each required clearance signatory and its current status.',
+                        'description' => null,
                         'empty_message' => 'No active clearance period signatures are assigned to your account.',
                         'rows' => $sigs->map(fn ($sig) => [
                             'id' => 'sig-'.$sig->id,
@@ -2356,7 +2344,7 @@ class AskAiService
                                 default => 'success',
                             },
                             'meta' => $sig->signed_at ? Carbon::parse($sig->signed_at)->format('M j') : 'Open',
-                            'href' => $this->routeAccess->hrefFor($role, '/dashboard/my-clearance'),
+                            'href' => $this->linkTo($user, '/dashboard/my-clearance'),
                             'action_label' => 'Open clearance',
                         ])->all(),
                     ],
@@ -2375,9 +2363,11 @@ class AskAiService
         if ($role === 'SUPER_ADMIN') {
             $query->where('clearance_signatures.required_role', 'sao');
         } elseif ($role === 'DEPARTMENT_HEAD') {
-            $query->whereIn('clearance_signatures.organization_id', $organizationIds->all());
+            $query->where('clearance_signatures.required_role', 'department_head')
+                ->whereIn('clearance_signatures.organization_id', $organizationIds->all());
         } else {
-            $query->where('clearance_signatures.organization_id', (int) $user->organization_id);
+            $query->where('clearance_signatures.required_role', 'organization')
+                ->where('clearance_signatures.organization_id', (int) $user->organization_id);
         }
 
         $pendingCount = (clone $query)->where('clearance_signatures.status', 'pending')->count();
@@ -2396,14 +2386,20 @@ class AskAiService
                 'users.last_name',
             ]);
 
-        $href = $this->routeAccess->hrefFor(
-            $role,
+        $href = $this->linkTo(
+            $user,
             $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/clearances' : '/dashboard/clearances'
         );
 
         return [
             'title' => 'Pending & Held Student Clearances',
-            'answer' => "There are {$pendingCount} pending clearance signature(s) and {$heldCount} held clearance line(s) in your queue.",
+            'answer' => sprintf(
+                '%d clearance %s waiting for your signature, and %d %s on hold.',
+                $pendingCount,
+                $pendingCount === 1 ? 'line is' : 'lines are',
+                $heldCount,
+                $heldCount === 1 ? 'is' : 'are'
+            ),
             'highlights' => [
                 ['label' => 'Pending signatures', 'value' => (string) $pendingCount, 'tone' => $pendingCount > 0 ? 'warning' : 'success'],
                 ['label' => 'Held clearances', 'value' => (string) $heldCount, 'tone' => $heldCount > 0 ? 'danger' : 'neutral'],
@@ -2412,7 +2408,7 @@ class AskAiService
                 [
                     'id' => 'clearance-queue-rows',
                     'title' => 'Students Awaiting Clearance Action',
-                    'description' => 'Pending and held student clearance lines in your scope.',
+                    'description' => $this->showingFirst($pendingCount + $heldCount, 'most recently updated first'),
                     'empty_message' => 'All student clearance lines in your queue have been processed.',
                     'rows' => $rows->map(fn ($r) => [
                         'id' => 'clr-'.$r->id,

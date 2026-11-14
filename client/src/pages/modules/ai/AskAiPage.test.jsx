@@ -236,6 +236,78 @@ describe('AskAiPage', () => {
     await second.reject(new Error('boom'));
   });
 
+  it('retries with regenerate and no second question when the failure came after meta', async () => {
+    const first = deferredStream();
+    renderPage();
+    await ready();
+    type('question');
+    fireEvent.keyDown(composer(), { key: 'Enter' });
+    await first.emit('meta', {
+      conversation: conversation(12, 'Question'),
+      user_message: { id: 1, role: 'user', content: 'question' },
+    });
+    await first.reject(new Error('boom'));
+    const alert = await screen.findByRole('alert');
+
+    const second = deferredStream();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(service.streamAiChat).toHaveBeenCalledTimes(2);
+    const call = service.streamAiChat.mock.calls[1][0];
+    expect(call.regenerate).toBe(true);
+    expect(call.conversationId).toBe(12);
+    expect(call.message).toBeUndefined();
+    expect(screen.getAllByText('question', { selector: 'p' })).toHaveLength(1);
+    await second.reject(new Error('boom'));
+  });
+
+  it('appends later deltas to the text of a replace event, including an empty one', async () => {
+    const stream = deferredStream();
+    renderPage();
+    await ready();
+    type('question');
+    fireEvent.keyDown(composer(), { key: 'Enter' });
+    await stream.emit('delta', { text: 'Discarded draft. ' });
+    await stream.emit('replace', { text: 'Verified start. ' });
+    expect(screen.getByTestId('markdown')).toHaveTextContent('Verified start.');
+    await stream.emit('delta', { text: 'More.' });
+    expect(screen.getByTestId('markdown').textContent).toBe('Verified start. More.');
+
+    await stream.emit('replace', { text: '' });
+    await stream.emit('delta', { text: 'Other provider.' });
+    expect(screen.getByTestId('markdown').textContent).toBe('Other provider.');
+    await stream.reject(new Error('x'));
+  });
+
+  it('shows the header New chat only when the list is not inline', async () => {
+    const original = window.matchMedia;
+    const stub = (matches) => {
+      window.matchMedia = vi.fn(() => ({ matches, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    };
+    try {
+      stub(false);
+      const narrow = renderPage();
+      await ready();
+      expect(screen.getAllByRole('button', { name: 'New chat' })).toHaveLength(1);
+      narrow.unmount();
+
+      stub(true);
+      renderPage();
+      await ready();
+      expect(screen.getAllByRole('button', { name: 'New chat' })).toHaveLength(1);
+      expect(within(screen.getByRole('complementary', { name: 'History' })).getByRole('button', { name: 'New chat' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it('shows the briefing title in sentence case', async () => {
+    service.getAiAssistantOverview.mockResolvedValue({
+      data: { ...overview, daily_briefing: { ...overview.daily_briefing, title: "TODAY'S ORGANIZATION ACTION PLAN" } },
+    });
+    renderPage();
+    expect(await screen.findByRole('heading', { name: "Today's organization action plan" })).toBeInTheDocument();
+  });
+
   it('tells the user to wait on a throttle', async () => {
     const stream = deferredStream();
     renderPage();

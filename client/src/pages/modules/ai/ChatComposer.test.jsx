@@ -1,8 +1,32 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import ChatComposer from './ChatComposer';
 
+function stubNarrow(matches) {
+  window.matchMedia = vi.fn(() => ({ matches, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+}
+
 describe('ChatComposer', () => {
+  afterEach(() => {
+    delete window.matchMedia;
+  });
+
+  it('uses a short placeholder below the sm breakpoint and the long one above it', () => {
+    stubNarrow(true);
+    const { unmount } = render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
+    expect(screen.getByLabelText('Message Ask AI')).toHaveAttribute('placeholder', 'Ask anything');
+    unmount();
+    stubNarrow(false);
+    render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
+    expect(screen.getByLabelText('Message Ask AI')).toHaveAttribute('placeholder', 'Ask about your records or what to do next');
+  });
+
+  it('shows its focus on the container and none on the textarea', () => {
+    render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
+    const box = screen.getByLabelText('Message Ask AI');
+    expect(box.parentElement).toHaveClass('focus-within:border-brand-600', 'focus-within:ring-accent/15');
+    expect(box).toHaveClass('focus-visible:outline-none!');
+  });
   it('shows a counter only near the limit and caps at 2000 characters', () => {
     render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
     const box = screen.getByLabelText('Message Ask AI');

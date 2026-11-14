@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Tooltip } from '../../../components/ui';
 import AiMarkdown from '../../../components/ai/AiMarkdown';
 import AnswerBlocks from '../../../components/ai/AnswerBlocks';
 import ReasoningDisclosure from '../../../components/ai/ReasoningDisclosure';
@@ -18,17 +19,28 @@ function useElapsedSeconds(active) {
   return seconds;
 }
 
-function ActionButton({ icon: Icon, children, pressed, ...rest }) {
+function ActionButton({ icon: Icon, children, ...rest }) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      className={`${ACTION_CLASS} ${pressed ? 'bg-brand-50 text-brand-800' : ''}`}
-      {...rest}
-    >
+    <button type="button" className={ACTION_CLASS} {...rest}>
       <Icon size={14} aria-hidden="true" />
       {children}
     </button>
+  );
+}
+
+function FeedbackButton({ icon: Icon, label, pressed, onClick }) {
+  return (
+    <Tooltip content={label}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={pressed}
+        onClick={onClick}
+        className={`inline-flex h-9 w-9 items-center justify-center rounded-control text-ink-muted-strong transition-colors hover:bg-subtle hover:text-ink max-sm:h-[42px] max-sm:w-[42px] ${pressed ? 'bg-brand-50 text-brand-800' : ''}`}
+      >
+        <Icon size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -106,22 +118,18 @@ export default function ChatMessage({
           )}
           {stored && !stopped && !failed && (
             <>
-              <ActionButton
+              <FeedbackButton
                 icon={ThumbsUp}
+                label="Helpful"
                 pressed={message.feedback === 'up'}
-                aria-label="Helpful"
                 onClick={() => onFeedback?.(message, message.feedback === 'up' ? null : 'up')}
-              >
-                Helpful
-              </ActionButton>
-              <ActionButton
+              />
+              <FeedbackButton
                 icon={ThumbsDown}
+                label="Not helpful"
                 pressed={message.feedback === 'down'}
-                aria-label="Not helpful"
                 onClick={() => onFeedback?.(message, message.feedback === 'down' ? null : 'down')}
-              >
-                Not helpful
-              </ActionButton>
+              />
             </>
           )}
         </div>
