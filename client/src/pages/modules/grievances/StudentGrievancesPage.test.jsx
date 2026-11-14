@@ -53,7 +53,7 @@ describe('StudentGrievancesPage', () => {
     expect(screen.queryByText('File this anonymously to my organization')).not.toBeInTheDocument();
   });
 
-  it('files a grievance, switches to the list, and shows its AI classification as advisory', async () => {
+  it('files a grievance, switches to the list, and keeps the reviewer triage off the student card', async () => {
     mocks.createGrievance.mockResolvedValue({ data: { id: 1 } });
     mocks.getGrievances.mockResolvedValueOnce({ data: { data: [] } }).mockResolvedValue({
       data: {
@@ -86,7 +86,9 @@ describe('StudentGrievancesPage', () => {
 
     expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('Filed grievances');
     expect(await screen.findByText('Harassment near the guard post')).toBeInTheDocument();
-    expect(screen.getByText('Critical urgency')).toBeInTheDocument();
+    expect(screen.queryByText('Critical urgency')).not.toBeInTheDocument();
+    expect(screen.queryByText('Suggested classification')).not.toBeInTheDocument();
+    expect(screen.queryByText('Why this classification?')).not.toBeInTheDocument();
     expect(screen.queryByText('Python AI service')).not.toBeInTheDocument();
     expect(screen.queryByText('ai-service')).not.toBeInTheDocument();
   });

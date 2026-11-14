@@ -60,7 +60,7 @@ describe('AnnouncementsFeedPage', () => {
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
     renderFeed();
     expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
-    expect(screen.getByText('Your officers post them here.')).toBeInTheDocument();
+    expect(screen.getByText('Announcements show here once your organization or the university posts them.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
