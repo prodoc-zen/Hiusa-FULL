@@ -271,8 +271,9 @@ Format: group (band): children in order, each `Label  route`.
 - Records `/dashboard/records` (every organization in the college, past school years, read only)
 - College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin, following the top bar semester); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 
-**STUDENT** (7 rows, 11 leaves; same size, renamed and reordered)
+**STUDENT** (8 rows, 13 leaves; same size, renamed and reordered)
 - Dashboard `/dashboard/student`
+- Ask AI `/dashboard/ask-ai`
 - My payments: Statement of account; Receipts (same routes); Where your fees go `/dashboard/finance/where-fees-go` (read only: collected, spending by category and balance from the reports the SAO approved for the student's organization, no names or ledger rows)
 - Events (single link): Events `/dashboard/events/activity-calendar`
 - Voting: Vote `/dashboard/elections/cast-vote`; Results
