@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicSemester;
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\CashAdvance;
@@ -88,8 +89,11 @@ class FinancialAccountabilityController extends Controller
         $repaid = (float) CashAdvanceRepayment::whereIn('cash_advance_id', (clone $advances)->select('id'))->sum('amount');
         $income = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'income')->sum('amount');
         $expense = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'expense')->sum('amount');
+        // An Admin cannot verify their own collection or approve their own cash advance, so one Admin needs to know who can name a second.
+        $ownOrganization = $request->user()->role === 'ADMIN' ? Organization::find($request->user()->organization_id) : null;
+        $approvers = ['admin_count' => $ownOrganization ? AccountProfile::where('organization_id', $ownOrganization->id)->activeAdministrators()->count() : null, 'second_admin_named_by' => $ownOrganization ? ($ownOrganization->is_university_wide ? 'SAO' : 'Department Head') : null];
 
-        return response()->json(['total_collections' => $collected, 'total_remitted' => $remittedInSemester, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count() + CashAdvance::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::whereIn('organization_id', $organizationIds)->latest('transaction_date')->limit(10)->get()]);
+        return response()->json([...$approvers, 'total_collections' => $collected, 'total_remitted' => $remittedInSemester, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count() + CashAdvance::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::whereIn('organization_id', $organizationIds)->latest('transaction_date')->limit(10)->get()]);
     }
 
     public function collections(Request $request)

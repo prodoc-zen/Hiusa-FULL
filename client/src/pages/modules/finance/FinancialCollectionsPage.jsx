@@ -132,6 +132,7 @@ export default function FinancialCollectionsPage() {
     <PageHeader primary={createOpen || remit ? null : <Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
     {error && !createOpen && !remit && !verifyTarget && <p role="alert" className="rounded-card border border-line bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-card border border-line bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+    {!loading && dashboard?.admin_count === 1 && <p className="rounded-card border border-line bg-subtle p-3 text-sm text-ink">You are the only admin, so you cannot verify your own collections or approve your own cash advances. Ask your {dashboard.second_admin_named_by || 'Department Head'} to name a second organization head under People and access.</p>}
     {!loading && dashboard && (
       <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {[['Available funds', dashboard.available_funds], ['Awaiting remittance', dashboard.unremitted_collections], ['Remitted', dashboard.total_remitted]].map(([label, value]) => (
