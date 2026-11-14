@@ -64,6 +64,15 @@ describe('AnnouncementsFeedPage', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
+  it('tells a student who belongs only to the college to join one, not to wait for its officers', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', organization: { organization_type: 'COLLEGE' } }));
+    mocks.getAnnouncements.mockResolvedValue({ data: [] });
+    renderFeed();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
+    expect(screen.getByText('Join an organization to see its announcements.')).toBeInTheDocument();
+    expect(screen.queryByText(/once your organization/)).not.toBeInTheDocument();
+  });
+
   it('offers Clear filters when a search finds nothing', async () => {
     mocks.getAnnouncements.mockImplementation((params) => Promise.resolve({ data: params.search ? [] : [{ id: 1, title: 'General Assembly', body: 'Everyone is invited.', created_at: '2026-09-01T08:00:00Z', organization: { name: 'HIUSA Council' } }] }));
     renderFeed();

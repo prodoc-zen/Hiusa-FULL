@@ -165,6 +165,15 @@ function readStudentCart() {
   }
 }
 
+// A signed-up student starts in the college itself, with no student organization of their own yet.
+function belongsOnlyToCollege() {
+  try {
+    return JSON.parse(localStorage.getItem("user"))?.organization?.organization_type === "COLLEGE";
+  } catch {
+    return false;
+  }
+}
+
 function getRole() {
   try {
     return JSON.parse(localStorage.getItem("user"))?.role || null;
@@ -2110,7 +2119,7 @@ export default function MerchandisePage({ initialTab }) {
                 <EmptyState
                   icon={Package}
                   title="Nothing to buy yet"
-                  description="Merchandise shows here once your organization adds it."
+                  description={belongsOnlyToCollege() ? "Join an organization to see its shop." : "Merchandise shows here once your organization adds it."}
                 />
               )
             ) : (

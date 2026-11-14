@@ -302,6 +302,18 @@ class AskAiCoreAuditFixesTest extends TestCase
         $this->assertStringContainsString('caught up', $this->briefing($student)['answer']);
     }
 
+    public function test_a_student_who_only_belongs_to_the_college_is_told_there_are_no_records_yet_not_that_they_are_caught_up(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+
+        $payload = $this->briefing($student);
+
+        $this->assertStringNotContainsString('caught up', $payload['answer']);
+        $this->assertStringNotContainsString('you owe nothing', $payload['answer']);
+        $this->assertStringContainsString('no organization records for you yet', $payload['answer']);
+    }
+
     private function election(Organization $org, array $overrides = []): Election
     {
         return Election::factory()->create([

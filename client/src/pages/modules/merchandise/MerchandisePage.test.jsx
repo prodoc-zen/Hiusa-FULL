@@ -960,6 +960,17 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByText("Merchandise shows here once your organization adds it.")).toBeInTheDocument();
   });
 
+  it("tells a student who belongs only to the college to join one to see its shop", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT", organization: { organization_type: "COLLEGE" } }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    expect(await screen.findByText("Nothing to buy yet")).toBeInTheDocument();
+    expect(screen.getByText("Join an organization to see its shop.")).toBeInTheDocument();
+    expect(screen.queryByText(/once your organization adds it/)).not.toBeInTheDocument();
+  });
+
   it("confirms a checkout with what happens next and shows the same stage on the order row", async () => {
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
