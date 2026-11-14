@@ -111,7 +111,7 @@ export default function DepartmentHeadHomePage() {
       <section aria-labelledby="college-overview">
         <h2 id="college-overview" className="sr-only">{college ? `${college} organizations` : 'College organizations'}</h2>
         {loading ? (
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">{[0, 1, 2].map((key) => <SkeletonStat key={key} />)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">{[0, 1].map((key) => <SkeletonStat key={key} />)}</div>
         ) : noOrganizations ? (
           <Card>
             <EmptyState
@@ -121,7 +121,7 @@ export default function DepartmentHeadHomePage() {
             />
           </Card>
         ) : !loadError && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <Stat className="p-3! sm:p-4!" label="Active organizations" value={organizationCount('active')} context={needAttention || undefined} to={`${ORGANIZATIONS_PATH}?status=active`} />
             <Stat className="p-3! sm:p-4!" label="Upcoming events" value={upcomingEvents.length} to="/dashboard/events" />
           </div>

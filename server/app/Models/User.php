@@ -145,6 +145,7 @@ class User extends Authenticatable
         // Only the signed-in payload says it; a user listed among others never costs a position lookup.
         if ($this->activeAccountProfile) {
             $attributes['can_book_venues'] = $this->canBookVenues();
+            $attributes['in_student_organization'] = $this->inStudentOrganization();
         }
 
         return $attributes;
@@ -170,6 +171,19 @@ class User extends Authenticatable
         }
 
         return $profile->position_title;
+    }
+
+    /**
+     * Whether this person holds an active profile in a student organization, whichever profile they are signed in to.
+     * The college profile is the member's own account, so the profile in use says nothing about membership.
+     */
+    public function inStudentOrganization(): bool
+    {
+        return AccountProfile::query()
+            ->where('user_school_id', $this->school_id)
+            ->where('account_status', 'active')
+            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'COLLEGE'))
+            ->exists();
     }
 
     /**

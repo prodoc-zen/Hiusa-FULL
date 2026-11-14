@@ -78,7 +78,12 @@ function formatDate(d) {
 function TaskStatus({ task }) {
   const status = task.workflow_status || task.status;
   if (status === 'pending') return <span className="text-xs text-ink-muted">Pending</span>;
-  if (status === 'blocked') return <StatusBadge tone="warning" label={task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task'} />;
+  if (status === 'blocked') {
+    const waiting = <StatusBadge tone="warning" label={task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task'} />;
+    // A late task that is also waiting keeps both facts: the wait is the reason, the lateness is still true.
+    if (task.status !== 'overdue') return waiting;
+    return <span className="inline-flex flex-wrap items-center gap-1">{waiting}<StatusBadge status="overdue" label="Overdue" /></span>;
+  }
   return <StatusBadge status={status} label={capitalize(status)} />;
 }
 

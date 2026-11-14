@@ -1701,7 +1701,7 @@ class AskAiService
                     $readyOrders > 0 ? $this->plural($readyOrders, 'order').' ready to claim' : null,
                     $nextBallot !== null ? $this->plural($openBallots->count(), 'open ballot').' waiting for your vote' : null,
                 ]))).'.'
-                : ($user->organization?->organization_type === 'COLLEGE'
+                : (! $user->inStudentOrganization()
                     ? 'You are not in an organization yet, so there are no organization records for you yet. Join an organization and its fees, orders and ballots show up here.'
                     : 'You are all caught up today. Nothing is held on your clearance, you owe nothing and no ballot is waiting for you.');
 

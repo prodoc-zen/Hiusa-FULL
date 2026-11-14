@@ -166,10 +166,11 @@ function readStudentCart() {
   }
 }
 
-// A signed-up student starts in the college itself, with no student organization of their own yet.
+// The server says whether the person holds a profile in a student organization; the college profile alone never tells.
+// A payload without the field is treated as "in an organization".
 function belongsOnlyToCollege() {
   try {
-    return JSON.parse(localStorage.getItem("user"))?.organization?.organization_type === "COLLEGE";
+    return JSON.parse(localStorage.getItem("user"))?.in_student_organization === false;
   } catch {
     return false;
   }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\ComplianceRequirementType;
@@ -312,6 +313,33 @@ class AskAiCoreAuditFixesTest extends TestCase
         $this->assertStringNotContainsString('caught up', $payload['answer']);
         $this->assertStringNotContainsString('you owe nothing', $payload['answer']);
         $this->assertStringContainsString('no organization records for you yet', $payload['answer']);
+    }
+
+    public function test_a_member_signed_in_on_the_college_profile_with_a_club_profile_is_not_told_they_are_in_no_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $club = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $answer = $this->briefing($student->fresh())['answer'];
+
+        $this->assertStringNotContainsString('not in an organization', $answer);
+        $this->assertStringContainsString('caught up', $answer);
+    }
+
+    public function test_the_signed_in_payload_says_whether_the_member_is_in_a_student_organization(): void
+    {
+        $home = $this->org(['organization_type' => 'COLLEGE']);
+        $club = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $home->id]);
+        Sanctum::actingAs($student);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', false);
+
+        AccountProfile::create(['user_school_id' => $student->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', true);
     }
 
     private function election(Organization $org, array $overrides = []): Election

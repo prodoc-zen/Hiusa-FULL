@@ -496,6 +496,16 @@ describe('TasksPage', () => {
       expect((await screen.findAllByText('Waiting on another task')).length).toBeGreaterThan(0);
     });
 
+    it('keeps the Overdue badge beside the Waiting badge on a late task that is also waiting', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      serve({ ...base, id: 1, title: 'stage task', status: 'overdue', workflow_status: 'blocked', dependency: { id: 9, title: 'earlier task' } });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+
+      const waiting = (await screen.findAllByText('Waiting on Earlier Task'))[0];
+      expect(within(waiting.parentElement).getByText('Overdue')).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain('Blocked');
+    });
+
     it('keeps the word Blocked out of the stepper of an overdue task', async () => {
       serve({ ...base, id: 1, title: 'stage task', status: 'overdue' });
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
