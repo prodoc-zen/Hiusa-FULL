@@ -63,6 +63,7 @@ class DashboardBriefingService
         'grievances_urgent' => ['urgent grievance', 'urgent grievances'],
         'clearance_sao_pending' => ['clearance to sign', 'clearances to sign'],
         'registrations_pending' => ['registration awaiting review', 'registrations awaiting review'],
+        'applications_pending' => ['application awaiting your decision', 'applications awaiting your decision'],
         'registration_returned' => ['returned registration', 'returned registrations'],
         'organization_awaiting_admin' => ['organization waiting for an administrator', 'organizations waiting for an administrator'],
     ];
@@ -1278,6 +1279,21 @@ class DashboardBriefingService
     private function saoQueuesAttention(): array
     {
         $items = [];
+
+        // The application pipeline: the Department Head endorses, and the SAO decides last.
+        $endorsedApplications = DB::table('organization_applications')->where('status', 'pending_sao')->count();
+        if ($endorsedApplications > 0) {
+            $items[] = [
+                'id' => 'sao_queue-applications',
+                'type' => 'applications_pending',
+                'count' => $endorsedApplications,
+                'severity' => 'medium',
+                'title' => 'Applications awaiting your decision',
+                'detail' => "{$endorsedApplications} application(s) were endorsed by a Department Head and wait for your decision",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/organization-applications'),
+            ];
+        }
 
         $pendingRegistrations = DB::table('organizations')->where('organization_type', 'STUDENT_ORGANIZATION')->where('lifecycle_status', 'pending')->count();
         if ($pendingRegistrations > 0) {
