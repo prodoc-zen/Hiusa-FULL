@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import RecoverAccountPage from './RecoverAccountPage';
@@ -68,7 +68,14 @@ describe('password recovery pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request reset' }));
 
     expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
-    expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toHaveTextContent(/SAO staff ask another SAO account holder\./);
+    expect(screen.getByText(/Nothing was sent to anyone\. Someone else has to give you a one-time link to choose a new password\./)).toBeInTheDocument();
+    const who = screen.getByRole('list', { name: 'Who can reset your password' });
+    expect(within(who).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Students and officers: your organization Admin, or the SAO.',
+      'Organization Admins, office staff and Department Heads: the SAO.',
+      'SAO staff: another SAO account holder.',
+      'The only SAO account: whoever looks after the server runs the reset command in the deployment guide (hiusa:reset-sao-password).',
+    ]);
     expect(screen.queryByText(/we sent/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send another email' })).not.toBeInTheDocument();
   });
