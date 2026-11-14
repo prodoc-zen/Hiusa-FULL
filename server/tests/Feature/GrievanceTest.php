@@ -513,4 +513,44 @@ class GrievanceTest extends TestCase
         }
         $this->assertDatabaseHas('grievances', ['id' => $grievance->id]);
     }
+
+    public function test_the_sao_can_reopen_a_closed_grievance_with_a_reason_and_the_student_is_told(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        $sao = $this->user('SUPER_ADMIN');
+        Sanctum::actingAs($sao);
+
+        foreach (['resolved', 'dismissed'] as $closed) {
+            $grievance = $this->grievance($student, ['organization_id' => null, 'status' => $closed, 'remarks' => 'Closed earlier.', 'resolved_at' => now()]);
+
+            $this->patchJson("/api/grievances/{$grievance->id}/status", ['status' => 'under_review'])->assertStatus(422)->assertJsonValidationErrors('remarks');
+            $this->assertSame($closed, $grievance->fresh()->status);
+
+            $this->patchJson("/api/grievances/{$grievance->id}/status", ['status' => 'under_review', 'remarks' => 'The student sent new facts.'])
+                ->assertOk()->assertJsonPath('status', 'under_review')->assertJsonPath('remarks', 'The student sent new facts.');
+
+            $this->assertNull($grievance->fresh()->resolved_at);
+            $this->assertDatabaseHas('audit_logs', ['module' => 'grievances', 'action' => 'grievance_reopened', 'record_id' => $grievance->id, 'user_id' => $sao->school_id, 'actor_role' => 'SUPER_ADMIN']);
+            $message = Notification::where('user_id', $student->school_id)->where('reference_type', 'grievance')->where('reference_id', $grievance->id)->latest('id')->value('message');
+            $this->assertStringContainsString('reopened', $message);
+            $this->assertStringContainsString('The student sent new facts.', $message);
+        }
+    }
+
+    public function test_only_the_sao_can_reopen_and_a_closed_grievance_cannot_jump_to_another_closed_state(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        $grievance = $this->grievance($student, ['status' => 'resolved', 'remarks' => 'Done.', 'resolved_at' => now()]);
+
+        Sanctum::actingAs($this->user('ADMIN', $organization->id));
+        $this->patchJson("/api/grievances/{$grievance->id}/status", ['status' => 'under_review', 'remarks' => 'Trying to reopen.'])->assertStatus(409);
+
+        Sanctum::actingAs($this->user('SUPER_ADMIN'));
+        $this->patchJson("/api/grievances/{$grievance->id}/status", ['status' => 'dismissed', 'remarks' => 'Switching.'])->assertStatus(409);
+
+        $this->assertSame('resolved', $grievance->fresh()->status);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'grievance_reopened']);
+    }
 }

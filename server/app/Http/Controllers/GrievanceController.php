@@ -11,6 +11,7 @@ use App\Services\OrganizationRecipients;
 use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * Confidential grievances. A STUDENT files one addressed either to their own
@@ -202,22 +203,33 @@ class GrievanceController extends Controller
         'under_review' => ['resolved', 'dismissed'],
     ];
 
+    // Only the SAO can put a closed grievance back under review, and only with a reason the student can read.
+    private const REOPEN_FROM = ['resolved', 'dismissed'];
+
     public function updateStatus(Request $request, Grievance $grievance)
     {
         if (! $this->canTransition($grievance, $request->user())) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        $reopening = $request->user()->role === 'SUPER_ADMIN'
+            && in_array($grievance->status, self::REOPEN_FROM, true)
+            && $request->input('status') === 'under_review';
+
         $data = $request->validate([
             'status' => ['required', 'in:under_review,resolved,dismissed'],
-            'remarks' => ['nullable', 'string', 'max:2000', 'required_if:status,resolved', 'required_if:status,dismissed'],
+            'remarks' => ['nullable', 'string', 'max:2000', 'required_if:status,resolved', 'required_if:status,dismissed', Rule::requiredIf(fn () => $reopening)],
         ]);
 
         $allowed = self::ALLOWED_STATUS_TRANSITIONS[$grievance->status] ?? [];
+        if ($reopening) {
+            $allowed = ['under_review'];
+        }
         if (! in_array($data['status'], $allowed, true)) {
             return response()->json(['message' => "This grievance is {$grievance->status} and cannot be moved to {$data['status']}."], 409);
         }
 
+        $before = ['status' => $grievance->status, 'remarks' => $grievance->remarks];
         $grievance->update([
             'status' => $data['status'],
             'remarks' => $data['remarks'] ?? $grievance->remarks,
@@ -230,9 +242,10 @@ class GrievanceController extends Controller
             'user_id' => $request->user()->school_id,
             'actor_role' => $request->user()->role,
             'module' => 'grievances',
-            'action' => 'grievance_status_updated',
+            'action' => $reopening ? 'grievance_reopened' : 'grievance_status_updated',
             'record_type' => Grievance::class,
             'record_id' => $grievance->id,
+            'old_values' => $reopening ? $before : null,
             'new_values' => ['status' => $data['status'], 'remarks' => $data['remarks'] ?? null],
             'ip_address' => $request->ip(),
             'created_at' => now(),
@@ -245,7 +258,7 @@ class GrievanceController extends Controller
                 'user_id' => $filer->school_id,
                 'notification_type' => 'general',
                 'title' => 'Your grievance was updated',
-                'message' => "Your grievance \"{$grievance->title}\" is now ".str_replace('_', ' ', $data['status']).'.'.(! empty($data['remarks']) ? ' Remarks: '.$data['remarks'] : ''),
+                'message' => "Your grievance \"{$grievance->title}\" ".($reopening ? 'was reopened and is under review again.' : 'is now '.str_replace('_', ' ', $data['status']).'.').(! empty($data['remarks']) ? ' Remarks: '.$data['remarks'] : ''),
                 'reference_type' => 'grievance',
                 'reference_id' => $grievance->id,
                 'is_read' => false,

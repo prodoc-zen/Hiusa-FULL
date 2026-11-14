@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GraduationCap } from 'lucide-react';
-import { Card, DataTable, EmptyState, Field, Input, Select, StatusBadge } from '../ui';
+import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusBadge } from '../ui';
+import ConfirmModal from '../ConfirmModal';
+import StudentRecordEditModal from './StudentRecordEditModal';
 import StudentRecordsUpload from './StudentRecordsUpload';
 import PaginationControls from '../PaginationControls';
-import { getStudentRegistry } from '../../services/studentRegistryService';
+import { deleteStudentRegistryEntry, getStudentRegistry } from '../../services/studentRegistryService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { manilaDate } from '../../lib/format';
+import notify from '../../lib/notify';
 
 const PAGE_SIZE = 20;
 
@@ -25,6 +28,10 @@ export default function StudentRecordsPanel({ collegeId }) {
   const [claimed, setClaimed] = useState('');
   const [recordType, setRecordType] = useState('student');
   const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState('');
   const requestId = useRef(0);
 
   const load = useCallback(async () => {
@@ -67,6 +74,23 @@ export default function StudentRecordsPanel({ collegeId }) {
     setQuery('');
     setClaimed('');
     setPage(1);
+  };
+
+  const closeRemove = () => { setRemoving(null); setRemoveError(''); };
+
+  const confirmRemove = async () => {
+    setRemoveBusy(true);
+    setRemoveError('');
+    try {
+      await deleteStudentRegistryEntry(removing.id);
+      closeRemove();
+      notify.success('Record removed.');
+      load();
+    } catch (requestError) {
+      setRemoveError(getApiErrorMessage(requestError, 'The record could not be removed.'));
+    } finally {
+      setRemoveBusy(false);
+    }
   };
 
   const filtersActive = Boolean(query || claimed);
@@ -117,6 +141,12 @@ export default function StudentRecordsPanel({ collegeId }) {
           columns={tableColumns}
           rows={rows}
           rowKey={(row) => row.id}
+          actions={(row) => (row.claimed ? null : (
+            <span className="inline-flex items-center justify-end gap-2">
+              <Button variant="secondary" size="sm" aria-label={`Edit ${row.name}`} onClick={() => setEditing(row)}>Edit</Button>
+              <Button variant="secondary" size="sm" aria-label={`Remove ${row.name}`} onClick={() => setRemoving(row)}>Remove</Button>
+            </span>
+          ))}
           loading={loading}
           error={error}
           onRetry={load}
@@ -158,6 +188,25 @@ export default function StudentRecordsPanel({ collegeId }) {
           pagination={<PaginationControls currentPage={page} totalItems={meta.total} pageSize={PAGE_SIZE} onPageChange={setPage} label={type.label.toLowerCase()} />}
         />
       </Card>
+
+      {editing && (
+        <StudentRecordEditModal
+          record={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); notify.success('Record corrected.'); load(); }}
+        />
+      )}
+      <ConfirmModal
+        open={Boolean(removing)}
+        title="Remove this record?"
+        recordName={removing?.name}
+        message={`Remove the record for ID ${removing?.school_id}? They will no longer be able to sign up with it. You can add it again with an upload.`}
+        confirmText="Remove record"
+        busy={removeBusy}
+        error={removeError}
+        onCancel={closeRemove}
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

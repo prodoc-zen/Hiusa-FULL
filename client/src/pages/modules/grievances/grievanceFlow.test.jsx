@@ -186,7 +186,8 @@ describe('grievance lists and details', () => {
     renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Noisy lab' });
     expect(within(drawer).getAllByText('Resolved').length).toBeGreaterThan(0);
-    expect(within(drawer).getByText('This grievance is closed and cannot be reopened.')).toBeInTheDocument();
+    expect(within(drawer).getByText('This grievance is closed. Reopen it if there are new facts, or delete it from the register.')).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Reopen grievance' })).toBeInTheDocument();
   });
 
   it('closes the drawer and says so when ?record= names a grievance that cannot be fetched', async () => {
