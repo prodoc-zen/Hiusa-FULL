@@ -30,6 +30,8 @@ const asList = (data, key) => {
   return Array.isArray(list) ? list : [];
 };
 
+const pagingOf = (data) => ({ hasMore: data?.has_more === true && Boolean(data?.next_before), before: data?.next_before ?? null });
+
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches ?? false);
   useEffect(() => {
@@ -215,6 +217,8 @@ export default function AskAiPage() {
   const [conversations, setConversations] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(false);
+  const [listMore, setListMore] = useState({ hasMore: false, before: null });
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [messages, setMessages] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -266,6 +270,7 @@ export default function AskAiPage() {
     try {
       const response = await listAiConversations();
       setConversations(asList(response.data, 'conversations'));
+      setListMore(pagingOf(response.data));
     } catch {
       setListError(true);
     } finally {
@@ -277,6 +282,21 @@ export default function AskAiPage() {
     loadOverview();
     loadConversations();
   }, [loadOverview, loadConversations]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (loadingMore || !listMore.before) return;
+    setLoadingMore(true);
+    try {
+      const response = await listAiConversations({ before: listMore.before });
+      const next = asList(response.data, 'conversations');
+      setConversations((current) => [...current, ...next.filter((row) => !current.some((item) => item.id === row.id))]);
+      setListMore(pagingOf(response.data));
+    } catch {
+      toast.error('Could not load more conversations.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [listMore.before, loadingMore]);
 
   const upsertConversation = useCallback((conversation) => {
     if (!conversation?.id) return;
@@ -566,6 +586,7 @@ export default function AskAiPage() {
     try {
       await deleteAllAiConversations();
       setConversations([]);
+      setListMore({ hasMore: false, before: null });
       newChat();
       return true;
     } catch (err) {
@@ -623,6 +644,9 @@ export default function AskAiPage() {
     onRename: renameConversation,
     onDelete: removeConversation,
     onDeleteAll: removeAllConversations,
+    hasMore: listMore.hasMore,
+    loadingMore,
+    onLoadMore: loadMoreConversations,
   };
 
   const sendFromComposer = (text) => {
@@ -634,6 +658,12 @@ export default function AskAiPage() {
   const replaceMessage = useCallback((next) => {
     setMessages((list) => list.map((m) => (m.id === next.id && m.role === 'assistant' ? { ...next, key: m.key } : m)));
   }, []);
+
+  const askAgain = useCallback((message) => {
+    const index = messages.findIndex((m) => m.key === message.key);
+    const asked = messages.slice(0, Math.max(index, 0)).findLast((m) => m.role === 'user');
+    if (asked?.content) send(asked.content, { source: 'typed' });
+  }, [send, messages]);
 
   const liveActionMessageId = liveActionId(messages);
   const lastIndex = messages.length - 1;
@@ -687,6 +717,7 @@ export default function AskAiPage() {
                     onAsk={ask}
                     actionLive={!actionOf(message) || message.id === liveActionMessageId}
                     onActionChange={replaceMessage}
+                    onAskAgain={askAgain}
                   />
                 ))}
               </div>
