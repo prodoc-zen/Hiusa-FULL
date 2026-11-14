@@ -16,11 +16,12 @@ const URGENCIES = ['Critical', 'High', 'Medium', 'Low'];
 // The three tiles are the queue that needs a person: new, in progress and most urgent.
 const TILE_STATUSES = ['submitted', 'under_review'];
 const TILE_URGENCIES = ['Critical'];
-const OPEN_STATUSES = TILE_STATUSES.join(',');
+// The API reads a multi-value filter as a JSON list (App\Support\FilterValues), never a comma list.
+const OPEN_STATUSES = JSON.stringify(TILE_STATUSES);
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...STATUSES.map((value) => ({ value, label: value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1) }))];
 const URGENCY_OPTIONS = [{ value: '', label: 'All urgencies' }, ...URGENCIES.map((value) => ({ value, label: value }))];
-const EMPTY_COUNTS = { submitted: 0, under_review: 0, Critical: 0 };
+const UNAVAILABLE_COUNTS = { submitted: null, under_review: null, Critical: null };
 
 export default function SaoGrievancesPage() {
   const [rows, setRows] = useState([]);
@@ -32,7 +33,7 @@ export default function SaoGrievancesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { selected, open, close, replace } = useGrievanceRecord();
-  const [counts, setCounts] = useState(EMPTY_COUNTS);
+  const [counts, setCounts] = useState(UNAVAILABLE_COUNTS);
   const loadCounter = useRef(0);
 
   const filters = useMemo(() => ({
@@ -73,11 +74,13 @@ export default function SaoGrievancesPage() {
   // The tiles count the queue that needs a person, independent of the status and urgency selects
   // below (which narrow the table). There is no aggregate endpoint, so this is three lightweight
   // per_page=1 requests read for their `total` only.
-  const loadCounts = useCallback(() => Promise.all([
+  const loadCounts = useCallback(() => Promise.allSettled([
     ...TILE_STATUSES.map((value) => getGrievances({ status: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
     ...TILE_URGENCIES.map((value) => getGrievances({ urgency: value, status: OPEN_STATUSES, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
-  ]).then((entries) => setCounts({ ...EMPTY_COUNTS, ...Object.fromEntries(entries) }))
-    .catch(() => setCounts(EMPTY_COUNTS)), []);
+  ]).then((results) => setCounts({
+    ...UNAVAILABLE_COUNTS,
+    ...Object.fromEntries(results.filter((result) => result.status === 'fulfilled').map((result) => result.value)),
+  })), []);
 
   useEffect(() => { loadCounts(); }, [loadCounts]);
 
@@ -147,13 +150,13 @@ export default function SaoGrievancesPage() {
         {TILE_STATUSES.map((value) => (
           <button key={value} type="button" onClick={() => changeStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink" title={counts[value] === null ? 'Count unavailable' : undefined}>{counts[value] ?? '–'}</p>
           </button>
         ))}
         {TILE_URGENCIES.map((value) => (
           <button key={value} type="button" onClick={() => changeUrgency(urgency === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink" title={counts[value] === null ? 'Count unavailable' : undefined}>{counts[value] ?? '–'}</p>
           </button>
         ))}
       </div>

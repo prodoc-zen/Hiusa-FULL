@@ -213,7 +213,7 @@ class EventController extends Controller
             $budget->approval_remarks = $approval?->remarks;
         }
 
-        $latestForecast = FinancialForecast::latestFor($events->first()->organization_id);
+        $latestForecast = FinancialForecast::currentFor($events->first()->organization_id);
 
         $eventTotals = Transaction::whereIn('event_id', $events->pluck('id'))
             ->excludingCashAdvances()
