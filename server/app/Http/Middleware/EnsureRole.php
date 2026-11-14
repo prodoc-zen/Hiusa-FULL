@@ -25,6 +25,8 @@ class EnsureRole
         'GET api/students/registry',
         'POST api/students/registry/preview',
         'POST api/students/registry/apply',
+        'PATCH api/students/registry/{entry}',
+        'DELETE api/students/registry/{entry}',
         'GET api/college/staff/records',
         'GET api/college/staff/invitations',
         'POST api/college/staff/invitations',

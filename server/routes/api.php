@@ -86,6 +86,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/students/registry', [StudentRegistryController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/preview', [StudentRegistryController::class, 'preview'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/apply', [StudentRegistryController::class, 'apply'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::patch('/students/registry/{entry}', [StudentRegistryController::class, 'update'])->whereNumber('entry')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::delete('/students/registry/{entry}', [StudentRegistryController::class, 'destroy'])->whereNumber('entry')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
