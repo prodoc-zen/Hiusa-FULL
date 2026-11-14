@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   getClearancePeriodStudents: vi.fn(),
   createClearancePeriod: vi.fn(),
   deleteClearancePeriod: vi.fn(),
+  updateClearancePeriod: vi.fn(),
+  closeClearancePeriod: vi.fn(),
+  syncClearancePeriod: vi.fn(),
   updateClearanceSignature: vi.fn(),
 }));
 
@@ -16,6 +19,9 @@ vi.mock('../../../services/clearanceService', () => ({
   getClearancePeriodStudents: mocks.getClearancePeriodStudents,
   createClearancePeriod: mocks.createClearancePeriod,
   deleteClearancePeriod: mocks.deleteClearancePeriod,
+  updateClearancePeriod: mocks.updateClearancePeriod,
+  closeClearancePeriod: mocks.closeClearancePeriod,
+  syncClearancePeriod: mocks.syncClearancePeriod,
   updateClearanceSignature: mocks.updateClearanceSignature,
 }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([]) }));
@@ -113,6 +119,87 @@ describe('SaoClearancesPage', () => {
       required_roles: ['sao'],
       deadline_at: undefined,
     }));
+  });
+
+  describe('keeping a period up to date', () => {
+    async function openMenu(period = PERIOD) {
+      // A fresh array per call, as the API gives, so a reload really replaces the list.
+      mocks.getClearancePeriods.mockImplementation(() => Promise.resolve(envelope([{ ...period }])));
+      mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
+      render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole('button', { name: `Actions for ${period.title}` }));
+    }
+
+    it('adds students who joined since the period opened and reloads the progress', async () => {
+      mocks.syncClearancePeriod.mockResolvedValue({ data: { students_added: 2, message: '2 students added to this clearance period.' } });
+      await openMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add students who joined since' }));
+
+      await waitFor(() => expect(mocks.syncClearancePeriod).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(mocks.getClearancePeriodStudents).toHaveBeenCalledTimes(2));
+    });
+
+    it('tells the SAO when a period cannot take more students', async () => {
+      mocks.syncClearancePeriod.mockRejectedValue({ response: { status: 409, data: { message: 'This clearance period is closed. Move its deadline to a later date to add students.' } } });
+      await openMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add students who joined since' }));
+
+      await waitFor(() => expect(mocks.syncClearancePeriod).toHaveBeenCalledWith(1));
+      expect(mocks.getClearancePeriodStudents).toHaveBeenCalledTimes(1);
+    });
+
+    it('edits the title and deadline and sends only what the form holds', async () => {
+      mocks.updateClearancePeriod.mockResolvedValue({ data: { ...PERIOD, title: 'Final Clearance' } });
+      await openMenu({ ...PERIOD, deadline_at: '2027-03-01T00:00:00.000000Z' });
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit period' }));
+
+      const drawer = await screen.findByRole('dialog', { name: 'Edit clearance period' });
+      expect(within(drawer).getByLabelText(/^Title/)).toHaveValue('Second Semester Clearance');
+      expect(within(drawer).getByLabelText(/^Deadline/)).toHaveValue('2027-03-01');
+      fireEvent.change(within(drawer).getByLabelText(/^Title/), { target: { value: 'Final Clearance' } });
+      fireEvent.change(within(drawer).getByLabelText(/^Deadline/), { target: { value: '2027-04-15' } });
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(mocks.updateClearancePeriod).toHaveBeenCalledWith(1, {
+        title: 'Final Clearance',
+        description: '',
+        deadline_at: '2027-04-15',
+        required_roles: ['sao', 'department_head'],
+      }));
+      await waitFor(() => expect(mocks.getClearancePeriods).toHaveBeenCalledTimes(2));
+    });
+
+    it('keeps the form open and shows the reason when a signed role cannot be removed', async () => {
+      mocks.updateClearancePeriod.mockRejectedValue({ response: { status: 409, data: { message: 'The Organization role already has signed or held lines and cannot be removed.' } } });
+      await openMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit period' }));
+
+      const drawer = await screen.findByRole('dialog', { name: 'Edit clearance period' });
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Save changes' }));
+
+      expect(await within(drawer).findByRole('alert')).toHaveTextContent('The Organization role already has signed or held lines and cannot be removed.');
+      expect(screen.getByRole('dialog', { name: 'Edit clearance period' })).toBeInTheDocument();
+    });
+
+    it('closes a period after confirmation', async () => {
+      mocks.closeClearancePeriod.mockResolvedValue({ data: { message: 'Clearance period closed.' } });
+      await openMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Close period' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Close this clearance period?' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close period' }));
+
+      await waitFor(() => expect(mocks.closeClearancePeriod).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(mocks.getClearancePeriods).toHaveBeenCalledTimes(2));
+    });
+
+    it('marks a period whose deadline has passed as closed and offers no second close', async () => {
+      await openMenu({ ...PERIOD, deadline_at: '2020-01-01T00:00:00.000000Z' });
+
+      expect(screen.getByText('Closed')).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Close period' })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: 'Edit period' })).toBeInTheDocument();
+    });
   });
 
   it('opens the roster on the page and reopens a cleared SAO line with a reason', async () => {

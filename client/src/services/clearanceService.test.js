@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
 import {
+  closeClearancePeriod,
   createClearancePeriod,
   getClearancePeriodStudents,
   getClearancePeriods,
   getClearanceSignatures,
   getMyClearances,
+  syncClearancePeriod,
+  updateClearancePeriod,
   updateClearanceSignature,
 } from './clearanceService';
 
@@ -49,5 +52,20 @@ describe('clearanceService', () => {
   it('signs, holds or clears a hold on a signature', () => {
     updateClearanceSignature(9, { status: 'held', remarks: 'Unpaid dues.' });
     expect(api.patch).toHaveBeenCalledWith('/clearance-signatures/9', { status: 'held', remarks: 'Unpaid dues.' });
+  });
+
+  it('edits a clearance period', () => {
+    updateClearancePeriod(5, { title: 'Final Clearance' });
+    expect(api.patch).toHaveBeenCalledWith('/clearance-periods/5', { title: 'Final Clearance' });
+  });
+
+  it('closes a clearance period', () => {
+    closeClearancePeriod(5);
+    expect(api.post).toHaveBeenCalledWith('/clearance-periods/5/close');
+  });
+
+  it('adds the students who joined since a period opened', () => {
+    syncClearancePeriod(5);
+    expect(api.post).toHaveBeenCalledWith('/clearance-periods/5/sync');
   });
 });
