@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Support\RenewalDeadline;
+use Carbon\Carbon;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -106,16 +107,18 @@ class RenewalTrackerTest extends TestCase
 
     public function test_the_tracker_deadline_equals_compliance_and_follows_a_change_there(): void
     {
+        // Early morning in Manila, when the UTC date of the same instant is still the previous day.
+        $this->travelTo(Carbon::parse('2026-11-15 05:30', 'Asia/Manila'));
         $type = $this->type('Renewal of accreditation', now()->addDays(30)->startOfSecond());
         Sanctum::actingAs($this->admin);
 
         $first = $this->getJson('/api/officer-transition/renewal')->assertOk()->json();
-        $this->assertTrue(now()->addDays(30)->isSameDay($first['deadline_at']));
+        $this->assertTrue(now()->addDays(30)->isSameDay(Carbon::parse($first['deadline_at'])->setTimezone(config('app.timezone'))));
 
         $type->update(['deadline_at' => now()->addDays(12)]);
 
         $second = $this->getJson('/api/officer-transition/renewal')->assertOk()->json();
-        $this->assertTrue(now()->addDays(12)->isSameDay($second['deadline_at']));
+        $this->assertTrue(now()->addDays(12)->isSameDay(Carbon::parse($second['deadline_at'])->setTimezone(config('app.timezone'))));
     }
 
     public function test_the_tracker_reports_overdue_requirements_and_progress(): void

@@ -260,23 +260,32 @@ describe('OrgAccessPanel', () => {
     expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toBeEnabled();
   });
 
-  it('shows the dean why the last profile cannot be deleted as a visible line, with one id per layout', async () => {
+  it('shows the dean one visible line above the list that every blocked Delete account button points at', async () => {
     renderPanel();
     await seen('Ana Reyes');
 
-    const buttons = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' });
+    const buttons = screen.getAllByRole('button', { name: /^Delete account for / });
     expect(buttons.length).toBeGreaterThan(1);
-    const ids = buttons.map((button) => button.getAttribute('aria-describedby'));
-    expect(new Set(ids).size).toBe(ids.length);
-    buttons.forEach((button, index) => {
-      const line = document.getElementById(ids[index]);
-      expect(line).toHaveTextContent('Ask the SAO to remove the account');
-      expect(line).not.toHaveClass('sr-only');
-      expect(line.className).toMatch(/text-(xs|\[12px\]|\[13px\])/);
-      expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account');
-    });
-    // Every dean-blocked row in every layout has its own line: two people, table and cards.
-    expect(screen.getAllByText('Ask the SAO to remove the account')).toHaveLength(4);
+    const ids = new Set(buttons.map((button) => button.getAttribute('aria-describedby')));
+    expect(ids.size).toBe(1);
+    const [id] = [...ids];
+    const line = document.getElementById(id);
+    expect(line).toHaveTextContent('Ask the SAO to remove the account');
+    expect(line).not.toHaveClass('sr-only');
+    expect(line.className).toMatch(/text-(xs|\[12px\]|\[13px\])/);
+    buttons.forEach((button) => expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account'));
+    // One line for the whole panel, not one per person or per layout, and its id is not repeated in the DOM.
+    expect(screen.getAllByText('Ask the SAO to remove the account')).toHaveLength(1);
+    expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1);
+    expect(line.compareDocumentPosition(screen.getAllByRole('table')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('adds no reason line when nobody shown is on their last profile', async () => {
+    mocks.getManagedAccountProfiles.mockResolvedValue(envelope([MARIA]));
+    renderPanel();
+    await seen('Maria Santos');
+
+    expect(screen.queryByText('Ask the SAO to remove the account')).not.toBeInTheDocument();
   });
 
   it('adds no helper line when the person keeps another profile or the actor is not a dean', async () => {

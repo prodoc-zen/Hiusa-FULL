@@ -35,7 +35,7 @@ describe('WorkspaceSwitcher for an officer', () => {
 
     const panel = screen.getByRole('region', { name: 'Workspaces' });
     expect(within(panel).getByRole('button', { name: /my account/i })).toHaveAttribute('aria-current', 'true');
-    expect(within(panel).getByRole('button', { name: /Computing Society/ })).toHaveTextContent('SBO Officer · Treasurer');
+    expect(within(panel).getByRole('button', { name: /Computing Society/ })).toHaveTextContent('Officer · Treasurer');
   });
 
   it('lists names only, with no initials tile in front of them', () => {

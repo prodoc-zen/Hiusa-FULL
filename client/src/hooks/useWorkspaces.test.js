@@ -18,7 +18,14 @@ describe('buildWorkspaces for students and officers', () => {
     const { spaces } = buildWorkspaces({ role: 'STUDENT', profiles: [officer, head, home], activeProfileId: 1 });
 
     expect(spaces.map((space) => space.label)).toEqual(['My account', 'Computing Society', 'Arts Guild']);
-    expect(spaces[1].detail).toBe('SBO Officer · Treasurer');
+    expect(spaces[1].detail).toBe('Officer · Treasurer');
+  });
+
+  it('calls an admin of the college home organization office staff', () => {
+    const staff = profile(6, 'ADMIN', { name: 'College Office', organization_type: 'COLLEGE' });
+    const { spaces } = buildWorkspaces({ role: 'STUDENT', profiles: [home, staff], activeProfileId: 1 });
+
+    expect(spaces.find((space) => space.label === 'College Office').detail).toBe('Office staff');
   });
 
   it('puts the person on My account while the student profile is active, and in the organization once they switch', () => {

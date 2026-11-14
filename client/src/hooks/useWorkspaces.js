@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAccountProfiles, getCurrentUser, switchAccountProfile } from '../services/authService';
 import { getCollegeOrganizations } from '../services/collegeOrganizationService';
 import { unwrapList } from '../services/pagination';
-import { ROLE_HOME_PATHS, ROLE_LABELS } from '../components/layout/navigation';
+import { ROLE_HOME_PATHS } from '../components/layout/navigation';
 import { storedUser } from '../utils/collegeIdentity';
+import { workspaceRoleWord } from '../utils/workspaceLabels';
 
 const ORG_ROLES = ['ADMIN', 'SBO_OFFICER'];
 
@@ -42,7 +43,7 @@ export const usable = (profile) => profile.account_status === 'active'
   && profile.organization.college_is_active !== false;
 
 function profileDetail(profile) {
-  const role = ROLE_LABELS[profile.role] || profile.role;
+  const role = workspaceRoleWord(profile.role, profile.organization?.organization_type) || profile.role;
   return profile.position_title ? `${role} · ${profile.position_title}` : role;
 }
 
