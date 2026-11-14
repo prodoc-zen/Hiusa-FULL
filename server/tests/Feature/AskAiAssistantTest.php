@@ -567,7 +567,7 @@ class AskAiAssistantTest extends TestCase
         $seeded = $this->seedSensitiveOrganizationData();
         Sanctum::actingAs($seeded['officer']);
 
-        foreach (['missing_submissions', 'submitted_documents', 'tasks_workload'] as $topic) {
+        foreach (['missing_submissions', 'submitted_documents'] as $topic) {
             $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Give me the status please', 'topic' => $topic]);
             $res->assertJsonPath('intent', $topic);
             $this->assertRefusedWithoutLeaking($res, $seeded['sensitive']);

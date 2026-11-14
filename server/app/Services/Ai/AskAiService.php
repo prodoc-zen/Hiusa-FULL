@@ -454,26 +454,6 @@ class AskAiService
                 array_filter($this->suggestedQuestions('STUDENT'), fn (array $q) => in_array($q['topic'], [$topic, 'daily_priorities'], true))
             ));
 
-            $href = $intent === 'grievances_status' ? $this->routeAccess->hrefFor('STUDENT', '/dashboard/my-grievances') : null;
-            if ($href !== null) {
-                $payload['sections'] = [[
-                    'id' => 'student-grievances',
-                    'title' => 'Your own concerns',
-                    'description' => 'You can file a concern and follow it here.',
-                    'empty_message' => '',
-                    'rows' => [[
-                        'id' => 'student-grievances-page',
-                        'primary' => 'My grievances',
-                        'secondary' => 'File a new concern or read the answer to an earlier one.',
-                        'status' => 'Open to you',
-                        'status_tone' => 'info',
-                        'meta' => null,
-                        'href' => $href,
-                        'action_label' => 'Open My grievances',
-                    ]],
-                ]];
-            }
-
             return $payload;
         }
 
