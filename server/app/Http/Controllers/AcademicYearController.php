@@ -21,7 +21,11 @@ class AcademicYearController extends Controller
 {
     public function index()
     {
-        return response()->json(AcademicYear::with('semesters')->orderByDesc('starts_on')->get());
+        return response()->json(AcademicYear::with('semesters')->orderByDesc('starts_on')->get()->map(function (AcademicYear $year) {
+            $blocker = $this->removalBlocker($year);
+
+            return [...$year->toArray(), 'can_be_removed' => $blocker === null, 'removal_blocker' => $blocker];
+        }));
     }
 
     public function store(Request $request)
@@ -45,12 +49,21 @@ class AcademicYearController extends Controller
             ->orWhere('ends_on', '>', $data['ends_on']))->exists()) {
             throw ValidationException::withMessages(['starts_on' => ['Academic year dates must still contain its semesters.']]);
         }
-        if ($data['label'] !== $academicYear->label && $this->isInUse($academicYear)) {
-            throw ValidationException::withMessages(['label' => ["{$academicYear->label} already labels requirements or clearance periods, so its name stays."]]);
-        }
 
-        $academicYear->update($data);
-        $this->audit($request, 'academic_year_updated', $academicYear);
+        DB::transaction(function () use ($request, $academicYear, $data) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $year = AcademicYear::whereKey($academicYear->id)->lockForUpdate()->firstOrFail();
+            if ($data['label'] !== $year->label) {
+                if ($this->labelIsLocked($year)) {
+                    throw ValidationException::withMessages(['label' => ["{$year->label} already labels requirements or clearance periods, so its name stays."]]);
+                }
+                ComplianceRequirementType::where('academic_year', $year->label)
+                    ->whereIn('academic_semester_id', $this->semesterIds($year))
+                    ->update(['academic_year' => $data['label']]);
+            }
+            $year->update($data);
+            $this->audit($request, 'academic_year_updated', $year);
+        });
 
         return response()->json($academicYear->fresh());
     }
@@ -94,24 +107,69 @@ class AcademicYearController extends Controller
 
     public function destroy(Request $request, AcademicYear $academicYear)
     {
-        if ($academicYear->is_current) {
-            return response()->json(['message' => 'Make another academic year current before removing this one.'], 409);
-        }
-        if ($this->isInUse($academicYear)) {
-            return response()->json(['message' => "{$academicYear->label} already has accreditation requirements or clearance periods, so it stays on the calendar."], 409);
-        }
+        $blocker = DB::transaction(function () use ($request, $academicYear) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $year = AcademicYear::whereKey($academicYear->id)->lockForUpdate()->firstOrFail();
+            $blocker = $this->removalBlocker($year);
+            if ($blocker !== null) {
+                return $blocker;
+            }
+            foreach ($year->semesters as $semester) {
+                abort_if(app(AcademicSemesterController::class)->remove($request, $semester) !== [], 409, "{$year->label} was not removed because a semester changed while it was being removed. Try again.");
+            }
+            $year->delete();
+            $this->audit($request, 'academic_year_deleted', $year);
 
-        $academicYear->delete();
-        $this->audit($request, 'academic_year_deleted', $academicYear);
+            return null;
+        });
+        if ($blocker !== null) {
+            return response()->json(['message' => $blocker], 409);
+        }
 
         return response()->json(['message' => 'Academic year removed.']);
     }
 
-    private function isInUse(AcademicYear $year): bool
+    /**
+     * Why a year cannot be removed, or null when it can. Current or not, a year goes when none of its
+     * semesters ever started and nothing but those semesters' own default requirements carries its label.
+     */
+    private function removalBlocker(AcademicYear $year): ?string
     {
-        return $year->semesters()->exists()
-            || ComplianceRequirementType::where('academic_year', $year->label)->exists()
+        $semesters = $year->semesters;
+        if ($year->closed_at || $semesters->contains(fn (AcademicSemester $semester) => $semester->status !== 'upcoming')) {
+            return "{$year->label} has a semester that has started, so it stays on the calendar.";
+        }
+        if ($this->hasLooseRecords($year)) {
+            return "{$year->label} already has accreditation requirements or clearance periods, so it stays on the calendar.";
+        }
+        foreach ($semesters as $semester) {
+            $reasons = app(AcademicSemesterController::class)->deletionBlockers($semester);
+            if ($reasons !== []) {
+                return 'The '.($semester->number === 1 ? '1st' : '2nd')." semester of {$year->label} has ".implode(', ', $reasons).', so the year stays on the calendar.';
+            }
+        }
+
+        return null;
+    }
+
+    private function labelIsLocked(AcademicYear $year): bool
+    {
+        return AcademicSemester::where('academic_year_id', $year->id)->where('status', '!=', 'upcoming')->exists()
+            || $this->hasLooseRecords($year);
+    }
+
+    /** Requirements and clearance periods that carry the label but are not a semester's own. */
+    private function hasLooseRecords(AcademicYear $year): bool
+    {
+        return ComplianceRequirementType::where('academic_year', $year->label)
+            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhereNotIn('academic_semester_id', $this->semesterIds($year)))->exists()
             || ClearancePeriod::where('academic_year', $year->label)->exists();
+    }
+
+    /** @return array<int, int> */
+    private function semesterIds(AcademicYear $year): array
+    {
+        return AcademicSemester::where('academic_year_id', $year->id)->pluck('id')->all();
     }
 
     private function validated(Request $request, ?AcademicYear $existing = null): array
