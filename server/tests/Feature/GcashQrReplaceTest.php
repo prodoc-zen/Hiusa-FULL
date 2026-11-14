@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -18,6 +19,12 @@ class GcashQrReplaceTest extends TestCase
 
     /** @var list<string> */
     private array $created = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+    }
 
     protected function tearDown(): void
     {
@@ -41,10 +48,9 @@ class GcashQrReplaceTest extends TestCase
     private function replaceQrFor(Organization $organization): void
     {
         Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $organization->id]));
-        $response = $this->post('/api/merchandise/gcash-settings', [
+        $this->post('/api/merchandise/gcash-settings', [
             'qr_code' => UploadedFile::fake()->createWithContent('qr.png', base64_decode(self::PNG)),
         ], ['Accept' => 'application/json'])->assertOk();
-        $this->created[] = public_path('uploads/gcash/'.basename(parse_url($response->json('gcash_qr_url'), PHP_URL_PATH)));
     }
 
     public function test_replacing_the_qr_deletes_the_previous_upload(): void

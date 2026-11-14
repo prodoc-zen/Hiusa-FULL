@@ -38,10 +38,17 @@ const message = (action = {}, extra = {}) => ({
   ...extra,
 });
 
-function renderCard({ msg = message(), live = true, onChange = vi.fn() } = {}) {
+function renderCard({ msg = message(), live = true, onChange = vi.fn(), onAskAgain, askAgainDisabled } = {}) {
   render(
     <MemoryRouter>
-      <ActionCard message={msg} action={msg.payload.action} live={live} onChange={onChange} />
+      <ActionCard
+        message={msg}
+        action={msg.payload.action}
+        live={live}
+        onChange={onChange}
+        onAskAgain={onAskAgain}
+        askAgainDisabled={askAgainDisabled}
+      />
     </MemoryRouter>,
   );
   return onChange;
@@ -194,7 +201,6 @@ describe('ActionCard', () => {
   it.each([
     ['cancelled', /cancelled/],
     ['failed', /did not go through/],
-    ['expired', /expired/],
   ])('shows one muted line for %s and no form', (status, pattern) => {
     renderCard({ msg: message({ status }) });
     expect(screen.getByText(pattern)).toBeInTheDocument();
@@ -202,22 +208,131 @@ describe('ActionCard', () => {
     expect(screen.queryByLabelText(/^Title/)).not.toBeInTheDocument();
   });
 
+  it('shows the sentence the server closed an interrupted card with, and no second line', () => {
+    const sentence = 'I could not tell whether this went through. Check the page before trying again.';
+    renderCard({ msg: message({ status: 'failed', result: { message: sentence } }) });
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+    expect(screen.queryByText(/did not go through/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('gives the card selects the same 44px height as the inputs', () => {
+    renderCard();
+    const field = screen.getByLabelText('Assign to').parentElement.parentElement.parentElement;
+    expect(field.className).toContain('[&>div>div]:min-h-11');
+  });
+
+  it('reports what the person typed so the message Copy can use it, and nothing once the card closes', () => {
+    const onValues = vi.fn();
+    const msg = message();
+    const { rerender } = render(
+      <MemoryRouter>
+        <ActionCard message={msg} action={msg.payload.action} onChange={vi.fn()} onValuesChange={onValues} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'Typed title' } });
+    expect(onValues).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Typed title', capacity: 40 }));
+    const closed = message({ status: 'cancelled' });
+    rerender(
+      <MemoryRouter>
+        <ActionCard message={closed} action={closed.payload.action} onChange={vi.fn()} onValuesChange={onValues} />
+      </MemoryRouter>,
+    );
+    expect(onValues).toHaveBeenLastCalledWith(null);
+  });
+
   it('shows a card past its expiry as expired even when it still says awaiting', () => {
     renderCard({ msg: message({ expires_at: new Date(Date.now() - 1000).toISOString() }) });
     expect(screen.getByText(/expired/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Title/)).toHaveValue('General Assembly');
   });
 
-  it('expires on screen when the time passes', () => {
+  it('keeps the form and what was typed on screen, read only, when the card expires', () => {
     vi.useFakeTimers();
     try {
-      renderCard({ msg: message({ expires_at: new Date(Date.now() + 5000).toISOString() }) });
+      const onAskAgain = vi.fn();
+      renderCard({ msg: message({ expires_at: new Date(Date.now() + 5000).toISOString() }), onAskAgain });
+      fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'My typed title' } });
+      fireEvent.change(screen.getByLabelText('Details'), { target: { value: 'A long description to keep' } });
       expect(screen.getByRole('button', { name: 'Create event' })).toBeInTheDocument();
       act(() => { vi.advanceTimersByTime(6000); });
-      expect(screen.getByText(/expired/)).toBeInTheDocument();
+      expect(screen.getByText('This request expired. Ask again to get a fresh one.')).toBeInTheDocument();
+      expect(screen.getByLabelText(/^Title/)).toHaveValue('My typed title');
+      expect(screen.getByLabelText(/^Title/)).toHaveAttribute('readonly');
+      expect(screen.getByLabelText('Details')).toHaveValue('A long description to keep');
+      expect(screen.getByLabelText('Details')).toHaveAttribute('readonly');
+      expect(screen.getByRole('checkbox', { name: 'Open to everyone' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+      expect(onAskAgain).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('copies the typed details of an expired card and disables Ask again when told to', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderCard({
+      msg: message({ expires_at: new Date(Date.now() - 1000).toISOString() }),
+      onAskAgain: vi.fn(),
+      askAgainDisabled: true,
+    });
+    expect(screen.getByRole('button', { name: 'Ask again' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Copy details/ }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copied = writeText.mock.calls[0][0];
+    expect(copied).toContain('Create an event');
+    expect(copied).toContain('Title: General Assembly');
+    expect(copied).toContain('Details: Bring your ID');
+    expect(copied).toContain('Assign to: Ana Cruz, Treasurer');
+    expect(copied).toContain('Open to everyone: Yes');
+    expect(copied).not.toContain('Here is the event I can create.');
+    expect(await screen.findByRole('button', { name: /Copied/ })).toBeInTheDocument();
+  });
+
+  it('offers no Ask again on an expired card when the page gives no way to ask', () => {
+    renderCard({ msg: message({ expires_at: new Date(Date.now() - 1000).toISOString() }) });
+    expect(screen.queryByRole('button', { name: 'Ask again' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copy details/ })).toBeInTheDocument();
+  });
+
+  it.each([true, false])('shows a confirming card as working on it, read only, never as replaced (live %s)', (live) => {
+    renderCard({ msg: message({ status: 'confirming' }), live });
+    expect(screen.getByText('Working on it. Check the page if this does not change.')).toBeInTheDocument();
+    expect(screen.queryByText('A newer request replaced this one.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Title/)).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['confirm', 'Create event'],
+    ['cancel', 'Cancel'],
+  ])('shows the server message on a 429 from %s, keeps the card and what was typed, and does not retry', async (which, button) => {
+    const served = 'Too many requests. Try again in a minute.';
+    service[which === 'confirm' ? 'confirmAiAction' : 'cancelAiAction'].mockRejectedValue(refusal(429, { message: served }));
+    const onChange = renderCard();
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'My typed title' } });
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    expect(await screen.findByText(served)).toBeInTheDocument();
+    expect(screen.queryByText('Could not complete that. Try again.')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Title/)).toHaveValue('My typed title');
+    expect(screen.getByLabelText(/^Title/)).not.toHaveAttribute('readonly');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create event' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(service.confirmAiAction.mock.calls.length + service.cancelAiAction.mock.calls.length).toBe(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a wait line when a 429 carries no message', async () => {
+    service.confirmAiAction.mockRejectedValue(refusal(429, {}));
+    renderCard();
+    fireEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    expect(await screen.findByText('Too many requests. Wait a moment, then try again.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create event' })).toBeEnabled();
   });
 
   it('shows an older awaiting card read only with a line saying a newer request replaced it', () => {

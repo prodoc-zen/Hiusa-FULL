@@ -3,10 +3,16 @@
 namespace Tests\Feature;
 
 use App\Contracts\TextGenerator;
+use App\Http\Middleware\EnsurePeriodWritable;
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\AccountProfile;
+use App\Models\AiConversation;
 use App\Models\AiMessage;
+use App\Models\AiOutput;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\College;
 use App\Models\DepartmentHeadInvitation;
@@ -18,8 +24,12 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Ai\AskAiActions;
+use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
@@ -111,6 +121,53 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, Event::count());
     }
 
+    public function test_a_statement_that_asks_for_information_is_answered_not_turned_into_a_card(): void
+    {
+        $actions = app(AskAiActions::class);
+        $cases = [
+            ['ADMIN', 'List the events we plan to host next month'],
+            ['ADMIN', 'Summarize the budgets we still need to submit'],
+            ['STUDENT', 'My friend wants to file a complaint, what should she do'],
+            ['ADMIN', 'create an event for the seminar?'],
+            ['ADMIN', 'tell me which tasks I should create this week'],
+        ];
+
+        foreach ($cases as [$role, $text]) {
+            $this->assertNull($actions->recognise(new User(['role' => $role]), $text), $text);
+        }
+    }
+
+    public function test_a_title_that_contains_a_question_word_is_still_a_request(): void
+    {
+        $actions = app(AskAiActions::class);
+        $admin = new User(['role' => 'ADMIN']);
+
+        $this->assertSame('create_event', $actions->recognise($admin, 'create an event called Talent Show'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'make an event "How to Study" on friday'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'please assign a task to the treasurer'));
+        $this->assertSame('allow_applicant', $actions->recognise(new User(['role' => 'DEPARTMENT_HEAD']), 'let maria apply for a new organization'));
+    }
+
+    public function test_a_request_that_opens_with_the_verb_is_not_made_a_question_by_a_word_later_in_it(): void
+    {
+        $actions = app(AskAiActions::class);
+        $admin = new User(['role' => 'ADMIN']);
+
+        $this->assertSame('create_event', $actions->recognise($admin, 'Create an event for the talent show on Friday'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'Create an event for the variety show'));
+        $this->assertSame('draft_announcement', $actions->recognise($admin, 'Draft an announcement about the fashion show'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'Create a task to list the attendees'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'Create a task to show the venue to the guests'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'please can you create an event for the talent show'));
+
+        $this->assertNull($actions->recognise($admin, 'List the events we plan to host next month'));
+        $this->assertNull($actions->recognise($admin, 'Summarize the budgets we still need to submit'));
+        $this->assertNull($actions->recognise($admin, 'tell me which tasks I should create this week'));
+        $this->assertNull($actions->recognise($admin, 'can you tell me what event to create'));
+        $this->assertNull($actions->recognise($admin, 'Create an event for the talent show?'));
+        $this->assertNull($actions->recognise(new User(['role' => 'STUDENT']), 'My friend wants to file a complaint, what should she do'));
+    }
+
     public function test_everyday_phrasing_is_recognised_for_each_role(): void
     {
         $actions = app(AskAiActions::class);
@@ -143,6 +200,43 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
     }
 
+    public function test_a_request_that_names_no_source_is_not_treated_as_typed(): void
+    {
+        Sanctum::actingAs($this->admin());
+
+        $untagged = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"'])->assertOk();
+        $this->assertArrayNotHasKey('action', $untagged->json('message.payload'));
+        $this->assertSame('link', AiMessage::findOrFail($untagged->json('user_message.id'))->payload['source']);
+        $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
+
+        $typed = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"', 'source' => 'typed'])->assertOk();
+        $this->assertSame('create_event', $typed->json('message.payload.action.key'));
+    }
+
+    public function test_trying_a_link_message_again_never_turns_it_into_a_card_whatever_the_request_says(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $first = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"', 'source' => 'link'])->assertOk();
+        $this->assertArrayNotHasKey('action', $first->json('message.payload'));
+        $this->assertNull($first->json('user_message.payload'));
+        $this->assertSame('link', AiMessage::findOrFail($first->json('user_message.id'))->payload['source']);
+
+        foreach (['typed', null] as $claimed) {
+            $again = $this->postJson('/api/ai/assistant/chat', array_filter(['conversation_id' => $first->json('conversation.id'), 'regenerate' => true, 'source' => $claimed]))->assertOk();
+            $this->assertArrayNotHasKey('action', $again->json('message.payload'), (string) $claimed);
+        }
+        $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
+    }
+
+    public function test_the_source_a_typed_message_arrived_with_is_kept_for_trying_again(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $typed = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk();
+
+        $this->assertSame('typed', AiMessage::findOrFail($typed->json('user_message.id'))->payload['source']);
+        $this->assertSame('awaiting_confirmation', $typed->json('message.payload.action.status'));
+    }
+
     public function test_a_role_without_the_action_never_gets_it(): void
     {
         $org = Organization::factory()->create();
@@ -163,7 +257,7 @@ class AskAiActionsTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
 
-        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "Fun Run"'], ['Accept' => 'text/event-stream']);
+        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "Fun Run"', 'source' => 'typed'], ['Accept' => 'text/event-stream']);
         $response->assertOk();
         preg_match_all('/^event: (\w+)$/m', $response->streamedContent(), $names);
 
@@ -294,7 +388,7 @@ class AskAiActionsTest extends TestCase
         $message = $this->ask('create a task Prepare minutes for Ana Cruz');
 
         $assignee = collect($message['payload']['action']['fields'])->firstWhere('name', 'assigned_to');
-        $this->assertSame([['value' => (string) $officer->school_id, 'label' => 'Ana Cruz, Secretary']], $assignee['options']);
+        $this->assertSame([['value' => (string) $officer->school_id, 'label' => 'Ana Cruz, Secretary (recommended)']], $assignee['options']);
         $this->assertSame((string) $officer->school_id, $assignee['value']);
         $this->assertSame(0, Task::count());
 
@@ -308,6 +402,28 @@ class AskAiActionsTest extends TestCase
         $this->assertSame($admin->school_id, (int) $task->created_by);
         $this->assertSame('Task created and assigned to Ana Cruz.', $response->json('message.payload.action.result.message'));
         $this->assertSame('/dashboard/tasks/task-board', $response->json('message.payload.action.result.href'));
+    }
+
+    public function test_the_assign_to_list_is_the_delegation_result_so_an_officer_at_the_task_limit_is_not_offered(): void
+    {
+        config(['services.hiusa_ai.task_max_active_tasks' => 1]);
+        $org = Organization::factory()->create();
+        foreach (['Secretary', 'Treasurer'] as $title) {
+            SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => $title, 'is_active' => true]);
+        }
+        $busy = User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Busy', 'last_name' => 'Bee', 'position_title' => 'Secretary', 'account_status' => 'active']);
+        $free = User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Free', 'last_name' => 'Fox', 'position_title' => 'Treasurer', 'account_status' => 'active']);
+        Task::factory()->create(['organization_id' => $org->id, 'event_id' => null, 'assigned_to' => $busy->school_id, 'status' => 'pending']);
+        Sanctum::actingAs($this->admin($org));
+
+        $message = $this->ask('create a task called Prepare minutes');
+
+        $assignee = collect($message['payload']['action']['fields'])->firstWhere('name', 'assigned_to');
+        $this->assertSame([['value' => (string) $free->school_id, 'label' => 'Free Fox, Treasurer (recommended)']], $assignee['options']);
+
+        $this->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $busy->school_id])
+            ->assertUnprocessable()->assertJsonPath('errors.assigned_to.0', 'Choose one of the listed options.');
+        $this->assertSame(1, Task::count());
     }
 
     public function test_an_assignee_outside_the_options_is_refused_on_the_assignee_field(): void
@@ -489,6 +605,41 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(1, OrganizationApplicantGrant::count());
     }
 
+    public function test_a_student_who_sorts_after_the_three_hundredth_can_still_be_offered_and_confirmed(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $dean = $this->makeCollegeHead($college);
+        $home = Organization::where('organization_type', 'COLLEGE')->where('college_id', $college->id)->firstOrFail();
+        $club = $this->makeCollegeStudentOrganization($college);
+        $this->crowdTheClub($home, $club, 300);
+        $last = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Lorna', 'last_name' => 'Zamora']);
+        Sanctum::actingAs($dean);
+
+        $message = $this->ask('i want to start a new student organization');
+
+        $this->assertSame([(string) $last->school_id], array_column($message['payload']['action']['fields'][0]['options'], 'value'));
+
+        $this->confirm($message['id'], ['school_id' => (string) $last->school_id])->assertOk();
+        $this->assertSame($last->school_id, (int) OrganizationApplicantGrant::sole()->user_school_id);
+    }
+
+    public function test_an_applicant_from_another_college_or_left_empty_is_refused_on_the_student_field(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $dean = $this->makeCollegeHead($college);
+        $home = Organization::where('organization_type', 'COLLEGE')->where('college_id', $college->id)->firstOrFail();
+        $maria = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+        Sanctum::actingAs($dean);
+        $message = $this->ask('i want to start a new student organization');
+        $outsider = User::factory()->student()->create(['organization_id' => $this->makeCollegeHome($this->makeCollege('CAS'))->id]);
+
+        $this->confirm($message['id'], ['school_id' => (string) $outsider->school_id])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'Choose one of the listed options.');
+        $this->confirm($message['id'], ['school_id' => ''])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'Student is required.');
+        $this->confirm($message['id'], ['school_id' => (string) $maria->school_id])->assertOk();
+
+        $this->assertSame(1, OrganizationApplicantGrant::count());
+    }
+
     public function test_the_sao_adds_a_college_and_is_not_offered_a_dean_invitation_card(): void
     {
         $sao = $this->sao();
@@ -558,14 +709,128 @@ class AskAiActionsTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
         $message = $this->ask('create an event called Fun Run');
-        $row = AiMessage::find($message['id']);
-        $payload = $row->payload;
-        $payload['action']['status'] = 'confirming';
-        $row->update(['payload' => $payload]);
+        $this->markConfirming($message['id'], now()->subSeconds(10));
 
         $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
 
         $this->assertSame(0, Event::count());
+        $this->assertSame('confirming', AiMessage::find($message['id'])->payload['action']['status']);
+    }
+
+    public function test_a_card_interrupted_while_running_is_closed_as_unknown_not_left_confirming_forever(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now()->subMinutes(3));
+
+        $response = $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
+
+        $sentence = 'I could not tell whether this went through. Check the page before trying again.';
+        $this->assertSame($sentence, $response->json('message'));
+        $row = AiMessage::find($message['id']);
+        $this->assertSame('failed', $row->payload['action']['status']);
+        $this->assertSame($sentence, $row->content);
+        $this->assertSame(0, Event::count());
+
+        $this->postJson("/api/ai/assistant/messages/{$message['id']}/action/cancel")->assertStatus(409);
+    }
+
+    public function test_reloading_the_conversation_closes_a_card_left_running_and_writes_one_audit_row(): void
+    {
+        $admin = $this->admin();
+        Sanctum::actingAs($admin);
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now());
+
+        $sentence = 'I could not tell whether this went through. Check the page before trying again.';
+        $page = fn () => collect($this->getJson('/api/ai/assistant/conversations/'.AiMessage::find($message['id'])->conversation_id)->assertOk()->json('messages'))->firstWhere('id', $message['id']);
+
+        $this->travel(60)->seconds();
+        $this->assertSame('confirming', $page()['payload']['action']['status']);
+
+        $this->travel(3)->minutes();
+        $shown = $page();
+        $this->assertSame('failed', $shown['payload']['action']['status']);
+        $this->assertSame($sentence, $shown['content']);
+        $this->assertSame($sentence, $shown['payload']['action']['result']['message']);
+        $this->assertSame('failed', AiMessage::find($message['id'])->payload['action']['status']);
+        $this->assertSame(0, Event::count());
+
+        $page();
+        $audit = AiOutput::query()->where('output_text', 'create_event: interrupted')->get();
+        $this->assertCount(1, $audit);
+        $this->assertSame(['action' => 'create_event', 'role' => 'ADMIN'], $audit->first()->structured_input);
+        $this->assertNull($audit->first()->structured_output['record_id']);
+        $this->assertSame($admin->school_id, $audit->first()->decided_by);
+    }
+
+    public function test_pressing_confirm_on_a_card_left_running_writes_the_interrupted_audit_row(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $this->markConfirming($message['id'], now()->subMinutes(3));
+
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(409);
+
+        $this->assertSame(1, AiOutput::query()->where('output_text', 'create_event: interrupted')->count());
+        $this->assertSame('I could not tell whether this went through. Check the page before trying again.', AiMessage::find($message['id'])->payload['action']['result']['message']);
+    }
+
+    public function test_a_refused_confirm_gives_the_person_another_full_window_to_fix_the_form(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $good = ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'];
+
+        $this->travel(29)->minutes();
+        $refused = $this->confirm($message['id'], [...$good, 'title' => ''])->assertUnprocessable();
+        $this->assertEqualsWithDelta(now()->addMinutes(30)->timestamp, strtotime($refused->json('assistant_message.payload.action.expires_at')), 5);
+
+        $this->travel(16)->minutes();
+        $this->confirm($message['id'], $good)->assertOk();
+        $this->assertSame(1, Event::count());
+    }
+
+    public function test_a_throttle_refusal_before_the_action_runs_does_not_burn_the_card(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $other = $this->ask('create an event called Open Mic');
+
+        RateLimiter::for('api-write', fn () => Limit::perMinute(1));
+        $this->postJson("/api/ai/assistant/messages/{$other['id']}/action/cancel")->assertOk();
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertStatus(429);
+        $this->assertSame('awaiting_confirmation', AiMessage::find($message['id'])->payload['action']['status']);
+
+        RateLimiter::for('api-write', fn () => Limit::none());
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+        $this->assertSame(1, Event::count());
+    }
+
+    public function test_a_throttle_refusal_from_the_route_puts_the_card_back_to_waiting(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Fun Run');
+        $fields = ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'];
+
+        RateLimiter::for('api-write', fn () => Limit::perMinute(1));
+        $response = $this->confirm($message['id'], $fields)->assertUnprocessable();
+        $this->assertSame(['_' => ['Too many requests. Wait a moment, then press the button again.']], $response->json('errors'));
+        $this->assertSame('awaiting_confirmation', $response->json('assistant_message.payload.action.status'));
+        $this->assertSame(0, Event::count());
+
+        RateLimiter::for('api-write', fn () => Limit::none());
+        $this->confirm($message['id'], $fields)->assertOk();
+        $this->assertSame(1, Event::count());
+    }
+
+    private function markConfirming(int $messageId, Carbon $since): void
+    {
+        $row = AiMessage::find($messageId);
+        $payload = $row->payload;
+        $payload['action']['status'] = 'confirming';
+        $payload['action']['confirming_at'] = $since->toIso8601String();
+        $row->update(['payload' => $payload]);
     }
 
     public function test_an_expired_action_is_refused_and_marked_expired(): void
@@ -606,6 +871,18 @@ class AskAiActionsTest extends TestCase
         $this->assertFalse((bool) $event->requires_budget);
     }
 
+    public function test_an_organization_archived_after_the_proposal_is_refused_at_confirm_and_nothing_is_created(): void
+    {
+        $org = Organization::factory()->create();
+        Sanctum::actingAs($this->admin($org));
+        $message = $this->ask('create an event called Fun Run');
+
+        $org->update(['lifecycle_status' => 'archived', 'is_active' => false]);
+        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertForbidden();
+
+        $this->assertSame(0, Event::count());
+    }
+
     // -------------------------------------------------------------------------
     // The internal request really runs the route's middleware
     // -------------------------------------------------------------------------
@@ -629,34 +906,130 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, ApprovalRequest::count());
     }
 
-    public function test_the_deans_staff_are_refused_by_the_dean_only_gate(): void
+    public function test_the_deans_staff_are_never_offered_the_dean_only_applicant_card(): void
     {
         $college = $this->makeCollege('CCS');
         $home = $this->makeCollegeHome($college);
-        $this->makeCollegeHead($college);
+        $dean = $this->makeCollegeHead($college);
         $staff = User::factory()->admin()->create(['organization_id' => $home->id, 'position_title' => 'College Secretary']);
-        $student = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+        User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+
         Sanctum::actingAs($staff);
-        $message = $this->ask('let Maria Santos apply for a new organization');
-        $this->assertSame('allow_applicant', $message['payload']['action']['key']);
+        $this->assertArrayNotHasKey('action', $this->ask('let Maria Santos apply for a new organization')['payload']);
+        $this->assertSame([], app(AskAiActions::class)->titlesFor($staff));
 
-        $response = $this->confirm($message['id'], ['school_id' => (string) $student->school_id])->assertOk();
-
-        $this->assertSame('failed', $response->json('message.payload.action.status'));
-        $this->assertSame('I could not do that. Only the dean can do this.', $response->json('message.content'));
-        $this->assertSame(0, OrganizationApplicantGrant::count());
+        Sanctum::actingAs($dean);
+        $this->assertSame('allow_applicant', $this->ask('let Maria Santos apply for a new organization')['payload']['action']['key']);
     }
 
-    public function test_an_organization_archived_after_the_proposal_is_refused_and_nothing_is_created(): void
+    public function test_the_audit_row_keeps_the_address_the_proxy_forwarded_not_the_proxys_own(): void
     {
         $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => 'Secretary', 'account_status' => 'active']);
         Sanctum::actingAs($this->admin($org));
-        $message = $this->ask('create an event called Fun Run');
+        $message = $this->ask('create a task called Prepare minutes');
 
-        $org->update(['lifecycle_status' => 'archived', 'is_active' => false]);
-        $this->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertForbidden();
+        TrustProxies::at('127.0.0.1');
+        try {
+            $this->withHeader('X-Forwarded-For', '203.0.113.9')
+                ->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $officer->school_id])
+                ->assertOk();
+        } finally {
+            TrustProxies::flushState();
+        }
 
+        $this->assertSame(1, Task::count());
+        $this->assertSame('203.0.113.9', AuditLog::where('action', 'task_delegated')->sole()->ip_address);
+    }
+
+    public function test_the_selected_planning_semester_header_reaches_the_route_and_files_the_event_there(): void
+    {
+        [$active, $upcoming] = $this->semesters();
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Next Term Kickoff');
+
+        $this->withHeader('X-Academic-Semester', (string) $upcoming->id)
+            ->confirm($message['id'], ['title' => 'Next Term Kickoff', 'start_time' => '2027-02-05T15:00', 'end_time' => '2027-02-05T17:00'])
+            ->assertOk();
+
+        $this->assertSame($upcoming->id, Event::sole()->academic_semester_id);
+        $this->assertNotSame($active->id, Event::sole()->academic_semester_id);
+    }
+
+    public function test_an_event_outside_the_semester_comes_back_as_an_error_that_belongs_to_no_field(): void
+    {
+        $this->semesters();
+        Sanctum::actingAs($this->admin());
+        $message = $this->ask('create an event called Far Future');
+
+        $response = $this->confirm($message['id'], ['title' => 'Far Future', 'start_time' => '2028-02-05T15:00', 'end_time' => '2028-02-05T17:00'])->assertUnprocessable();
+
+        $this->assertSame(['_' => ['Event dates must fall within the academic semester.']], $response->json('errors'));
+        $this->assertSame('awaiting_confirmation', $response->json('assistant_message.payload.action.status'));
         $this->assertSame(0, Event::count());
+    }
+
+    public function test_a_closed_semester_refuses_the_task_through_the_routes_period_gate(): void
+    {
+        $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => 'Secretary', 'account_status' => 'active']);
+        [, , $completed] = $this->semesters();
+        Sanctum::actingAs($this->admin($org));
+        $message = $this->ask('create a task called Prepare minutes');
+
+        $response = $this->withHeader('X-Academic-Semester', (string) $completed->id)
+            ->confirm($message['id'], ['title' => 'Prepare minutes', 'deadline' => now()->addWeek()->format('Y-m-d'), 'assigned_to' => (string) $officer->school_id])
+            ->assertOk();
+
+        $this->assertSame('failed', $response->json('message.payload.action.status'));
+        $this->assertStringContainsString(EnsurePeriodWritable::CLOSED, $response->json('message.content'));
+        $this->assertSame(0, Task::count());
+    }
+
+    public function test_a_real_bearer_token_carries_through_to_the_route(): void
+    {
+        $admin = $this->admin();
+        $headers = ['Authorization' => 'Bearer '.$admin->createToken('ask-ai-actions-test')->plainTextToken];
+        $message = $this->withHeaders($headers)->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk()->json('message');
+
+        $this->withHeaders($headers)->confirm($message['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+
+        $event = Event::sole();
+        $this->assertSame($admin->school_id, (int) $event->created_by);
+        $this->assertSame($admin->organization_id, $event->organization_id);
+    }
+
+    /** Copies one real student and her profile many times in two inserts, because hashing 300 passwords takes seconds. */
+    private function crowdTheClub(Organization $home, Organization $club, int $count): void
+    {
+        $template = User::factory()->student()->create(['organization_id' => $home->id]);
+        $user = DB::table('users')->where('school_id', $template->school_id)->first();
+        $profile = DB::table('account_profiles')->where('user_school_id', $template->school_id)->first();
+        $users = [];
+        $profiles = [];
+        foreach (range(1, $count) as $number) {
+            $schoolId = 8000000 + $number;
+            $users[] = [...(array) $user, 'school_id' => $schoolId, 'email' => "member{$number}@example.test", 'first_name' => 'Member', 'last_name' => sprintf('Aaa%03d', $number)];
+            $profiles[] = [...Arr::except((array) $profile, ['id']), 'user_school_id' => $schoolId, 'organization_id' => $club->id];
+        }
+        DB::table('users')->insert($users);
+        DB::table('account_profiles')->insert($profiles);
+        $template->delete();
+    }
+
+    /** @return array{AcademicSemester, AcademicSemester, AcademicSemester} the active, upcoming and completed semesters */
+    private function semesters(): array
+    {
+        $past = AcademicYear::create(['label' => '2025-2026', 'starts_on' => '2025-08-01', 'ends_on' => '2026-05-31', 'is_current' => false]);
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+
+        return [
+            AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']),
+            AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'upcoming']),
+            AcademicSemester::create(['academic_year_id' => $past->id, 'number' => 1, 'starts_on' => '2025-08-01', 'ends_on' => '2025-12-31', 'status' => 'completed']),
+        ];
     }
 
     public function test_a_server_error_never_leaks_its_message(): void
@@ -666,6 +1039,71 @@ class AskAiActionsTest extends TestCase
 
         $this->assertSame('I could not do that. Nothing was confirmed, so check the page before trying again.', $method->invoke($actions, 500, ['message' => 'SQLSTATE[HY000]: secret table users']));
         $this->assertSame('I could not do that. This college is archived.', $method->invoke($actions, 409, ['message' => 'This college is archived.']));
+    }
+
+    public function test_no_action_that_returns_an_invitation_link_is_offered_or_accepted_for_any_role(): void
+    {
+        $actions = app(AskAiActions::class);
+        $definitions = (new \ReflectionMethod($actions, 'definitions'))->invoke($actions);
+        $roles = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
+
+        foreach ($definitions as $key => $definition) {
+            $this->assertDoesNotMatchRegularExpression('/invit|magic|link/i', $key.' '.$definition['title'].' '.$definition['route'][1], $key);
+        }
+        $this->assertStringNotContainsString('magic_link', (string) file_get_contents((new \ReflectionClass($actions))->getFileName()));
+
+        foreach ($roles as $role) {
+            $user = new User(['role' => $role]);
+            $this->assertNull($actions->definitionFor($user, 'invite_department_head'), $role);
+            $this->assertSame([], preg_grep('/invit|link/i', $actions->titlesFor($user)), $role);
+            foreach (['invite a department head to the College of Law', 'send the dean an invitation link', 'create an invitation for the department head'] as $text) {
+                $this->assertNull($actions->recognise($user, $text), "{$role}: {$text}");
+            }
+        }
+    }
+
+    public function test_a_stored_invite_card_is_not_found_when_confirmed(): void
+    {
+        $sao = $this->sao();
+        $conversation = AiConversation::create(['user_id' => $sao->school_id, 'organization_id' => $sao->organization_id, 'role' => $sao->role, 'title' => 'Invite', 'last_message_at' => now()]);
+        $card = AiMessage::create([
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+            'content' => 'Here is the invitation I can create.',
+            'payload' => ['action' => ['key' => 'invite_department_head', 'status' => 'awaiting_confirmation', 'fields' => [], 'errors' => [], 'result' => null, 'expires_at' => now()->addMinutes(30)->toIso8601String()]],
+            'status' => 'completed',
+            'created_at' => now(),
+        ]);
+        $college = College::create(['name' => 'College of Law', 'code' => 'LAW', 'is_active' => true]);
+        Sanctum::actingAs($sao);
+
+        $this->confirm($card->id, ['college_id' => (string) $college->id])->assertNotFound();
+
+        $this->assertSame(0, DepartmentHeadInvitation::count());
+        $this->assertSame('awaiting_confirmation', AiMessage::find($card->id)->payload['action']['status']);
+    }
+
+    public function test_an_empty_error_list_is_sent_as_an_object_like_the_contract_says(): void
+    {
+        Sanctum::actingAs($this->admin());
+
+        $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk();
+
+        $this->assertStringContainsString('"errors":{}', $response->getContent());
+        $this->assertStringNotContainsString('"errors":[]', $response->getContent());
+    }
+
+    public function test_confirming_and_cancelling_do_not_draw_on_the_generation_allowance(): void
+    {
+        Sanctum::actingAs($this->admin());
+        RateLimiter::for('ai-generation', fn () => Limit::perMinute(1));
+        $first = $this->ask('create an event called Fun Run');
+        $second = $this->ask('create an event called Open Mic');
+        $third = $this->ask('create an event called Quiz Night');
+
+        $this->confirm($first['id'], ['title' => 'Fun Run', 'start_time' => '2026-12-05T15:00', 'end_time' => '2026-12-05T17:00'])->assertOk();
+        $this->postJson("/api/ai/assistant/messages/{$second['id']}/action/cancel")->assertOk();
+        $this->confirm($third['id'], ['title' => 'Quiz Night', 'start_time' => '2026-12-06T15:00', 'end_time' => '2026-12-06T17:00'])->assertOk();
     }
 
     // -------------------------------------------------------------------------

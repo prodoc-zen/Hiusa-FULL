@@ -161,6 +161,15 @@ class GroqResponsesService implements TextGenerator
             return null;
         }
 
+        if (data_get($payload, 'status') === 'incomplete') {
+            Log::warning('Groq Responses API returned an incomplete structured response.', [
+                'response_id' => data_get($payload, 'id'),
+                'reason' => data_get($payload, 'incomplete_details.reason'),
+            ]);
+
+            return null;
+        }
+
         $text = $this->extractOutputText($payload);
         $decoded = json_decode($text, true);
 
