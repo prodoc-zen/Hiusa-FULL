@@ -34,7 +34,7 @@ const payload = {
       { label: 'COE', value: 1, display_value: '1', percent: 20, tone: 'success' },
     ],
   }],
-  recommended_action: { title: 'Follow up with the three organizations', detail: 'They are overdue.', href: '/dashboard/compliance', action_label: 'Open compliance' },
+  recommended_action: { title: 'Follow up with the three organizations', detail: 'They are overdue.', href: '/dashboard/compliance/overview', action_label: 'Open compliance' },
   follow_ups: [{ label: 'What about finance?', question: 'What about finance?', topic: 'finance' }],
 };
 
@@ -63,7 +63,7 @@ describe('AnswerBlocks', () => {
   });
 
   it('labels each section disclosure with title and count, opening only the first of a records-only answer', () => {
-    renderBlocks();
+    renderBlocks({ payload: { ...payload, recommended_action: null } });
     const [first, second] = document.querySelectorAll('details');
     expect(first).toHaveTextContent('Missing requirements (2)');
     expect(first).toHaveAttribute('open');
@@ -92,7 +92,7 @@ describe('AnswerBlocks', () => {
     renderBlocks();
     const steps = screen.getByRole('list', { name: 'How to submit', hidden: true });
     expect(within(steps).getAllByRole('listitem', { hidden: true })).toHaveLength(2);
-    expect(within(steps).getByRole('link', { name: 'Go to page', hidden: true })).toHaveAttribute('href', '/dashboard/files');
+    expect(within(steps).getByRole('link', { name: 'Open', hidden: true })).toHaveAttribute('href', '/dashboard/files');
   });
 
   it('keeps every section closed when the model wrote the answer', () => {
@@ -140,7 +140,7 @@ describe('AnswerBlocks', () => {
   it('shows the recommended action as one line above the stats when the answer is records only', () => {
     renderBlocks();
     const line = screen.getByText(/Recommended next step/);
-    expect(screen.getByRole('link', { name: 'Open compliance' })).toHaveAttribute('href', '/dashboard/compliance');
+    expect(screen.getByRole('link', { name: 'Open compliance' })).toHaveAttribute('href', '/dashboard/compliance/overview');
     const stats = document.querySelector('dl');
     expect(line.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -149,6 +149,72 @@ describe('AnswerBlocks', () => {
     renderBlocks({ payload: { ...payload, model_written: true } });
     expect(screen.queryByText(/Recommended next step/)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open compliance' })).not.toBeInTheDocument();
+  });
+
+  it('labels the fourth column Info, since it holds dates, places and counts', () => {
+    renderBlocks();
+    const table = screen.getByRole('table', { name: 'Missing requirements' });
+    expect(within(table).getByRole('columnheader', { name: 'Info' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Count' })).not.toBeInTheDocument();
+  });
+
+  describe('a records-only answer with one missing record', () => {
+    const single = {
+      highlights: [
+        { label: 'Missing requirements', value: '1', tone: 'danger' },
+        { label: 'Events missing files', value: '0', tone: 'success' },
+      ],
+      sections: [
+        {
+          id: 'req',
+          title: 'Missing Requirements',
+          layout: 'table',
+          rows: [{
+            id: 'fs',
+            primary: 'Financial Statement',
+            secondary: 'Returned: add the signed page',
+            meta: 'Due Dec 1, 2026',
+            href: '/dashboard/requirements/3',
+            action_label: 'Upload',
+          }],
+        },
+        { id: 'events', title: 'Events Missing Required Proposal Documents', rows: [], empty_message: 'All current events have their required proposal documents uploaded.' },
+        { id: 'fin', title: 'Financial Report', rows: [], empty_message: 'No financial report deadline has been set yet.' },
+      ],
+      recommended_action: { title: 'Financial Statement', detail: 'Returned: add the signed page', href: '/dashboard/requirements/3', action_label: 'Upload' },
+    };
+
+    it('shows the record once, with one Upload control and no empty-section headings', () => {
+      renderBlocks({ payload: single });
+      expect(screen.getAllByRole('link', { name: 'Upload' })).toHaveLength(1);
+      expect(screen.getAllByText('Financial Statement')).toHaveLength(1);
+      expect(screen.queryByText(/Recommended next step/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+      expect(screen.queryByText('All current events have their required proposal documents uploaded.')).not.toBeInTheDocument();
+      expect(screen.getByText('Due Dec 1, 2026')).toBeInTheDocument();
+      expect(document.querySelector('details')).toHaveAttribute('open');
+    });
+
+    it('keeps the empty messages as plain lines when there are no stats', () => {
+      renderBlocks({ payload: { ...single, highlights: [], recommended_action: null } });
+      expect(screen.getByText('No financial report deadline has been set yet.')).toBeInTheDocument();
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    });
+
+    it('keeps the recommended step, and closes the table, when it names a record that is not listed', () => {
+      renderBlocks({ payload: { ...single, recommended_action: { title: 'Call the adviser', href: '/dashboard/advisers' } } });
+      expect(screen.getByText(/Recommended next step/)).toBeInTheDocument();
+      expect(document.querySelector('details')).not.toHaveAttribute('open');
+    });
+  });
+
+  it('gives a steps row a single action', () => {
+    renderBlocks({
+      payload: { sections: [{ id: 'st', title: 'Steps', layout: 'steps', rows: [row(1, { step: 1, href: '/dashboard/files', ask_question: 'Why?' })] }] },
+    });
+    const steps = screen.getByRole('list', { name: 'Steps', hidden: true });
+    expect(within(steps).getAllByRole('link', { hidden: true })).toHaveLength(1);
+    expect(within(steps).queryByRole('button', { name: 'Show steps', hidden: true })).not.toBeInTheDocument();
   });
 
   it('keeps short count values on one line', () => {

@@ -7,6 +7,10 @@ use App\Services\Ai\ClaudeMessagesService;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use App\Services\Ai\FallbackTextGenerator;
 use App\Services\GroqResponsesService;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -120,6 +124,26 @@ class FallbackTextGeneratorTest extends TestCase
 
         $this->assertSame('Full answer', $result['text']);
         $this->assertSame([['reasoning', 'Thinking'], ['text', 'Half an ans'], ['reset', ''], ['text', 'Full answer']], $events);
+    }
+
+    public function test_a_real_claude_that_errors_mid_stream_resets_before_the_secondary_answers(): void
+    {
+        config()->set('services.anthropic', ['key' => 'k', 'model' => 'claude-sonnet-5-5', 'chat_timeout' => 60, 'connect_timeout' => 3]);
+        $event = fn (string $name, array $data) => "event: {$name}\ndata: ".json_encode(['type' => $name] + $data)."\n\n";
+        $body = $event('message_start', ['message' => ['id' => 'm', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-sonnet-5-5', 'content' => [], 'stop_reason' => null, 'stop_sequence' => null, 'usage' => ['input_tokens' => 1, 'output_tokens' => 1]]])
+            .$event('content_block_start', ['index' => 0, 'content_block' => ['type' => 'text', 'text' => '']])
+            .$event('content_block_delta', ['index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Half an ans']])
+            .$event('error', ['error' => ['type' => 'overloaded_error', 'message' => 'x']]);
+        $claude = new ClaudeMessagesService(new Client(['handler' => HandlerStack::create(new MockHandler([new Response(200, ['content-type' => 'text/event-stream'], $body)]))]));
+        $secondary = new ScriptedGenerator(['text' => 'Full answer', 'reasoning' => null, 'model' => 'g', 'response_id' => 'b'], [['text', 'Full answer']]);
+        $events = [];
+
+        $result = (new FallbackTextGenerator($claude, $secondary))->converse('i', [['role' => 'user', 'content' => 'hi']], 900, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame('Full answer', $result['text']);
+        $this->assertSame([['text', 'Half an ans'], ['reset', ''], ['text', 'Full answer']], $events);
     }
 
     public function test_a_conversation_sends_no_reset_when_the_primary_failed_before_emitting(): void

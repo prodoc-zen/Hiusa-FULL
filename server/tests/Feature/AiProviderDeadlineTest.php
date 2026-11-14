@@ -120,7 +120,7 @@ class AiProviderDeadlineTest extends TestCase
             function () use (&$claudeCalls) {
                 $claudeCalls++;
 
-                return new ConnectException('cURL error 28: Operation timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'));
+                return new ConnectException('cURL error 7: Failed to connect to api.anthropic.com', new Request('POST', 'https://api.anthropic.com/v1/messages'));
             },
         ]);
         $claude = new ClaudeMessagesService(new Client(['handler' => HandlerStack::create($mock)]));
@@ -131,6 +131,54 @@ class AiProviderDeadlineTest extends TestCase
         $this->assertSame('From Groq.', $chain->generate('i', 'x')['text']);
         $this->assertSame(1, $claudeCalls, 'the second request skips Claude');
         $this->assertTrue(Cache::has('ai:provider-cooldown:anthropic'));
+    }
+
+    public function test_a_real_claude_timeout_under_the_shared_deadline_does_not_rest_claude(): void
+    {
+        $claudeCalls = 0;
+        $mock = new MockHandler([
+            function () use (&$claudeCalls) {
+                $claudeCalls++;
+
+                return new ConnectException('cURL error 28: Operation timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'));
+            },
+            function () use (&$claudeCalls) {
+                $claudeCalls++;
+
+                return new ConnectException('cURL error 28: Operation timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'));
+            },
+        ]);
+        $claude = new ClaudeMessagesService(new Client(['handler' => HandlerStack::create($mock)]));
+        Http::fake(['groq.test/*' => Http::response(['id' => 'r', 'model' => 'm', 'output_text' => 'From Groq.'])]);
+        $chain = new FallbackTextGenerator($claude, new GroqResponsesService);
+
+        $chain->generate('i', 'x');
+        $chain->generate('i', 'x');
+
+        $this->assertSame(2, $claudeCalls, 'a slow answer under the shortened budget must not switch Claude off for everyone');
+        $this->assertFalse(Cache::has('ai:provider-cooldown:anthropic'));
+    }
+
+    public function test_groq_rests_for_a_timeout_only_at_its_full_timeout(): void
+    {
+        $message = 'cURL error 28: Operation timed out';
+        Http::fake(['groq.test/*' => function () use (&$message) {
+            throw new ConnectionException($message);
+        }]);
+
+        $groq = new GroqResponsesService;
+        $groq->withTimeBudget(4.0);
+        $this->assertNull($groq->generate('i', 'x'));
+        $this->assertFalse($groq->lastCallUnreachable());
+
+        $groq->withTimeBudget(null);
+        $this->assertNull($groq->generate('i', 'x'));
+        $this->assertTrue($groq->lastCallUnreachable());
+
+        $message = 'cURL error 7: Failed to connect';
+        $groq->withTimeBudget(4.0);
+        $this->assertNull($groq->generate('i', 'x'));
+        $this->assertTrue($groq->lastCallUnreachable());
     }
 
     public function test_a_real_groq_http_error_does_not_rest_groq_but_a_connection_failure_does(): void

@@ -37,7 +37,8 @@ const REHYPE_PLUGINS = [rehypeRaw, [rehypeSanitize, SCHEMA]];
 const REMARK_PLUGINS = [remarkGfm];
 
 // A tag still being typed by the stream ("<span class=\"bad") would show as raw text until its ">" arrives.
-const UNFINISHED_TAG = /<\/?[a-zA-Z][^<>]*$/;
+// It stays on one line and never follows a letter or digit, so "turnout<quorum" is plain text.
+const UNFINISHED_TAG = /(?<![A-Za-z0-9])<\/?[a-zA-Z][^<>\n]*$/;
 
 const INTERNAL_LINK = /^\/dashboard(?:[/?#]|$)/;
 
@@ -66,11 +67,12 @@ function AiProgress({ value, max }) {
 
 const COMPONENTS = { a: AiLink, table: AiTable, progress: AiProgress };
 
-function AiMarkdown({ content, className = '' }) {
+function AiMarkdown({ content, className = '', streaming = false }) {
+  const text = typeof content === 'string' ? content : '';
   return (
     <div className={`ai-prose ${className}`.trim()}>
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={COMPONENTS}>
-        {typeof content === 'string' ? content.replace(UNFINISHED_TAG, '') : ''}
+        {streaming ? text.replace(UNFINISHED_TAG, '') : text}
       </ReactMarkdown>
     </div>
   );

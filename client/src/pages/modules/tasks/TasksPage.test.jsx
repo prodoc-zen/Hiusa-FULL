@@ -109,11 +109,12 @@ describe('TasksPage', () => {
     fireEvent.change(screen.getByLabelText(/^Deadline/), { target: { value: '2026-10-10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Review officer recommendation' }));
     const choice = await screen.findByRole('button', { name: /Ana Reyes.*Secretary.*Recommended/ });
+    expect(mocks.previewTaskRecommendation).toHaveBeenCalledWith(expect.objectContaining({ title: 'mixed case task', task_type: 'regular', category: null }));
     expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled();
     expect(mocks.createTask).not.toHaveBeenCalled();
     fireEvent.click(choice);
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
-    await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mixed case task', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10' })));
+    await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mixed case task', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10', category: null })));
   });
 
   describe('editing and deleting', () => {
@@ -132,7 +133,7 @@ describe('TasksPage', () => {
       fireEvent.change(within(dialog).getByLabelText(/Deadline/), { target: { value: '2026-11-01T17:00' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
-      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records', priority: 'critical', deadline: '2026-11-01T17:00', task_kind: 'standalone', event_id: null })));
+      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records', priority: 'critical', deadline: new Date('2026-11-01T17:00').toISOString(), category: null, task_kind: 'standalone', event_id: null })));
       expect(mocks.updateTask.mock.calls[0][1]).not.toHaveProperty('assigned_to');
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit task' })).not.toBeInTheDocument());
     });

@@ -190,7 +190,7 @@ class FinanceAiAuditFixesTest extends TestCase
 
         $response->assertJsonPath('model_details.estimated_available_budget', 52000);
         $this->assertEquals(41600, $response->json('safe_spending_limit'));
-        $this->assertStringContainsString('With PHP 50,000.00 in approved budgets, the estimated available budget is PHP 52,000.00.', $response->json('confidence_note'));
+        $this->assertStringContainsString('The December 2026 forecast is stable. Expected income is PHP 10,000.00, and expected expenses are PHP 8,000.00. With PHP 50,000.00 in approved budgets, the estimated available budget is PHP 52,000.00. The safe spending limit is PHP 41,600.00.', $response->json('confidence_note'));
     }
 
     public function test_the_forecast_fallback_rates_the_warning_threshold_as_high_like_the_engine(): void
@@ -283,6 +283,23 @@ class FinanceAiAuditFixesTest extends TestCase
             ->assertJsonPath('data.0.organization.acronym', $this->admin->organization->acronym);
     }
 
+    private function currentAdvice(Budget $budget): Budget
+    {
+        AiOutput::create([
+            'organization_id' => $budget->organization_id, 'feature_type' => 'BUDGET_EXPLANATION', 'reference_type' => Budget::class, 'reference_id' => $budget->id,
+            'prompt_text' => 'Advice', 'output_text' => '', 'status' => 'failed', 'created_at' => now(),
+            'structured_input' => ['current_available_budget' => (float) $budget->remaining_amount, 'warning_threshold' => (float) $budget->warning_threshold],
+        ]);
+
+        return $budget;
+    }
+
+    private function activeSemester(): void
+    {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-01-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+    }
+
     private function generateReport(): TestResponse
     {
         return $this->postJson('/api/financial-reports/generate', [
@@ -294,7 +311,7 @@ class FinanceAiAuditFixesTest extends TestCase
     public function test_the_report_summary_only_quotes_approved_in_period_advisories_and_an_in_period_forecast(): void
     {
         $inside = now()->toDateTimeString();
-        $this->budget(1000, 'approved', ['advice_generated_at' => $inside, 'advisory_note' => 'In period approved']);
+        $this->currentAdvice($this->budget(1000, 'approved', ['advice_generated_at' => $inside, 'advisory_note' => 'In period approved']));
         $this->budget(1000, 'pending_department_head', ['advice_generated_at' => $inside, 'advisory_note' => 'Pending budget']);
         $this->budget(1000, 'approved', ['advice_generated_at' => '2026-03-05 09:00:00', 'advisory_note' => 'Long ago']);
         $this->generatedForecast('2026-12', 777, 1);
@@ -306,5 +323,88 @@ class FinanceAiAuditFixesTest extends TestCase
 
         $november = $this->generatedForecast('2026-11', 555, 5);
         $this->generateReport()->assertJsonPath('latest_ols_forecast.id', $november->id);
+    }
+
+    public function test_a_budget_outside_the_active_semester_gets_none_of_the_forecast_whether_or_not_the_semester_has_approvals(): void
+    {
+        $this->activeSemester();
+        $carried = $this->budget(10000);
+        $carried->forceFill(['created_at' => '2026-03-01 09:00:00'])->save();
+        $this->generatedForecast('2026-12', 20000, 40000);
+
+        foreach ([false, true] as $withActiveApprovals) {
+            if ($withActiveApprovals) {
+                $this->budget(20000, 'approved', ['created_at' => '2026-09-01 09:00:00']);
+            }
+
+            $response = $this->postJson("/api/budgets/{$carried->id}/advice")->assertOk();
+
+            $response->assertJsonPath('forecast_status', 'not_applied')
+                ->assertJsonPath('advice.inputs.budget_share', 0)
+                ->assertJsonPath('advice.inputs.predicted_income', 0)
+                ->assertJsonPath('advice.estimated_available_budget', 10000)
+                ->assertJsonPath('advice.safe_spending_limit', 8000)
+                ->assertJsonPath('advice.forecast_risk', 'stable');
+            $this->assertStringStartsWith('This budget is outside the current semester, so the advice uses its balance only.', $response->json('advice.advice'));
+        }
+        $this->assertEquals(8000, $carried->fresh()->safe_spending_limit);
+    }
+
+    public function test_the_report_drops_advice_that_a_ledger_movement_made_stale(): void
+    {
+        $budget = $this->budget(1000);
+        $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk();
+
+        $this->assertCount(1, $this->generateReport()->json('budget_advisories'));
+
+        Transaction::create([
+            'organization_id' => $this->admin->organization_id, 'recorded_by' => $this->admin->school_id, 'budget_id' => $budget->id, 'type' => 'income',
+            'amount' => 9000, 'category' => 'General', 'description' => 'Top up', 'transaction_date' => now()->toDateString(),
+        ]);
+        $budget->update(['remaining_amount' => 10000]);
+
+        $this->assertSame([], $this->generateReport()->json('budget_advisories'));
+    }
+
+    public function test_a_fully_spent_budget_without_a_warning_threshold_is_high_risk_in_both_rules(): void
+    {
+        $budget = $this->budget(1000, 'approved', ['warning_threshold' => 0]);
+
+        $this->postJson('/api/transactions', [
+            'type' => 'expense', 'amount' => 1000, 'category' => 'Supplies', 'description' => 'All of it',
+            'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
+        ])->assertCreated();
+
+        $budget->refresh();
+        $this->assertEquals(0, (float) $budget->remaining_amount);
+        $this->assertSame('high', $budget->overspending_risk);
+        $this->assertSame('high', BudgetAdviceRules::riskFor(0, 0));
+        $this->assertSame('low', BudgetAdviceRules::riskFor(1, 0));
+    }
+
+    public function test_the_forecast_warns_that_one_populated_month_gives_no_trend(): void
+    {
+        $this->ledger('income', 12000, '2026-03-10');
+
+        $response = $this->postJson('/api/forecasts/generate', ['months' => 12])->assertCreated();
+
+        $response->assertJsonPath('model_details.populated_months', 1);
+        $this->assertStringContainsString('Only one month has transactions, so there is no trend to project. Treat these amounts as placeholders, not a forecast.', $response->json('confidence_note'));
+        $this->assertStringNotContainsString('repeats that month', $response->json('confidence_note'));
+    }
+
+    public function test_the_risk_label_and_advisory_note_cannot_be_typed_by_the_client(): void
+    {
+        $created = $this->postJson('/api/budgets', [
+            'title' => 'Typed risk', 'allocated_amount' => 1000, 'warning_threshold' => 1000,
+            'overspending_risk' => 'low', 'advisory_note' => 'Looks fine',
+        ])->assertCreated();
+
+        $created->assertJsonPath('overspending_risk', 'high')->assertJsonPath('advisory_note', null);
+
+        $budget = $this->budget(1000, 'approved', ['overspending_risk' => 'high']);
+        $this->putJson("/api/budgets/{$budget->id}", ['title' => 'Renamed', 'overspending_risk' => 'low', 'advisory_note' => 'Looks fine'])->assertOk();
+        $this->assertSame('high', $budget->fresh()->overspending_risk);
+        $this->assertNull($budget->fresh()->advisory_note);
     }
 }

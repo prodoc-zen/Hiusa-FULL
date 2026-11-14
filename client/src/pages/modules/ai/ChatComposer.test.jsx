@@ -47,6 +47,18 @@ describe('ChatComposer', () => {
     expect(box).toHaveValue('hello');
   });
 
+  it('keeps the text and says why while the send is blocked', () => {
+    const onSend = vi.fn();
+    render(<ChatComposer blockedReason="Opening your conversation." onSend={onSend} onStop={vi.fn()} />);
+    const box = screen.getByLabelText('Message Ask AI');
+    fireEvent.change(box, { target: { value: 'hello' } });
+    expect(screen.getByText('Opening your conversation.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(box).toHaveValue('hello');
+  });
+
   it('shows Stop while streaming and does not send on Enter', () => {
     const onSend = vi.fn();
     const onStop = vi.fn();

@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Log;
@@ -281,6 +282,76 @@ class ClaudeMessagesServiceTest extends TestCase
         $this->assertNull($service->converse('private instructions', [['role' => 'user', 'content' => 'Maria Santos owes PHP 5,000']]));
 
         Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context = []) => ! str_contains($message.json_encode($context), 'Maria') && ! str_contains($message.json_encode($context), 'private'))->once();
+    }
+
+    public function test_a_mid_stream_error_event_is_null_and_is_not_an_outage(): void
+    {
+        $body = (string) $this->stream([['text', 'Half an answer ']])->getBody();
+        $body = substr($body, 0, strpos($body, 'event: content_block_stop'))
+            ."event: error\ndata: ".json_encode(['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'x']])."\n\n";
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $body)]);
+        $events = [];
+
+        $result = $service->converse('i', [['role' => 'user', 'content' => 'hi']], 1400, function (string $type, string $delta) use (&$events) {
+            $events[] = $delta;
+        });
+
+        $this->assertNull($result);
+        $this->assertSame(['Half an answer '], $events);
+        $this->assertFalse($service->lastCallUnreachable());
+    }
+
+    public function test_a_stream_that_ends_without_a_stop_reason_is_null(): void
+    {
+        $body = (string) $this->stream([['text', 'Cut off']])->getBody();
+        $body = substr($body, 0, strpos($body, 'event: content_block_stop'));
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $body)]);
+
+        $this->assertNull($service->converse('i', [['role' => 'user', 'content' => 'hi']]));
+        $this->assertNull($service->lastStopReason());
+    }
+
+    public function test_a_stream_that_keeps_trickling_past_the_chat_deadline_is_stopped_and_rests_claude(): void
+    {
+        config()->set('services.anthropic.chat_timeout', 1);
+        $deltas = array_fill(0, 40, ['text', 'word ']);
+        $inner = $this->stream($deltas)->getBody();
+        $slow = FnStream::decorate($inner, ['read' => function ($length) use ($inner) {
+            usleep(150_000);
+
+            return $inner->read(min((int) $length, 60));
+        }]);
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $slow)]);
+        $received = '';
+        $started = microtime(true);
+
+        $result = $service->converse('i', [['role' => 'user', 'content' => 'hi']], 1400, function (string $type, string $delta) use (&$received) {
+            $received .= $delta;
+        });
+
+        $this->assertNull($result);
+        $this->assertLessThan(3.0, microtime(true) - $started, 'the whole turn is bounded by chat_timeout, not each read');
+        $this->assertLessThan(200, strlen($received), 'the stream was cut before the whole answer arrived');
+        $this->assertTrue($service->lastCallUnreachable());
+    }
+
+    public function test_a_timeout_under_a_shortened_deadline_is_not_an_outage_but_one_at_full_timeout_is(): void
+    {
+        $timeout = fn () => new ConnectException('cURL error 28: Operation timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'));
+
+        $budgeted = $this->service([$timeout()]);
+        $budgeted->withTimeBudget(4.0);
+        $this->assertNull($budgeted->generate('i', 'x'));
+        $this->assertFalse($budgeted->lastCallUnreachable());
+
+        $full = $this->service([$timeout()]);
+        $this->assertNull($full->generate('i', 'x'));
+        $this->assertTrue($full->lastCallUnreachable());
+
+        $refused = $this->service([new ConnectException('cURL error 7: Failed to connect', new Request('POST', 'https://api.anthropic.com/v1/messages'))]);
+        $refused->withTimeBudget(4.0);
+        $this->assertNull($refused->generate('i', 'x'));
+        $this->assertTrue($refused->lastCallUnreachable());
     }
 
     public function test_a_conversation_without_a_key_or_messages_is_null_and_makes_no_request(): void

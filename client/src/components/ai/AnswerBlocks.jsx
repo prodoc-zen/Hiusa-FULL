@@ -106,22 +106,7 @@ function StepsRows({ section, rows, onAsk, disabled }) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-            {row.href && (
-              <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11" disabled={disabled}>
-                {row.action_label || 'Go to page'}
-              </Button>
-            )}
-            {row.ask_question && onAsk && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="max-sm:h-11"
-                disabled={disabled}
-                onClick={() => onAsk(row.ask_question, 'how_to_guide')}
-              >
-                Show steps
-              </Button>
-            )}
+            <RowActions row={row} onAsk={onAsk} disabled={disabled} />
           </div>
         </li>
       ))}
@@ -138,7 +123,7 @@ function TableRows({ section, rows, onAsk, disabled }) {
           <th scope="col" className="px-3 py-2 text-xs font-semibold">Record</th>
           <th scope="col" className="px-3 py-2 text-xs font-semibold">Details</th>
           <th scope="col" className="px-3 py-2 text-xs font-semibold">Status</th>
-          <th scope="col" className="px-3 py-2 text-xs font-semibold">Count</th>
+          <th scope="col" className="px-3 py-2 text-xs font-semibold">Info</th>
           <th scope="col" className="px-3 py-2 text-right text-xs font-semibold">Action</th>
         </tr>
       </thead>
@@ -162,7 +147,7 @@ function TableRows({ section, rows, onAsk, disabled }) {
                   <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
                 ) : ''}
               </td>
-              <td data-label="Count" className={`${cell} whitespace-nowrap tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
+              <td data-label="Info" className={`${cell} whitespace-nowrap tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
                 {plainText(row.meta) || ''}
               </td>
               <td className={`${cell} max-sm:col-start-3 max-sm:row-start-1 sm:text-right`}>
@@ -205,12 +190,7 @@ function SectionDisclosure({ section, defaultOpen, onAsk, disabled }) {
 }
 
 function EmptySection({ section }) {
-  return (
-    <div className="border-t border-line pt-3 first:border-t-0 first:pt-0">
-      <h3 className="text-sm font-semibold text-ink">{sentenceCase(section.title)}</h3>
-      <p className="mt-0.5 text-sm text-ink-muted-strong">{plainText(section.empty_message)}</p>
-    </div>
-  );
+  return <p className="text-sm text-ink-muted-strong">{plainText(section.empty_message)}</p>;
 }
 
 function Chart({ chart }) {
@@ -250,13 +230,17 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
 
   const highlights = list(payload.highlights);
   const sections = list(payload.sections).filter(
-    (section) => list(section.rows).length > 0 || section.empty_message,
+    (section) => list(section.rows).length > 0 || (highlights.length === 0 && section.empty_message),
   );
   const charts = list(payload.charts).filter(
     (chart) => chart.type === 'distribution' && list(chart.items).length >= MIN_CHART_ITEMS,
   );
   const modelWritten = payload.model_written === true;
-  const recommended = !modelWritten && payload.recommended_action?.title ? payload.recommended_action : null;
+  const candidate = !modelWritten && payload.recommended_action?.title ? payload.recommended_action : null;
+  const recordShown = (row) => candidate && (
+    (row.href && row.href === candidate.href) || (row.primary && plainText(row.primary) === plainText(candidate.title))
+  );
+  const recommended = candidate && !sections.some((section) => list(section.rows).some(recordShown)) ? candidate : null;
   const followUps = list(payload.follow_ups).filter((item) => item?.question);
   const firstWithRows = sections.findIndex((section) => list(section.rows).length > 0);
 
@@ -305,7 +289,7 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
               <SectionDisclosure
                 key={section.id || idx}
                 section={section}
-                defaultOpen={!modelWritten && idx === firstWithRows && list(section.rows).length <= OPEN_ROW_LIMIT}
+                defaultOpen={!modelWritten && !recommended && idx === firstWithRows && list(section.rows).length <= OPEN_ROW_LIMIT}
                 onAsk={onAsk}
                 disabled={disabled}
               />
