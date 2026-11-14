@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { Button, ErrorState, IconButton, Skeleton } from '../../../components/ui';
+import { Button, ErrorState, Skeleton } from '../../../components/ui';
 
 const DAY_MS = 86400000;
 const GROUPS = ['Today', 'Yesterday', 'Earlier this week', 'Older'];
@@ -92,15 +92,17 @@ function ConversationRow({ conversation, active, onOpen, onRename, onAskDelete }
         >
           {conversation.title}
         </button>
-        <IconButton
-          icon={MoreHorizontal}
-          label={`Options for ${conversation.title}`}
-          size="sm"
+        {/* No hover tooltip here: on a phone a tap focuses the button and a long title's tooltip runs off the screen. */}
+        <button
+          type="button"
+          aria-label={`Options for ${conversation.title}`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
-          className="mr-1 max-sm:h-[42px] max-sm:w-[42px]"
-        />
+          className="mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-subtle hover:text-ink max-sm:h-[42px] max-sm:w-[42px]"
+        >
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </button>
       </div>
       {menuOpen && (
         <div role="menu" className="absolute right-1 top-full z-10 mt-1 w-40 rounded-card border border-line bg-surface p-1 shadow-raised">
