@@ -23,6 +23,28 @@ Upload limits must match what the forms promise: each PDF may be up to 10 MB and
 
 Restart `hiusa-ai` when Python application files change. Handle dependency or schema changes separately; back up the database before applying migrations. Preserve production environment files and generated uploads.
 
+## First SAO account on a new install
+
+A fresh database has no accounts, and the demo seed is blocked in production, so the first SAO is made with one command, run right after `migrate --force`. It asks for the school ID, first name, last name and email (or takes them as the school ID argument and `--first-name`, `--last-name`, `--email`), makes the SAO account, and prints a random password once. The SAO must choose a new password at the first sign-in. From there everything else (academic year, semesters, colleges, Department Heads, school records, SAO staff) is done on screen.
+
+```bash
+cd /var/www/hiusa
+sudo -u www-data /usr/local/bin/hiusa-artisan migrate --force
+sudo -u www-data /usr/local/bin/hiusa-artisan hiusa:create-sao
+```
+
+The command refuses to run when an active SAO account already exists, so it cannot be used to add a second one. Use the University users page for that. Copy the printed password straight away; it is not stored anywhere readable.
+
+## A sole SAO who forgot the password
+
+When `MAIL_MAILER` is `log` (no email is sent), the forgot-password screen cannot mail a link and tells people to ask someone. The SAO can reset a Department Head, an organization Admin or SAO staff from University users, but an SAO cannot reset their own account. If the SAO is the only one, or every SAO is locked out, run this on the server with the SAO's school ID. It sets a new random password, prints it once, signs that account out everywhere and makes them choose a new password at the next sign-in. It only works on an active SAO account.
+
+```bash
+sudo -u www-data /usr/local/bin/hiusa-artisan hiusa:reset-sao-password 990001
+```
+
+Both commands write an audit row (`sao_account_created_from_server`, `sao_password_reset_from_server`) that never contains the password. Keep a second SAO account so this is rarely needed.
+
 ## Browser caching after deployment
 
 The HTTPS server block in `/etc/nginx/sites-available/hiusa` must revalidate the SPA entry document. Keep the existing one-year expiry for fingerprinted `/assets/` files, and add this exact-match location alongside the SPA fallback:
