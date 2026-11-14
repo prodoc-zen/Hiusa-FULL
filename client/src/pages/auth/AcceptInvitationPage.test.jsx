@@ -420,4 +420,27 @@ describe('AcceptInvitationPage', () => {
     expect(screen.getByLabelText(/Last name/)).toHaveValue('');
     expect(screen.getByLabelText(/^School ID/)).toHaveValue('');
   });
+
+  it.each([
+    ['dean', deanInvite, 'dean@example.edu'],
+    ['office staff', staffInvite, 'clara@example.edu'],
+    ['SAO staff', saoInvite, 'ford@example.edu'],
+  ])('fills in the email the %s invitation was made for and says so', async (_role, invite, email) => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue({ ...invite, invitation: { ...invite.invitation, prefill: { email } } });
+    renderPage();
+
+    const field = await screen.findByLabelText(/^Email/);
+    expect(field).toHaveValue(email);
+    expect(field).toHaveAttribute('readonly');
+    expect(screen.getByText('The invitation was made for this email.')).toBeInTheDocument();
+  });
+
+  it('leaves the email empty and editable when the invitation was made for no address', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    renderPage();
+
+    const field = await screen.findByLabelText(/^Email/);
+    expect(field).toHaveValue('');
+    expect(field).not.toHaveAttribute('readonly');
+  });
 });
