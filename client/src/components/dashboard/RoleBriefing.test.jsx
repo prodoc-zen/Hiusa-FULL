@@ -328,7 +328,7 @@ describe('RoleBriefing', () => {
     describe('while the process tracker shows', () => {
       const setup = withProgress([step('contact', 'Add your contact number'), step('academic-year', 'Set the current academic year'), step('positions', 'Set up your officer positions')]);
 
-      it.each(['SUPER_ADMIN', 'STUDENT'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
+      it.each(['SUPER_ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'])('%s: the first-run checklist stays out, so one page has one progress widget', async (role) => {
         setTrackerShown(true);
         vi.mocked(getBriefing).mockResolvedValue(briefing(role, { setup, organizations: [] }));
         renderBriefing();
@@ -336,6 +336,27 @@ describe('RoleBriefing', () => {
         await screen.findByRole('heading', { name: role === 'SUPER_ADMIN' ? 'Review inbox' : 'Needs attention' });
         expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+      });
+
+      it('DEPARTMENT_HEAD: the tracker is the one list, with Needs attention directly under the headline', async () => {
+        setTrackerShown(true);
+        const attention = [{ id: 'dean_queue-applications', type: 'applications_endorsement_pending', count: 1, severity: 'medium', title: 'Applications awaiting your endorsement', detail: '1', due_at: null, href: '/dashboard/organization-applications' }];
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup, attention }));
+        renderBriefing();
+
+        const queue = (await screen.findByRole('heading', { name: 'Needs attention' })).closest('section');
+        expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+        expect(queue.parentElement).not.toHaveClass('grid');
+        expect(within(queue).getByText('Applications awaiting your endorsement')).toBeInTheDocument();
+      });
+
+      it('DEPARTMENT_HEAD: shows its own checklist when no tracker shows', async () => {
+        setTrackerShown(false);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup }));
+        renderBriefing();
+
+        expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
       });
 
       it('brings the checklist back once the tracker has nothing to show', async () => {
