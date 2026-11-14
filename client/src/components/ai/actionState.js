@@ -19,16 +19,22 @@ export function liveActionId(messages) {
   return null;
 }
 
-export function actionCopyText(message) {
-  const action = actionOf(message);
-  if (!action) return message.content || '';
-  const lines = [message.content, action.title].filter(Boolean);
+// `values` are what the person has typed into the card; without them the stored field values are used.
+export function actionDetailsText(action, values) {
+  const lines = [action.title].filter(Boolean);
   (action.fields || []).forEach((field) => {
-    const value = field.type === 'checkbox' ? (field.value ? 'Yes' : 'No') : (field.value ?? '');
+    const raw = values ? values[field.name] : field.value;
+    const value = field.type === 'checkbox' ? (raw ? 'Yes' : 'No') : (raw ?? '');
     const shown = field.type === 'select'
       ? ((field.options || []).find((option) => String(option.value) === String(value))?.label ?? value)
       : value;
     lines.push(`${field.label}: ${shown}`);
   });
   return lines.join('\n');
+}
+
+export function actionCopyText(message, values) {
+  const action = actionOf(message);
+  if (!action) return message.content || '';
+  return [message.content, actionDetailsText(action, values || undefined)].filter(Boolean).join('\n');
 }

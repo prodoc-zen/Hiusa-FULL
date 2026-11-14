@@ -9,6 +9,7 @@ const merchandiseMocks = vi.hoisted(() => ({
   getMerchandise: vi.fn(),
   getGcashSettings: vi.fn(),
   uploadGcashQr: vi.fn(),
+  getGcashQrImage: vi.fn(),
   adjustStock: vi.fn(),
   getMerchandiseAuditLogs: vi.fn(),
   deleteItem: vi.fn(),
@@ -87,12 +88,15 @@ function paginatedOrders(rows = []) {
 describe("MerchandisePage buyer experience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({
       data: { data: products, current_page: 1, last_page: 1 },
     });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
   });
 
@@ -337,13 +341,16 @@ describe("MerchandisePage fulfillment experience", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({
       data: { data: products, current_page: 1, last_page: 1 },
     });
     orderMocks.getOrders.mockResolvedValue(managerOrdersResponse());
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
   });
 
   it("shows an approved order's claim token in the modern order queue", async () => {
@@ -369,7 +376,7 @@ describe("MerchandisePage fulfillment experience", () => {
     trigger.focus();
     fireEvent.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "GCash payment settings" });
-    expect(await within(dialog).findByText("No QR code uploaded")).toBeInTheDocument();
+    expect(await within(dialog).findByText("QR not available")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Official GCash QR image")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save GCash QR" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Choose a QR image to upload.");
@@ -401,8 +408,8 @@ describe("MerchandisePage fulfillment experience", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
       expect(dialog).toBeInTheDocument();
 
-      await act(async () => finishUpload({ data: { gcash_qr_url: "/storage/official-qr.png" } }));
-      expect(within(dialog).getByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", expect.stringContaining("/storage/official-qr.png"));
+      await act(async () => finishUpload({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } }));
+      expect(await within(dialog).findByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", "blob:gcash-preview");
       fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     } finally {
@@ -412,13 +419,37 @@ describe("MerchandisePage fulfillment experience", () => {
 
   it("lets officers view the QR without exposing upload controls", async () => {
     localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "View GCash QR" }));
     const dialog = screen.getByRole("dialog", { name: "GCash payment QR" });
-    expect(await within(dialog).findByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", expect.stringContaining("/storage/qr.png"));
+    expect(await within(dialog).findByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", "blob:qr");
     expect(within(dialog).queryByLabelText("Official GCash QR image")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Save GCash QR" })).not.toBeInTheDocument();
+  });
+
+  it("tells the Admin the QR is not available, with an upload action, instead of a broken picture", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
+    merchandiseMocks.getGcashQrImage.mockRejectedValue(new Error("404"));
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Payment settings" }));
+    const dialog = screen.getByRole("dialog", { name: "GCash payment settings" });
+
+    expect(await within(dialog).findByText("QR not available")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Upload a QR" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: "Current official GCash payment QR code" })).not.toBeInTheDocument();
+  });
+
+  it("tells an officer the QR is not available without an upload action", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "View GCash QR" }));
+    const dialog = screen.getByRole("dialog", { name: "GCash payment QR" });
+
+    expect(await within(dialog).findByText("QR not available")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Upload a QR" })).not.toBeInTheDocument();
   });
 
   it("combines status views with search and clears the active filters", async () => {
@@ -519,9 +550,12 @@ describe("MerchandisePage fulfillment experience", () => {
 describe("MerchandisePage entry points", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
   });
 
@@ -556,6 +590,20 @@ describe("MerchandisePage entry points", () => {
 
     const field = await screen.findByLabelText("16-character claim token");
     expect(field).toHaveFocus();
+  });
+
+  it("shows a buyer a plain notice, not a broken picture, when the QR will not load in the payment step", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 7 })]) });
+    merchandiseMocks.getGcashQrImage.mockRejectedValue(new Error("404"));
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit GCash proof" }));
+    const dialog = await screen.findByRole("dialog", { name: "Submit GCash payment" });
+
+    expect(await within(dialog).findByText("QR not available")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: "Official GCash payment QR code" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Upload a QR" })).not.toBeInTheDocument();
   });
 
   it("shows the first validation message, not the raw 'and N more errors' text, when GCash proof is refused", async () => {
@@ -610,10 +658,13 @@ const progress = (id) => screen.getAllByRole("progressbar", { name: `ORD-${id} p
 describe("MerchandisePage order stages for the buyer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
   });
 
   it("puts every order status on the four step order stepper with its next action", async () => {
@@ -654,7 +705,7 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("tells a buyer there is no online payment instead of offering GCash", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 1 })]) });
     renderAt("/dashboard/merchandise/my-orders", "my-orders");
 
@@ -664,13 +715,13 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("says so on the shop when GCash is not set up and not when it is", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     const first = renderAt("/dashboard/merchandise/order-merchandise", "order");
     expect(await screen.findByText("Online payment is not available. Pay cash at pickup.")).toBeInTheDocument();
     first.unmount();
 
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     renderAt("/dashboard/merchandise/order-merchandise", "order");
     await screen.findByText("HIUSA Shirt");
     expect(screen.queryByText("Online payment is not available. Pay cash at pickup.")).not.toBeInTheDocument();
@@ -747,7 +798,7 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("says one consistent thing about held stock in the cart and the checkout modal", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     renderAt("/dashboard/merchandise/order-merchandise", "order");
@@ -911,7 +962,7 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("shows a refused order inline in the checkout modal and does not toast it", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
     orderMocks.placeOrder.mockRejectedValue({ response: { status: 422, data: { message: "You already have 2 unpaid orders for this item." } } });
@@ -949,7 +1000,7 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("confirms a checkout with what happens next and shows the same stage on the order row", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     const placed = buyerOrder({ id: 41 });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
@@ -987,10 +1038,13 @@ describe("MerchandisePage order stages for staff", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
   });
 
   it("gives an officer the one action for each stage", async () => {
@@ -1237,10 +1291,13 @@ describe("MerchandisePage order stages for staff", () => {
 describe("MerchandisePage inventory guidance and the Claim desk", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
   });
 
@@ -1253,7 +1310,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
   });
 
   it("drops the GCash step as soon as the QR is saved from the settings dialog", async () => {
-    merchandiseMocks.uploadGcashQr.mockResolvedValue({ data: { gcash_qr_url: "/storage/official-qr.png" } });
+    merchandiseMocks.uploadGcashQr.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     const OriginalURL = globalThis.URL;
     vi.stubGlobal("URL", class extends OriginalURL {
       static createObjectURL() { return "blob:gcash-preview"; }
@@ -1274,7 +1331,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
   });
 
   it("drops the GCash step once a QR exists", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
     await screen.findAllByText("HIUSA Shirt");
@@ -1284,7 +1341,7 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
 
   it("warns when an active item is out of stock and offers to add stock", async () => {
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
     expect(await screen.findByText("1 item is out of stock")).toBeInTheDocument();
@@ -1430,10 +1487,13 @@ describe("MerchandisePage order queue reads", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
   });
 
   it("separates the school ID from the program, shows one order reference and names the payment method", async () => {
@@ -1513,9 +1573,12 @@ describe("MerchandisePage promo pricing and plain refusals", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
     localStorage.clear();
     localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
   });
 

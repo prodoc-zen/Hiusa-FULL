@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Tooltip } from '../../../components/ui';
 import AiMarkdown from '../../../components/ai/AiMarkdown';
@@ -81,10 +81,13 @@ export default function ChatMessage({
   onAsk,
   actionLive = true,
   onActionChange,
+  onAskAgain,
 }) {
   const streaming = Boolean(message.streaming);
   const seconds = useElapsedSeconds(streaming);
   const proseRef = useRef(null);
+  const cardValues = useRef(null);
+  const setCardValues = useCallback((values) => { cardValues.current = values; }, []);
 
   if (message.role === 'user') {
     return (
@@ -98,7 +101,9 @@ export default function ChatMessage({
 
   const payload = message.payload || null;
   const action = actionOf(message);
-  const resultShown = action?.status === 'done' && Boolean(action.result?.message);
+  // The card already says it once: the result of a done card, or the sentence a failed card was closed with.
+  const resultShown = Boolean(action?.result?.message)
+    && (action.status === 'done' || (action.status === 'failed' && action.result.message === message.content));
   const stopped = message.status === 'stopped';
   const failed = message.status === 'failed';
   const stored = typeof message.id === 'number' || (typeof message.id === 'string' && message.id !== '');
@@ -118,14 +123,22 @@ export default function ChatMessage({
       )}
       {!streaming && payload && <AnswerBlocks payload={payload} onAsk={onAsk} disabled={busy} />}
       {!streaming && action && stored && (
-        <ActionCard message={message} action={action} live={actionLive} onChange={onActionChange} />
+        <ActionCard
+          message={message}
+          action={action}
+          live={actionLive}
+          onChange={onActionChange}
+          onValuesChange={setCardValues}
+          onAskAgain={onAskAgain ? () => onAskAgain(message) : undefined}
+          askAgainDisabled={busy}
+        />
       )}
       {payload?.notice && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{payload.notice}</p>}
       {stopped && <p className="mt-2 text-xs font-medium text-ink-muted-strong">You stopped this answer.</p>}
       {failed && <p className="mt-2 text-xs font-medium text-danger-strong">This answer did not finish.</p>}
       {!streaming && (
         <div className="-ml-2.5 mt-2 flex flex-wrap items-center gap-0.5">
-          {message.content && <CopyAction getText={() => (action ? actionCopyText(message) : answerText(proseRef.current) || message.content)} />}
+          {message.content && <CopyAction getText={() => (action ? actionCopyText(message, cardValues.current) : answerText(proseRef.current) || message.content)} />}
           {isLast && onRegenerate && !action && (
             <ActionButton icon={RefreshCw} onClick={onRegenerate} disabled={busy}>
               Regenerate

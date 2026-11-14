@@ -32,7 +32,8 @@ class OrganizationFactory extends Factory
     public function withGcashQr(): static
     {
         return $this->state(fn (array $attributes) => [
-            'gcash_qr_url' => '/uploads/gcash/'.Str::random(20).'.png',
+            // The tracked seed image, so the QR file exists for the checks that look for it.
+            'gcash_qr_url' => '/uploads/gcash/demo-gcash-qr.png',
         ]);
     }
 }

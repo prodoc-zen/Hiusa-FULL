@@ -37,6 +37,17 @@ describe('ConversationList', () => {
     expect(screen.queryByRole('button', { name: 'Chat 1' })).not.toBeInTheDocument();
   });
 
+  it('shows Show more only when there is more, and asks for the next page when pressed', () => {
+    const onLoadMore = vi.fn();
+    const { rerender } = render(<ConversationList {...props} conversations={many(3)} />);
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
+    rerender(<ConversationList {...props} conversations={many(3)} hasMore onLoadMore={onLoadMore} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    rerender(<ConversationList {...props} conversations={many(3)} hasMore loadingMore onLoadMore={onLoadMore} />);
+    expect(screen.getByRole('button', { name: /Show more/ })).toBeDisabled();
+  });
+
   it('shows an empty state', () => {
     render(<ConversationList {...props} conversations={[]} />);
     expect(screen.getByText('Your conversations will show up here.')).toBeInTheDocument();
