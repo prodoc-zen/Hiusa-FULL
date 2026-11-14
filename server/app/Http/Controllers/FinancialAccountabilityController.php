@@ -251,12 +251,35 @@ class FinancialAccountabilityController extends Controller
 
     public function invoices(Request $request)
     {
-        $query = Invoice::with('payments')->where('organization_id', $request->user()->organization_id);
+        $user = $request->user();
+        // A student's own invoices from every organization they belong to; staff read their own organization.
+        $query = Invoice::with('payments')->whereIn('organization_id', $user->role === 'STUDENT' ? $user->memberOrganizationIds() : [$user->organization_id]);
         if ($request->user()->role !== 'ADMIN') {
             $query->where('student_id', $request->user()->school_id);
         }
 
         return response()->json($query->latest()->get()->map(fn ($i) => $this->balances->invoiceData($i)));
+    }
+
+    /** One account per student that adds up what they owe in every organization they belong to. */
+    private function memberAccounts(\Illuminate\Support\Collection $students, array $organizationIds): \Illuminate\Support\Collection
+    {
+        return $students->map(function (User $student) use ($organizationIds) {
+            $rows = collect($organizationIds)->map(fn (int $organizationId) => $this->balances->rows(collect([$student]), $organizationId)->first());
+            $account = $rows->first();
+            foreach (['invoice_debt', 'reserved_order_debt', 'total_debt'] as $field) {
+                $account[$field] = round((float) $rows->sum($field), 2);
+            }
+            foreach (['unpaid_invoice_count', 'pending_order_count', 'pending_payment_count', 'overdue_invoice_count'] as $field) {
+                $account[$field] = (int) $rows->sum($field);
+            }
+            $account['invoices'] = $rows->flatMap(fn ($row) => $row['invoices'])->values();
+            $account['reserved_orders'] = $rows->flatMap(fn ($row) => $row['reserved_orders'])->values();
+            $account['clearance_status'] = $account['total_debt'] < 0.005 ? 'financially_cleared' : 'pending_clearance';
+            $account['last_activity_at'] = $rows->pluck('last_activity_at')->filter()->sortDesc()->first();
+
+            return $account;
+        })->values();
     }
 
     public function studentDebts(Request $request)
@@ -273,7 +296,9 @@ class FinancialAccountabilityController extends Controller
             ->when($request->user()->role === 'STUDENT', fn ($query) => $query->where('school_id', $request->user()->school_id))
             ->when(! empty($filters['student_id']), fn ($query) => $query->where('school_id', $filters['student_id']))
             ->get(['school_id', 'first_name', 'last_name', 'email', 'account_status', 'department', 'program', 'major', 'section', 'year_level', 'created_at']);
-        $accounts = $this->balances->rows($students, $organizationId);
+        $accounts = $request->user()->role === 'STUDENT'
+            ? $this->memberAccounts($students, $request->user()->memberOrganizationIds())
+            : $this->balances->rows($students, $organizationId);
 
         if (! empty($filters['student_id'])) {
             return response()->json($accounts->values());

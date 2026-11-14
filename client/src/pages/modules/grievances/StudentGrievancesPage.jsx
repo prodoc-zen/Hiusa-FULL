@@ -12,13 +12,14 @@ import {
   Input,
   PageHeader,
   SegmentedControl,
+  Select,
   SkeletonCard,
   Tabs,
   Textarea,
 } from '../../../components/ui';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { getGrievances, createGrievance, deleteGrievance } from '../../../services/grievanceService';
+import { getGrievances, getGrievanceFilingOptions, createGrievance, deleteGrievance } from '../../../services/grievanceService';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -55,6 +56,8 @@ export default function StudentGrievancesPage() {
   const [description, setDescription] = useState('');
   const [addressedTo, setAddressedTo] = useState('organization');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [filingOptions, setFilingOptions] = useState([]);
+  const [organizationId, setOrganizationId] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -73,6 +76,13 @@ export default function StudentGrievancesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A member of several organizations says which one the grievance is for; with one, the server addresses it.
+  useEffect(() => {
+    getGrievanceFilingOptions()
+      .then((res) => setFilingOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setFilingOptions([]));
+  }, []);
 
   useEffect(() => {
     if (!recordId || tab !== 'mine' || loading || error) return;
@@ -97,6 +107,7 @@ export default function StudentGrievancesPage() {
         description: description.trim(),
         addressed_to: addressedTo,
         is_anonymous: addressedTo === 'organization' ? isAnonymous : false,
+        ...(addressedTo === 'organization' && organizationId ? { organization_id: Number(organizationId) } : {}),
       });
       notify.success('Your grievance was filed.');
       setTitle('');
@@ -159,6 +170,15 @@ export default function StudentGrievancesPage() {
               <SegmentedControl options={ADDRESSED_TO_OPTIONS} value={addressedTo} onChange={setAddressedTo} className="w-full" />
             </Field>
 
+            {addressedTo === 'organization' && filingOptions.length > 1 && (
+              <Field label="Which organization?" required error={fieldErrors.organization_id?.[0]}>
+                <Select id="grievance-organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
+                  <option value="">Choose an organization</option>
+                  {filingOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                </Select>
+              </Field>
+            )}
+
             {addressedTo === 'organization' ? (
               <label className="flex min-h-11 cursor-pointer items-start gap-3">
                 <input type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-700" />
@@ -174,7 +194,7 @@ export default function StudentGrievancesPage() {
             )}
 
             <div className="flex justify-end">
-              <Button type="submit" loading={submitting} disabled={!title.trim() || !description.trim()}>File this grievance</Button>
+              <Button type="submit" loading={submitting} disabled={!title.trim() || !description.trim() || (addressedTo === 'organization' && filingOptions.length > 1 && !organizationId)}>File this grievance</Button>
             </div>
           </form>
         </Card>

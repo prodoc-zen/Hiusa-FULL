@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Grievance;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\HiusaAiService;
 use App\Services\OrganizationRecipients;
@@ -117,6 +118,23 @@ class GrievanceController extends Controller
         return response()->json($this->redact($grievance->load(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']), $request->user()->role));
     }
 
+    /**
+     * The organizations a student can address a grievance to: the clubs they belong to, or their own organization when
+     * they belong to none. A member on the college profile belongs to the college home and to each club.
+     */
+    private function filingOrganizations(User $user)
+    {
+        $organizations = Organization::whereIn('id', $user->memberOrganizationIds())->orderBy('name')->get(['id', 'name', 'acronym', 'organization_type']);
+        $clubs = $organizations->where('organization_type', '!=', 'COLLEGE')->values();
+
+        return $clubs->isNotEmpty() ? $clubs : $organizations;
+    }
+
+    public function filingOptions(Request $request)
+    {
+        return response()->json($this->filingOrganizations($request->user())->map->only(['id', 'name', 'acronym'])->values());
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -124,9 +142,24 @@ class GrievanceController extends Controller
             'description' => ['required', 'string', 'max:5000'],
             'addressed_to' => ['required', 'in:organization,sao'],
             'is_anonymous' => ['sometimes', 'boolean'],
+            'organization_id' => ['nullable', 'integer'],
         ]);
 
-        $organizationId = $data['addressed_to'] === 'organization' ? $request->user()->organization_id : null;
+        $organizationId = null;
+        if ($data['addressed_to'] === 'organization') {
+            $options = $this->filingOrganizations($request->user());
+            if (isset($data['organization_id'])) {
+                // Only an organization the student belongs to; anything else is refused, never silently redirected.
+                if (! $options->contains('id', (int) $data['organization_id'])) {
+                    return response()->json(['message' => 'Choose an organization you belong to.', 'errors' => ['organization_id' => ['Choose an organization you belong to.']]], 422);
+                }
+                $organizationId = (int) $data['organization_id'];
+            } elseif ($options->count() === 1) {
+                $organizationId = (int) $options->first()->id;
+            } else {
+                return response()->json(['message' => 'Choose the organization this grievance is for.', 'errors' => ['organization_id' => ['Choose the organization this grievance is for.']]], 422);
+            }
+        }
         $classification = $this->aiService->grievanceClassification($data['title'], $data['description']);
         $engine = 'ai-service';
         if (! $this->validClassification($classification)) {

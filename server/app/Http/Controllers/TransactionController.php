@@ -281,11 +281,13 @@ class TransactionController extends Controller
     public function personalReceipts(Request $request)
     {
         $userId = $request->user()->id;
+        // A student's own receipts from every organization they belong to.
+        $organizationIds = $request->user()->role === 'STUDENT' ? $request->user()->memberOrganizationIds() : [$request->user()->organization_id];
 
         $receipts = Transaction::with([
             'organization:id,name',
             'merchandiseOrder' => fn ($query) => $query
-                ->where('organization_id', $request->user()->organization_id)
+                ->whereIn('organization_id', $organizationIds)
                 ->select(['id', 'transaction_id', 'payment_method', 'approved_by']),
             'merchandiseOrder.approver:school_id,first_name,last_name',
             'budget:id,title',
@@ -293,7 +295,7 @@ class TransactionController extends Controller
             'recorder:school_id,first_name,last_name',
             'payer:school_id,first_name,last_name',
         ])
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $organizationIds)
             ->where('payer_id', $userId)
             ->where(function ($query) {
                 $query->whereNotNull('receipt_reference')

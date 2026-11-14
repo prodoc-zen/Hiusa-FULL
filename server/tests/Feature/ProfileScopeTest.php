@@ -149,7 +149,7 @@ class ProfileScopeTest extends TestCase
 
         $orders = $this->asProfile($this->collegeProfile)->getJson('/api/orders')->assertOk();
         $this->assertEqualsCanonicalizing([$collegeOrder->id, $psitsOrder->id], collect($orders->json('data'))->pluck('id')->all());
-        $this->assertSame([$this->home->name.' fee'], collect($this->getJson('/api/invoices')->assertOk()->json())->pluck('description')->all());
+        $this->assertEqualsCanonicalizing([$this->home->name.' fee', 'PSITS fee'], collect($this->getJson('/api/invoices')->assertOk()->json())->pluck('description')->all());
     }
 
     public function test_the_other_profiles_order_cannot_be_opened(): void

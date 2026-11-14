@@ -4,11 +4,15 @@ namespace Tests\Feature;
 
 use App\Models\AccountProfile;
 use App\Models\Announcement;
+use App\Models\Grievance;
+use App\Models\Invoice;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
@@ -167,5 +171,68 @@ class MemberShopAndAnnouncementsTest extends TestCase
         $this->signedInAsCollege($this->rina)->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'gcash'])
             ->assertStatus(422)->assertJsonPath('message', fn ($message) => str_contains($message, 'Reserve with cash'));
         $this->assertSame(0, Order::count());
+    }
+
+    private function invoice(User $student, Organization $organization, string $description, string $amount = '150.00'): Invoice
+    {
+        return Invoice::create([
+            'organization_id' => $organization->id, 'reference' => 'INV-'.Str::upper(Str::random(8)), 'student_id' => $student->school_id,
+            'description' => $description, 'amount_due' => $amount, 'status' => 'unpaid',
+        ]);
+    }
+
+    public function test_a_member_sees_their_own_invoices_receipts_and_debt_from_every_organization_they_belong_to(): void
+    {
+        $this->invoice($this->rina, $this->guild, 'Guild fee');
+        $this->invoice($this->rina, $this->home, 'College fee', '50.00');
+        $this->invoice($this->leo, $this->guild, 'Leo guild fee');
+        $this->invoice($this->rina, $this->otherClub, 'Other club fee');
+        $admin = User::factory()->admin()->create(['organization_id' => $this->guild->id]);
+        foreach ([[$this->rina, $this->guild, 'RINA-GUILD'], [$this->leo, $this->guild, 'LEO-GUILD'], [$this->rina, $this->otherClub, 'RINA-OTHER']] as [$payer, $organization, $reference]) {
+            Transaction::create([
+                'organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'payer_id' => $payer->school_id, 'type' => 'income',
+                'category' => 'Fees', 'description' => $reference, 'amount' => 100, 'receipt_reference' => $reference, 'transaction_date' => now(),
+            ]);
+        }
+
+        $member = $this->signedInAsCollege($this->rina);
+        $this->assertEqualsCanonicalizing(['Guild fee', 'College fee'], collect($member->getJson('/api/invoices')->assertOk()->json())->pluck('description')->all());
+        $this->assertSame(['RINA-GUILD'], collect($member->getJson('/api/transactions/personal-receipts')->assertOk()->json())->pluck('receipt_reference')->all());
+        $debt = $member->getJson('/api/student-debts')->assertOk()->json('data.0');
+        $this->assertEquals(200.0, $debt['total_debt']);
+        $this->assertSame(2, $debt['unpaid_invoice_count']);
+    }
+
+    public function test_the_assistant_does_not_tell_a_member_with_an_open_club_fee_that_they_owe_nothing(): void
+    {
+        $this->invoice($this->rina, $this->guild, 'Guild fee');
+
+        $rows = $this->signedInAsCollege($this->rina)->postJson('/api/ai/assistant/ask', ['question' => 'What should I do today?', 'topic' => 'daily_priorities'])
+            ->assertOk()->json('sections.0.rows');
+
+        $this->assertContains('stu-fees', collect($rows)->pluck('id')->all());
+    }
+
+    public function test_a_grievance_filed_to_my_organization_goes_to_the_only_club_the_member_belongs_to(): void
+    {
+        $this->signedInAsCollege($this->rina)->postJson('/api/grievances', ['title' => 'Broken door', 'description' => 'The door is broken.', 'addressed_to' => 'organization'])->assertCreated();
+
+        $this->assertSame($this->guild->id, Grievance::where('submitted_by', $this->rina->school_id)->value('organization_id'));
+        $this->signedInAsCollege($this->rina)->getJson('/api/grievances/filing-options')->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $this->guild->id);
+    }
+
+    public function test_a_member_of_several_clubs_must_choose_one_they_belong_to(): void
+    {
+        $third = $this->makeCollegeStudentOrganization($this->home->catalogCollege, ['name' => 'Third Club']);
+        AccountProfile::create(['user_school_id' => $this->rina->school_id, 'organization_id' => $third->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $payload = ['title' => 'Broken door', 'description' => 'The door is broken.', 'addressed_to' => 'organization'];
+
+        $member = $this->signedInAsCollege($this->rina);
+        $member->getJson('/api/grievances/filing-options')->assertOk()->assertJsonCount(2);
+        $member->postJson('/api/grievances', $payload)->assertStatus(422)->assertJsonValidationErrors('organization_id');
+        $member->postJson('/api/grievances', [...$payload, 'organization_id' => $this->otherClub->id])->assertStatus(422)->assertJsonValidationErrors('organization_id');
+        $member->postJson('/api/grievances', [...$payload, 'organization_id' => $third->id])->assertCreated();
+
+        $this->assertSame([$third->id], Grievance::where('submitted_by', $this->rina->school_id)->pluck('organization_id')->all());
     }
 }

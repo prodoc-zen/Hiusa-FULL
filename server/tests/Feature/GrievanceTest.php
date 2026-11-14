@@ -96,12 +96,13 @@ class GrievanceTest extends TestCase
         $student = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($student);
 
-        $grievanceId = $this->postJson('/api/grievances', [
-            'title' => 'Suggestion',
-            'description' => 'It would be nice to have more seating.',
-            'addressed_to' => 'organization',
-            'organization_id' => $otherOrganization->id,
-        ])->assertCreated()->json('id');
+        $payload = ['title' => 'Suggestion', 'description' => 'It would be nice to have more seating.', 'addressed_to' => 'organization'];
+
+        // An organization the student does not belong to is refused, never filed against.
+        $this->postJson('/api/grievances', [...$payload, 'organization_id' => $otherOrganization->id])->assertStatus(422);
+        $this->assertSame(0, Grievance::count());
+
+        $grievanceId = $this->postJson('/api/grievances', $payload)->assertCreated()->json('id');
 
         $this->assertSame($organization->id, Grievance::find($grievanceId)->organization_id);
     }

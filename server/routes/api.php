@@ -442,6 +442,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     // never accepted from input. See GrievanceController docblock for the
     // anonymity rule.
     Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::get('/grievances/filing-options', [GrievanceController::class, 'filingOptions'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->withTrashed()->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);

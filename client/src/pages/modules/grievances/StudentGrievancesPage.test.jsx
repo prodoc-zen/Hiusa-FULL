@@ -5,12 +5,14 @@ import StudentGrievancesPage from './StudentGrievancesPage';
 
 const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
+  getGrievanceFilingOptions: vi.fn(),
   createGrievance: vi.fn(),
   deleteGrievance: vi.fn(),
 }));
 
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
+  getGrievanceFilingOptions: mocks.getGrievanceFilingOptions,
   createGrievance: mocks.createGrievance,
   deleteGrievance: mocks.deleteGrievance,
 }));
@@ -19,6 +21,7 @@ describe('StudentGrievancesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
+    mocks.getGrievanceFilingOptions.mockResolvedValue({ data: [{ id: 8, name: 'CCS Coders Guild' }] });
   });
 
   it('shows a first-run empty state on the "Filed grievances" tab when there are none', async () => {
@@ -43,6 +46,27 @@ describe('StudentGrievancesPage', () => {
     expect(screen.getByLabelText(/tell us what happened/i).tagName).toBe('TEXTAREA');
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
     expect(screen.queryByText('Preview')).not.toBeInTheDocument();
+  });
+
+  it('asks a member of several organizations which one the grievance is for and sends the choice', async () => {
+    mocks.getGrievanceFilingOptions.mockResolvedValue({ data: [{ id: 8, name: 'CCS Coders Guild' }, { id: 9, name: 'Other Club' }] });
+    mocks.createGrievance.mockResolvedValue({ data: { id: 1 } });
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
+    const select = await screen.findByLabelText(/which organization/i);
+    fireEvent.change(screen.getByLabelText(/what's this about/i), { target: { value: 'Broken door' } });
+    fireEvent.change(screen.getByLabelText(/tell us what happened/i), { target: { value: 'The door is broken.' } });
+    const file = screen.getByRole('button', { name: 'File this grievance' });
+    expect(file).toBeDisabled();
+
+    fireEvent.change(select, { target: { value: '9' } });
+    fireEvent.click(file);
+    await waitFor(() => expect(mocks.createGrievance).toHaveBeenCalledWith(expect.objectContaining({ addressed_to: 'organization', organization_id: 9 })));
+  });
+
+  it('does not ask a member of one organization to choose', async () => {
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
+    await waitFor(() => expect(mocks.getGrievanceFilingOptions).toHaveBeenCalled());
+    expect(screen.queryByLabelText(/which organization/i)).not.toBeInTheDocument();
   });
 
   it('hides the anonymity toggle when addressed directly to SAO, since the org never sees it', () => {

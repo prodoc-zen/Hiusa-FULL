@@ -9,6 +9,7 @@ import { grievanceStageText } from './grievanceLabels';
 const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
   getGrievance: vi.fn(),
+  getGrievanceFilingOptions: vi.fn(),
   createGrievance: vi.fn(),
   deleteGrievance: vi.fn(),
   updateGrievanceStatus: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   getGrievance: mocks.getGrievance,
+  getGrievanceFilingOptions: mocks.getGrievanceFilingOptions,
   createGrievance: mocks.createGrievance,
   deleteGrievance: mocks.deleteGrievance,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
@@ -63,6 +65,7 @@ describe('grievance stage text', () => {
 describe('grievance lists and details', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getGrievanceFilingOptions.mockResolvedValue({ data: [] });
     mocks.getGrievances.mockResolvedValue(envelope([TO_SAO]));
   });
 

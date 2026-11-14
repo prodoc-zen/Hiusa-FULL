@@ -1592,13 +1592,14 @@ class AskAiService
         }
 
         if ($role === 'STUDENT') {
-            $orgId = (int) $user->organization_id;
-            $balanceRow = $this->balances->rows(collect([$user]), $orgId)->first();
-            $owedTotal = (float) ($balanceRow['total_debt'] ?? 0);
-            $invoiceDebt = (float) ($balanceRow['invoice_debt'] ?? 0);
-            $reservedOrderDebt = (float) ($balanceRow['reserved_order_debt'] ?? 0);
-            $unpaidInvoices = (int) ($balanceRow['unpaid_invoice_count'] ?? 0);
-            $reservedOrders = (int) ($balanceRow['pending_order_count'] ?? 0);
+            // A member on the college profile owes fees and holds orders in the clubs they belong to as well.
+            $memberOrgIds = $user->memberOrganizationIds();
+            $balanceRows = collect($memberOrgIds)->map(fn (int $memberOrgId) => $this->balances->rows(collect([$user]), $memberOrgId)->first());
+            $owedTotal = (float) $balanceRows->sum('total_debt');
+            $invoiceDebt = (float) $balanceRows->sum('invoice_debt');
+            $reservedOrderDebt = (float) $balanceRows->sum('reserved_order_debt');
+            $unpaidInvoices = (int) $balanceRows->sum('unpaid_invoice_count');
+            $reservedOrders = (int) $balanceRows->sum('pending_order_count');
 
             $clearanceCounts = DB::table('clearance_signatures')
                 ->whereNull('retired_at')
@@ -1609,7 +1610,7 @@ class AskAiService
             $heldClearance = (int) ($clearanceCounts->held ?? 0);
 
             $readyOrders = DB::table('orders')
-                ->where('organization_id', $orgId)
+                ->whereIn('organization_id', $memberOrgIds)
                 ->where('student_id', $user->school_id)
                 ->where('status', 'paid')
                 ->count();
