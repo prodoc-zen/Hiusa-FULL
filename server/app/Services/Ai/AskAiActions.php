@@ -906,9 +906,11 @@ class AskAiActions
 
         if ($status >= 200 && $status < 300) {
             $result = ($definition['result'])($json, $values, $user);
+            $recordId = data_get($json, 'id') ?? data_get($json, 'data.id');
 
             return [
                 'outcome' => 'done',
+                'record_id' => is_numeric($recordId) ? (int) $recordId : null,
                 'message' => $result['message'],
                 'href' => $this->routeAccess->hrefFor($user->role, $result['path']),
                 'action_label' => $result['label'],

@@ -11,11 +11,12 @@ use Psr\Http\Message\StreamInterface;
 
 /**
  * Puts a wall-clock end on a streamed response. The HTTP transport's timeout is per read and the SDK skips
- * ping events, so without this a stream that keeps trickling bytes would never be stopped.
+ * ping events, so without this a stream that keeps trickling bytes would never be stopped. The optional callback runs
+ * before every read, which is the only place a caller waiting on a silent stream gets control back.
  */
 final class DeadlineTransporter implements ClientInterface
 {
-    public function __construct(private readonly ClientInterface $inner, private readonly float $deadline) {}
+    public function __construct(private readonly ClientInterface $inner, private readonly float $deadline, private readonly ?\Closure $beforeRead = null) {}
 
     public function sendRequest(RequestInterface $request): ResponseInterface
     {
@@ -25,13 +26,13 @@ final class DeadlineTransporter implements ClientInterface
             : $this->inner->sendRequest($request);
         $deadline = $this->deadline;
 
-        return $response->withBody(new class($response->getBody(), $deadline) implements StreamInterface
+        return $response->withBody(new class($response->getBody(), $deadline, $this->beforeRead) implements StreamInterface
         {
             use StreamDecoratorTrait;
 
             private StreamInterface $stream;
 
-            public function __construct(StreamInterface $stream, private readonly float $deadline)
+            public function __construct(StreamInterface $stream, private readonly float $deadline, private readonly ?\Closure $beforeRead)
             {
                 $this->stream = $stream;
             }
@@ -40,6 +41,10 @@ final class DeadlineTransporter implements ClientInterface
             {
                 if (microtime(true) > $this->deadline) {
                     throw new \RuntimeException('Chat deadline reached.');
+                }
+
+                if ($this->beforeRead !== null) {
+                    ($this->beforeRead)();
                 }
 
                 return $this->stream->read($length);

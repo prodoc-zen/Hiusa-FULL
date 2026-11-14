@@ -32,6 +32,18 @@ pull request they can merge and deploy from their phone. They want it live as so
 6. `server/composer.lock` moved to Laravel 12.72.0, because `composer audit` (a CI step) fails on 12.69.3 since an
    advisory of 2026-11-13. `server/vendor` may still hold the old version: run `composer install` first.
 
+## Latest state (updated by the last session as it ran)
+
+- Done and independently rechecked: chat client fixes, chat security fixes, model layer, finance, tasks and events,
+  grievances/dashboard/announcements, the whole-change-set fixes, twelve of the Ask AI service findings, request
+  understanding, the action card (client) and the server side of actions (8 actions, live-probed; its recheck is in
+  `actions-server-recheck.json`: the one serious problem is that `invite_department_head` stores the single-use
+  invitation link in plain text in the chat message; show it in the confirm response only and never store it).
+- Were running when the last session ended: chat server fixes (`review/chat-server.json` plus the OfficeStaffParity
+  route list and the provider time budget), the routing fixes (ask-02 to 05, ask-11, ask-16 and the live problems),
+  the small client pass (`review/client-pass.json`), and the Opus security review of actions (its findings go to
+  `review/actions.json`). Check each in the tree before redoing it.
+
 ## What is left, in order
 
 1. **See what the last session left mid-flight.** Three jobs were still running when it ended and may be finished,
