@@ -242,6 +242,21 @@ class GrievanceAiAuditFixesTest extends TestCase
         $this->getJson('/api/grievances?direction=sideways')->assertUnprocessable();
     }
 
+    public function test_the_critical_tile_count_filters_urgency_and_a_json_list_of_open_statuses(): void
+    {
+        $student = $this->user('STUDENT');
+        $this->grievance($student, ['urgency' => 'Critical', 'status' => 'submitted']);
+        $this->grievance($student, ['urgency' => 'Critical', 'status' => 'under_review']);
+        $this->grievance($student, ['urgency' => 'Critical', 'status' => 'resolved']);
+        $this->grievance($student, ['urgency' => 'Critical', 'status' => 'dismissed']);
+        $this->grievance($student, ['urgency' => 'High', 'status' => 'submitted']);
+
+        Sanctum::actingAs($this->user('SUPER_ADMIN'));
+        $open = urlencode(json_encode(['submitted', 'under_review']));
+        $this->getJson("/api/grievances?urgency=Critical&status={$open}&per_page=1")->assertOk()->assertJsonPath('total', 2);
+        $this->getJson('/api/grievances?urgency=Critical&status=submitted,under_review&per_page=1')->assertUnprocessable();
+    }
+
     public function test_the_sao_corrects_a_classification_and_the_machine_rating_stays_beside_it(): void
     {
         $organization = Organization::factory()->create();
