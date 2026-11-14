@@ -55,9 +55,7 @@ export default function LandingPage() {
 
       <section aria-labelledby="capabilities-title" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
         <div className="max-w-2xl">
-          <h2 id="capabilities-title" className="text-2xl font-semibold text-navy-950 sm:text-3xl">The work behind every organization</h2>
-          <p className="mt-3 text-sm leading-6 text-ink-muted-strong sm:text-base">HIUSA keeps the people, activities, and records of campus organizations connected.</p>
-        </div>
+          <h2 id="capabilities-title" className="text-2xl font-semibold text-navy-950 sm:text-3xl">The work behind every organization</h2>        </div>
         <div className="mt-8 grid gap-7 border-t border-line pt-7 sm:grid-cols-2 lg:grid-cols-3">
           {capabilities.map(({ icon: Icon, title, description }) => <article key={title} className="max-w-sm">
             <Icon size={24} className="text-brand-700" aria-hidden="true" />
@@ -70,9 +68,7 @@ export default function LandingPage() {
       <section id="how-registration-works" aria-labelledby="registration-title" className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-16 lg:px-8">
           <div>
-            <h2 id="registration-title" className="text-2xl font-semibold text-navy-950 sm:text-3xl">How registration works</h2>
-            <p className="mt-3 text-sm leading-6 text-ink-muted-strong sm:text-base">The organization applies. The Department Head endorses. SAO makes the final decision.</p>
-            <ol className="mt-7 divide-y divide-line border-y border-line">
+            <h2 id="registration-title" className="text-2xl font-semibold text-navy-950 sm:text-3xl">How registration works</h2>            <ol className="mt-7 divide-y divide-line border-y border-line">
               {registrationSteps.map(({ number, title, description }) => <li key={number} className="flex gap-4 py-4">
                 <span className="shrink-0 text-sm font-semibold text-brand-700">{number}</span>
                 <div><h3 className="text-sm font-bold text-navy-950">{title}</h3><p className="mt-1 text-sm leading-6 text-ink-muted-strong">{description}</p></div>

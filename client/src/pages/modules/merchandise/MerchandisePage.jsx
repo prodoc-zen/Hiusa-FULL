@@ -2531,9 +2531,6 @@ export default function MerchandisePage({ initialTab }) {
               <h2 className="text-lg font-semibold text-ink">
                 Confirm your reservation
               </h2>
-              <p className="mt-1 text-sm text-ink-muted-strong">
-                Check quantities and available stock before choosing payment.
-              </p>
               <ul className="mt-4 max-h-72 divide-y divide-line overflow-y-auto border-y border-line">
                 {cart.map((row) => (
                   <li
