@@ -23,6 +23,16 @@ interface TextGenerator
     public function generateStructured(string $instructions, array $input, string $schemaName, array $schema, int $maxOutputTokens = 1800, float $temperature = 0.2): ?array;
 
     /**
+     * A multi-turn answer. $messages is oldest first and ends with the user's turn.
+     * $onEvent, when given, receives ('reasoning', string $delta), ('text', string $delta) and ('reset', '') when
+     * everything streamed so far must be thrown away because another provider is about to answer.
+     *
+     * @param  array<int, array{role: 'user'|'assistant', content: string}>  $messages
+     * @return array{text: string, reasoning: ?string, model: string, response_id: ?string}|null
+     */
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array;
+
+    /**
      * True when $text introduces no number that is absent from $facts.
      */
     public function preservesNumericFacts(string $text, array $facts): bool;

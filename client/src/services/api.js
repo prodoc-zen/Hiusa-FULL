@@ -5,8 +5,10 @@ import { clearAuthSession, rememberSignOutNotice } from '../utils/authSession';
 import { readSelectedPeriod } from '../utils/academicPeriodStore';
 import { readActiveSubAccount } from '../utils/subAccountStore';
 
+export const API_BASE_URL = resolveRuntimeApiUrl(import.meta.env.VITE_API_URL);
+
 const api = axios.create({
-  baseURL: resolveRuntimeApiUrl(import.meta.env.VITE_API_URL),
+  baseURL: API_BASE_URL,
   headers: {
     Accept: 'application/json',
   },

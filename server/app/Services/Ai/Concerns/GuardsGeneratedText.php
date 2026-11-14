@@ -17,7 +17,7 @@ trait GuardsGeneratedText
     public function preservesNumericFacts(string $text, array $facts): bool
     {
         $allowed = $this->numericValues($facts);
-        preg_match_all('/(?<![\pL\pN])-?\d[\d,]*(?:\.\d+)?%?/u', $text, $matches);
+        preg_match_all('/(?<![\pL\pN])-?\d[\d,]*(?:\.\d+)?%?/u', $this->withoutMarkdownSyntax($text), $matches);
 
         foreach ($matches[0] ?? [] as $token) {
             $isPercentage = str_ends_with($token, '%');
@@ -52,6 +52,26 @@ trait GuardsGeneratedText
         }, $lines);
 
         return trim(preg_replace('/\n{3,}/u', "\n\n", implode("\n", $lines)) ?? implode("\n", $lines));
+    }
+
+    /**
+     * Markdown syntax is not a claim: list numbering, heading hashes, table pipes and link targets are removed
+     * before numbers are looked for. Link labels, table cells and HTML attribute values stay and are checked.
+     */
+    private function withoutMarkdownSyntax(string $text): string
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        // [label](target "title") and ![alt](target): keep the label, drop the target and title.
+        $text = preg_replace('/\]\(\s*(?:<[^>\n]*>|(?:[^()\s]|\([^)\n]*\))*)(?:\s+(?:"[^"\n]*"|\'[^\'\n]*\'))?\s*\)/u', ']', $text) ?? $text;
+        // [label][ref] reference-style links.
+        $text = preg_replace('/\]\[[^\]\n]*\]/u', ']', $text) ?? $text;
+        // [label]: target reference definitions.
+        $text = preg_replace('/^[ \t]{0,3}\[[^\]\n]+\]:[ \t]*\S.*$/mu', '', $text) ?? $text;
+        // Ordered-list markers, with any blockquote prefix: "1. ", "2) ".
+        $text = preg_replace('/^[ \t>]*\d{1,3}[.)](?=[ \t])/mu', '', $text) ?? $text;
+        $text = preg_replace('/^[ \t>]*#{1,6}(?=[ \t]|$)/mu', '', $text) ?? $text;
+
+        return str_replace('|', ' ', $text);
     }
 
     private function numericValues(mixed $value): array

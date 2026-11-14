@@ -41,6 +41,26 @@ class FallbackTextGenerator implements TextGenerator
         return $this->serve('generateStructured', fn (TextGenerator $generator) => $generator->generateStructured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $temperature));
     }
 
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        $emitted = false;
+        $track = $onEvent === null ? null : function (string $type, string $delta) use ($onEvent, &$emitted): void {
+            $emitted = true;
+            $onEvent($type, $delta);
+        };
+        $secondaryTurn = false;
+
+        return $this->serve('converse', function (TextGenerator $generator) use ($instructions, $messages, $maxOutputTokens, $onEvent, $track, &$emitted, &$secondaryTurn) {
+            if ($secondaryTurn && $emitted && $onEvent !== null) {
+                $onEvent('reset', '');
+                $emitted = false;
+            }
+            $secondaryTurn = true;
+
+            return $generator->converse($instructions, $messages, $maxOutputTokens, $track);
+        });
+    }
+
     /**
      * @param  \Closure(TextGenerator): ?array  $call
      */

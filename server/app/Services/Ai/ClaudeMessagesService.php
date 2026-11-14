@@ -13,6 +13,11 @@ use Anthropic\Core\Exceptions\RateLimitException;
 use Anthropic\Messages\JSONOutputFormat;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\OutputConfig;
+use Anthropic\Messages\RawContentBlockDeltaEvent;
+use Anthropic\Messages\RawMessageDeltaEvent;
+use Anthropic\Messages\RawMessageStartEvent;
+use Anthropic\Messages\TextDelta;
+use Anthropic\Messages\ThinkingDelta;
 use App\Contracts\TextGenerator;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use GuzzleHttp\Client as GuzzleClient;
@@ -34,6 +39,9 @@ class ClaudeMessagesService implements TextGenerator
 
     // The budgets callers pass were sized for another model; Claude spends more tokens per word.
     private const TOKEN_HEADROOM = 1.5;
+
+    // Adaptive thinking draws on max_tokens before the answer starts.
+    private const THINKING_HEADROOM = 2048;
 
     private ?string $lastStopReason = null;
 
@@ -113,6 +121,103 @@ class ClaudeMessagesService implements TextGenerator
             'text' => $text,
             'model' => $message->model,
             'response_id' => $message->id,
+        ];
+    }
+
+    /**
+     * Streams a conversation turn. Adaptive thinking spends output tokens before the first word, so the cap
+     * carries extra room for it. An exception thrown by $onEvent (the caller aborting) is rethrown untouched.
+     */
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        $this->lastStopReason = null;
+        $apiKey = trim((string) config('services.anthropic.key'));
+
+        if ($apiKey === '' || $messages === []) {
+            return null;
+        }
+
+        $started = microtime(true);
+        $text = '';
+        $reasoning = '';
+        $model = $this->model();
+        $responseId = null;
+        $stopReason = null;
+        $callbackError = null;
+
+        $emit = function (string $type, string $delta) use ($onEvent, &$callbackError): void {
+            if ($onEvent === null) {
+                return;
+            }
+            try {
+                $onEvent($type, $delta);
+            } catch (\Throwable $exception) {
+                $callbackError = $exception;
+
+                throw $exception;
+            }
+        };
+
+        try {
+            $stream = $this->client($apiKey, $this->chatSeconds())->messages->createStream(
+                maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
+                messages: array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
+                model: $this->model(),
+                outputConfig: OutputConfig::with(effort: $this->chatEffort()),
+                system: [['type' => 'text', 'text' => $instructions, 'cacheControl' => ['type' => 'ephemeral']]],
+                thinking: ['type' => 'adaptive', 'display' => 'summarized'],
+            );
+
+            foreach ($stream as $event) {
+                if ($event instanceof RawMessageStartEvent) {
+                    $model = $event->message->model;
+                    $responseId = $event->message->id;
+                } elseif ($event instanceof RawContentBlockDeltaEvent) {
+                    if ($event->delta instanceof ThinkingDelta && $event->delta->thinking !== '') {
+                        $reasoning .= $event->delta->thinking;
+                        $emit('reasoning', $event->delta->thinking);
+                    } elseif ($event->delta instanceof TextDelta && $event->delta->text !== '') {
+                        $text .= $event->delta->text;
+                        $emit('text', $event->delta->text);
+                    }
+                } elseif ($event instanceof RawMessageDeltaEvent) {
+                    $stopReason = $event->delta->stopReason ?? $stopReason;
+                }
+            }
+        } catch (\Throwable $exception) {
+            if ($callbackError !== null) {
+                throw $callbackError;
+            }
+
+            return $this->failed($exception, $started);
+        }
+
+        $this->lastStopReason = $stopReason;
+        $latencyMs = (int) round((microtime(true) - $started) * 1000);
+
+        if ($stopReason !== 'end_turn' || trim($text) === '') {
+            Log::warning('Claude did not finish a conversation answer.', [
+                'stop_reason' => $stopReason,
+                'model' => $model,
+                'response_id' => $responseId,
+                'latency_ms' => $latencyMs,
+            ]);
+
+            return null;
+        }
+
+        Log::info('Claude answered a conversation turn.', [
+            'model' => $model,
+            'response_id' => $responseId,
+            'stop_reason' => $stopReason,
+            'latency_ms' => $latencyMs,
+        ]);
+
+        return [
+            'text' => trim($text),
+            'reasoning' => trim($reasoning) === '' ? null : trim($reasoning),
+            'model' => $model,
+            'response_id' => $responseId,
         ];
     }
 
@@ -196,9 +301,9 @@ class ClaudeMessagesService implements TextGenerator
         return null;
     }
 
-    private function client(string $apiKey): Client
+    private function client(string $apiKey, ?int $seconds = null): Client
     {
-        $total = (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
+        $total = (float) ($seconds ?? max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS)));
         $transporter = $this->transporter ?? new GuzzleClient([
             'timeout' => $total,
             'connect_timeout' => (float) max(1, (int) config('services.anthropic.connect_timeout', 3)),
@@ -223,6 +328,18 @@ class ClaudeMessagesService implements TextGenerator
         $effort = strtolower(trim((string) config('services.anthropic.effort', 'low')));
 
         return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'low';
+    }
+
+    private function chatEffort(): string
+    {
+        $effort = strtolower(trim((string) config('services.anthropic.chat_effort', 'medium')));
+
+        return in_array($effort, ['low', 'medium', 'high', 'xhigh', 'max'], true) ? $effort : 'medium';
+    }
+
+    private function chatSeconds(): int
+    {
+        return max(5, min(300, (int) config('services.anthropic.chat_timeout', 60) ?: 60));
     }
 
     private function textOf(Message $message): string

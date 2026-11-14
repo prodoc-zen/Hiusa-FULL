@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Contracts\TextGenerator;
 use App\Models\AcademicSemester;
+use App\Models\AiMemory;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
@@ -82,7 +83,98 @@ class AskAiService
                 fn (array $question) => $this->intentAllowed($user, $question['topic'])
             )),
             'recent_queries' => $this->recentQueries($user),
+            'user_first_name' => $user->first_name,
+            'model_enabled' => trim((string) config('services.anthropic.key')) !== '' || trim((string) config('services.groq.key')) !== '',
+            'memory_count' => AiMemory::ownedBy($user)->count(),
+            'starter_prompts' => $this->starterPrompts($user),
         ];
+    }
+
+    /**
+     * The same records and wording as ask(), without the one-shot model call or the audit row: the chat
+     * service supplies its own model call and writes its own audit row.
+     */
+    public function deterministicAnswer(User $user, string $question, string $intent): array
+    {
+        return $this->answer($user, $question, $intent, true, false);
+    }
+
+    public function canAsk(User $user, string $intent): bool
+    {
+        return $this->intentAllowed($user, $intent);
+    }
+
+    /**
+     * Who is asking and when, in the words the model is allowed to repeat.
+     *
+     * @return array{first_name: string, role: string, scope: string, today: string, semester: ?string}
+     */
+    public function chatContext(User $user): array
+    {
+        $semester = AcademicSemester::active();
+
+        return [
+            'first_name' => (string) $user->first_name,
+            'role' => $this->roleName($user->role),
+            'scope' => $this->scopeLabel($user),
+            'today' => now()->format('l, F j, Y'),
+            'semester' => $semester === null ? null : trim(($semester->academicYear?->label ? 'AY '.$semester->academicYear->label.' · ' : '').$this->semesterLabel((int) $semester->number)),
+        ];
+    }
+
+    /** @return array<int, array{id: string, label: string, question: string, topic: string}> */
+    public function starterPrompts(User $user): array
+    {
+        return array_map(
+            fn (array $prompt) => ['id' => $prompt['id'], 'label' => $prompt['label'], 'question' => $prompt['question'], 'topic' => $prompt['topic']],
+            array_slice(array_values(array_filter(
+                $this->suggestedQuestions($user->role),
+                fn (array $question) => $this->intentAllowed($user, $question['topic'])
+            )), 0, 6)
+        );
+    }
+
+    /**
+     * What this role can ask, built from the intents the role is allowed to use.
+     */
+    public function capabilitiesAnswer(User $user): array
+    {
+        $prompts = array_values(array_filter(
+            $this->suggestedQuestions($user->role),
+            fn (array $question) => $this->intentAllowed($user, $question['topic'])
+        ));
+
+        $lines = array_map(fn (array $q) => '- **'.$q['label'].'**: '.$q['description'], $prompts);
+        $answer = "I can read the records your account can already open and put them in plain words. As ".$this->roleName($user->role)." for ".$this->scopeLabel($user).", you can ask me things like:\n\n"
+            .implode("\n", $lines)
+            ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I only read: I never approve, assign or publish anything for you.";
+
+        return $this->enrichWithFormattedBlocksAndCharts([
+            'title' => 'What I can help with',
+            'answer' => $answer,
+            'highlights' => [],
+            'sections' => [],
+            'follow_ups' => array_map(fn (array $q) => ['topic' => $q['topic'], 'label' => $q['label'], 'question' => $q['question']], array_slice($prompts, 0, 3)),
+            'model_name' => null,
+        ], 'capabilities');
+    }
+
+    /** A short answer for a greeting or thanks, still carrying the role's first prompts as chips. */
+    public function greetingAnswer(User $user, bool $thanks): array
+    {
+        $name = trim((string) $user->first_name);
+        $answer = $thanks
+            ? 'You are welcome. Ask me anything else about your records whenever you need it.'
+            : 'Hello'.($name !== '' ? ', '.$name : '').'. What would you like to look at? I can read your records, explain how a process works or help you draft something.';
+
+        return $this->enrichWithFormattedBlocksAndCharts([
+            'title' => $thanks ? 'You are welcome' : 'Hello',
+            'answer' => $answer,
+            'highlights' => [],
+            'sections' => [],
+            'follow_ups' => array_map(fn (array $q) => ['topic' => $q['topic'], 'label' => $q['label'], 'question' => $q['question']], array_slice($this->starterPrompts($user), 0, 3)),
+            'model_name' => null,
+        ], 'greeting');
     }
 
     public function ask(User $user, string $question, ?string $topic = null): array
@@ -306,7 +398,7 @@ class AskAiService
         return 'semantic_rag';
     }
 
-    private function answer(User $user, string $question, string $intent, bool $allowModel): array
+    private function answer(User $user, string $question, string $intent, bool $allowModel, bool $callModel = true): array
     {
         if ($intent === 'how_to_guide') {
             return $this->answerHowTo($user, $question);
@@ -350,7 +442,7 @@ class AskAiService
         }
 
         $modelName = null;
-        if ($allowModel) {
+        if ($allowModel && $callModel) {
             $enhanced = $this->enhanceWithModel($user, $question, $payload, $rag);
             if ($enhanced !== null) {
                 $payload['answer'] = $enhanced['text'];
@@ -359,6 +451,13 @@ class AskAiService
         }
 
         $payload['model_name'] = $modelName;
+        $payload['rag_chunks'] = array_map(fn (array $chunk) => [
+            'domain' => $chunk['domain'],
+            'primary' => $chunk['primary'],
+            'secondary' => $chunk['secondary'],
+            'status' => $chunk['status'],
+            'meta' => $chunk['meta'],
+        ], array_slice($rag['chunks'] ?? [], 0, 8));
         $payload['rag_metadata'] = [
             'engine' => $modelName ? 'Hybrid Semantic RAG + '.(str_starts_with($modelName, 'claude') ? 'Claude' : 'Groq').' LLM' : 'Hybrid Semantic RAG (BM25 + 12D Concept Vector + Trigram)',
             'corpus_size' => $rag['corpus_size'],
