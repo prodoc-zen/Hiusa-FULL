@@ -10,6 +10,7 @@ use App\Models\AiOutput;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AskAiChatService;
+use App\Services\Dashboard\ClientRouteAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\AskAiChatFakeGenerator;
@@ -88,7 +89,8 @@ class AskAiChatTest extends TestCase
 
     public function test_chat_validates_the_message_and_regenerate_rules(): void
     {
-        Sanctum::actingAs($this->admin());
+        $admin = $this->admin();
+        Sanctum::actingAs($admin);
         $this->fake();
 
         $this->postJson('/api/ai/assistant/chat', [])->assertStatus(422)->assertJsonValidationErrors(['message']);
@@ -98,7 +100,7 @@ class AskAiChatTest extends TestCase
         $this->postJson('/api/ai/assistant/chat', ['regenerate' => true])->assertStatus(422)->assertJsonValidationErrors(['conversation_id']);
         $this->postJson('/api/ai/assistant/chat', ['message' => 'hello', 'conversation_id' => 999999])->assertStatus(404);
 
-        $empty = AiConversation::factory()->forUser(request()->user() ?? User::first())->create();
+        $empty = AiConversation::factory()->forUser($admin)->create();
         $this->postJson('/api/ai/assistant/chat', ['conversation_id' => $empty->id, 'regenerate' => true])->assertStatus(422)->assertJsonValidationErrors(['regenerate']);
     }
 
@@ -106,7 +108,7 @@ class AskAiChatTest extends TestCase
     {
         $admin = $this->admin();
         Sanctum::actingAs($admin);
-        $fake = $this->fake(["You have nothing urgent today.\n", "Open Ask AI when you are ready."]);
+        $fake = $this->fake(["You have nothing urgent today.\n", 'Open Ask AI when you are ready.']);
 
         $response = $this->postJson('/api/ai/assistant/chat', ['message' => 'What should I do today?'])->assertOk();
 
@@ -147,7 +149,7 @@ class AskAiChatTest extends TestCase
     {
         $admin = $this->admin();
         Sanctum::actingAs($admin);
-        $this->fake(["First line of the answer.\n", "\n", "- A bullet point\n", "Last line [Ask AI](/dashboard/ask-ai)."], 'Looking at the records.');
+        $this->fake(["First line of the answer.\n", "\n", "- A bullet point\n", 'Last line [Ask AI](/dashboard/ask-ai).'], 'Looking at the records.');
 
         [$response, $events] = $this->stream(['message' => 'What should I do today?']);
 
@@ -283,7 +285,7 @@ class AskAiChatTest extends TestCase
 
         $hrefs = collect($payload['sections'])->flatMap(fn ($s) => collect($s['rows'])->pluck('href'))->filter()->push($payload['recommended_action']['href'] ?? null)->filter();
         foreach ($hrefs as $href) {
-            $this->assertNotNull(app(\App\Services\Dashboard\ClientRouteAccess::class)->hrefFor('STUDENT', $href), $href);
+            $this->assertNotNull(app(ClientRouteAccess::class)->hrefFor('STUDENT', $href), $href);
         }
     }
 
