@@ -189,7 +189,7 @@ export default function DataTable({
                 {secondary.length > 0 && (
                   <dl className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                     {secondary.map(({ column, value }) => (
-                      <div key={column.key} className="flex min-w-0 items-center gap-1">
+                      <div key={column.key} className="flex min-w-0 items-start gap-1">
                         <dt className="font-semibold">{column.header}</dt>
                         <dd className={`min-w-0 break-words font-normal text-ink ${isNumeric(column) ? 'tabular-nums' : ''}`}>{value}</dd>
                       </div>

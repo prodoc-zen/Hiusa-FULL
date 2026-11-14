@@ -732,7 +732,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     },
   ];
   const countColumns = {
-    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? 0 },
+    positions_count: { key: 'positions_count', header: 'Positions', align: 'right', render: (election) => election.positions_count ?? election.positions?.length ?? 0 },
     candidates_count: { key: 'candidates_count', header: 'Candidates', align: 'right', render: (election) => election.candidates_count ?? 0 },
     votes_count: { key: 'votes_count', header: 'Ballots', align: 'right', render: (election) => election.voters_count ?? 0 },
   };

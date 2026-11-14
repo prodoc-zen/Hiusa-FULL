@@ -924,7 +924,7 @@ describe('FinancePage finance AI results', () => {
 
     expect(await screen.findByText('Expenses')).toBeInTheDocument();
     expect(screen.getByText('₱8,000.00')).toBeInTheDocument();
-    expect(screen.getByText('Approved budgets')).toBeInTheDocument();
+    expect(screen.getByText('Left in approved budgets')).toBeInTheDocument();
     expect(screen.getByText('₱50,000.00')).toBeInTheDocument();
   });
 
