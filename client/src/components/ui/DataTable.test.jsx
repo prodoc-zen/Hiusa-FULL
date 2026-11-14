@@ -31,7 +31,7 @@ describe('DataTable', () => {
     expect(cardView.querySelectorAll('li')).toHaveLength(2);
   });
 
-  it('lays each phone row out as a name, one detail line and the actions beside them', () => {
+  it('lays each phone row out as a name, one detail line and the actions on their own row on a phone', () => {
     const columns = [...COLUMNS, { key: 'program', header: 'Program', render: (row) => row.program }];
     const rows = [{ id: 1, name: 'Maria Santos', role: 'Officer', program: null }];
     render(<DataTable columns={columns} rows={rows} actions={(row) => <button type="button">Open {row.name}</button>} />);
@@ -42,6 +42,11 @@ describe('DataTable', () => {
     expect(within(item).queryByText('Program')).toBeNull();
     const button = within(item).getByRole('button', { name: 'Open Maria Santos' });
     expect(button.parentElement.parentElement).toBe(item);
+    // On a phone the actions sit on their own row under the details, so they never cover them.
+    expect(item).toHaveClass('flex-col', 'sm:flex-row');
+    expect(button.parentElement).toHaveClass('flex-wrap', 'gap-2', 'sm:max-w-[55%]', 'sm:justify-end');
+    expect(button.parentElement).not.toHaveClass('max-w-[55%]', 'justify-end');
+    expect(item.lastElementChild).toBe(button.parentElement);
   });
 
   it('puts a column keyed actions beside the row on a phone instead of listing it as a detail', () => {
