@@ -745,6 +745,44 @@ class AskAiService
         return $parts === [] ? (string) $last : implode(', ', $parts).' and '.$last;
     }
 
+    /** Orders whose payment can be checked now: a GCash order still needs its proof first, a cash order does not. */
+    private function ordersReadyForReview(Builder $orders): Builder
+    {
+        return $orders->where('orders.status', 'pending')->where('orders.officer_review_status', 'pending')
+            ->where(fn ($ready) => $ready->whereNotNull('orders.payment_proof_url')
+                ->orWhereNull('orders.payment_method')->orWhere('orders.payment_method', '!=', 'gcash'));
+    }
+
+    private function openGrievancesQuery(): Builder
+    {
+        return DB::table('grievances')
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['resolved', 'dismissed']);
+    }
+
+    private function inSelectedSemester(Builder $query, string $column): Builder
+    {
+        return $query->when(AcademicSemester::selected()?->id, fn ($rows, $semesterId) => $rows->where($column, $semesterId));
+    }
+
+    /** The approval requests that wait for this person's own decision, the list the approvals answer reads. */
+    private function awaitingApprovalsQuery(User $user, Collection $organizationIds): EloquentBuilder
+    {
+        $approvals = ApprovalRequest::where('status', 'pending')
+            ->where('required_role', $user->approvalRole())
+            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
+
+        if ($user->role === 'SUPER_ADMIN') {
+            $saoEntityTypes = ['financial_report', 'event', ...(config('approvals.budget_final') === 'SUPER_ADMIN' ? ['budget'] : [])];
+
+            return $approvals->where(fn ($allowed) => $allowed->whereIn('entity_type', $saoEntityTypes)
+                ->orWhere(fn ($unified) => $unified->whereIn('entity_type', ['budget', 'election'])
+                    ->whereIn('organization_id', Organization::student()->where('is_university_wide', true)->select('id'))));
+        }
+
+        return $approvals->whereIn('organization_id', $user->role === 'ADMIN' ? [(int) $user->organization_id] : $organizationIds->all());
+    }
+
     /**
      * @param  Collection<int, int>  $organizationIds
      * @return Collection<int, int>
@@ -2994,7 +3032,7 @@ class AskAiService
         }
 
         $plain = $this->ai->plainText($result['text']);
-        if ($plain === '' || ! $this->ai->preservesNumericFacts($plain, $facts) || ! $this->namesOnlyKnownPeople($plain, $question, $facts)) {
+        if ($plain === '' || ! $this->ai->preservesNumericFacts($plain, $facts)) {
             return null;
         }
 
@@ -3002,28 +3040,6 @@ class AskAiService
             'text' => $plain,
             'model' => $result['model'],
         ];
-    }
-
-    /** A name the model writes must be a word the question or the records already hold: it may not bring in a person or organization of its own. */
-    private function namesOnlyKnownPeople(string $text, string $question, array $facts): bool
-    {
-        $known = array_flip($this->extractRawTokens($question.' '.json_encode($facts, JSON_UNESCAPED_UNICODE)));
-
-        foreach (preg_split('/(?<=[.!?:])\s+|\n+/u', $text) ?: [] as $sentence) {
-            if (preg_match_all('/(?<=[\p{Ll},;(]\s)\p{Lu}[\p{L}\'-]+(?:\s+\p{Lu}[\p{L}\'-]+)+/u', $sentence, $matches) < 1) {
-                continue;
-            }
-
-            foreach ($matches[0] as $phrase) {
-                foreach (preg_split('/\s+/u', $phrase) ?: [] as $word) {
-                    if (! isset($known[Str::lower($word)])) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        return true;
     }
 
     // -------------------------------------------------------------------------

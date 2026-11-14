@@ -3,6 +3,8 @@ import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Tooltip } from '../../../components/ui';
 import AiMarkdown from '../../../components/ai/AiMarkdown';
 import AnswerBlocks from '../../../components/ai/AnswerBlocks';
+import ActionCard from '../../../components/ai/ActionCard';
+import { actionCopyText, actionOf } from '../../../components/ai/actionState';
 import answerText from '../../../components/ai/answerText';
 import ReasoningDisclosure from '../../../components/ai/ReasoningDisclosure';
 
@@ -77,6 +79,8 @@ export default function ChatMessage({
   onRegenerate,
   onFeedback,
   onAsk,
+  actionLive = true,
+  onActionChange,
 }) {
   const streaming = Boolean(message.streaming);
   const seconds = useElapsedSeconds(streaming);
@@ -93,6 +97,8 @@ export default function ChatMessage({
   }
 
   const payload = message.payload || null;
+  const action = actionOf(message);
+  const resultShown = action?.status === 'done' && Boolean(action.result?.message);
   const stopped = message.status === 'stopped';
   const failed = message.status === 'failed';
   const stored = typeof message.id === 'number' || (typeof message.id === 'string' && message.id !== '');
@@ -105,19 +111,22 @@ export default function ChatMessage({
       {(streaming || reasoning) && (
         <ReasoningDisclosure reasoning={reasoning} live={streaming} seconds={streaming ? seconds : reasoning?.seconds} />
       )}
-      {message.content && (
+      {message.content && !resultShown && (
         <div ref={proseRef}>
           <AiMarkdown content={message.content} streaming={streaming} className="mt-2" />
         </div>
       )}
       {!streaming && payload && <AnswerBlocks payload={payload} onAsk={onAsk} disabled={busy} />}
+      {!streaming && action && stored && (
+        <ActionCard message={message} action={action} live={actionLive} onChange={onActionChange} />
+      )}
       {payload?.notice && <p className="mt-2 text-xs font-medium text-ink-muted-strong">{payload.notice}</p>}
       {stopped && <p className="mt-2 text-xs font-medium text-ink-muted-strong">You stopped this answer.</p>}
       {failed && <p className="mt-2 text-xs font-medium text-danger-strong">This answer did not finish.</p>}
       {!streaming && (
         <div className="-ml-2.5 mt-2 flex flex-wrap items-center gap-0.5">
-          {message.content && <CopyAction getText={() => answerText(proseRef.current) || message.content} />}
-          {isLast && onRegenerate && (
+          {message.content && <CopyAction getText={() => (action ? actionCopyText(message) : answerText(proseRef.current) || message.content)} />}
+          {isLast && onRegenerate && !action && (
             <ActionButton icon={RefreshCw} onClick={onRegenerate} disabled={busy}>
               Regenerate
             </ActionButton>

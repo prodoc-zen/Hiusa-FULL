@@ -13,6 +13,7 @@ import {
   sendAiMessageFeedback,
   streamAiChat,
 } from '../../../services/askAiService';
+import { actionOf, liveActionId } from '../../../components/ai/actionState';
 import ChatComposer from './ChatComposer';
 import ChatMessage from './ChatMessage';
 import ConversationList from './ConversationList';
@@ -85,6 +86,22 @@ function briefingTitle(title) {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+const ACTION_EXAMPLES = {
+  SUPER_ADMIN: ['Draft an announcement about enrollment week', 'Create an event for the organizations meeting'],
+  DEPARTMENT_HEAD: ['Create an event for Friday at 3 pm', 'Draft an announcement about the general assembly'],
+  ADMIN: ['Draft an announcement about the general assembly', 'Create an event for Friday at 3 pm'],
+  SBO_OFFICER: ['Create an event for Friday at 3 pm', 'Draft an announcement about the general assembly'],
+  STUDENT: ['Create a task to bring my ID on Monday', 'Draft a message to my organization officers'],
+};
+
+function storedRole() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    return '';
+  }
+}
+
 function NewConversation({ overview, loading, error, onRetry, onAsk }) {
   if (loading) {
     return (
@@ -109,6 +126,7 @@ function NewConversation({ overview, loading, error, onRetry, onAsk }) {
     ? overview.starter_prompts
     : (overview?.suggested_questions || []);
   const firstName = overview?.user_first_name;
+  const examples = ACTION_EXAMPLES[storedRole()];
 
   return (
     <div className="space-y-5 pt-4 sm:pt-8">
@@ -157,6 +175,12 @@ function NewConversation({ overview, loading, error, onRetry, onAsk }) {
             </button>
           ))}
         </div>
+      )}
+
+      {examples && (
+        <p className="text-sm font-medium text-ink-muted-strong">
+          You can also ask me to do things, such as &ldquo;{examples[0]}&rdquo; or &ldquo;{examples[1]}&rdquo;.
+        </p>
       )}
     </div>
   );
@@ -218,6 +242,7 @@ export default function AskAiPage() {
   const prevCParamRef = useRef(cParam);
   const atBottomRef = useRef(true);
   const handledQueryRef = useRef('');
+  const typedIdsRef = useRef(new Set());
 
   const loadOverview = useCallback(async () => {
     setOverviewLoading(true);
@@ -291,7 +316,7 @@ export default function AskAiPage() {
     atBottomRef.current = true;
   }, [cancelRun]);
 
-  const send = useCallback(async (rawText, { topic = null, regenerate = false } = {}) => {
+  const send = useCallback(async (rawText, { topic = null, regenerate = false, source = 'link' } = {}) => {
     if (sendingRef.current || loadingRef.current) return false;
     const text = (rawText ?? '').trim();
     if (!regenerate && (!text || text.length > 2000)) return false;
@@ -341,6 +366,7 @@ export default function AskAiPage() {
           updateParams((params) => params.set('c', String(data.conversation.id)));
         }
         if (data.user_message) {
+          if (source === 'typed' && data.user_message.id != null) typedIdsRef.current.add(data.user_message.id);
           setMessages((list) => list.map((m) => (m.key === userKey ? withKey(data.user_message) : m)));
         }
       } else if (name === 'status') {
@@ -362,6 +388,7 @@ export default function AskAiPage() {
         message: regenerate ? undefined : text,
         topic,
         regenerate,
+        source,
         signal: controller.signal,
         onEvent,
       });
@@ -383,7 +410,7 @@ export default function AskAiPage() {
           if (m.key !== answerKey) return [m];
           return m.content ? [{ ...m, streaming: false, status: 'failed' }] : [];
         }));
-        setSendError({ message: failureMessage(err), text, topic, regenerate: regenerate || metaReceived });
+        setSendError({ message: failureMessage(err), text, topic, source, regenerate: regenerate || metaReceived });
       }
     } finally {
       if (current()) {
@@ -394,7 +421,7 @@ export default function AskAiPage() {
       }
     }
     if (gone) {
-      if (!regenerate) sendRef.current(text, { topic });
+      if (!regenerate) sendRef.current(text, { topic, source });
       setNotice('That conversation is no longer available, so this is a new one.');
     }
     return true;
@@ -408,20 +435,23 @@ export default function AskAiPage() {
 
   const retry = useCallback(() => {
     if (!sendError || sendingRef.current) return;
-    const { text, topic, regenerate } = sendError;
+    const { text, topic, regenerate, source } = sendError;
     if (!regenerate) {
       setMessages((list) => (list.at(-1)?.role === 'user' ? list.slice(0, -1) : list));
     }
-    send(text, { topic, regenerate });
+    send(text, { topic, regenerate, source });
   }, [send, sendError]);
 
-  const regenerate = useCallback(() => send('', { regenerate: true }), [send]);
+  const regenerate = useCallback(() => {
+    const asked = messages.findLast((m) => m.role === 'user');
+    send('', { regenerate: true, source: asked && typedIdsRef.current.has(asked.id) ? 'typed' : 'link' });
+  }, [send, messages]);
 
   const ask = useCallback((first, second) => {
     const question = typeof first === 'object' ? first?.question : first;
     const topic = typeof first === 'object' ? first?.topic : second;
     if (!question) return;
-    send(question, { topic: topic || null });
+    send(question, { topic: topic || null, source: 'link' });
   }, [send]);
 
   const openConversation = useCallback(async (id) => {
@@ -484,7 +514,7 @@ export default function AskAiPage() {
       params.delete('q');
       params.delete('topic');
     });
-    send(question.slice(0, 2000), { topic: topicParam || null });
+    send(question.slice(0, 2000), { topic: topicParam || null, source: 'link' });
   }, [qParam, topicParam, cParam, send, updateParams]);
 
   const newChat = useCallback(() => {
@@ -589,10 +619,15 @@ export default function AskAiPage() {
 
   const sendFromComposer = (text) => {
     if (sendingRef.current || loadingRef.current) return false;
-    send(text);
+    send(text, { source: 'typed' });
     return true;
   };
 
+  const replaceMessage = useCallback((next) => {
+    setMessages((list) => list.map((m) => (m.id === next.id && m.role === 'assistant' ? { ...next, key: m.key } : m)));
+  }, []);
+
+  const liveActionMessageId = liveActionId(messages);
   const lastIndex = messages.length - 1;
   const isNew = messages.length === 0 && !convLoading && !convError;
 
@@ -642,6 +677,8 @@ export default function AskAiPage() {
                     onRegenerate={activeId && !streaming ? regenerate : undefined}
                     onFeedback={giveFeedback}
                     onAsk={ask}
+                    actionLive={!actionOf(message) || message.id === liveActionMessageId}
+                    onActionChange={replaceMessage}
                   />
                 ))}
               </div>
