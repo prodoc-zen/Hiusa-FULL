@@ -15,7 +15,9 @@ use App\Services\TaskDelegationService;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Facade;
 
 /**
@@ -33,6 +35,10 @@ class AskAiActions
     private const MODEL_OPTION_LIMIT = 25;
 
     private const STUDENT_OPTION_LIMIT = 300;
+
+    private const STUDENT_SCAN_PAGE = 500;
+
+    private const STUDENT_SCAN_PAGES = 20;
 
     private const QUESTION_STARTS = ['how', 'what', 'where', 'why', 'when', 'who', 'which', 'paano', 'saan', 'ano', 'bakit', 'kailan', 'sino'];
 
@@ -280,7 +286,10 @@ class AskAiActions
             'nouns' => ['organization', 'organizations', 'organisation', 'org', 'orgs', 'club', 'society'],
             'also' => ['new', 'start', 'register', 'establish', 'found', 'form', 'create', 'apply', 'applicant', 'another', 'allow'],
             'fields' => [
-                $this->field('school_id', 'Student', 'select', true, null, 'A student of your college who is not already in a student organization.', fn (User $user, string $message): array => $this->applicantOptions($user, $message), ['model' => false]),
+                $this->field('school_id', 'Student', 'select', true, null, 'A student of your college who is not already in a student organization.', fn (User $user, string $message, array $values): array => $this->applicantOptions($user, $message, $values), [
+                    'model' => false,
+                    'check' => fn (User $user, string $value): bool => $this->applicantEligible($user, $value),
+                ]),
             ],
             'route' => ['POST', '/api/college/applicant-grants'],
             'body' => fn (array $v): array => ['school_id' => (int) $v['school_id']],
@@ -347,38 +356,56 @@ class AskAiActions
             ->all();
     }
 
-    /** @return array<int, array{value: string, label: string}> */
-    private function applicantOptions(User $dean, string $message): array
+    /**
+     * The students this dean may allow, those the message names first. The limit is applied after the same rule the
+     * route applies (not in a student organization, no open permission), so a college with many members still lists
+     * the students who can be picked. A student already chosen on the card stays listed while that choice stands.
+     *
+     * @param  array<string, mixed>  $values
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function applicantOptions(User $dean, string $message, array $values = []): array
     {
-        $home = Organization::whereKey($dean->organization_id)->first(['id', 'organization_type', 'college_id']);
-        if (! $home || $home->organization_type !== 'COLLEGE' || ! $home->college_id) {
+        $collegeId = $this->deanCollegeId($dean);
+        if ($collegeId === null) {
             return [];
         }
 
-        $collegeId = $home->college_id;
-        $students = fn () => User::query()->where('account_status', 'active')->whereIn('school_id', AccountProfile::query()
-            ->select('user_school_id')->where('role', 'STUDENT')->where('account_status', 'active')
-            ->whereIn('organization_id', Organization::query()->select('id')->where('college_id', $collegeId)));
+        $columns = ['school_id', 'first_name', 'last_name'];
+        $open = OrganizationApplicantGrant::open()->where('college_id', $collegeId)->pluck('user_school_id')->map(fn ($id) => (int) $id)->all();
+        $eligible = function (Collection $students) use ($open): Collection {
+            $blocked = OrganizationApplicantGrant::blockingOrganizations($students->pluck('school_id')->map(fn ($id) => (int) $id)->all());
+
+            return $students->reject(fn (User $student) => isset($blocked[(int) $student->school_id]) || in_array((int) $student->school_id, $open, true));
+        };
 
         $named = array_values(array_filter(array_unique(array_map(
             fn (string $word) => mb_strtolower($word),
             preg_split('/[^\p{L}\p{N}]+/u', $message, -1, PREG_SPLIT_NO_EMPTY) ?: [],
         )), fn (string $word) => mb_strlen($word) >= 3 && ! in_array($word, self::NAME_STOPWORDS, true)));
 
-        $matches = $named === [] ? collect() : $students()->where(function ($query) use ($named): void {
+        $listed = $named === [] ? collect() : $eligible($this->collegeStudents($collegeId)->where(function ($query) use ($named): void {
             foreach (array_slice($named, 0, 12) as $word) {
                 $query->orWhereRaw('LOWER(first_name) = ?', [$word])->orWhereRaw('LOWER(last_name) = ?', [$word]);
             }
-        })->orderBy('last_name')->orderBy('first_name')->limit(50)->get(['school_id', 'first_name', 'last_name']);
+        })->orderBy('last_name')->orderBy('first_name')->limit(50)->get($columns));
 
-        $listed = $matches->concat($students()->orderBy('last_name')->orderBy('first_name')->limit(self::STUDENT_OPTION_LIMIT)->get(['school_id', 'first_name', 'last_name']))
-            ->unique('school_id')->values();
+        $rest = collect();
+        for ($page = 1; $page <= self::STUDENT_SCAN_PAGES && $rest->count() < self::STUDENT_OPTION_LIMIT; $page++) {
+            $batch = $this->collegeStudents($collegeId)->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')->forPage($page, self::STUDENT_SCAN_PAGE)->get($columns);
+            if ($batch->isEmpty()) {
+                break;
+            }
+            $rest = $rest->concat($eligible($batch));
+        }
 
-        $blocked = OrganizationApplicantGrant::blockingOrganizations($listed->pluck('school_id')->map(fn ($id) => (int) $id)->all());
-        $open = OrganizationApplicantGrant::open()->where('college_id', $collegeId)->pluck('user_school_id')->map(fn ($id) => (int) $id)->all();
+        $chosen = (string) ($values['school_id'] ?? '');
+        $picked = $chosen !== '' && $this->applicantEligible($dean, $chosen)
+            ? $this->collegeStudents($collegeId)->where('school_id', (int) $chosen)->get($columns)
+            : collect();
 
-        return $listed
-            ->reject(fn (User $student) => isset($blocked[(int) $student->school_id]) || in_array((int) $student->school_id, $open, true))
+        return $picked->concat($listed)->concat($rest->take(self::STUDENT_OPTION_LIMIT))
+            ->unique('school_id')
             ->map(fn (User $student) => [
                 'value' => (string) $student->school_id,
                 'label' => trim("{$student->first_name} {$student->last_name}")." ({$student->school_id})",
@@ -386,6 +413,36 @@ class AskAiActions
             ])
             ->values()
             ->all();
+    }
+
+    /** The one student's eligibility, by the route's own rule: of this college, active, in no student organization, no open permission. */
+    private function applicantEligible(User $dean, string $schoolId): bool
+    {
+        $collegeId = $this->deanCollegeId($dean);
+        if ($collegeId === null || preg_match('/^\d{1,8}$/', $schoolId) !== 1) {
+            return false;
+        }
+
+        $id = (int) $schoolId;
+
+        return $this->collegeStudents($collegeId)->where('school_id', $id)->exists()
+            && OrganizationApplicantGrant::blockingOrganizations([$id]) === []
+            && ! OrganizationApplicantGrant::open()->where('college_id', $collegeId)->where('user_school_id', $id)->exists();
+    }
+
+    private function deanCollegeId(User $dean): ?int
+    {
+        $home = Organization::whereKey($dean->organization_id)->first(['id', 'organization_type', 'college_id']);
+
+        return $home && $home->organization_type === 'COLLEGE' && $home->college_id ? (int) $home->college_id : null;
+    }
+
+    /** Active accounts holding an active student profile anywhere in the college. */
+    private function collegeStudents(int $collegeId): Builder
+    {
+        return User::query()->where('account_status', 'active')->whereIn('school_id', AccountProfile::query()
+            ->select('user_school_id')->where('role', 'STUDENT')->where('account_status', 'active')
+            ->whereIn('organization_id', Organization::query()->select('id')->where('college_id', $collegeId)));
     }
 
     // -------------------------------------------------------------------------
@@ -551,7 +608,7 @@ class AskAiActions
     public function presentFields(array $definition, User $user, array $values, string $message = ''): array
     {
         return array_map(function (array $field) use ($user, $values, $message): array {
-            $options = $this->optionsOf($field, $user, $message);
+            $options = $this->optionsOf($field, $user, $message, $values);
 
             return [
                 'name' => $field['name'],
@@ -566,9 +623,21 @@ class AskAiActions
         }, $definition['fields']);
     }
 
-    private function optionsOf(array $field, User $user, string $message = ''): ?array
+    private function optionsOf(array $field, User $user, string $message = '', array $values = []): ?array
     {
-        return $field['options'] === null ? null : ($field['options'])($user, $message);
+        return $field['options'] === null ? null : ($field['options'])($user, $message, $values);
+    }
+
+    /** A field with its own check accepts exactly the value that passes it; the listed options may be only part of the choices. */
+    private function acceptedOptions(array $field, User $user, mixed $submitted): ?array
+    {
+        if (! isset($field['check'])) {
+            return $this->optionsOf($field, $user);
+        }
+
+        $value = is_scalar($submitted) && ! is_bool($submitted) ? trim((string) $submitted) : '';
+
+        return $value !== '' && ($field['check'])($user, $value) ? [['value' => $value, 'label' => $value]] : [];
     }
 
     /** @return array{array<string, mixed>, bool} the understood values and whether a model read the message */
@@ -820,7 +889,7 @@ class AskAiActions
         $errors = [];
         foreach ($definition['fields'] as $field) {
             $name = $field['name'];
-            $clean = $this->clean($field, $submitted[$name] ?? null, $this->optionsOf($field, $user));
+            $clean = $this->clean($field, $submitted[$name] ?? null, $this->acceptedOptions($field, $user, $submitted[$name] ?? null));
             $values[$name] = $clean['ok'] ? $clean['value'] : (is_scalar($submitted[$name] ?? null) ? (string) $submitted[$name] : null);
 
             if (! $clean['ok']) {
