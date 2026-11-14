@@ -94,8 +94,16 @@ class ProcessStatusService
     private function sao(): array
     {
         $colleges = College::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+        // The university-wide steps come first, in the order they unlock each other: nothing else works without a current year, an active semester and colleges.
+        $currentYear = DB::table('academic_years')->where('is_current', true)->first(['id']);
+        $calendar = [
+            ['key' => 'academic-year', 'label' => 'Academic year set', 'done' => $currentYear !== null, 'action' => ['Set the academic year', '/dashboard/super-admin/academic-years']],
+            ['key' => 'semester', 'label' => 'Semesters added', 'done' => $currentYear !== null && DB::table('academic_semesters')->where('academic_year_id', $currentYear->id)->exists(), 'action' => ['Add the semesters', '/dashboard/super-admin/academic-years']],
+            ['key' => 'semester-active', 'label' => 'Semester activated', 'done' => DB::table('academic_semesters')->where('status', 'active')->exists(), 'action' => ['Activate a semester', '/dashboard/super-admin/academic-years']],
+            ['key' => 'colleges-added', 'label' => 'Colleges added', 'done' => $colleges->isNotEmpty(), 'action' => ['Add the colleges', '/dashboard/super-admin/colleges']],
+        ];
         if ($colleges->isEmpty()) {
-            return $this->none();
+            return $this->finish('SUPER_ADMIN', 'Setting up HIUSA', $calendar);
         }
 
         $invited = DB::table('department_head_invitations')->where('role', 'DEPARTMENT_HEAD')->groupBy('college_id')
@@ -133,6 +141,10 @@ class ProcessStatusService
         $aggregate = [];
         foreach ($rows->first()['definitions'] as $index => $definition) {
             $finished = $rows->filter(fn (array $row) => $row['definitions'][$index]['done'])->count();
+            // Requirements are published once for the whole university, after the records and before organizations can apply.
+            if ($definition['key'] === 'organizations-applying') {
+                $aggregate[] = ['key' => 'requirements-published', 'label' => 'Requirements published', 'done' => ComplianceRequirementType::query()->exists(), 'action' => ['Publish the requirements', '/dashboard/super-admin/compliance']];
+            }
             $aggregate[] = [
                 'key' => $definition['key'],
                 'label' => $definition['label'],
@@ -142,7 +154,7 @@ class ProcessStatusService
                 'action' => $definition['action'],
             ];
         }
-        $summary = $this->finish('SUPER_ADMIN', 'Setting up the colleges', $aggregate);
+        $summary = $this->finish('SUPER_ADMIN', 'Setting up HIUSA', [...$calendar, ...$aggregate]);
         $summary['colleges'] = $rows->map(fn (array $row) => [
             'id' => $row['college']->id,
             'name' => $row['college']->name,
