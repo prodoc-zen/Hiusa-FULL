@@ -14,8 +14,10 @@ use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -223,7 +225,7 @@ class FinanceAiAuditFixesTest extends TestCase
     public function test_the_php_advice_rules_match_the_live_python_engine(array $payload): void
     {
         config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
-        Http::allowStrayRequests();
+        Http::swap(new Factory);
         $live = app(HiusaAiService::class)->budgetAdvice($payload);
 
         if ($live === null) {
@@ -281,7 +283,7 @@ class FinanceAiAuditFixesTest extends TestCase
             ->assertJsonPath('data.0.organization.acronym', $this->admin->organization->acronym);
     }
 
-    private function generateReport(): \Illuminate\Testing\TestResponse
+    private function generateReport(): TestResponse
     {
         return $this->postJson('/api/financial-reports/generate', [
             'report_type' => 'monthly',

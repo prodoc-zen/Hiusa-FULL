@@ -118,6 +118,7 @@ const PAGE_META = {
   '/dashboard/finance/transaction-history': { title: 'Financial reports', purpose: 'Build financial reports and review the saved ones with their transaction history.', group: 'Finance', byRole: FINANCE_VIEW_ONLY },
   '/dashboard/finance/financial-insights': { title: 'Forecast', purpose: 'Review financial forecasts and trends.', group: 'Finance', byRole: FINANCE_VIEW_ONLY },
   '/dashboard/finance/personal-receipts': { title: 'My receipts', purpose: 'View and print your payment receipts.', byRole: { ...MY_ACTIVITY, STUDENT: { title: 'Receipts', group: 'My payments' } } },
+  '/dashboard/finance/where-fees-go': { title: 'Where your fees go', purpose: 'See how your organization used the money, from reports the SAO approved.', group: 'My payments' },
   '/dashboard/finance/statement-of-account': { title: 'Statement of account', purpose: 'Review your account and financial clearance.', byRole: { ...MY_ACTIVITY, STUDENT: { group: 'My payments' } } },
 
   '/dashboard/events': { title: 'Events', purpose: 'Plan activities and review event records.', group: 'Events and tasks' },

@@ -32,7 +32,7 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
         $first = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'completed']);
         AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31', 'status' => 'active']);
         foreach (['2026-09-01' => 'First Allocation', '2027-02-01' => 'Second Allocation'] as $createdOn => $title) {
-            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved', 'advice_generated_at' => now()]);
             $budget->forceFill(['created_at' => "{$createdOn} 08:00:00"])->save();
         }
         Sanctum::actingAs($admin);

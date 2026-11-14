@@ -33,9 +33,9 @@ export default function FinancialForecastChart({ forecasts, className = 'mt-5' }
         <title>Financial forecast line graph</title>
         {[0, .25, .5, .75, 1].map((step) => { const value = max - range * step; const lineY = y(value); return <g key={step}><line x1={pad.left} x2={width - pad.right} y1={lineY} y2={lineY} stroke={GRID_LINE_SOFT} /><text x={pad.left - 8} y={lineY + 4} textAnchor="end" className="fill-ink-soft text-xs">{formatMoney(value)}</text></g>; })}
         {series.map((item) => <path key={item.key} d={path(item.key)} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />)}
-        {points.map((point, index) => <g key={point.label || index}>{series.map((item) => <circle key={item.key} cx={x(index)} cy={y(point[item.key])} r="4" fill={item.color}><title>{`${point.label}: ${item.label} ${formatMoney(point[item.key])}`}</title></circle>)}<text x={x(index)} y={height - 16} textAnchor="middle" className="fill-ink-muted text-xs">{point.label}</text></g>)}
+        {points.map((point, index) => <g key={`${point.label}-${index}`}>{series.map((item) => <circle key={item.key} cx={x(index)} cy={y(point[item.key])} r="4" fill={item.color}><title>{`${point.label}: ${item.label} ${formatMoney(point[item.key])}`}</title></circle>)}<text x={x(index)} y={height - 16} textAnchor="middle" className="fill-ink-muted text-xs">{point.label}</text></g>)}
       </svg>
-      <div className="sr-only"><table><caption>Financial forecast data</caption><thead><tr><th>Period</th><th>Income</th><th>Expenses</th><th>Balance</th></tr></thead><tbody>{points.map((point) => <tr key={point.label}><td>{point.label}</td><td>{formatMoney(point.income)}</td><td>{formatMoney(point.expense)}</td><td>{formatMoney(point.balance)}</td></tr>)}</tbody></table></div>
+      <div className="sr-only"><table><caption>Financial forecast data</caption><thead><tr><th>Period</th><th>Income</th><th>Expenses</th><th>Balance</th></tr></thead><tbody>{points.map((point, index) => <tr key={`${point.label}-${index}`}><td>{point.label}</td><td>{formatMoney(point.income)}</td><td>{formatMoney(point.expense)}</td><td>{formatMoney(point.balance)}</td></tr>)}</tbody></table></div>
     </div>
   );
 }

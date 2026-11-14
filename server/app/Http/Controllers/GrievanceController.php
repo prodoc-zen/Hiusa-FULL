@@ -64,6 +64,8 @@ class GrievanceController extends Controller
             'category' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:100'])],
             'addressed_to' => ['nullable', FilterValues::rule(['nullable', 'in:organization,sao'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'sort' => ['nullable', 'in:created_at,urgency'],
+            'direction' => ['nullable', 'in:asc,desc'],
         ]);
 
         $query = Grievance::with(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']);
@@ -83,7 +85,14 @@ class GrievanceController extends Controller
                 }
             });
 
-        $grievances = $query->orderByDesc('created_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
+        $byUrgency = ($filters['sort'] ?? 'created_at') === 'urgency';
+        $direction = $filters['direction'] ?? ($byUrgency ? 'asc' : 'desc');
+        if ($byUrgency) {
+            $query->orderByRaw("CASE urgency WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END {$direction}")->orderByDesc('created_at');
+        } else {
+            $query->orderBy('created_at', $direction);
+        }
+        $grievances = $query->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
         $grievances->getCollection()->transform(fn (Grievance $grievance) => $this->redact($grievance, $request->user()->role));
 
         return response()->json($grievances);
@@ -171,7 +180,7 @@ class GrievanceController extends Controller
                     'user_id' => $admin->user_school_id,
                     'notification_type' => 'general',
                     'title' => 'New grievance filed against your organization',
-                    'message' => "A grievance was filed (\"{$grievance->category}\"). The filer's identity is confidential.",
+                    'message' => "A grievance was filed (\"{$grievance->category}\"). ".($grievance->is_anonymous ? 'The student chose to stay anonymous to your organization.' : "The student's name is shown on the grievance."),
                     'reference_type' => 'grievance',
                     'reference_id' => $grievance->id,
                     'is_read' => false,
@@ -241,6 +250,41 @@ class GrievanceController extends Controller
         return response()->json($this->redact($grievance->fresh(), $request->user()->role));
     }
 
+    public function updateClassification(Request $request, Grievance $grievance)
+    {
+        $data = $request->validate([
+            'urgency' => ['required', 'in:Low,Medium,High,Critical'],
+            'category' => ['required', 'in:'.implode(',', [...array_keys(self::CATEGORY_KEYWORDS), 'General'])],
+        ]);
+
+        $before = ['urgency' => $grievance->urgency, 'category' => $grievance->category];
+        $grievance->update([
+            'urgency' => $data['urgency'],
+            'category' => $data['category'],
+            'machine_urgency' => $grievance->machine_urgency ?? $before['urgency'],
+            'machine_category' => $grievance->machine_category ?? $before['category'],
+            'classification_engine' => 'reviewer',
+            'classification_corrected_by' => $request->user()->school_id,
+            'classification_corrected_at' => now(),
+        ]);
+
+        AuditLog::create([
+            'organization_id' => $grievance->organization_id ?? $request->user()->organization_id,
+            'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role,
+            'module' => 'grievances',
+            'action' => 'grievance_classification_corrected',
+            'record_type' => Grievance::class,
+            'record_id' => $grievance->id,
+            'old_values' => $before,
+            'new_values' => $data,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json($this->redact($grievance->fresh(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']), $request->user()->role));
+    }
+
     public function destroy(Request $request, Grievance $grievance)
     {
         $student = $request->user()->role === 'STUDENT';
@@ -295,6 +339,9 @@ class GrievanceController extends Controller
     {
         if ($viewerRole === 'ADMIN' && $grievance->is_anonymous) {
             $grievance->makeHidden(['submitted_by', 'submitter']);
+        }
+        if ($viewerRole !== 'SUPER_ADMIN') {
+            $grievance->makeHidden(['classification_corrected_by']);
         }
 
         return $grievance;

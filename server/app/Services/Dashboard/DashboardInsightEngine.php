@@ -122,7 +122,11 @@ class DashboardInsightEngine
         return [
             'engine' => 'financial_forecast',
             'title' => $title,
-            'body' => (string) ($forecast->confidence_note ?? "The {$period} forecast shows no sign of overspending."),
+            'body' => (string) ($forecast->confidence_note ?? match ($risk) {
+                'overspending' => "Spending is forecast to run ahead of income in {$period}.",
+                'deficit' => "Spending is forecast to exceed income in {$period}.",
+                default => "Income is forecast to cover spending in {$period}.",
+            }),
             'why' => [
                 'method' => 'Ordinary least squares trend fit over monthly income and expense history (FinancialForecastController::generate)',
                 'inputs' => array_filter($inputs, fn ($value) => $value !== null),

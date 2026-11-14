@@ -144,8 +144,8 @@ class ClaudeEndpointsTest extends TestCase
         $text = 'Spending risk is high, so keep new commitments under the safe spending limit.';
         $this->arrange($mode, fn () => $text, fn () => $text);
         $admin = $this->admin();
-        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
-        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900]);
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now('Asia/Manila')->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900, 'model_details' => ['engine' => 'php-fallback']]);
         Sanctum::actingAs($admin);
 
         $response = $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk();
@@ -319,7 +319,7 @@ class ClaudeEndpointsTest extends TestCase
     {
         $this->arrange('claude', fn () => 'The safe spending limit is PHP 987,654.00 this month.');
         $admin = $this->admin();
-        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
         Sanctum::actingAs($admin);
 
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk()

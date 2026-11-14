@@ -6,11 +6,13 @@ import SaoGrievancesPage from './SaoGrievancesPage';
 const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
   updateGrievanceStatus: vi.fn(),
+  updateGrievanceClassification: vi.fn(),
 }));
 
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
+  updateGrievanceClassification: mocks.updateGrievanceClassification,
 }));
 
 function envelope(data, total = data.length) {
@@ -41,15 +43,28 @@ describe('SaoGrievancesPage', () => {
     expect(await screen.findByText('Failed to load grievances.')).toBeInTheDocument();
   });
 
-  it('sorts by urgency first by default, most urgent on top', async () => {
+  it('asks the server for most urgent first so the order holds across pages', async () => {
     mocks.getGrievances.mockImplementation((params) => (params?.per_page === 50
-      ? Promise.resolve(envelope([LOW, CRITICAL], 2))
+      ? Promise.resolve(envelope([CRITICAL, LOW], 2))
       : Promise.resolve(envelope([]))));
 
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     const rows = await screen.findAllByRole('row');
-    // rows[0] is the header row; the table body should lead with Critical.
     expect(within(rows[1]).getByText('Critical concern')).toBeTruthy();
+    expect(mocks.getGrievances).toHaveBeenCalledWith(expect.objectContaining({ sort: 'urgency', direction: 'asc', page: 1, per_page: 50 }));
+  });
+
+  it('sends the chosen sort to the server and returns to page one', async () => {
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve({ data: { data: params?.per_page === 50 ? [CRITICAL] : [], current_page: params?.page || 1, last_page: 3, per_page: 50, total: 120 } }));
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    await screen.findAllByText('Critical concern');
+    fireEvent.click(screen.getByRole('button', { name: /next page of grievances/i }));
+    await waitFor(() => expect(mocks.getGrievances).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })));
+    mocks.getGrievances.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Filed' }));
+    await waitFor(() => expect(mocks.getGrievances).toHaveBeenCalledWith(expect.objectContaining({ sort: 'created_at', direction: 'asc', page: 1, per_page: 50 })));
   });
 
   it('shows no badge on default states and one word for a closed grievance', async () => {
@@ -75,6 +90,54 @@ describe('SaoGrievancesPage', () => {
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     expect(await screen.findByRole('button', { name: /submitted.*5/is })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /critical.*2/is })).toBeInTheDocument();
+  });
+
+  it('counts only open Critical grievances in the Critical tile', async () => {
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    await screen.findByText('No grievances to review');
+
+    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: 'submitted,under_review', per_page: 1 });
+  });
+
+  it('refreshes the tiles after a status change', async () => {
+    let submitted = 1;
+    mocks.getGrievances.mockImplementation((params) => {
+      if (params?.per_page === 1 && params.status === 'submitted') return Promise.resolve(envelope([], submitted));
+      return Promise.resolve(envelope(params?.per_page === 50 ? [CRITICAL] : []));
+    });
+    mocks.updateGrievanceStatus.mockImplementation(() => { submitted = 0; return Promise.resolve({ data: { ...CRITICAL, status: 'under_review' } }); });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: /submitted.*1/is })).toBeInTheDocument();
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Move to under review' }));
+
+    expect(await screen.findByRole('button', { name: /submitted.*0/is })).toBeInTheDocument();
+  });
+
+  it('shows the machine reasoning and lets the SAO correct the rating', async () => {
+    const rated = { ...CRITICAL, classification_engine: 'ai-service', classification_reasoning: 'Marked Critical because the text mentions "emergency"; no category words were found, so it is filed under General.' };
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [rated] : [])));
+    mocks.updateGrievanceClassification.mockResolvedValue({ data: { ...rated, urgency: 'Low', category: 'General', classification_engine: 'reviewer', machine_urgency: 'Critical', machine_category: 'Safety & Security' } });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    expect(await screen.findByText('Suggested urgency: Critical')).toBeInTheDocument();
+    expect(screen.getByText('Suggested category: Safety & Security')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Why this classification?' }));
+    expect(screen.getByText(/the text mentions "emergency"/)).toBeInTheDocument();
+
+    const save = screen.getByRole('button', { name: 'Correct classification' });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Urgency'), { target: { value: 'Low' } });
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'General' } });
+    mocks.getGrievances.mockClear();
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.updateGrievanceClassification).toHaveBeenCalledWith(1, { urgency: 'Low', category: 'General' }));
+    expect(await screen.findByText(/Machine rating: Critical urgency, Safety & Security/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Why the machine rated it this way' })).toBeInTheDocument();
+    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: 'submitted,under_review', per_page: 1 });
   });
   it('asks for page one once when a filter changes on a later page', async () => {
     mocks.getGrievances.mockImplementation((params) => Promise.resolve({ data: { data: params?.per_page === 50 ? [CRITICAL] : [], current_page: params?.page || 1, last_page: 3, per_page: 50, total: 120 } }));

@@ -94,7 +94,7 @@ class FinancialSemesterTest extends TestCase
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         foreach (['2026-09-01' => 'First term budget', '2027-02-01' => 'Second term budget'] as $createdOn => $title) {
-            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved', 'advice_generated_at' => now()]);
             $budget->forceFill(['created_at' => "{$createdOn} 08:00:00"])->save();
         }
         Sanctum::actingAs($admin);

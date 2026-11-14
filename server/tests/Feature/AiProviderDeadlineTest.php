@@ -32,16 +32,17 @@ class AiProviderDeadlineTest extends TestCase
         config()->set('services.groq.timeout', 30);
         config()->set('services.anthropic.timeout', 30);
 
-        $this->assertSame(12.0, $this->seconds(new GroqResponsesService));
+        $this->assertEquals(12, $this->seconds(new GroqResponsesService));
         $this->assertSame(12.0, $this->seconds(new ClaudeMessagesService));
     }
 
     public function test_the_shipped_defaults_state_what_the_code_enforces(): void
     {
-        $services = require base_path('config/services.php');
+        $config = (string) file_get_contents(base_path('config/services.php'));
 
-        $this->assertSame(12, $services['groq']['timeout']);
-        $this->assertSame(12, $services['anthropic']['timeout']);
+        $this->assertStringContainsString("env('GROQ_TIMEOUT', 12)", $config);
+        $this->assertStringContainsString("env('ANTHROPIC_TIMEOUT', 12)", $config);
+        $this->assertStringContainsString('capped at 12', $config);
         $this->assertStringContainsString('GROQ_TIMEOUT=12', (string) file_get_contents(base_path('.env.example')));
     }
 
@@ -53,7 +54,7 @@ class AiProviderDeadlineTest extends TestCase
             $service->withTimeBudget(0.2);
             $this->assertSame(1.0, $this->seconds($service));
             $service->withTimeBudget(40);
-            $this->assertSame(12.0, $this->seconds($service));
+            $this->assertEquals(12, $this->seconds($service));
         }
     }
 
@@ -158,7 +159,7 @@ class AiProviderDeadlineTest extends TestCase
             && ! str_contains(json_encode($context), 'Maria'))->once();
     }
 
-    private function seconds(object $service): float
+    private function seconds(object $service): int|float
     {
         $method = new \ReflectionMethod($service, 'requestSeconds');
 

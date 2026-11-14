@@ -626,6 +626,74 @@ describe('EventsPage walkthrough fixes', () => {
       expect(await screen.findByText(/No officer is eligible right now/)).toBeInTheDocument();
     });
 
+    const chained = () => {
+      const response = draft();
+      const [first] = response.data.workflow.tasks;
+      response.data.workflow.tasks = [
+        { ...first, key: 'confirm-plan', title: 'Confirm plan' },
+        { ...first, key: 'announce', title: 'Announce event', depends_on_key: 'confirm-plan' },
+      ];
+      return response;
+    };
+
+    it('clears the dependency of later to-dos when the to-do they waited on is removed', async () => {
+      eventMocks.confirmEventWorkflow.mockResolvedValue({ data: { tasks: [] } });
+      eventMocks.generateEventPlan.mockResolvedValue(chained());
+      renderAt('/dashboard/events/event-planner', 'tasks');
+      await screen.findByRole('option', { name: 'Sports Fest 2024' });
+      fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
+      await screen.findByText('2 suggested to-do items');
+      expect(screen.getByLabelText('Task 2 dependency')).toHaveValue('confirm-plan');
+      fireEvent.click(screen.getByRole('button', { name: 'Delete to-do 1' }));
+
+      expect(screen.getByLabelText('Task 1 dependency')).toHaveValue('');
+      fireEvent.click(screen.getByRole('button', { name: 'Save and assign tasks' }));
+      await waitFor(() => expect(eventMocks.confirmEventWorkflow).toHaveBeenCalled());
+      expect(eventMocks.confirmEventWorkflow.mock.calls[0][2][0].depends_on_key).toBeNull();
+    });
+
+    it('offers the active officer positions for the best officer role', async () => {
+      const response = draft();
+      response.data.allowed_positions = ['Secretary', 'Treasurer'];
+      await openDraft(response);
+      const select = screen.getByLabelText('Task 1 recommended role');
+
+      expect(select.tagName).toBe('SELECT');
+      expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual(['No preferred role', 'Secretary', 'Treasurer']);
+      expect(select).toHaveValue('Secretary');
+    });
+
+    it('says a standard checklist was used and keeps the planning context in the form', async () => {
+      const response = draft();
+      response.data.is_template = true;
+      eventMocks.generateEventPlan.mockResolvedValue(response);
+      renderAt('/dashboard/events/event-planner', 'tasks');
+      await screen.findByRole('option', { name: 'Sports Fest 2024' });
+      fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
+      fireEvent.change(screen.getByLabelText(/^Planning context/), { target: { value: 'Bring the band.' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
+      await screen.findByText('1 suggested to-do item');
+
+      expect(screen.getByText('Standard checklist')).toBeInTheDocument();
+      expect(screen.getByText(/not a plan written for this event/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^Planning context/)).toHaveValue('Bring the band.');
+    });
+
+    it('marks the other pending drafts discarded once one is saved', async () => {
+      eventMocks.confirmEventWorkflow.mockResolvedValue({ data: { tasks: [] } });
+      eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [
+        { id: 501, version: 2, decision_status: 'pending', output_text: 'Plan', structured_output: null },
+        { id: 500, version: 1, decision_status: 'pending', output_text: 'Older', structured_output: { overview: 'Old', tasks: [] } },
+      ] });
+      await openDraft(draft());
+      await screen.findByRole('button', { name: /Draft 1 · Needs review/ });
+      fireEvent.click(screen.getByRole('button', { name: 'Save and assign tasks' }));
+
+      expect(await screen.findByRole('button', { name: /Draft 1 · Removed/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Draft 2 · Tasks created/ })).toBeInTheDocument();
+    });
+
     it('asks in the app dialog before removing a draft, not in the browser', async () => {
       const browserConfirm = vi.spyOn(window, 'confirm');
       eventMocks.discardEventWorkflow.mockResolvedValue({ data: {} });

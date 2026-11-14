@@ -48,6 +48,7 @@ use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
+use App\Http\Controllers\StudentFeeUsageController;
 use App\Http\Controllers\StudentRegistryController;
 use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\SystemUsersController;
@@ -102,6 +103,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/user/notification-preferences', [NotificationController::class, 'preferences'])->middleware('throttle:api-read');
     Route::put('/user/notification-preferences', [NotificationController::class, 'updatePreferences'])->middleware('throttle:api-write');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
+    Route::get('/student/fee-usage', [StudentFeeUsageController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant', [AskAiController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/ask', [AskAiController::class, 'ask'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);

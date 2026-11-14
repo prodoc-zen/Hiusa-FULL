@@ -129,12 +129,24 @@ describe('TasksPage', () => {
       const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
       fireEvent.change(within(dialog).getByLabelText(/Task title/), { target: { value: 'Quarterly records' } });
       fireEvent.change(within(dialog).getByLabelText(/Priority/), { target: { value: 'critical' } });
-      fireEvent.change(within(dialog).getByLabelText(/Deadline/), { target: { value: '2026-11-01' } });
+      fireEvent.change(within(dialog).getByLabelText(/Deadline/), { target: { value: '2026-11-01T17:00' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
 
-      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records', priority: 'critical', deadline: '2026-11-01', task_kind: 'standalone', event_id: null })));
+      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records', priority: 'critical', deadline: '2026-11-01T17:00', task_kind: 'standalone', event_id: null })));
       expect(mocks.updateTask.mock.calls[0][1]).not.toHaveProperty('assigned_to');
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit task' })).not.toBeInTheDocument());
+    });
+
+    it('keeps the stored deadline and its time of day when only the title changes', async () => {
+      mocks.updateTask.mockResolvedValue({ data: { id: 1 } });
+      await renderBoard();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+      fireEvent.change(within(dialog).getByLabelText(/Task title/), { target: { value: 'Quarterly records' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records' })));
+      expect(mocks.updateTask.mock.calls[0][1]).not.toHaveProperty('deadline');
     });
 
     it('shows the server message when the edit is rejected', async () => {
@@ -518,7 +530,7 @@ describe('TasksPage', () => {
       await screen.findAllByText('Stage Task');
       fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
       const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
-      expect(within(dialog).getByLabelText(/Deadline/)).toHaveValue('2026-12-21');
+      expect(within(dialog).getByLabelText(/Deadline/)).toHaveValue('2026-12-21T00:00');
     });
 
     it('lists people who hold tasks in the assignee filter even when they are not active officers', async () => {
