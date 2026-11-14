@@ -435,6 +435,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->withTrashed()->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::patch('/grievances/{grievance}/classification', [GrievanceController::class, 'updateClassification'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
 
     // Digital clearances: SUPER_ADMIN defines a period's required signatory

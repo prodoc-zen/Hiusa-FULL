@@ -428,6 +428,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [workflowAction, setWorkflowAction] = useState(false);
   const [rankingTaskKey, setRankingTaskKey] = useState(null);
   const [workflowHistory, setWorkflowHistory] = useState([]);
+  const [workflowMeta, setWorkflowMeta] = useState({ template: false, positions: [] });
   const [workflowHistoryError, setWorkflowHistoryError] = useState('');
   const [planError, setPlanError] = useState(null);
   const [planSubmitting, setPlanSubmitting] = useState(false);
@@ -915,10 +916,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setPlanResult(res.data?.plan || '');
       setWorkflowDraft(res.data?.workflow || null);
       setWorkflowOutputId(res.data?.ai_output?.id || null);
+      setWorkflowMeta({ template: res.data?.is_template === true, positions: res.data?.allowed_positions || [] });
       getEventWorkflowHistory(planForm.event_id)
         .then((history) => { setWorkflowHistory(history.data || []); setWorkflowHistoryError(''); })
         .catch(() => setWorkflowHistoryError('The previous workflow drafts could not be loaded.'));
-      setPlanForm({ event_id: planForm.event_id, requirements: '' });
     } catch (err) {
       setPlanError(getApiErrorMessage(err, 'We could not create a reliable to-do list. Check the event details and try again.'));
     } finally {
@@ -956,7 +957,28 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   function removeWorkflowTask(index) {
-    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.filter((_, taskIndex) => taskIndex !== index) }));
+    setWorkflowDraft((current) => {
+      const removed = current.tasks[index];
+      const successorKey = removed.depends_on_key || null;
+      return {
+        ...current,
+        tasks: current.tasks
+          .filter((_, taskIndex) => taskIndex !== index)
+          .map((task) => (task.depends_on_key === removed.key ? { ...task, depends_on_key: successorKey } : task)),
+      };
+    });
+  }
+
+  function openWorkflowDraft(output) {
+    setPlanResult(output.output_text || '');
+    if (output.decision_status === 'pending' && output.structured_output) {
+      setWorkflowDraft(output.structured_output);
+      setWorkflowOutputId(output.id);
+      setWorkflowMeta({ template: String(output.context_version || '').includes('template'), positions: output.structured_input?.allowed_positions || [] });
+    } else {
+      setWorkflowDraft(null);
+      setWorkflowOutputId(null);
+    }
   }
 
   function addWorkflowTask() {
@@ -978,7 +1000,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setTasks((current) => [...created, ...current]);
       setWorkflowDraft(null); setWorkflowOutputId(null);
       setPlanResult('Tasks created and assigned. Each officer has received a notification.');
-      setWorkflowHistory((current) => current.map((output) => output.id === workflowOutputId ? { ...output, decision_status: 'accepted' } : output));
+      setWorkflowHistory((current) => current.map((output) => {
+        if (output.id === workflowOutputId) return { ...output, decision_status: 'accepted' };
+        return output.decision_status === 'pending' ? { ...output, decision_status: 'discarded' } : output;
+      }));
       load();
     } catch (requestError) {
       setPlanError(getApiErrorMessage(requestError, 'We could not save and assign these tasks. Review the highlighted details and try again.'));
@@ -1507,7 +1532,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <Field label="Event">
                       <HiusaSelect id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)}>
                         <option value="">Choose an event</option>
-                        {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
+                        {events.filter((event) => event.status !== 'cancelled').map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
                       </HiusaSelect>
                     </Field>
                     {selectedPlanningEvent && <p className="mt-2 text-xs text-ink-muted">{formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
@@ -1531,7 +1556,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <p className="text-sm font-semibold text-ink">Previous drafts</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {workflowHistory.map((output) => (
-                        <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`min-h-11 rounded-control border px-3 text-sm font-medium ${output.id === workflowOutputId ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
+                        <button key={output.id} type="button" onClick={() => openWorkflowDraft(output)} className={`min-h-11 rounded-control border px-3 text-sm font-medium ${output.id === workflowOutputId ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted-strong hover:bg-subtle'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}{String(output.context_version || '').includes('template') ? ' · Standard checklist' : ''}</button>
                       ))}
                     </div>
                   </div>
@@ -1543,8 +1568,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   <div className="mt-6 border-t border-line pt-6">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div><h3 className="text-base font-semibold text-ink">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm text-ink-muted-strong">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
-                      <StatusBadge tone="warning" label="Nothing saved yet" className="w-fit" />
+                      <div className="flex flex-wrap gap-2">{workflowMeta.template && <StatusBadge tone="neutral" label="Standard checklist" className="w-fit" />}<StatusBadge tone="warning" label="Nothing saved yet" className="w-fit" /></div>
                     </div>
+                    {workflowMeta.template && <p className="mt-3 text-sm text-ink-muted-strong">This is a standard checklist built from the event dates, not a plan written for this event. The planning context you entered was not used and is still above, so you can change it and draft again.</p>}
 
                     <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
                       {[
@@ -1580,7 +1606,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                               <Field label="What needs to be done?" optional className="lg:col-span-2"><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></Field>
                               <Field label="When should it happen?"><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)}><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></Field>
                               <Field label="Importance"><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)}>{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></Field>
-                              <Field label="Best officer role" optional><Input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" /></Field>
+                              <Field label="Best officer role" optional><HiusaSelect id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value || null)}><option value="">No preferred role</option>{[...new Set([...workflowMeta.positions, ...(task.recommended_role ? [task.recommended_role] : [])])].map((position) => <option key={position} value={position}>{formatDisplayText(position)}</option>)}</HiusaSelect></Field>
                               <Field label="This can start after" optional><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)}><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></Field>
                               <div className="lg:col-span-2">
                                 <Field label="Assign to" required>

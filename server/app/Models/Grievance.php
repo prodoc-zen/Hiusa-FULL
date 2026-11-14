@@ -21,6 +21,10 @@ class Grievance extends Model
         'classification_confidence',
         'classification_reasoning',
         'classification_engine',
+        'machine_urgency',
+        'machine_category',
+        'classification_corrected_by',
+        'classification_corrected_at',
         'status',
         'remarks',
         'resolved_at',
@@ -32,6 +36,7 @@ class Grievance extends Model
             'is_anonymous' => 'boolean',
             'classification_confidence' => 'float',
             'resolved_at' => 'datetime',
+            'classification_corrected_at' => 'datetime',
         ];
     }
 

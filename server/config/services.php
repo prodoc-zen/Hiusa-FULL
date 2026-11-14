@@ -56,7 +56,9 @@ return [
         'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/responses'),
         'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
         'reasoning_effort' => env('GROQ_REASONING_EFFORT', 'low'),
-        'timeout' => env('GROQ_TIMEOUT', 25),
+        // Seconds for the whole call. GroqResponsesService caps this at 12 because callers run inside a web request,
+        // so a higher value has no effect.
+        'timeout' => env('GROQ_TIMEOUT', 12),
         'connect_timeout' => env('GROQ_CONNECT_TIMEOUT', 5),
         'announcement_daily_limit' => env('ANNOUNCEMENT_AI_DAILY_LIMIT', 20),
     ],
@@ -65,7 +67,8 @@ return [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5-5'),
         'effort' => env('ANTHROPIC_EFFORT', 'low'),
-        // Seconds for the whole call. The SDK enforces no timeout itself, so the HTTP transport carries it.
+        // Seconds for the whole call, capped at 12 in ClaudeMessagesService (a higher value has no effect). The SDK
+        // enforces no timeout itself, so the HTTP transport carries it. ANTHROPIC_CHAT_TIMEOUT below is not capped at 12.
         'timeout' => env('ANTHROPIC_TIMEOUT', 12),
         'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
         // Ask AI conversations stream and think, so they get their own effort and a longer total timeout.
@@ -76,6 +79,8 @@ return [
     'ai' => [
         // anthropic = Claude first, Groq as fallback. groq = Groq only. Blank follows the key: Claude only when a key exists.
         'provider' => env('AI_PROVIDER'),
+        // Seconds a provider is skipped after it timed out or could not connect. 0 turns the cooling-off off.
+        'cooldown_seconds' => env('AI_PROVIDER_COOLDOWN_SECONDS', 60),
     ],
 
     'edp' => [

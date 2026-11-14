@@ -63,14 +63,14 @@ describe('RoleBriefing', () => {
     expect(getBriefing).toHaveBeenCalledTimes(2);
   });
 
-  it('shows the suggestions to an admin but not to a department head', async () => {
+  it('shows the suggestions an admin receives and no section for a department head, whose briefing carries none', async () => {
     const insights = [{ engine: 'budget', title: 'Spending is ahead of plan', detail: 'Two budgets are close to their limit.', severity: 'medium', why: [] }];
     vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { insights }));
     const { unmount } = renderBriefing();
     expect(await screen.findByRole('heading', { name: 'Suggestions from your records' })).toBeInTheDocument();
     unmount();
 
-    vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { insights }));
+    vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { insights: [] }));
     renderBriefing();
     expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Suggestions from your records' })).not.toBeInTheDocument();

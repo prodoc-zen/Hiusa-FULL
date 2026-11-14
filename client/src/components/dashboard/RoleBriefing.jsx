@@ -79,8 +79,6 @@ function BriefingBody({ data, introduction }) {
     actions = ACTIONS[role] || [];
   }
 
-  // Suggestions from the engines stay out of the SAO and dean journeys; both read plain lists of work.
-  const showInsights = role !== 'SUPER_ADMIN' && role !== 'DEPARTMENT_HEAD';
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;
   const attentionTitle = ATTENTION_TITLE[role] || 'Needs attention';
 
@@ -114,7 +112,7 @@ function BriefingBody({ data, introduction }) {
         </summary>
         <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
       </details>}
-      {showInsights && insights.length > 0 && (
+      {insights.length > 0 && (
         <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
           <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-semibold text-ink sm:px-5">Suggestions from your records</h2>
           <PhoneFold label={`Show ${insights.length === 1 ? 'the suggestion' : `${insights.length} suggestions`}`} hideLabel="Hide suggestions">

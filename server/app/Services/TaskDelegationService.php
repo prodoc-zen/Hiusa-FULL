@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\AccountProfile;
 use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class TaskDelegationService
 {
@@ -72,23 +74,17 @@ class TaskDelegationService
         $weights = $this->weights();
         $area = $this->inferArea($taskTitle, $taskType);
 
-        $officers = User::where('users.organization_id', $organizationId)
-            ->where('users.role', 'SBO_OFFICER')
-            ->orderBy('users.school_id')
-            ->get();
-        $activePositions = SboPosition::where('organization_id', $organizationId)
-            ->where('role', 'SBO_OFFICER')
-            ->where('is_active', true)
-            ->pluck('title')
-            ->all();
+        $officers = $this->officerPool($organizationId);
+        $activePositions = $this->activePositionTitles($organizationId);
+        $stats = $this->officerStats($organizationId);
 
         $rankings = [];
         $ineligible = [];
         foreach ($officers as $officer) {
-            $base = Task::where('organization_id', $organizationId)->where('assigned_to', $officer->school_id);
-            $active = (clone $base)->whereIn('status', ['pending', 'in_progress', 'overdue'])->count();
+            $history = $this->statsFor($stats, $officer->school_id);
+            $active = $history['active'];
             $eligibilityResult = match (true) {
-                $officer->account_status !== 'active' => 'inactive_account',
+                ! $this->accountIsActive($officer) => 'inactive_account',
                 trim((string) $officer->position_title) === '' => 'missing_position',
                 ! in_array($officer->position_title, $activePositions, true) => 'inactive_position',
                 $active >= $maxActive => 'overloaded',
@@ -114,13 +110,13 @@ class TaskDelegationService
                 continue;
             }
 
-            $completed = (clone $base)->where('status', 'completed')->count();
-            $overdue = (clone $base)->where('status', 'overdue')->count();
+            $completed = $history['completed'];
+            $overdue = $history['overdue'];
             [$roleScore, $tier] = $this->roleScore($officer->position_title, $area);
             $workloadScore = round(100 * (1 - ($active / $maxActive)), 2);
             $hasHistory = ($completed + $overdue) > 0;
             $performanceScore = $hasHistory ? round($completed / ($completed + $overdue) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
-            $daysSinceAssignment = $this->daysSinceLastAssignment($organizationId, $officer->school_id);
+            $daysSinceAssignment = $this->daysSince($history['last_assigned_at']);
             $recencyScore = $this->recencyScore($daysSinceAssignment);
             $total = round(
                 ($weights['position'] * $roleScore)
@@ -171,12 +167,8 @@ class TaskDelegationService
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $weights,
             'task_area' => $area,
-            'eligibility_rules' => [
-                'required_role' => 'SBO_OFFICER',
-                'required_account_status' => 'active',
-                'requires_active_position' => true,
-                'max_active_tasks' => $maxActive,
-            ],
+            'eligibility_rules' => $this->eligibilityRules($maxActive),
+            'engine' => 'php-service',
             'recommended_officer_id' => $recommended,
             'rankings' => $rankings,
             'evaluations' => [...$rankings, ...$ineligible],
@@ -203,9 +195,91 @@ class TaskDelegationService
     /** Whole days since this officer was last handed a task here; null when never. */
     public function daysSinceLastAssignment(int $organizationId, int $officerId): ?int
     {
-        $last = Task::where('organization_id', $organizationId)->where('assigned_to', $officerId)->max('assigned_at');
+        return $this->daysSince(Task::where('organization_id', $organizationId)->where('assigned_to', $officerId)->max('assigned_at'));
+    }
 
+    public function daysSince(?string $last): ?int
+    {
         return $last === null ? null : (int) floor(Carbon::parse($last)->diffInDays(now(), true));
+    }
+
+    /**
+     * Everyone holding an officer seat in the organization, read the way the rest of the app reads membership: through
+     * the account profile, since an election hand over or an appointment moves the profile and leaves the users row behind.
+     * Each user comes back with that profile active, so role, status and position are the profile's.
+     *
+     * @return Collection<int, User>
+     */
+    public function officerPool(int $organizationId): Collection
+    {
+        return AccountProfile::with(['user', 'organization'])
+            ->where('account_profiles.organization_id', $organizationId)
+            ->where('account_profiles.role', 'SBO_OFFICER')
+            ->orderBy('account_profiles.user_school_id')
+            ->get()
+            ->filter(fn (AccountProfile $profile) => $profile->user !== null)
+            ->map(function (AccountProfile $profile) {
+                $profile->user->activateProfile($profile);
+
+                return $profile->user;
+            })
+            ->values();
+    }
+
+    /** A profile and its account must both be active for the officer to be delegated work. */
+    public function accountIsActive(User $officer): bool
+    {
+        return $officer->account_status === 'active' && $officer->getRawOriginal('account_status') === 'active';
+    }
+
+    /** @return array<int, string> */
+    public function activePositionTitles(int $organizationId): array
+    {
+        return SboPosition::where('organization_id', $organizationId)
+            ->where('role', 'SBO_OFFICER')
+            ->where('is_active', true)
+            ->pluck('title')
+            ->all();
+    }
+
+    /**
+     * Open, completed and overdue counts and the last assignment date for every assignee in one grouped query.
+     *
+     * @return array<int, array{active: int, completed: int, overdue: int, last_assigned_at: ?string}>
+     */
+    public function officerStats(int $organizationId): array
+    {
+        return Task::where('organization_id', $organizationId)
+            ->whereNotNull('assigned_to')
+            ->groupBy('assigned_to')
+            ->selectRaw("assigned_to, SUM(CASE WHEN status IN ('pending', 'in_progress', 'overdue') THEN 1 ELSE 0 END) AS active_count, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_count, SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) AS overdue_count, MAX(assigned_at) AS last_assigned_at")
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->assigned_to => [
+                'active' => (int) $row->active_count,
+                'completed' => (int) $row->completed_count,
+                'overdue' => (int) $row->overdue_count,
+                'last_assigned_at' => $row->last_assigned_at,
+            ]])
+            ->all();
+    }
+
+    /** @return array{active: int, completed: int, overdue: int, last_assigned_at: ?string} */
+    public function statsFor(array $stats, int $officerId): array
+    {
+        return $stats[$officerId] ?? ['active' => 0, 'completed' => 0, 'overdue' => 0, 'last_assigned_at' => null];
+    }
+
+    /** The same rule list ai-service/app/engines/task_delegation.py returns, so every saved delegation reads alike. */
+    public function eligibilityRules(int $maxActiveTasks): array
+    {
+        return [
+            'role must be SBO_OFFICER',
+            'account status must be active',
+            'an SBO position must be assigned',
+            'officer must be marked available',
+            'officer must satisfy organization policy',
+            "active task count must be below {$maxActiveTasks}",
+        ];
     }
 
     /** Officers not handed work recently score higher, spreading delegation over time. */
@@ -225,6 +299,12 @@ class TaskDelegationService
 
     public function inferArea(string $title, ?string $type): string
     {
+        // An area the Admin picked outright is the area; the title is only read when none was given.
+        $chosen = strtolower(trim((string) $type));
+        if (isset(self::POSITION_RELEVANCE_MAP[$chosen])) {
+            return $chosen;
+        }
+
         $haystack = strtolower($title.' '.($type ?? ''));
         foreach (self::POSITION_RELEVANCE_MAP as $area => $spec) {
             foreach ($spec['keywords'] as $keyword) {

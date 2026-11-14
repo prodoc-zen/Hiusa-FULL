@@ -5,16 +5,24 @@ namespace App\Services\Ai;
 use App\Contracts\TextGenerator;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use App\Services\GroqResponsesService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Asks the primary generator first and the secondary only when the primary answers nothing, so a
  * Claude outage, refusal or timeout lands on Groq and, after that, on the caller's own deterministic text.
  * Logs which provider served, never the prompt or the data in it.
+ *
+ * generate() and generateStructured() run inside a web request, so both attempts share one deadline. A provider
+ * that timed out or could not connect is skipped for services.ai.cooldown_seconds; converse() keeps its own longer
+ * timeout but honours the same cooling-off.
  */
 class FallbackTextGenerator implements TextGenerator
 {
     use GuardsGeneratedText;
+
+    // Both attempts together; matches the cap each provider applies to a single call.
+    private const DEADLINE_SECONDS = 12;
 
     public function __construct(
         private readonly TextGenerator $primary,
@@ -27,7 +35,7 @@ class FallbackTextGenerator implements TextGenerator
         int $maxOutputTokens = 400,
         float $temperature = 0.2,
     ): ?array {
-        return $this->serve('generate', fn (TextGenerator $generator) => $generator->generate($instructions, $input, $maxOutputTokens, $temperature));
+        return $this->serve('generate', fn (TextGenerator $generator) => $generator->generate($instructions, $input, $maxOutputTokens, $temperature), true);
     }
 
     public function generateStructured(
@@ -38,7 +46,7 @@ class FallbackTextGenerator implements TextGenerator
         int $maxOutputTokens = 1800,
         float $temperature = 0.2,
     ): ?array {
-        return $this->serve('generateStructured', fn (TextGenerator $generator) => $generator->generateStructured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $temperature));
+        return $this->serve('generateStructured', fn (TextGenerator $generator) => $generator->generateStructured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $temperature), true);
     }
 
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
@@ -64,16 +72,43 @@ class FallbackTextGenerator implements TextGenerator
     /**
      * @param  \Closure(TextGenerator): ?array  $call
      */
-    private function serve(string $operation, \Closure $call): ?array
+    private function serve(string $operation, \Closure $call, bool $bounded = false): ?array
     {
+        $deadline = microtime(true) + self::DEADLINE_SECONDS;
+
         foreach ([[$this->primary, 'primary'], [$this->secondary, 'secondary']] as [$generator, $position]) {
+            $name = $this->providerName($generator);
+
+            if ($this->coolingOff($generator)) {
+                Log::info('AI provider skipped while cooling off.', ['operation' => $operation, 'provider' => $name, 'position' => $position]);
+
+                continue;
+            }
+
+            $budget = null;
+            if ($bounded) {
+                $remaining = $deadline - microtime(true);
+                // The primary may not use the whole deadline, or a hung primary would leave the secondary nothing.
+                $budget = $position === 'primary' ? min($remaining, self::DEADLINE_SECONDS * 2 / 3) : $remaining;
+                if ($budget < 1) {
+                    Log::info('AI provider skipped, the shared deadline is spent.', ['operation' => $operation, 'provider' => $name, 'position' => $position]);
+
+                    continue;
+                }
+            }
+
             $started = microtime(true);
-            $result = $call($generator);
+            $this->timeBudget($generator, $budget);
+            try {
+                $result = $call($generator);
+            } finally {
+                $this->timeBudget($generator, null);
+            }
 
             if ($result !== null) {
                 Log::info('AI text served.', [
                     'operation' => $operation,
-                    'provider' => $this->providerName($generator),
+                    'provider' => $name,
                     'position' => $position,
                     'model' => $result['model'] ?? null,
                     'latency_ms' => (int) round((microtime(true) - $started) * 1000),
@@ -83,9 +118,13 @@ class FallbackTextGenerator implements TextGenerator
                 return $result;
             }
 
+            if ($this->unreachable($generator)) {
+                $this->startCoolingOff($generator);
+            }
+
             Log::info('AI provider gave no answer.', [
                 'operation' => $operation,
-                'provider' => $this->providerName($generator),
+                'provider' => $name,
                 'position' => $position,
                 'latency_ms' => (int) round((microtime(true) - $started) * 1000),
                 'stop_reason' => $generator instanceof ClaudeMessagesService ? $generator->lastStopReason() : null,
@@ -95,6 +134,40 @@ class FallbackTextGenerator implements TextGenerator
         Log::warning('No AI provider answered; the caller will use its deterministic text.', ['operation' => $operation]);
 
         return null;
+    }
+
+    private function timeBudget(TextGenerator $generator, ?float $seconds): void
+    {
+        if ($generator instanceof ClaudeMessagesService || $generator instanceof GroqResponsesService) {
+            $generator->withTimeBudget($seconds);
+        }
+    }
+
+    private function unreachable(TextGenerator $generator): bool
+    {
+        return ($generator instanceof ClaudeMessagesService || $generator instanceof GroqResponsesService) && $generator->lastCallUnreachable();
+    }
+
+    private function cooldownKey(TextGenerator $generator): string
+    {
+        return 'ai:provider-cooldown:'.$this->providerName($generator);
+    }
+
+    private function coolingOff(TextGenerator $generator): bool
+    {
+        return $this->cooldownSeconds() > 0 && Cache::has($this->cooldownKey($generator));
+    }
+
+    private function startCoolingOff(TextGenerator $generator): void
+    {
+        if ($this->cooldownSeconds() > 0) {
+            Cache::put($this->cooldownKey($generator), true, $this->cooldownSeconds());
+        }
+    }
+
+    private function cooldownSeconds(): int
+    {
+        return max(0, (int) config('services.ai.cooldown_seconds', 60));
     }
 
     private function providerName(TextGenerator $generator): string
