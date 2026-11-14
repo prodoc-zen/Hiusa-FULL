@@ -118,7 +118,7 @@ export default function StudentGrievancesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader primary={tab === 'mine' && grievances.length > 0 && <Button onClick={() => setTab('file')}>File a grievance</Button>} />
+      <PageHeader />
 
       <Tabs
         tabs={[
