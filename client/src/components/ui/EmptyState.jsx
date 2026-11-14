@@ -1,6 +1,7 @@
 // Left-aligned, one title, one sentence, at most one action. "none yet" (first-run)
 // and "none match" (filtered) are separate kinds so a filter never reads as an empty system.
-export default function EmptyState({ kind = 'first-run', icon: Icon, title, description, action, query, onClearFilters, className = '' }) {
+// No icon is drawn: an `icon` prop from an older call site is ignored so every empty state looks the same.
+export default function EmptyState({ kind = 'first-run', title, description, action, query, onClearFilters, className = '' }) {
   const isFiltered = kind === 'filtered' || kind === 'none-match';
   const isRestricted = kind === 'restricted';
 
@@ -25,7 +26,6 @@ export default function EmptyState({ kind = 'first-run', icon: Icon, title, desc
 
   return (
     <div className={`flex flex-col items-start gap-2 py-8 ${className}`}>
-      {Icon && <Icon size={24} strokeWidth={1.75} className="text-ink-muted" aria-hidden="true" />}
       <div>
         {heading && <p className="text-sm font-semibold text-ink">{heading}</p>}
         {description && <p className="mt-1 max-w-prose text-sm font-normal text-ink-muted">{description}</p>}

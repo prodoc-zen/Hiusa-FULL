@@ -43,6 +43,7 @@ export default function DashboardLayout() {
   });
   const [registeredHeaders, setRegisteredHeaders] = useState(0);
   const contentRef = useRef(null);
+  const mainRef = useRef(null);
   const location = useLocation();
   const contentHasHeading = useContentHasHeading(contentRef, location.pathname);
 
@@ -105,6 +106,13 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-[100dvh] max-w-full overflow-hidden bg-page font-sans text-ink">
+      <a
+        href="#main-content"
+        onClick={(event) => { event.preventDefault(); mainRef.current?.focus(); }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:inline-flex focus:min-h-[42px] focus:items-center focus:rounded-control focus:bg-brand-700 focus:px-4 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to main content
+      </a>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} desktopCollapsed={desktopCollapsed} onToggleDesktop={toggleDesktopSidebar} />
       <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
         <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
@@ -125,7 +133,7 @@ export default function DashboardLayout() {
             <Button variant="secondary" size="sm" onClick={handleReturnToLive}>Back to current semester</Button>
           </aside>
         )}
-        <main className="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
+        <main ref={mainRef} id="main-content" tabIndex={-1} className="relative min-h-0 focus:outline-none min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
           {defaultHeader}
           <PageHeaderRegistryContext value={registry}>
             <div ref={contentRef}>

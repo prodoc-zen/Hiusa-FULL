@@ -56,7 +56,7 @@ export default function GcashPaymentSettingsPage({ embedded = false, readOnly = 
       </div>
       {!readOnly && <form onSubmit={save} className="flex flex-col justify-center">
         <Field label="Official GCash QR image" hint="PNG, JPG or WEBP, up to 5 MB. Replacing it removes the previous QR image.">
-          <Input id="organization-gcash-qr" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { setFile(event.target.files?.[0] || null); setError(''); }} className="py-1.5" />
+          <Input id="organization-gcash-qr" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { setFile(event.target.files?.[0] || null); setError(''); }} />
         </Field>
         <Button type="submit" disabled={busy} leftIcon={Upload} className="mt-5 w-fit">{busy ? 'Uploading...' : 'Save GCash QR'}</Button>
       </form>}

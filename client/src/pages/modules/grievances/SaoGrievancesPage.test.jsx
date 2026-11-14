@@ -41,6 +41,7 @@ describe('SaoGrievancesPage', () => {
       : Promise.resolve(envelope([]))));
     render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     expect(await screen.findByText('Failed to load grievances.')).toBeInTheDocument();
+    expect(screen.queryByText(/^0 grievances$/)).not.toBeInTheDocument();
   });
 
   it('asks the server for most urgent first so the order holds across pages', async () => {

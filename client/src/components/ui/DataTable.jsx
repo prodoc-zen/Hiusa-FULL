@@ -183,8 +183,8 @@ export default function DataTable({
             .map((column) => ({ column, value: cellValue(column, row) }))
             .filter(({ value }) => value != null && value !== '' && value !== false);
           return (
-            <li key={rowKey(row)} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <div className="min-w-0 flex-1">
+            <li key={rowKey(row)} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 first:pt-0 last:pb-0">
+              <div className="min-w-[11rem] flex-1">
                 <div className="break-words text-sm font-medium text-ink">{cellValue(primary, row)}</div>
                 {secondary.length > 0 && (
                   <dl className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
@@ -197,7 +197,7 @@ export default function DataTable({
                   </dl>
                 )}
               </div>
-              {(actions || actionColumn) && <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-2">{actions ? actions(row) : cellValue(actionColumn, row)}</div>}
+              {(actions || actionColumn) && <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 sm:max-w-[55%]">{actions ? actions(row) : cellValue(actionColumn, row)}</div>}
             </li>
           );
         })}

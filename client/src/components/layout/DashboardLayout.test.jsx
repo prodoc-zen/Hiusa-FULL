@@ -62,6 +62,23 @@ describe('DashboardLayout', () => {
     expect(mountCount).toBe(1);
   });
 
+  it('starts with a skip link that moves focus past the menu to the page content', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<TrackedPage label="Page one" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const skip = screen.getByRole('link', { name: 'Skip to main content' });
+    expect(document.querySelector('a, button')).toBe(skip);
+    fireEvent.click(skip);
+    expect(screen.getByRole('main')).toHaveFocus();
+  });
+
   it('makes the scrolling main the containing block, so a hidden file input cannot stretch the document past the shell', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
