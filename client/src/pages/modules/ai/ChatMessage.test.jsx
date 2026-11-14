@@ -180,6 +180,64 @@ describe('ChatMessage with an action', () => {
   });
 });
 
+describe('ChatMessage cancelled card', () => {
+  const cancelled = (content) => answer({
+    content,
+    payload: {
+      action: {
+        key: 'create_event', title: 'Create an event', status: 'cancelled', submit_label: 'Create event',
+        fields: [], errors: {}, result: null, expires_at: new Date(Date.now() + 600000).toISOString(),
+      },
+    },
+  });
+
+  it('says it was cancelled once when the server already wrote the sentence', () => {
+    renderMessage(cancelled('Cancelled. Nothing was changed.'));
+    expect(screen.getByText('Cancelled. Nothing was changed.')).toBeInTheDocument();
+    expect(screen.queryByText('You cancelled this request.')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/cancelled/i)).toHaveLength(1);
+  });
+
+  it('keeps the card sentence when the text above is the original request', () => {
+    renderMessage(cancelled('Here is the event I can create.'));
+    expect(screen.getByText('You cancelled this request.')).toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage sources line', () => {
+  const sourced = (payload) => answer({ payload: { title: 'Late files', ...payload } });
+
+  it('shows the sources line under the answer in the muted helper style', () => {
+    renderMessage(sourced({ sources: 'From your fee records and your clearance record.' }));
+    const line = screen.getByText('From your fee records and your clearance record.');
+    expect(line).toHaveClass('text-xs', 'font-medium', 'text-ink-muted-strong');
+    const answerText = screen.getByText('Three files are late.');
+    expect(answerText.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows nothing extra when the payload has no sources line', () => {
+    const { container } = renderMessage(sourced({}));
+    expect(container.querySelectorAll('p.text-xs')).toHaveLength(0);
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['only spaces', '   '],
+    ['a list', ['a', 'b']],
+    ['an object', { text: 'x' }],
+  ])('shows nothing when sources is %s', (_label, sources) => {
+    const { container } = renderMessage(sourced({ sources }));
+    expect(container.querySelectorAll('p.text-xs')).toHaveLength(0);
+  });
+
+  it('shows record text as plain words and never as markup or a link', () => {
+    const { container } = renderMessage(sourced({ sources: 'From <a href="/dashboard/admin">your records</a> **bold**' }));
+    const line = container.querySelector('p.text-xs');
+    expect(line.textContent).toBe('From <a href="/dashboard/admin">your records</a> **bold**');
+    expect(line.querySelector('a, strong')).toBeNull();
+  });
+});
+
 describe('ChatMessage with a null payload', () => {
   it('renders the fixed text, Copy and feedback without reading payload fields', () => {
     renderMessage(answer({ content: 'You can no longer see this answer.', payload: null, status: 'completed' }));

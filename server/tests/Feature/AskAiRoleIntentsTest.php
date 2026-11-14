@@ -159,6 +159,10 @@ class AskAiRoleIntentsTest extends TestCase
             'my_submissions' => ['ADMIN'],
             'ai_tools' => ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'],
             'fee_usage' => ['STUDENT'],
+            'unclaimed_students' => ['SUPER_ADMIN', 'DEPARTMENT_HEAD'],
+            'my_attendance' => ['STUDENT'],
+            'claim_token' => ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
+            'glossary' => ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'],
         ];
         $this->assertSame(array_keys($expected), AskAiRoleIntents::INTENTS);
 
@@ -461,7 +465,8 @@ class AskAiRoleIntentsTest extends TestCase
         $this->assertShape($payload);
 
         $this->assertSame([], $payload['highlights']);
-        $this->assertSame([], $this->rows($payload));
+        $this->assertSame([], $payload['sections'][0]['rows'], 'no spending row is made up');
+        $this->assertSame(['/dashboard/finance/where-fees-go'], array_column($this->rows($payload), 'href'));
         $this->assertStringContainsString('No financial report of Engineering Society has been approved yet', $payload['answer']);
         $this->assertStringContainsString('Figures appear after the SAO approves the organization\'s financial report', $payload['answer']);
     }

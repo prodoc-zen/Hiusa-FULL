@@ -434,6 +434,8 @@ class AskAiChatReviewFixesTest extends TestCase
 
     public function test_a_provider_that_dies_after_text_was_shown_replaces_it_with_a_sentence_saying_why(): void
     {
+        // The failure wording is for a provider that has a key and really failed; without a key nothing failed.
+        config(['services.anthropic.key' => 'test-key']);
         Sanctum::actingAs($this->admin());
         $this->app->instance(TextGenerator::class, new class extends AskAiChatFakeGenerator
         {

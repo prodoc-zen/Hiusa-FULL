@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import AiMarkdown from './AiMarkdown';
 
 function renderMarkdown(content, streaming = false) {
@@ -26,6 +26,42 @@ describe('AiMarkdown', () => {
     expect(wrapper).not.toBeNull();
     expect(wrapper.querySelector('table')).not.toBeNull();
     expect(screen.getByRole('columnheader', { name: 'A' })).toBeInTheDocument();
+  });
+
+  describe('the sideways scroll cue', () => {
+    const measure = (scrollWidth, clientWidth) => {
+      Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => scrollWidth });
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => clientWidth });
+    };
+
+    afterEach(() => {
+      delete HTMLElement.prototype.scrollWidth;
+      delete HTMLElement.prototype.clientWidth;
+    });
+
+    const WIDE = ['| Event | Date | Venue | Your status | Fee |', '|---|---|---|---|---|', '| Orientation | Dec 1 | Gym | Going | 50 |'].join('\n');
+    const FITS = ['| A | B |', '|---|---|', '| 1 | 2 |'].join('\n');
+
+    it('tells a reader a table that is wider than the screen scrolls sideways', () => {
+      measure(857, 366);
+      renderMarkdown(WIDE);
+      expect(screen.getByText('Scroll sideways to see all columns.')).toBeInTheDocument();
+    });
+
+    it('drops the cue once the reader has reached the last column', () => {
+      measure(857, 366);
+      const { container } = renderMarkdown(WIDE);
+      const wrapper = container.querySelector('.ai-table-scroll');
+      wrapper.scrollLeft = 491;
+      fireEvent.scroll(wrapper);
+      expect(screen.queryByText('Scroll sideways to see all columns.')).not.toBeInTheDocument();
+    });
+
+    it('shows no cue for a table that fits', () => {
+      measure(300, 366);
+      renderMarkdown(FITS);
+      expect(screen.queryByText('Scroll sideways to see all columns.')).not.toBeInTheDocument();
+    });
   });
 
   it('renders each allowed HTML component with its class', () => {

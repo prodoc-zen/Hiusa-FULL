@@ -71,6 +71,13 @@ describe('AnswerBlocks', () => {
     expect(second).not.toHaveAttribute('open');
   });
 
+  it('keeps the word I and its contractions as written in a section title', () => {
+    renderBlocks({ payload: { ...payload, recommended_action: null, sections: [{ id: 's3', title: 'What I Can Answer', layout: 'table', rows: [row(1)] }, { id: 's4', title: "Why I'm Unsure About It", layout: 'table', rows: [row(1)] }] } });
+    const [first, second] = document.querySelectorAll('details');
+    expect(first).toHaveTextContent('What I can answer (1)');
+    expect(second).toHaveTextContent("Why I'm unsure about it (1)");
+  });
+
   it('keeps the first section closed when it has more than 6 rows', () => {
     const rows = Array.from({ length: 7 }, (_, i) => row(i + 1));
     renderBlocks({ payload: { sections: [{ id: 'big', title: 'Big', layout: 'table', rows }] } });

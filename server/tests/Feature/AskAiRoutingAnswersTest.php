@@ -504,7 +504,7 @@ class AskAiRoutingAnswersTest extends TestCase
             $this->assertHrefsOpenFor($answer, $role);
         }
 
-        foreach (['SUPER_ADMIN' => 'The SAO', 'DEPARTMENT_HEAD' => 'The Department Head / Dean'] as $role => $who) {
+        foreach (['SUPER_ADMIN' => 'The SAO', 'DEPARTMENT_HEAD' => 'A Department Head'] as $role => $who) {
             $answer = $this->ask($users[$role], 'what do I owe');
             $this->assertSame('how_to_guide', $answer['intent'], $role);
             $this->assertStringContainsString($who, $answer['answer'], $role);

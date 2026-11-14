@@ -216,6 +216,8 @@ export default function ActionCard({ message, action, live = true, onChange, onV
   }
 
   if (status === 'cancelled' || status === 'failed') {
+    // The server writes "Cancelled. Nothing was changed." as the message text; saying it twice reads as a stutter.
+    if (status === 'cancelled' && /^cancelled\b/i.test((message.content || '').trim())) return null;
     const line = {
       cancelled: 'You cancelled this request.',
       failed: action.result?.message || 'This request did not go through.',
