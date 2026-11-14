@@ -31,6 +31,12 @@ describe('SAO university users', () => {
     expect(within(ana).queryByText(/^(Active|Disabled|Inactive)$/)).not.toBeInTheDocument();
   });
 
+  it('keeps the name on the same left edge as the email on a phone card', async () => {
+    render(<SaoUsersPage />);
+    const names = await screen.findAllByText('Ana Cruz');
+    names.forEach((name) => expect(name.parentElement).not.toHaveClass('justify-end'));
+  });
+
   it('keeps the user action menu open when the initial search debounce completes', async () => {
     vi.useFakeTimers();
     try {
