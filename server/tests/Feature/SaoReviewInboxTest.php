@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
 use App\Models\OrganizationApplication;
 use App\Models\StudentRegistryEntry;
@@ -70,6 +73,12 @@ class SaoReviewInboxTest extends TestCase
     /** Every earlier step is done, so "organizations active" is the one the SAO is on. */
     private function collegeReadyForOrganizations(): void
     {
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'active']);
+        ComplianceRequirementType::create([
+            'category' => 'organization', 'academic_year' => $year->label, 'academic_semester_id' => $semester->id, 'name' => 'List of Members',
+            'allowed_extensions' => ['pdf'], 'is_active' => true, 'deadline_at' => '2026-12-31', 'created_by' => $this->sao->school_id,
+        ]);
         User::factory()->departmentHead()->create(['organization_id' => Organization::where('college_id', $this->college->id)->value('id')]);
         StudentRegistryEntry::create([
             'school_id' => 2600100, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'birth_date' => '2005-01-01',
