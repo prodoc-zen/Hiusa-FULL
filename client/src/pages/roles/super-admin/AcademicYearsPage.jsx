@@ -149,6 +149,12 @@ export default function AcademicYearsPage() {
     setModal(year ? { mode: 'edit', year } : { mode: 'create' });
   }
 
+  function openDates(semester, yearLabel) {
+    setSemesterErrors({});
+    setDatesForm({ starts_on: String(semester.starts_on).slice(0, 10), ends_on: String(semester.ends_on).slice(0, 10) });
+    setDatesTarget({ semester, yearLabel });
+  }
+
   async function save() {
     setSaving(true);
     setFieldErrors({});
@@ -306,6 +312,10 @@ export default function AcademicYearsPage() {
         </section>
       )}
 
+      {!years.loading && !years.error && years.items.length > 0 && !current && (
+        <p role="status" className="text-sm text-ink-muted">No academic year is current. Choose Make current on a year in the calendar, or add one.</p>
+      )}
+
       <Card title="Calendar">
         <DataTable
           caption="Academic years"
@@ -320,7 +330,7 @@ export default function AcademicYearsPage() {
               !year.is_current && !year.closed_at && { label: 'Make current', onClick: () => setCurrentTarget(year) },
               year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && { label: 'Close year', onClick: () => setCloseYearTarget(year) },
               { label: 'Edit', onClick: () => openModal(year) },
-              !year.is_current && { label: `Remove ${year.label}`, icon: Trash2, danger: true, onClick: () => { setYearDeleteError(''); setDeleteTarget(year); } },
+              year.can_be_removed && { label: `Remove ${year.label}`, icon: Trash2, danger: true, onClick: () => { setYearDeleteError(''); setDeleteTarget(year); } },
             ]} />
           )}
           emptyState={(
@@ -359,6 +369,7 @@ export default function AcademicYearsPage() {
                   </Button>
                 )}
               </div>
+              {!year.can_be_removed && year.removal_blocker && <p className="mt-0.5 text-xs text-ink-muted">{year.removal_blocker}</p>}
               <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => {
                 const blocker = semester.status === 'completed' ? reopenBlocker(years.items) : (semester.status === 'active' ? '' : activateBlocker(semester, year, years.items));
                 return <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
@@ -395,7 +406,7 @@ export default function AcademicYearsPage() {
                       variant="secondary"
                       aria-label={`Edit dates of ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`}
                       disabled={busy}
-                      onClick={() => { setSemesterErrors({}); setDatesForm({ starts_on: String(semester.starts_on).slice(0, 10), ends_on: String(semester.ends_on).slice(0, 10) }); setDatesTarget({ semester, yearLabel: year.label }); }}
+                      onClick={() => openDates(semester, year.label)}
                     >
                       Edit dates
                     </Button>
@@ -425,7 +436,14 @@ export default function AcademicYearsPage() {
                     </button>
                   )}
                 </div>
-                {blocker && <p id={`semester-note-${semester.id}`} className="basis-full text-xs text-ink-muted">{blocker}</p>}
+                {blocker && (
+                  <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
+                    <p id={`semester-note-${semester.id}`} className="text-xs text-ink-muted">{blocker}</p>
+                    {semester.status === 'upcoming' && !year.closed_at && !hasStarted(semester) && (
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => openDates(semester, year.label)}>Edit dates</Button>
+                    )}
+                  </div>
+                )}
               </div>;
               })}{!year.semesters?.length && <p className="py-2.5 text-sm text-ink-muted">No semesters added.</p>}</div>
             </div>)}
@@ -553,7 +571,7 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Remove academic year"
-        message="The academic year is removed from the calendar. This cannot be undone. A year that already has semesters, requirements or clearance periods cannot be removed."
+        message={`The academic year and any semesters that never started are removed from the calendar. This cannot be undone. A year with a semester that has started, or with requirements or clearance periods of its own, cannot be removed.${deleteTarget?.is_current ? ' No academic year will be current afterwards.' : ''}`}
         recordName={deleteTarget?.label}
         confirmText="Remove year"
         busy={busy}
