@@ -133,12 +133,13 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
   if (!transition) return null;
 
   const label = TRANSITION_ACTION_LABEL[transition] || transition;
+  const reopening = transition === 'reopen';
 
   return (
     <Modal
       open
       title={label}
-      description="These remarks are shared with the student who filed this grievance."
+      description={reopening ? 'The student is told this grievance is under review again, and sees your reason.' : 'These remarks are shared with the student who filed this grievance.'}
       onClose={submitting ? undefined : onCancel}
       closeOnBackdrop={!submitting}
       closeOnEscape={!submitting}
@@ -157,8 +158,8 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
         </>
       )}
     >
-      <Field label="Remarks" required hint="Explain the outcome in plain language.">
-        <Textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} placeholder="What was found, and what happens next..." />
+      <Field label="Remarks" required hint={reopening ? 'Say why it is being reopened.' : 'Explain the outcome in plain language.'}>
+        <Textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} placeholder={reopening ? 'What changed, and what will be looked at again...' : 'What was found, and what happens next...'} />
       </Field>
       {error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error}</p>}
     </Modal>
@@ -203,7 +204,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
     setSubmitting(true);
     setError('');
     try {
-      await onTransition(grievance.id, { status, remarks: remarks || undefined });
+      await onTransition(grievance.id, { status: status === 'reopen' ? 'under_review' : status, remarks: remarks || undefined });
       setPendingTransition(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not update this grievance. Try again.');
@@ -214,6 +215,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
 
   const allowed = grievance ? (ALLOWED_TRANSITIONS[grievance.status] || []) : [];
   const isTerminal = grievance && allowed.length === 0;
+  const canReopen = isTerminal && viewerRole === 'SUPER_ADMIN';
 
   return (
     <>
@@ -255,7 +257,13 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
             )}
 
             {isTerminal ? (
-              <div className="space-y-3"><p className="text-xs text-ink-muted">This grievance is closed and cannot be reopened.</p><Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button></div>
+              <div className="space-y-3">
+                <p className="text-xs text-ink-muted">{canReopen ? 'This grievance is closed. Reopen it if there are new facts, or delete it from the register.' : 'This grievance is closed and cannot be reopened.'}</p>
+                <div className="flex flex-wrap gap-2">
+                  {canReopen && <Button variant="secondary" size="sm" onClick={() => chooseTransition('reopen')} disabled={submitting}>{TRANSITION_ACTION_LABEL.reopen}</Button>}
+                  <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button>
+                </div>
+              </div>
             ) : (
               <div className="border-t border-line pt-4">
                 <p className="text-xs font-medium text-ink-muted">Update status</p>
