@@ -587,7 +587,7 @@ export default function AskAiPage() {
                     message={message}
                     isLast={index === lastIndex}
                     busy={streaming}
-                    onRegenerate={convIdRef.current && !streaming ? regenerate : undefined}
+                    onRegenerate={activeId && !streaming ? regenerate : undefined}
                     onFeedback={giveFeedback}
                     onAsk={ask}
                   />
