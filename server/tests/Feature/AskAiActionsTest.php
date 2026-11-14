@@ -133,6 +133,7 @@ class AskAiActionsTest extends TestCase
         $this->assertSame('2026-11-27', $this->values($this->ask('create a task Prepare minutes due next Friday'))['deadline']);
         $this->assertSame('2026-11-18', $this->values($this->ask('create a task Prepare minutes by Wednesday'))['deadline']);
         $this->assertNull($this->values($this->ask('create a task called Monday cleanup'))['deadline']);
+        $this->assertSame("Minutes of today's meeting", $this->values($this->ask("create a task for the minutes of today's meeting"))['title']);
     }
 
     public function test_an_event_on_a_weekday_gets_a_start_and_end_and_a_title_from_the_words_after_for(): void
@@ -154,6 +155,7 @@ class AskAiActionsTest extends TestCase
         $this->assertSame('2026-11-25T09:00', $this->values($this->ask('Create an event for the talent show on Wednesday'))['start_time']);
         $this->assertSame('2026-11-19T09:00', $this->values($this->ask('Create an event for the talent show tomorrow'))['start_time']);
         $this->assertSame('2026-11-27T09:00', $this->values($this->ask('Create an event for the talent show next Friday'))['start_time']);
+        $this->assertNull($this->values($this->ask('Create an event for 3pm on Friday'))['title']);
         $this->assertNull($this->values($this->ask('Create an event named Monday Mixer'))['start_time']);
         $this->assertSame('2026-12-01T09:00', $this->values($this->ask('Create an event named Monday Mixer on 2026-12-01 09:00'))['start_time']);
     }

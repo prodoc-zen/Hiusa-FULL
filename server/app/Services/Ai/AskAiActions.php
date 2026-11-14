@@ -57,7 +57,7 @@ class AskAiActions
     /** The start a card gets when the message names a day but no time. The person can change it before pressing confirm. */
     private const DEFAULT_START_MINUTES = 540;
 
-    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|tomorrow|today|tonight|next|this|with|for)\b|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
+    private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|next|this|with|for)\b|\s+(?:tomorrow|today|tonight)\b(?![\'’]\w)|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
 
     private const NAME_STOPWORDS = ['the', 'and', 'for', 'let', 'allow', 'apply', 'new', 'organization', 'student', 'start', 'create', 'make', 'please', 'her', 'his', 'she', 'can', 'to', 'a', 'an'];
 
@@ -909,6 +909,9 @@ class AskAiActions
             return null;
         }
         $title = trim($found[1]);
+        if (preg_match('/^(?:at\s+)?(?:(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s?[ap]\.?m|(?:[01]?\d|2[0-3]):[0-5]\d)\.?$/iu', $title) === 1 && $this->statedTime($title) !== null) {
+            return null;
+        }
         if (preg_match('/^(?:today|tomorrow|tonight|next|this|'.implode('|', self::DAYS).')\b/iu', $title) === 1) {
             return null;
         }
