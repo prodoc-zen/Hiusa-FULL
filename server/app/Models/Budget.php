@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Services\BudgetAdviceRules;
 use App\Models\Concerns\SerializesLocalDates;
+use App\Services\BudgetAdviceRules;
 use Database\Factories\BudgetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

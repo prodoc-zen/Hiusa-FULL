@@ -66,7 +66,7 @@ class AskAiRoleIntents
             'owner' => "your organization's Admin",
             'access' => [
                 'ADMIN' => ['/dashboard/finance/financial-insights', 'Make one on the Financial insights page, then read it before you plan around it.', 'Open Financial insights'],
-                'SBO_OFFICER' => ['/dashboard/finance/financial-insights', "Your Admin makes the forecast, and you can read it on the Financial insights page.", 'Read the forecast'],
+                'SBO_OFFICER' => ['/dashboard/finance/financial-insights', 'Your Admin makes the forecast, and you can read it on the Financial insights page.', 'Read the forecast'],
                 'DEPARTMENT_HEAD' => ['/dashboard/finance/financial-insights', "Each organization's Admin makes its forecast, and you can read it on the Financial insights page.", 'Read the forecast'],
             ],
         ],
@@ -187,15 +187,15 @@ class AskAiRoleIntents
             || preg_match("/\\bwhat (happened|became) to (my|our) (\\w+ ){0,3}{$thing}\\b/", $q) === 1
             || preg_match("/\\b(is|was|has|have|did) (my|our|the) (\\w+ ){0,3}{$thing} (\\w+ ){0,3}(approved|accepted|returned|rejected|reviewed|signed|seen|decided)\\b/", $q) === 1
             || preg_match("/\\bstatus of (my|our) (\\w+ ){0,3}{$thing}\\b/", $q) === 1
-            || preg_match("/\\b(my|our) (\\w+ )?(submissions|proposals)\\b/", $q) === 1;
+            || preg_match('/\\b(my|our) (\\w+ )?(submissions|proposals)\\b/', $q) === 1;
     }
 
     private function asksFeeUsage(string $q): bool
     {
-        return preg_match("/\\bwhere (do|does|did|will|are|is) (my|our|the) (\\w+ ){0,4}(fees?|dues|money|funds|payments?|contributions?) (\\w+ )?(go|goes|going|went)\\b/", $q) === 1
-            || preg_match("/\\bhow (is|are|was|were) (my|our|the) (\\S+ ){0,5}(money|funds|fees?|dues|contributions?) (being )?(spent|used)\\b/", $q) === 1
-            || preg_match("/\\b(fees?|dues|contributions?) (\\w+ ){0,3}(spent|used on|used for)\\b/", $q) === 1
-            || preg_match("/\\bwhat (is|are) (my|our) (\\w+ )?(fees?|dues|contributions?) (used|spent) (for|on)\\b/", $q) === 1;
+        return preg_match('/\\bwhere (do|does|did|will|are|is) (my|our|the) (\\w+ ){0,4}(fees?|dues|money|funds|payments?|contributions?) (\\w+ )?(go|goes|going|went)\\b/', $q) === 1
+            || preg_match('/\\bhow (is|are|was|were) (my|our|the) (\\S+ ){0,5}(money|funds|fees?|dues|contributions?) (being )?(spent|used)\\b/', $q) === 1
+            || preg_match('/\\b(fees?|dues|contributions?) (\\w+ ){0,3}(spent|used on|used for)\\b/', $q) === 1
+            || preg_match('/\\bwhat (is|are) (my|our) (\\w+ )?(fees?|dues|contributions?) (used|spent) (for|on)\\b/', $q) === 1;
     }
 
     private function toolFor(string $q): ?string
