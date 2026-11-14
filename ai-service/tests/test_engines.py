@@ -142,6 +142,35 @@ def test_budget_advice_flags_reduce_allocation_when_risk_is_actually_elevated() 
     assert result["allocation_status"] == "reduce_allocation"
 
 
+def test_budget_advice_rates_the_warning_threshold_high_and_ninety_percent_medium() -> None:
+    # The PHP fallback (BudgetAdviceRules) must give the same labels for these two branches.
+    threshold = advise_budget(BudgetAdviceRequest(
+        predicted_income=1000,
+        predicted_expense=500,
+        current_available_budget=0,
+        warning_threshold=600,
+    ))
+    assert (threshold["overspending_risk"], threshold["forecast_risk"], threshold["allocation_status"]) == ("high", "overspending", "no_funds")
+
+    ratio = advise_budget(BudgetAdviceRequest(
+        predicted_income=1000,
+        predicted_expense=900,
+        current_available_budget=5000,
+        warning_threshold=100,
+    ))
+    assert (ratio["overspending_risk"], ratio["forecast_risk"]) == ("medium", "overspending")
+
+
+def test_budget_advice_rates_a_fully_spent_budget_high_even_without_a_warning_threshold() -> None:
+    result = advise_budget(BudgetAdviceRequest(
+        predicted_income=0,
+        predicted_expense=0,
+        current_available_budget=0,
+        warning_threshold=0,
+    ))
+    assert (result["overspending_risk"], result["forecast_risk"]) == ("high", "overspending")
+
+
 def test_infer_task_area_uses_word_boundaries_not_bare_substrings() -> None:
     # "media" must not fire merely because it appears inside "im-media-te".
     assert infer_task_area("Send immediate reminders to officers") != "publicity"
@@ -149,6 +178,29 @@ def test_infer_task_area_uses_word_boundaries_not_bare_substrings() -> None:
     assert infer_task_area("Draft the fundamental bylaws revision") != "finance"
     # The finance keyword itself must still be reachable through its own wording.
     assert infer_task_area("Coordinate the fundraising drive for new members") == "finance"
+
+
+def test_infer_task_area_uses_a_chosen_category_over_title_keywords() -> None:
+    assert infer_task_area("Print the attendance report", "logistics") == "logistics"
+    assert infer_task_area("Budget poster", "Publicity") == "publicity"
+    assert infer_task_area("Budget poster", "workflow") == "finance"
+    assert infer_task_area("Budget poster", None) == "finance"
+
+
+def test_a_default_category_task_is_ranked_from_its_title() -> None:
+    # The task form sends no category by default, so the API forwards task_type "regular".
+    officers = [
+        {"officer_id": 1, "name": "President", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 0},
+        {"officer_id": 2, "name": "Treasurer", "role": "SBO_OFFICER", "position_title": "Treasurer", "account_status": "active", "active_tasks": 0},
+    ]
+    result = delegate_task(TaskDelegationRequest.model_validate({
+        "task_title": "Prepare the budget liquidation report",
+        "task_type": "regular",
+        "officers": officers,
+    }))
+
+    assert result["task_area"] == "finance"
+    assert result["rankings"][0]["officer_id"] == 2
 
 
 def test_infer_task_area_stem_prefixes_still_match_inflected_forms() -> None:
@@ -371,13 +423,141 @@ def test_grievance_classification_stem_matching_does_not_fire_inside_unrelated_w
     assert result["urgency"] == "Low"
 
 
-def test_grievance_classification_files_stealing_from_funds_under_financial_integrity() -> None:
-    result = classify_grievance(GrievanceClassificationRequest.model_validate({
-        "title": "The treasurer has been stealing",
-        "description": "Our collections keep disappearing from the cash box.",
-    }))
+def _classify(title: str, description: str = "Details follow.") -> dict:
+    return classify_grievance(GrievanceClassificationRequest.model_validate({"title": title, "description": description}))
 
+
+@pytest.mark.parametrize("title", [
+    "Our org funds and receipts are missing",
+    "The payments were never accounted for",
+    "Where did the funds go",
+    "Unclear receipts for the budgets",
+])
+def test_grievance_classification_files_plural_finance_words_under_financial_integrity(title: str) -> None:
+    assert _classify(title)["category"] == "Financial Integrity"
+
+
+def test_grievance_classification_reads_inflected_complaints() -> None:
+    result = _classify("The teachers delayed releasing our grades and exams")
+
+    assert result["urgency"] == "Medium"
+    assert result["category"] == "Academic / Faculty"
+    assert result["reasoning"] == (
+        'Marked Medium because the text mentions "delayed"; '
+        'filed under Academic / Faculty because it mentions "grades", "teachers" and "exams".'
+    )
+
+
+def test_grievance_classification_stems_do_not_fire_inside_unrelated_words() -> None:
+    result = _classify("Example of a fundamental rule", "The roommate asked about the exampled text.")
+
+    assert result["category"] == "General"
+
+
+@pytest.mark.parametrize(("title", "description"), [
+    ("This is not an emergency", "just a scheduling question"),
+    ("Not urgent", "Please advise when you can."),
+    ("Walang emergency", "tanong lang po"),
+])
+def test_grievance_classification_ignores_negated_urgency_words(title: str, description: str) -> None:
+    result = _classify(title, description)
+
+    assert result["urgency"] == "Low"
+    assert result["category"] != "Safety & Security"
+
+
+def test_grievance_classification_keeps_a_negated_word_from_hiding_a_real_one() -> None:
+    result = _classify("Not urgent, but the treasurer stole the funds")
+
+    assert result["urgency"] == "High"
+    assert result["reasoning"] == (
+        'Marked High because the text mentions "stole"; '
+        'filed under Financial Integrity because it mentions "funds" and "stole". '
+        'It also mentions "urgent" after "not", which was not counted as urgent; a reviewer should check it.'
+    )
+
+
+def test_grievance_classification_counts_negation_only_when_it_directly_denies_the_word() -> None:
+    assert _classify("There is no excuse for this threat")["urgency"] == "Critical"
+    assert _classify("I did not sleep. Emergency at the dorm")["urgency"] == "Critical"
+
+
+HARM_WITH_A_NEGATOR = [
+    ("Officer", "They did not stop bullying me even after I reported it."),
+    ("Officer conduct", "The vice president would not stop harassing me after the meeting."),
+    ("No more bullying in our org", "Please act on this."),
+    ("No response", "Harassment by the treasurer during the meeting."),
+    ("Not again", "Threatened by an officer at the venue."),
+    ("I can not take the bullying anymore", "It happens every day."),
+    ("Help", "He did not stop abusing me after the party."),
+    ("Not once did they stop the threats", "Please help."),
+    ("No one helps me", "The abuse continues every day."),
+    ("There is no way I can ignore the harassment", "It is ongoing."),
+    ("Hindi tumitigil ang pagbabanta sa akin", "Humihingi po ako ng tulong."),
+    ("Hindi na siya tumigil sa pananakit", "Sinaktan niya ako ulit kahapon."),
+    ("Walang tigil ang pambu-bully", "Binantaan niya ako ulit."),
+    ("Dili siya mohunong sa bullying nako", "Gibantaan gyud ko niya."),
+    ("Wala siya mohunong sa pagbully", "Gibantaan ko niya ug gisaktan."),
+]
+
+
+@pytest.mark.parametrize(("title", "description"), HARM_WITH_A_NEGATOR)
+def test_grievance_classification_never_lowers_harm_described_next_to_a_negator(title: str, description: str) -> None:
+    assert _classify(title, description)["urgency"] == "Critical"
+
+
+@pytest.mark.parametrize(("title", "description"), [
+    ("There was no harassment", "just a misunderstanding about the schedule"),
+    ("This is not a danger to anyone", "I only have a question"),
+    ("Not any violence was reported", "asking about the venue"),
+    ("Hindi emergency ito", "tanong lang po"),
+    ("Dili emergency kini", "pangutana lang"),
+    ("Walay bullying nga nahitabo", "pangutana lang"),
+    ("Wala'y threat", "pangutana lang"),
+])
+def test_grievance_classification_lowers_urgency_for_a_direct_denial_and_says_so(title: str, description: str) -> None:
+    result = _classify(title, description)
+
+    assert result["urgency"] == "Low"
+    assert "a reviewer should check it." in result["reasoning"]
+
+
+def test_grievance_classification_reasoning_names_the_denied_word() -> None:
+    assert _classify("This is not an emergency", "just a scheduling question")["reasoning"] == (
+        'No urgent words were found, so it is Low; filed under Academic / Faculty because it mentions "scheduling". '
+        'It also mentions "emergency" after "not", which was not counted as urgent; a reviewer should check it.'
+    )
+
+
+def test_grievance_classification_files_theft_of_money_under_financial_integrity() -> None:
+    result = _classify("Theft of money")
+
+    assert result["urgency"] == "High"
     assert result["category"] == "Financial Integrity"
+
+
+def test_grievance_classification_reasoning_names_the_words_it_matched() -> None:
+    result = _classify("Harassment near the guard post", "A security guard threatened a student.")
+
+    assert result["reasoning"] == (
+        'Marked Critical because the text mentions "harassment" and "threatened"; '
+        'filed under Safety & Security because it mentions "harassment", "threatened", "security" and "guard".'
+    )
+
+
+def test_grievance_classification_reasoning_says_when_nothing_matched() -> None:
+    result = _classify("Suggestion for the lounge", "More seating would be nice.")
+
+    assert result["reasoning"] == "No urgent or category words were found, so it is Low and General until a reviewer looks at it."
+
+
+def test_grievance_classification_reasoning_covers_a_match_on_one_side_only() -> None:
+    assert _classify("Question about my grades")["reasoning"] == (
+        'No urgent words were found, so it is Low; filed under Academic / Faculty because it mentions "grades".'
+    )
+    assert _classify("There is a problem")["reasoning"] == (
+        'Marked Medium because the text mentions "problem"; no category words were found, so it is filed under General.'
+    )
 
 
 def test_grievance_classification_defaults_to_low_urgency_and_general_category() -> None:

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\SerializesLocalDates;
+use App\Services\BudgetAdviceRules;
 use Database\Factories\BudgetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -79,11 +80,7 @@ class Budget extends Model
 
     public static function overspendingRiskFor(float $remaining, float $warningThreshold): string
     {
-        if ($remaining < 0) {
-            return 'high';
-        }
-
-        return $remaining <= $warningThreshold ? 'medium' : 'low';
+        return BudgetAdviceRules::riskFor($remaining, $warningThreshold);
     }
 
     public function transactions(): HasMany

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Http\Controllers\GrievanceController;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\ClearancePeriod;
@@ -351,7 +352,7 @@ class SaoGovernanceDemoSeeder extends Seeder
                 'category' => $grievance['category'],
                 'urgency' => $grievance['urgency'],
                 'classification_confidence' => $grievance['confidence'],
-                'classification_reasoning' => "Determined {$grievance['urgency']} urgency and the '{$grievance['category']}' category from keyword analysis.",
+                'classification_reasoning' => app(GrievanceController::class)->localClassification($grievance['title'], $grievance['description'])['reasoning'],
                 'classification_engine' => 'php-fallback',
                 'status' => $grievance['status'],
                 'remarks' => $grievance['remarks'],

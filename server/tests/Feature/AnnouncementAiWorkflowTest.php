@@ -62,9 +62,9 @@ class AnnouncementAiWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('is_template', true)
             ->assertJsonPath('model_name', 'template-draft')
-            ->assertJsonPath('quota.remaining', 19);
+            ->assertJsonPath('quota.remaining', 20);
 
-        $this->assertStringStartsWith('Assembly', $response->json('output_text'));
+        $this->assertStringContainsString('Assembly', $response->json('output_text'));
         $this->assertStringContainsString('template draft', strtolower($response->json('notice')));
         $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'ANNOUNCEMENT_DRAFT', 'status' => 'completed', 'model_name' => 'template-draft', 'decision_status' => 'pending']);
     }

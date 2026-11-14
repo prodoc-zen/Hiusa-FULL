@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AiOutput;
 use App\Models\Budget;
 use App\Models\FinancialReport;
 use App\Models\FinancialSemester;
@@ -94,8 +95,9 @@ class FinancialSemesterTest extends TestCase
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         foreach (['2026-09-01' => 'First term budget', '2027-02-01' => 'Second term budget'] as $createdOn => $title) {
-            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+            $budget = Budget::create(['organization_id' => $organization->id, 'title' => $title, 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved', 'advice_generated_at' => '2026-10-15 09:00:00']);
             $budget->forceFill(['created_at' => "{$createdOn} 08:00:00"])->save();
+            AiOutput::create(['feature_type' => 'BUDGET_EXPLANATION', 'reference_type' => Budget::class, 'reference_id' => $budget->id, 'prompt_text' => 'Advice', 'output_text' => '', 'structured_input' => ['current_available_budget' => 1000, 'warning_threshold' => 100], 'status' => 'failed', 'created_at' => now()]);
         }
         Sanctum::actingAs($admin);
 

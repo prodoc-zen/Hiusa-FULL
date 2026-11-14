@@ -38,8 +38,7 @@ export default function BrandPanel() {
               One accountable platform for your student organization.
             </h1>
             <p className="mt-4 max-w-[340px] text-sm font-medium leading-6 text-slate-300">
-              HIUSA brings finance, events, tasks, elections, merchandise, and communication into a single
-              AI-assisted workspace, so every action stays visible and every decision explains itself.
+              Finance, events, tasks, elections, merchandise, and communication in one place.
             </p>
           </div>
 

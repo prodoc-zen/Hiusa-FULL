@@ -40,6 +40,18 @@ class RecordingTextGenerator implements TextGenerator
         return $result;
     }
 
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        $started = microtime(true);
+        $result = $this->claude->converse($instructions, $messages, $maxOutputTokens, $onEvent);
+        $encoded = (string) json_encode($messages, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        $this->calls[] = $this->record('converse', $instructions, $encoded, $maxOutputTokens, $result, $started, $result['text'] ?? null)
+            + ['reasoning' => $result['reasoning'] ?? null];
+
+        return $result;
+    }
+
     /** @return array<string, mixed> */
     private function record(string $operation, string $instructions, string $input, int $maxOutputTokens, ?array $result, float $started, ?string $output): array
     {

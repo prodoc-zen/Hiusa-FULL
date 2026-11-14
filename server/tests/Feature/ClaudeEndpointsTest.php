@@ -144,8 +144,8 @@ class ClaudeEndpointsTest extends TestCase
         $text = 'Spending risk is high, so keep new commitments under the safe spending limit.';
         $this->arrange($mode, fn () => $text, fn () => $text);
         $admin = $this->admin();
-        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
-        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900]);
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now('Asia/Manila')->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900, 'model_details' => ['engine' => 'php-fallback']]);
         Sanctum::actingAs($admin);
 
         $response = $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk();
@@ -307,8 +307,8 @@ class ClaudeEndpointsTest extends TestCase
         $response = $this->postJson('/api/ai/assistant/ask', ['question' => 'What should I do today?'])->assertOk();
 
         match ($mode) {
-            'claude' => $response->assertJsonPath('engine', 'claude+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Hybrid Semantic RAG + Claude LLM'),
-            'groq' => $response->assertJsonPath('engine', 'groq+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Hybrid Semantic RAG + Groq LLM'),
+            'claude' => $response->assertJsonPath('engine', 'claude+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Record search + Claude'),
+            'groq' => $response->assertJsonPath('engine', 'groq+semantic_rag')->assertJsonPath('answer', $text)->assertJsonPath('rag_metadata.engine', 'Record search + Groq'),
             'none' => $response->assertJsonPath('engine', 'semantic_rag+deterministic'),
         };
         $this->assertSame(['claude' => 'claude-sonnet-5-5', 'groq' => 'groq-test-model', 'none' => null][$mode], AiOutput::where('feature_type', 'ASK_AI_ASSISTANT')->latest('id')->value('model_name'));
@@ -319,7 +319,7 @@ class ClaudeEndpointsTest extends TestCase
     {
         $this->arrange('claude', fn () => 'The safe spending limit is PHP 987,654.00 this month.');
         $admin = $this->admin();
-        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Foundation Week', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
         Sanctum::actingAs($admin);
 
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk()

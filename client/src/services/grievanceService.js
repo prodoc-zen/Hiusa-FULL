@@ -8,4 +8,6 @@ export const createGrievance = (data) => api.post('/grievances', data);
 
 export const updateGrievanceStatus = (id, data) => api.patch(`/grievances/${id}/status`, data);
 
+export const updateGrievanceClassification = (id, data) => api.patch(`/grievances/${id}/classification`, data);
+
 export const deleteGrievance = (id) => api.delete(`/grievances/${id}`);

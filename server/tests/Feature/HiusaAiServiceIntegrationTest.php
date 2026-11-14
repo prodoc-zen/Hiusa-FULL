@@ -80,6 +80,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
             'allocated_amount' => 1000,
             'remaining_amount' => 1000,
             'warning_threshold' => 200,
+            'submission_status' => 'approved',
         ]);
         Http::fake([
             'http://127.0.0.1:8001/api/v1/budget-advice' => Http::response($this->adviceResponse()),
@@ -90,7 +91,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('engine', 'python-fastapi')
             ->assertJsonPath('budget.overspending_risk', 'low')
-            ->assertJsonPath('budget.advisory_note', 'Projection is stable.');
+            ->assertJsonPath('budget.advisory_note', 'No current forecast was available, so this advice uses the budget balance only. Projection is stable.');
     }
 
     public function test_task_creation_uses_python_rankings_and_score_breakdown(): void

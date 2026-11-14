@@ -515,3 +515,197 @@ body:has(> .app-overlay) #root {
 .sidebar-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* Ask AI: model-written Markdown (AiMarkdown). Tokens come from @theme above; badge colours match StatusBadge. */
+.ai-prose {
+  color: var(--color-ink);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.ai-prose > :first-child { margin-top: 0; }
+.ai-prose > :last-child { margin-bottom: 0; }
+.ai-prose :is(p, ul, ol, blockquote, pre, details, hr) { margin-block: 0.625rem; }
+.ai-prose :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 1rem 0.375rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ai-prose :is(h1, h2) { font-size: 1.125rem; }
+.ai-prose :is(h4, h5, h6) { font-size: 0.9375rem; }
+.ai-prose strong { font-weight: 600; }
+.ai-prose :is(ul, ol) { padding-left: 1.25rem; }
+.ai-prose ul { list-style: disc; }
+.ai-prose ol { list-style: decimal; }
+.ai-prose li { margin-block: 0.25rem; padding-left: 0.125rem; }
+.ai-prose li::marker { color: var(--color-ink-muted); }
+.ai-prose a {
+  color: var(--color-brand-700);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ai-prose a:hover { color: var(--color-brand-800); }
+.ai-prose a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 2px; }
+.ai-prose blockquote {
+  border-left: 3px solid var(--color-line);
+  padding-left: 0.75rem;
+  color: var(--color-ink-muted-strong);
+}
+.ai-prose hr { border: 0; border-top: 1px solid var(--color-line); }
+.ai-prose code {
+  border-radius: 4px;
+  background: var(--color-subtle);
+  border: 1px solid var(--color-line-soft);
+  padding: 0.0625rem 0.3125rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+.ai-prose pre {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-subtle);
+  padding: 0.625rem 0.75rem;
+}
+.ai-prose pre code { border: 0; background: transparent; padding: 0; }
+.ai-prose sub, .ai-prose sup { font-size: 0.75em; }
+.ai-prose mark {
+  border-radius: 2px;
+  background: var(--color-warning-tint);
+  color: var(--color-ink);
+  padding: 0 0.125rem;
+}
+.ai-prose kbd {
+  border: 1px solid var(--color-line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--color-surface);
+  padding: 0.0625rem 0.3125rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.ai-prose .ai-table-scroll {
+  margin-block: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+.ai-prose .ai-table-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ai-prose table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.ai-prose th {
+  background: var(--color-subtle);
+  color: var(--color-ink-muted);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+}
+.ai-prose td {
+  border-top: 1px solid var(--color-line-soft);
+  padding: 0.5rem 0.75rem;
+  font-weight: 400;
+  vertical-align: top;
+}
+.ai-prose tbody tr:hover { background: var(--color-subtle); }
+
+.ai-prose details {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 0.5rem 0.75rem;
+}
+.ai-prose summary {
+  cursor: pointer;
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.ai-prose summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 2px; }
+.ai-prose details[open] > summary { margin-bottom: 0.375rem; }
+
+.ai-prose .callout {
+  margin-block: 0.75rem;
+  border: 1px solid var(--color-line);
+  border-left-width: 3px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  padding: 0.625rem 0.875rem;
+}
+.ai-prose .callout > :first-child { margin-top: 0; }
+.ai-prose .callout > :last-child { margin-bottom: 0; }
+.ai-prose .callout-info { border-left-color: var(--color-brand-600); background: var(--color-brand-50); }
+.ai-prose .callout-success { border-left-color: var(--color-success); background: var(--color-success-tint); }
+.ai-prose .callout-warning { border-left-color: var(--color-warning); background: var(--color-warning-tint); }
+.ai-prose .callout-danger { border-left-color: var(--color-danger); background: var(--color-danger-tint); }
+
+.ai-prose .badge {
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 4px;
+  padding-inline: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  @apply bg-slate-100 text-slate-700;
+}
+.ai-prose .badge-info { @apply bg-brand-600/10 text-brand-800; }
+.ai-prose .badge-success { @apply bg-green-50 text-green-800; }
+.ai-prose .badge-warning { @apply bg-amber-50 text-amber-800; }
+.ai-prose .badge-danger { @apply bg-red-50 text-red-800; }
+.ai-prose .badge-neutral { @apply bg-slate-100 text-slate-700; }
+
+.ai-prose .stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin-block: 0.75rem;
+}
+.ai-prose .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  padding: 0.625rem 0.75rem;
+}
+.ai-prose .stat-value {
+  color: var(--color-ink);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.ai-prose .stat-label {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.ai-prose progress {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  height: 0.5rem;
+  margin-block: 0.5rem;
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-line-soft);
+}
+.ai-prose progress::-webkit-progress-bar { background: var(--color-line-soft); border-radius: 999px; }
+.ai-prose progress::-webkit-progress-value { background: var(--color-brand-600); border-radius: 999px; }
+.ai-prose progress::-moz-progress-bar { background: var(--color-brand-600); border-radius: 999px; }
+/* end Ask AI prose */

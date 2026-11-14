@@ -147,7 +147,7 @@ export default function ElectionResultsPage() {
       )}
 
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Voting is open. Only turnout shows now. Results appear when the election closes.'}</p>
+        <p className="max-w-prose text-sm text-ink-muted-strong">{isFinal ? 'Final results for every position.' : 'Voting is open. Only turnout shows until the election closes.'}</p>
         <div className="flex flex-wrap items-end gap-6">
           {REPORT_ROLES.includes(role) && <ElectionReportsMenu election={election} role={role} />}
           <dl className="flex gap-8">

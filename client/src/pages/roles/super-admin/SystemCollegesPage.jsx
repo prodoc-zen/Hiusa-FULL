@@ -336,7 +336,6 @@ export default function SystemCollegesPage() {
             <section aria-labelledby="unassigned-organizations" className="overflow-hidden rounded-card border border-line bg-surface">
               <header className="border-b border-line px-4 py-3">
                 <h2 id="unassigned-organizations" className="text-base font-semibold text-ink">Organizations without a college</h2>
-                <p className="mt-1 text-xs font-medium text-ink-muted">These organizations are not assigned to a college yet.</p>
               </header>
               <OrganizationsTable rows={unassigned} caption="Organizations without a college" showAdmins={showAdmins} />
             </section>

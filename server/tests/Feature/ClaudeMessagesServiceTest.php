@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Log;
@@ -215,6 +216,164 @@ class ClaudeMessagesServiceTest extends TestCase
         }
     }
 
+    public function test_a_conversation_streams_reasoning_then_text_and_returns_the_whole_answer(): void
+    {
+        config()->set('services.anthropic.chat_effort', 'medium');
+        config()->set('services.anthropic.chat_timeout', 60);
+        $service = $this->service([$this->stream([
+            ['thinking', 'Looking at '], ['thinking', 'the records.'], ['text', 'Three organizations '], ['text', 'are missing files.'],
+        ])]);
+        $events = [];
+
+        $result = $service->converse('Be brief.', [
+            ['role' => 'user', 'content' => 'Earlier question'],
+            ['role' => 'assistant', 'content' => 'Earlier answer'],
+            ['role' => 'user', 'content' => 'And now?'],
+        ], 1400, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame([
+            ['reasoning', 'Looking at '], ['reasoning', 'the records.'], ['text', 'Three organizations '], ['text', 'are missing files.'],
+        ], $events);
+        $this->assertSame([
+            'text' => 'Three organizations are missing files.',
+            'reasoning' => 'Looking at the records.',
+            'model' => 'claude-sonnet-5-5',
+            'response_id' => 'msg_stream_1',
+        ], $result);
+        $this->assertSame('end_turn', $service->lastStopReason());
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true);
+        $this->assertTrue($body['stream']);
+        $this->assertSame(['type' => 'adaptive', 'display' => 'summarized'], $body['thinking']);
+        $this->assertSame('medium', $body['output_config']['effort']);
+        $this->assertSame([['type' => 'text', 'text' => 'Be brief.', 'cache_control' => ['type' => 'ephemeral']]], $body['system']);
+        $this->assertCount(3, $body['messages']);
+        $this->assertSame('And now?', $body['messages'][2]['content']);
+        foreach (['temperature', 'top_p', 'top_k'] as $rejected) {
+            $this->assertArrayNotHasKey($rejected, $body);
+        }
+        $this->assertArrayNotHasKey('budget_tokens', $body['thinking']);
+    }
+
+    public function test_a_conversation_without_thinking_has_null_reasoning(): void
+    {
+        $result = $this->service([$this->stream([['text', 'Plain answer.']])])->converse('i', [['role' => 'user', 'content' => 'hi']]);
+
+        $this->assertSame('Plain answer.', $result['text']);
+        $this->assertNull($result['reasoning']);
+    }
+
+    public function test_a_conversation_refusal_or_cut_off_answer_is_null(): void
+    {
+        foreach (['refusal', 'max_tokens'] as $reason) {
+            $result = $this->service([$this->stream([['text', 'Partial']], $reason)])->converse('i', [['role' => 'user', 'content' => 'hi']]);
+
+            $this->assertNull($result, $reason);
+        }
+    }
+
+    public function test_a_conversation_connection_failure_is_null_and_logs_no_user_text(): void
+    {
+        Log::spy();
+        $service = $this->service([new ConnectException('cURL error 28: timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'))]);
+
+        $this->assertNull($service->converse('private instructions', [['role' => 'user', 'content' => 'Maria Santos owes PHP 5,000']]));
+
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context = []) => ! str_contains($message.json_encode($context), 'Maria') && ! str_contains($message.json_encode($context), 'private'))->once();
+    }
+
+    public function test_a_mid_stream_error_event_is_null_and_is_not_an_outage(): void
+    {
+        $body = (string) $this->stream([['text', 'Half an answer ']])->getBody();
+        $body = substr($body, 0, strpos($body, 'event: content_block_stop'))
+            ."event: error\ndata: ".json_encode(['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'x']])."\n\n";
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $body)]);
+        $events = [];
+
+        $result = $service->converse('i', [['role' => 'user', 'content' => 'hi']], 1400, function (string $type, string $delta) use (&$events) {
+            $events[] = $delta;
+        });
+
+        $this->assertNull($result);
+        $this->assertSame(['Half an answer '], $events);
+        $this->assertFalse($service->lastCallUnreachable());
+    }
+
+    public function test_a_stream_that_ends_without_a_stop_reason_is_null(): void
+    {
+        $body = (string) $this->stream([['text', 'Cut off']])->getBody();
+        $body = substr($body, 0, strpos($body, 'event: content_block_stop'));
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $body)]);
+
+        $this->assertNull($service->converse('i', [['role' => 'user', 'content' => 'hi']]));
+        $this->assertNull($service->lastStopReason());
+    }
+
+    public function test_a_stream_that_keeps_trickling_past_the_chat_deadline_is_stopped_and_rests_claude(): void
+    {
+        config()->set('services.anthropic.chat_timeout', 1);
+        $deltas = array_fill(0, 40, ['text', 'word ']);
+        $inner = $this->stream($deltas)->getBody();
+        $slow = FnStream::decorate($inner, ['read' => function ($length) use ($inner) {
+            usleep(150_000);
+
+            return $inner->read(min((int) $length, 60));
+        }]);
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $slow)]);
+        $received = '';
+        $started = microtime(true);
+
+        $result = $service->converse('i', [['role' => 'user', 'content' => 'hi']], 1400, function (string $type, string $delta) use (&$received) {
+            $received .= $delta;
+        });
+
+        $this->assertNull($result);
+        $this->assertLessThan(3.0, microtime(true) - $started, 'the whole turn is bounded by chat_timeout, not each read');
+        $this->assertLessThan(200, strlen($received), 'the stream was cut before the whole answer arrived');
+        $this->assertTrue($service->lastCallUnreachable());
+    }
+
+    public function test_a_timeout_under_a_shortened_deadline_is_not_an_outage_but_one_at_full_timeout_is(): void
+    {
+        $timeout = fn () => new ConnectException('cURL error 28: Operation timed out', new Request('POST', 'https://api.anthropic.com/v1/messages'));
+
+        $budgeted = $this->service([$timeout()]);
+        $budgeted->withTimeBudget(4.0);
+        $this->assertNull($budgeted->generate('i', 'x'));
+        $this->assertFalse($budgeted->lastCallUnreachable());
+
+        $full = $this->service([$timeout()]);
+        $this->assertNull($full->generate('i', 'x'));
+        $this->assertTrue($full->lastCallUnreachable());
+
+        $refused = $this->service([new ConnectException('cURL error 7: Failed to connect', new Request('POST', 'https://api.anthropic.com/v1/messages'))]);
+        $refused->withTimeBudget(4.0);
+        $this->assertNull($refused->generate('i', 'x'));
+        $this->assertTrue($refused->lastCallUnreachable());
+    }
+
+    public function test_a_conversation_without_a_key_or_messages_is_null_and_makes_no_request(): void
+    {
+        $this->assertNull($this->service([])->converse('i', []));
+        config()->set('services.anthropic.key', '');
+        $this->assertNull($this->service([])->converse('i', [['role' => 'user', 'content' => 'hi']]));
+        $this->assertCount(0, $this->history);
+    }
+
+    public function test_an_exception_from_the_event_callback_is_rethrown(): void
+    {
+        $service = $this->service([$this->stream([['text', 'One.'], ['text', 'Two.']])]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('client went away');
+
+        $service->converse('i', [['role' => 'user', 'content' => 'hi']], 1400, function () {
+            throw new \RuntimeException('client went away');
+        });
+    }
+
     public function test_the_guards_work_the_same_as_the_groq_ones(): void
     {
         $service = $this->service([]);
@@ -251,6 +410,42 @@ class ClaudeMessagesServiceTest extends TestCase
         $stack->push(Middleware::history($this->history));
 
         return new ClaudeMessagesService(new Client(['handler' => $stack]));
+    }
+
+    /**
+     * A recorded Messages SSE body.
+     *
+     * @param  array<int, array{0: 'thinking'|'text', 1: string}>  $deltas
+     */
+    private function stream(array $deltas, string $stopReason = 'end_turn'): Response
+    {
+        $event = fn (string $name, array $data) => "event: {$name}\ndata: ".json_encode(['type' => $name] + $data)."\n\n";
+        $body = $event('message_start', ['message' => [
+            'id' => 'msg_stream_1', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-sonnet-5-5', 'content' => [],
+            'stop_reason' => null, 'stop_sequence' => null, 'usage' => ['input_tokens' => 12, 'output_tokens' => 1],
+        ]]);
+        $index = -1;
+        $current = null;
+        foreach ($deltas as [$kind, $value]) {
+            if ($current !== $kind) {
+                if ($current !== null) {
+                    $body .= $event('content_block_stop', ['index' => $index]);
+                }
+                $index++;
+                $current = $kind;
+                $block = $kind === 'thinking' ? ['type' => 'thinking', 'thinking' => '', 'signature' => ''] : ['type' => 'text', 'text' => ''];
+                $body .= $event('content_block_start', ['index' => $index, 'content_block' => $block]);
+            }
+            $delta = $kind === 'thinking' ? ['type' => 'thinking_delta', 'thinking' => $value] : ['type' => 'text_delta', 'text' => $value];
+            $body .= $event('content_block_delta', ['index' => $index, 'delta' => $delta]);
+        }
+        if ($current !== null) {
+            $body .= $event('content_block_stop', ['index' => $index]);
+        }
+        $body .= $event('message_delta', ['delta' => ['stop_reason' => $stopReason, 'stop_sequence' => null], 'usage' => ['output_tokens' => 34]]);
+        $body .= $event('message_stop', []);
+
+        return new Response(200, ['content-type' => 'text/event-stream'], $body);
     }
 
     private function message(?string $text, string $stopReason = 'end_turn', ?array $content = null): Response

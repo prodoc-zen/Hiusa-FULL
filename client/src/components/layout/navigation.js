@@ -1,5 +1,5 @@
 import {
-  Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
+  Archive, BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ChartPie, ClipboardCheck, ClipboardList, CreditCard,
   FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
   TicketCheck, User, Users, UsersRound, Vote, WalletCards,
@@ -94,6 +94,8 @@ const L = {
   statement: leaf('statement-of-account', 'Statement of account', '/dashboard/finance/statement-of-account', FileText, { aliases: ['Statement of Account'] }),
 };
 
+const feeUsage = leaf('where-fees-go', 'Where your fees go', '/dashboard/finance/where-fees-go', ChartPie);
+
 const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.shop, L.myOrders, L.myReceipts, L.statement], { band: 'Me' });
 
 const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
@@ -159,7 +161,7 @@ const NAV_BY_ROLE = {
   STUDENT: [
     dashboard('STUDENT'),
     askAi(),
-    group('my-payments', 'My payments', financePillar.icon, [L.statement, { ...L.myReceipts, label: 'Receipts', aliases: ['My Receipts'] }]),
+    group('my-payments', 'My payments', financePillar.icon, [L.statement, { ...L.myReceipts, label: 'Receipts', aliases: ['My Receipts'] }, feeUsage]),
     group('events', 'Events', eventsPillar.icon, [leaf('activity-calendar', 'Events', '/dashboard/events/activity-calendar', CalendarDays, { aliases: ['Activity Calendar', 'Calendar'] })]),
     group('voting', 'Voting', electionsPillar.icon, [L.vote, L.results]),
     group('store', 'Store', merchandisePillar.icon, [L.shop, L.myOrders]),

@@ -5,6 +5,7 @@ namespace App\Services\Dashboard;
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\Election;
+use App\Models\Grievance;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
@@ -103,6 +104,7 @@ class DashboardBriefingService
             $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/task-board')),
             $this->financialReportsAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/transaction-history')),
             $this->staleEventsAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/manage-events')),
+            $this->grievancesAttention($orgId, $role),
         ));
 
         return [
@@ -148,7 +150,7 @@ class DashboardBriefingService
                 'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
                 'finance' => $this->financePillar($orgId),
             ],
-            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
+            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role, includeTaskWorkload: false), 0, 3),
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/check-in'), null),
             'activity' => $this->activityFeed($role, $orgId, $user->id),
         ];
@@ -178,7 +180,7 @@ class DashboardBriefingService
                 'elections' => $this->universityElectionsPillar($organizationIds),
                 'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $collegeIds),
             ],
-            'insights' => array_slice($this->insightEngine->forUniversity($organizationIds, $role), 0, 3),
+            'insights' => [],
             'agenda' => $this->universityAgenda($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
             'activity' => $this->activityFeed($role, $orgId, $user->id, publicOrganizationIds: $collegeIds),
         ];
@@ -245,7 +247,7 @@ class DashboardBriefingService
                 'events' => $this->universityEventsPillar($organizationIds),
                 'communication' => $this->universityCommunicationPillar(),
             ],
-            'insights' => array_slice($this->insightEngine->forUniversity($organizationIds), 0, 3),
+            'insights' => [],
             'agenda' => $this->universityAgenda($organizationIds, $organizationsHref, $organizationsHref),
             'activity' => $this->activityFeed($role, null),
             'organizations' => $this->organizationsOverview($organizationIds),
@@ -422,6 +424,35 @@ class DashboardBriefingService
         $href = $hrefByEntityType[$approval->entity_type];
 
         return $href instanceof \Closure ? $href($approval) : $href;
+    }
+
+    /** Grievances addressed to the organization wait on its Admin; counts and ids only, never the filer. */
+    private function grievancesAttention(int $organizationId, string $role): array
+    {
+        $open = Grievance::where('organization_id', $organizationId)->whereNotIn('status', ['resolved', 'dismissed']);
+        $count = (clone $open)->count();
+        if ($count === 0) {
+            return [];
+        }
+
+        $urgent = (clone $open)->whereIn('urgency', self::URGENT_GRIEVANCE_URGENCIES)->count();
+        $path = '/dashboard/grievances';
+        if ($count === 1) {
+            $path .= '?record='.(clone $open)->value('id');
+        }
+
+        return [[
+            'id' => 'grievance-organization',
+            'type' => 'grievances_open',
+            'count' => $count,
+            'severity' => $urgent > 0 ? 'high' : 'medium',
+            'title' => $count === 1 ? 'Grievance waiting for your decision' : 'Grievances waiting for your decision',
+            'detail' => ($count === 1 ? '1 grievance filed against your organization is unresolved' : "{$count} grievances filed against your organization are unresolved")
+                .($urgent > 0 ? ($count === 1 ? ', and it is marked high or critical' : ", {$urgent} of them marked high or critical") : '')
+                .($count === 1 ? '. You review it and decide the outcome.' : '. You review each one and decide the outcome.'),
+            'due_at' => null,
+            'href' => $this->routeAccess->hrefFor($role, $path),
+        ]];
     }
 
     private function electionsClosingAttention(int $organizationId, ?string $href): array

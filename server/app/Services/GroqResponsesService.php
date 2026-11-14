@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\TextGenerator;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -13,6 +14,25 @@ class GroqResponsesService implements TextGenerator
 
     // Every caller runs inside a web request, so one short attempt beats a long retry that stalls the page.
     private const MAX_REQUEST_SECONDS = 12;
+
+    private ?float $timeBudget = null;
+
+    private bool $unreachable = false;
+
+    /** Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. */
+    public function withTimeBudget(?float $seconds): void
+    {
+        $this->timeBudget = $seconds;
+    }
+
+    /**
+     * True when the most recent call could not connect, or timed out while running with its full timeout, so the chain
+     * can rest this provider briefly. A timeout under a shortened shared deadline says nothing about the provider.
+     */
+    public function lastCallUnreachable(): bool
+    {
+        return $this->unreachable;
+    }
 
     /**
      * Generate text with Groq's OpenAI-compatible Responses API.
@@ -60,6 +80,48 @@ class GroqResponsesService implements TextGenerator
 
         return [
             'text' => $text,
+            'model' => (string) (data_get($payload, 'model') ?: config('services.groq.model')),
+            'response_id' => data_get($payload, 'id'),
+        ];
+    }
+
+    /**
+     * Multi-turn answer through the Responses API: the turns are the input array and the whole text arrives as one event.
+     *
+     * @return array{text: string, reasoning: ?string, model: string, response_id: ?string}|null
+     */
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        if ($messages === []) {
+            return null;
+        }
+
+        $payload = $this->request([
+            'model' => (string) config('services.groq.model'),
+            'instructions' => $instructions,
+            'input' => array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
+            'reasoning' => ['effort' => $this->reasoningEffort()],
+            'max_output_tokens' => $maxOutputTokens,
+        ]);
+
+        if ($payload === null || data_get($payload, 'status') === 'incomplete') {
+            return null;
+        }
+
+        $text = $this->extractOutputText($payload);
+        if ($text === '') {
+            Log::warning('Groq Responses API returned no output text.', ['response_id' => data_get($payload, 'id')]);
+
+            return null;
+        }
+
+        if ($onEvent !== null) {
+            $onEvent('text', $text);
+        }
+
+        return [
+            'text' => $text,
+            'reasoning' => null,
             'model' => (string) (data_get($payload, 'model') ?: config('services.groq.model')),
             'response_id' => data_get($payload, 'id'),
         ];
@@ -119,19 +181,35 @@ class GroqResponsesService implements TextGenerator
         ];
     }
 
+    private function configuredSeconds(): int
+    {
+        return max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS));
+    }
+
+    private function requestSeconds(): int|float
+    {
+        $configured = $this->configuredSeconds();
+
+        return $this->timeBudget === null ? $configured : max(1.0, min((float) $configured, $this->timeBudget));
+    }
+
     private function request(array $body): ?array
     {
+        $this->unreachable = false;
         $apiKey = trim((string) config('services.groq.key'));
 
         if ($apiKey === '') {
             return null;
         }
 
+        $seconds = $this->requestSeconds();
+        $budgeted = $this->timeBudget !== null && $this->timeBudget < $this->configuredSeconds();
+
         try {
             $response = Http::acceptJson()
                 ->withToken($apiKey)
-                ->connectTimeout(max(1, (int) config('services.groq.connect_timeout', 5)))
-                ->timeout(max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS)))
+                ->connectTimeout(min($seconds, max(1, (int) config('services.groq.connect_timeout', 5))))
+                ->timeout($seconds)
                 ->post((string) config('services.groq.url'), $body);
 
             if (! $response->successful()) {
@@ -147,6 +225,9 @@ class GroqResponsesService implements TextGenerator
 
             return is_array($payload) ? $payload : null;
         } catch (\Throwable $exception) {
+            $timedOut = str_contains($exception->getMessage(), 'cURL error 28');
+            $this->unreachable = $exception instanceof ConnectionException && (! $timedOut || ! $budgeted);
+
             Log::warning('Groq Responses API is unavailable.', [
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),

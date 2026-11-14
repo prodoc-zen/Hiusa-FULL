@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { isoToLocalDateTimeInput, manilaDateStamp } from '../../../utils/dateTime';
+import { isoToLocalDateTimeInput, localDateTimeToIso, manilaDateStamp } from '../../../utils/dateTime';
 import { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -117,7 +117,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [rankingOpen, setRankingOpen] = useState(true);
   const pageSize = 10;
 
-  const [form, setForm] = useState({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+  const [form, setForm] = useState({ title: '', description: '', task_kind: 'standalone', category: '', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -265,7 +265,7 @@ export default function TasksPage({ initialTab = 'board' }) {
         title: form.title,
         description: form.description,
         task_kind: form.task_kind,
-        category: form.category,
+        category: form.category || null,
         preferred_role: form.preferred_role || null,
         priority: form.priority,
         assigned_to: form.assigned_to,
@@ -276,7 +276,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       const detail = getDelegationDetail(res.data);
       if (detail) setLastDelegation({ taskId: res.data.id, ...detail });
       setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
-      setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+      setForm({ title: '', description: '', task_kind: 'standalone', category: '', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       setPreview(null);
       load();
       loadTotals();
@@ -295,11 +295,11 @@ export default function TasksPage({ initialTab = 'board' }) {
       title: task.title || '',
       description: task.description || '',
       task_kind: task.event_id ? 'event_related' : 'standalone',
-      category: task.category || 'coordination',
+      category: task.category || '',
       priority: task.priority || 'medium',
       assigned_to: task.assigned_to ? String(task.assigned_to) : '',
       event_id: task.event_id ? String(task.event_id) : '',
-      deadline: isoToLocalDateTimeInput(task.deadline).slice(0, 10),
+      deadline: isoToLocalDateTimeInput(task.deadline),
     });
   }
 
@@ -319,10 +319,10 @@ export default function TasksPage({ initialTab = 'board' }) {
         title: editForm.title.trim(),
         description: editForm.description,
         task_kind: editForm.task_kind,
-        category: editForm.category,
+        category: editForm.category || null,
         priority: editForm.priority,
         event_id: editForm.task_kind === 'event_related' ? editForm.event_id : null,
-        deadline: editForm.deadline,
+        ...(editForm.deadline !== isoToLocalDateTimeInput(editingTask.deadline) ? { deadline: localDateTimeToIso(editForm.deadline) } : {}),
         ...(editForm.assigned_to !== String(editingTask.assigned_to ?? '') ? { assigned_to: editForm.assigned_to } : {}),
       });
       notify.success(`"${editForm.title.trim()}" updated.`);
@@ -364,7 +364,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     setPreviewLoading(true);
     setFormError(null);
     try {
-      const response = await previewTaskRecommendation({ title: form.title, task_type: 'regular', category: form.category, preferred_role: form.preferred_role || null });
+      const response = await previewTaskRecommendation({ title: form.title, task_type: 'regular', category: form.category || null, preferred_role: form.preferred_role || null });
       setPreview(response.data.delegation);
     } catch (requestError) {
       setFormError(requestError.response?.data?.message || 'Unable to evaluate officers.');
@@ -537,7 +537,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             </Field>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Assigned category" optional>
-                <Select value={form.category} onChange={(event) => { setForm({ ...form, category: event.target.value, assigned_to: '' }); setPreview(null); }}>{['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}</Select>
+                <Select value={form.category} onChange={(event) => { setForm({ ...form, category: event.target.value, assigned_to: '' }); setPreview(null); }}><option value="">Decide from the title</option>{['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}</Select>
               </Field>
               <Field label="Required position" optional>
                 <Select value={form.preferred_role} onChange={(event) => { setForm({ ...form, preferred_role: event.target.value, assigned_to: '' }); setPreview(null); }}><option value="">Any eligible position</option>{[...new Set(officers.map((officer) => officer.position_title).filter(Boolean))].map((position) => <option key={position} value={position}>{position}</option>)}</Select>
@@ -578,7 +578,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
             {formError && <p role="alert" className="text-sm font-medium text-danger-strong">{formError}</p>}
             <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5">
-              <Button variant="secondary" onClick={() => { setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setPreview(null); setFormError(null); setCreateSuccess(''); }}>Clear form</Button>
+              <Button variant="secondary" onClick={() => { setForm({ title: '', description: '', task_kind: 'standalone', category: '', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setPreview(null); setFormError(null); setCreateSuccess(''); }}>Clear form</Button>
               <Button type="submit" leftIcon={Plus} loading={formSubmitting} disabled={officers.length === 0 || !form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)}>Create task</Button>
             </div>
           </form>
@@ -733,7 +733,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       {activeTab === 'ai' && !canManageTasks && (
         <EmptyState
           title="Your Admin assigns tasks"
-          description="The Admin picks an officer when a task is created. Your own tasks are on My tasks."
+          description="Your own tasks are on My tasks."
           action={<Button variant="secondary" onClick={() => navigate('/dashboard/tasks/assigned-tasks')}>Go to my tasks</Button>}
         />
       )}
@@ -899,7 +899,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <div><dt className="text-xs text-ink-muted">Assigned officer</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.assignee ? `${formatDisplayText(selectedTask.assignee.first_name)} ${formatDisplayText(selectedTask.assignee.last_name)}` : 'Unassigned'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Assigned by</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.creator ? `${formatDisplayText(selectedTask.creator.first_name)} ${formatDisplayText(selectedTask.creator.last_name)}` : ''}</dd></div>
               <div><dt className="text-xs text-ink-muted">Priority</dt><dd className="mt-0.5 font-medium text-ink">{capitalize(selectedTask.priority || 'medium')}</dd></div>
-              <div><dt className="text-xs text-ink-muted">Category</dt><dd className="mt-0.5 font-medium text-ink">{capitalize(selectedTask.category || 'coordination')}</dd></div>
+              <div><dt className="text-xs text-ink-muted">Category</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.category ? capitalize(selectedTask.category) : 'Decided from the title'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Required position</dt><dd className="mt-0.5 font-medium text-ink">{selectedTask.preferred_role || 'Any eligible position'}</dd></div>
               <div><dt className="text-xs text-ink-muted">Progress</dt><dd className="mt-0.5 font-medium tabular-nums text-ink">{selectedTask.progress_percent || 0}%</dd></div>
               <div><dt className="text-xs text-ink-muted">Academic period</dt><dd className="mt-0.5 font-medium text-ink">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} semester` : ''}</dd></div>
@@ -997,6 +997,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             )}
             <Field label="Assigned category" optional>
               <Select value={editForm.category} onChange={(event) => setEditForm({ ...editForm, category: event.target.value })}>
+                <option value="">Decide from the title</option>
                 {['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}
               </Select>
             </Field>
@@ -1012,7 +1013,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               </Select>
             </Field>
             <Field label="Deadline" required error={editFieldErrors.deadline}>
-              <Input type="date" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} />
+              <Input type="datetime-local" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} />
             </Field>
           </form>
         )}

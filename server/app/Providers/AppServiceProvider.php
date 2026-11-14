@@ -168,6 +168,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('ai-generation', fn (Request $request) => Limit::perMinute(5)
             ->by($authenticatedKey($request))->response($tooManyRequests));
 
+        // The Ask AI chat is many short turns and one answer at a time per person is held by a lock, so it
+        // gets its own bucket instead of drawing on the generation allowance.
+        RateLimiter::for('ai-chat', fn (Request $request) => Limit::perMinute(
+            config('performance.rate_limits.ai_chat_per_minute'),
+        )->by('chat:'.$authenticatedKey($request))->response($tooManyRequests));
+
         // Double-voting is already prevented at the schema level, so this limit is
         // purely about load during an election window, not integrity - generous
         // enough that a student submitting a multi-position ballot never trips it.
