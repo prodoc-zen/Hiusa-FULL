@@ -5,6 +5,13 @@ import { manilaDate, peso } from '../../../lib/format';
 import { getFeeUsage } from '../../../services/feeUsageService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
+function balanceContext({ opening, advances }) {
+  const parts = [];
+  if (Number(opening)) parts.push(`${peso(opening)} carried over from before this period`);
+  if (Number(advances)) parts.push(`${peso(advances)} in cash advances returned or lent out`);
+  return parts.length ? `Includes ${parts.join(' and ')}` : 'Closing balance';
+}
+
 export default function FeeUsagePage() {
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedId, setSelectedId] = useState('');
@@ -61,7 +68,7 @@ export default function FeeUsagePage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <Stat label="Collected" value={peso(report.totals.collected)} />
             <Stat label="Spent" value={peso(report.totals.spent)} />
-            <Stat label="Balance" value={peso(report.totals.balance)} context="Closing balance" />
+            <Stat label="Balance" value={peso(report.totals.balance)} context={balanceContext(report.totals)} />
           </div>
 
           <Card title="Spending by category">

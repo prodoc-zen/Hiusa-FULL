@@ -101,7 +101,7 @@ class StudentFeeUsageTest extends TestCase
         Sanctum::actingAs($this->student($organization));
         $report = $this->getJson('/api/student/fee-usage')->assertOk()->json('reports.0');
 
-        $this->assertSame(['collected' => 4000, 'spent' => 2500, 'balance' => 1600], $report['totals']);
+        $this->assertSame(['collected' => 4000, 'spent' => 2500, 'opening' => 100, 'advances' => 0, 'balance' => 1600], $report['totals']);
         $this->assertSame([
             ['category' => 'Events', 'amount' => 2000, 'share_percent' => 80],
             ['category' => 'Supplies', 'amount' => 500, 'share_percent' => 20],
@@ -114,6 +114,23 @@ class StudentFeeUsageTest extends TestCase
         $this->assertSame('2026-08-01', $report['period_start']);
         $this->assertSame('2026-10-31', $report['period_end']);
         $this->assertNotNull($report['approved_at']);
+    }
+
+    public function test_an_approved_report_saved_before_snapshots_existed_is_not_shown_to_students(): void
+    {
+        $organization = Organization::factory()->create();
+        $ledger = Transaction::factory()->create(['organization_id' => $organization->id, 'type' => 'income', 'amount' => 2500, 'transaction_date' => '2026-09-10']);
+        $legacy = $this->report($organization, 'approved', [], ['title' => 'Legacy report']);
+        $legacy->forceFill([
+            'source_transaction_ids' => [$ledger->id], 'transactions_snapshot' => null, 'opening_balance_snapshot' => null,
+        ])->save();
+        $current = $this->report($organization, 'approved', [$this->row(9, 'income', 10, 'Fee')], ['title' => 'Current report', 'sao_approved_at' => now()->subDay()]);
+
+        Sanctum::actingAs($this->student($organization));
+        $this->getJson('/api/student/fee-usage')->assertOk()
+            ->assertJsonCount(1, 'reports')->assertJsonPath('reports.0.id', $current->id);
+        $this->getJson('/api/student/fee-usage?report_id='.$legacy->id)->assertOk()->assertJsonPath('reports', []);
+        $this->assertSame('approved', $legacy->fresh()->submission_status);
     }
 
     public function test_remittances_and_cash_advances_are_never_income_or_spending(): void
@@ -132,6 +149,8 @@ class StudentFeeUsageTest extends TestCase
         $this->assertSame(2000, $report['totals']['collected']);
         $this->assertSame(500, $report['totals']['spent']);
         $this->assertSame(100 + 2000 - 500 + 300 - 900, $report['totals']['balance']);
+        $this->assertSame(-600, $report['totals']['advances']);
+        $this->assertSame($report['totals']['balance'], $report['totals']['opening'] + $report['totals']['collected'] - $report['totals']['spent'] + $report['totals']['advances']);
         $this->assertSame([['category' => 'Events', 'amount' => 500, 'share_percent' => 100]], $report['spending']);
         $this->assertSame([['category' => 'Membership fee', 'amount' => 2000]], $report['income']);
         $this->assertStringNotContainsString('Cash advance', json_encode($report));
@@ -205,7 +224,7 @@ class StudentFeeUsageTest extends TestCase
         Sanctum::actingAs($this->student($organization));
         $report = $this->getJson('/api/student/fee-usage')->assertOk()->json('reports.0');
 
-        $this->assertSame(['collected' => 0, 'spent' => 0, 'balance' => 100], $report['totals']);
+        $this->assertSame(['collected' => 0, 'spent' => 0, 'opening' => 100, 'advances' => 0, 'balance' => 100], $report['totals']);
         $this->assertSame([], $report['spending']);
         $this->assertSame([], $report['income']);
     }

@@ -187,6 +187,22 @@ def test_infer_task_area_uses_a_chosen_category_over_title_keywords() -> None:
     assert infer_task_area("Budget poster", None) == "finance"
 
 
+def test_a_default_category_task_is_ranked_from_its_title() -> None:
+    # The task form sends no category by default, so the API forwards task_type "regular".
+    officers = [
+        {"officer_id": 1, "name": "President", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 0},
+        {"officer_id": 2, "name": "Treasurer", "role": "SBO_OFFICER", "position_title": "Treasurer", "account_status": "active", "active_tasks": 0},
+    ]
+    result = delegate_task(TaskDelegationRequest.model_validate({
+        "task_title": "Prepare the budget liquidation report",
+        "task_type": "regular",
+        "officers": officers,
+    }))
+
+    assert result["task_area"] == "finance"
+    assert result["rankings"][0]["officer_id"] == 2
+
+
 def test_infer_task_area_stem_prefixes_still_match_inflected_forms() -> None:
     assert infer_task_area("Prepare the financial liquidation report") == "finance"
     assert infer_task_area("Update the promotional materials for the fair") == "publicity"

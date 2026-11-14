@@ -179,7 +179,7 @@ class DashboardInsightAuditFixesTest extends TestCase
         $this->assertSame(1, $item['count']);
         $this->assertSame('medium', $item['severity']);
         $this->assertSame("/dashboard/grievances?record={$only->id}", $item['href']);
-        $this->assertStringContainsString('You review it', $item['detail']);
+        $this->assertSame('1 grievance filed against your organization is unresolved. You review it and decide the outcome.', $item['detail']);
         $this->assertStringNotContainsString($student->first_name, json_encode($item));
         $this->assertStringNotContainsString($student->school_id, json_encode($item));
 
@@ -190,7 +190,7 @@ class DashboardInsightAuditFixesTest extends TestCase
         $this->assertSame(2, $item['count']);
         $this->assertSame('high', $item['severity']);
         $this->assertSame('/dashboard/grievances', $item['href']);
-        $this->assertStringContainsString('1 of high or critical urgency', $item['detail']);
+        $this->assertSame('2 grievances filed against your organization are unresolved, 1 of them marked high or critical. You review each one and decide the outcome.', $item['detail']);
     }
 
     public function test_sao_briefing_carries_no_insights_and_never_runs_the_university_budget_query(): void

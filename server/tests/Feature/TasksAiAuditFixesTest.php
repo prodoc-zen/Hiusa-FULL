@@ -258,4 +258,51 @@ class TasksAiAuditFixesTest extends TestCase
         $this->assertCount(12, $result['rankings']);
         $this->assertLessThanOrEqual(6, $queries);
     }
+
+    public function test_a_default_category_task_is_ranked_from_its_title_in_the_php_fallback(): void
+    {
+        $president = $this->officer('President');
+        $treasurer = $this->officer('Treasurer');
+
+        $ranked = $this->postJson('/api/tasks/recommendation', ['title' => 'Prepare the budget liquidation report', 'task_type' => 'regular', 'category' => null])
+            ->assertOk()->assertJsonPath('delegation.task_area', 'finance')->json('delegation.rankings');
+
+        $this->assertSame($treasurer->school_id, $ranked[0]['officer_id']);
+        $this->assertSame('primary', $ranked[0]['position_tier']);
+        $this->assertSame($president->school_id, $ranked[1]['officer_id']);
+        $this->assertSame('secondary', $ranked[1]['position_tier']);
+
+        $this->postJson('/api/tasks/recommendation', ['title' => 'Prepare the budget liquidation report', 'task_type' => 'regular', 'category' => 'coordination'])
+            ->assertOk()->assertJsonPath('delegation.task_area', 'coordination')->assertJsonPath('delegation.rankings.0.officer_id', $president->school_id);
+    }
+
+    public function test_an_officer_whose_title_differs_only_in_case_spacing_or_dash_is_still_eligible_and_scored_as_that_position(): void
+    {
+        SboPosition::create(['organization_id' => $this->organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Vice President – Internal', 'is_active' => true]);
+        $vice = $this->officer('vice president - internal');
+        $treasurer = $this->officer('treasurer ');
+
+        $ranked = $this->postJson('/api/tasks/recommendation', ['title' => 'Prepare the budget'])->assertOk()->json('delegation.rankings');
+        $this->assertEqualsCanonicalizing([$vice->school_id, $treasurer->school_id], array_column($ranked, 'officer_id'));
+        $this->assertSame($treasurer->school_id, $ranked[0]['officer_id']);
+        $this->assertSame('primary', $ranked[0]['position_tier']);
+
+        $planner = app(TaskDelegationService::class)->recommend($this->organization->id, 'Coordinate the program', null, 'Vice President – Internal');
+        $this->assertEqualsCanonicalizing([$vice->school_id, $treasurer->school_id], array_column($planner['rankings'], 'officer_id'));
+        $this->assertSame($vice->school_id, $planner['recommended_officer_id']);
+
+        $this->postJson('/api/tasks', ['title' => 'Prepare the budget', 'deadline' => now()->addWeek()->toDateString(), 'status' => 'pending', 'task_kind' => 'standalone', 'assigned_to' => $vice->school_id])
+            ->assertCreated();
+    }
+
+    public function test_an_edited_deadline_sent_as_a_utc_instant_is_stored_as_manila_time(): void
+    {
+        $officer = $this->officer();
+        $task = $this->task(['assigned_to' => $officer->school_id, 'deadline' => now()->addDays(10)]);
+        $day = now()->addDays(12)->format('Y-m-d');
+
+        $this->putJson('/api/tasks/'.$task->id, ['deadline' => $day.'T09:00:00.000Z'])->assertOk();
+
+        $this->assertSame($day.' 17:00:00', $task->fresh()->deadline->format('Y-m-d H:i:s'));
+    }
 }
