@@ -127,18 +127,46 @@ export default function VenueBookingPage() {
 
   // Off-campus requests start from the Venue type choice in the form, so no separate entry point.
   // The form opens blank unless an event or a rejected request supplies the details, so a stray click files nothing.
-  function openRequestForm(linkedEvent = null) {
-    setRequestError(null);
-    const planned = linkedEvent?.planning_details ?? {};
-    setRequestForm(linkedEvent ? {
+  // What an event brings to the form: the venue its organizers planned, its times, and the link itself.
+  function eventFormFields(linkedEvent) {
+    const planned = linkedEvent.planning_details ?? {};
+    return {
       venue_type: planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
-      venue_id: planned.venue_id ? String(planned.venue_id) : selectedVenueId,
+      venue_id: planned.venue_id ? String(planned.venue_id) : '',
       off_campus_location: planned.venue_type === 'off_campus' ? (linkedEvent.location || '') : '',
       event_id: String(linkedEvent.id),
-      start_time: linkedEvent.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : (range.from ? `${range.from}T09:00` : ''),
-      end_time: linkedEvent.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : (range.from ? `${range.from}T17:00` : ''),
+      start_time: linkedEvent.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : '',
+      end_time: linkedEvent.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : '',
+    };
+  }
+
+  function openRequestForm(linkedEvent = null) {
+    setRequestError(null);
+    const fields = linkedEvent ? eventFormFields(linkedEvent) : null;
+    setRequestForm(fields ? {
+      ...fields,
+      venue_id: fields.venue_id || selectedVenueId,
+      start_time: fields.start_time || (range.from ? `${range.from}T09:00` : ''),
+      end_time: fields.end_time || (range.from ? `${range.from}T17:00` : ''),
     } : EMPTY_REQUEST_FORM);
     setRequestOpen(true);
+  }
+
+  // Picking an event by hand fills in its venue and times, but only where the form is still empty, so nothing typed is lost.
+  function linkEvent(eventId) {
+    const picked = eventId ? events.find((item) => String(item.id) === String(eventId)) : null;
+    setRequestForm((form) => {
+      if (!picked) return { ...form, event_id: eventId };
+      const fields = eventFormFields(picked);
+      const venueEmpty = form.venue_type === 'off_campus' ? !form.off_campus_location.trim() : !form.venue_id;
+      const timesEmpty = !form.start_time && !form.end_time;
+      return {
+        ...form,
+        event_id: fields.event_id,
+        ...(venueEmpty && (fields.venue_id || fields.off_campus_location) ? { venue_type: fields.venue_type, venue_id: fields.venue_id, off_campus_location: fields.off_campus_location } : {}),
+        ...(timesEmpty ? { start_time: fields.start_time, end_time: fields.end_time } : {}),
+      };
+    });
   }
 
   function bookAgain(booking) {
@@ -366,7 +394,7 @@ export default function VenueBookingPage() {
           </Field>
           <p className="text-xs text-ink-muted">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
           <Field label="Link to an event" optional>
-            <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
+            <Select value={requestForm.event_id} onChange={(event) => linkEvent(event.target.value)}>
               <option value="">Not linked to an event</option>
               {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{formatDisplayText(eventItem.title)}</option>)}
             </Select>
