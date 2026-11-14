@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../services/authService', () => mocks);
 vi.mock('../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
 
-const MARIA = { id: 11, school_id: 2100142, first_name: 'Maria', last_name: 'Santos', email: 'maria@example.edu', role: 'SBO_OFFICER', position_title: 'Secretary', modules: ['events', 'tasks'], profiles_count: 2, deletion_block_reason: null };
-const JUAN = { id: 12, school_id: 2100143, first_name: 'Juan', last_name: 'Cruz', email: 'juan@example.edu', role: 'ADMIN', position_title: 'President', modules: null, profiles_count: 1, deletion_block_reason: null };
-const ANA = { id: 13, school_id: 2100144, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.edu', role: 'STUDENT', position_title: null, modules: null, profiles_count: 1, deletion_block_reason: null };
+const MARIA = { id: 11, school_id: 2100142, first_name: 'Maria', last_name: 'Santos', email: 'maria@example.edu', role: 'SBO_OFFICER', position_title: 'Secretary', modules: ['events', 'tasks'], organization: { id: 5, name: 'Computing Council' }, profiles_count: 2, deletion_block_reason: null };
+const JUAN = { id: 12, school_id: 2100143, first_name: 'Juan', last_name: 'Cruz', email: 'juan@example.edu', role: 'ADMIN', position_title: 'President', modules: null, organization: { id: 5, name: 'Computing Council' }, profiles_count: 1, deletion_block_reason: null };
+const ANA = { id: 13, school_id: 2100144, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.edu', role: 'STUDENT', position_title: null, modules: null, organization: { id: 5, name: 'Computing Council' }, profiles_count: 1, deletion_block_reason: null };
 const PICKED = { school_id: 2100150, name: 'Lia Ramos', email: 'lia@example.edu', program: 'BSIT', role: 'STUDENT', organizations: [] };
 const envelope = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 20, total: data.length } });
 
@@ -217,7 +217,7 @@ describe('OrgAccessPanel', () => {
     renderPanel();
     await seen('Maria Santos');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]);
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('They lose access to this organization only.');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove access' }));
@@ -230,16 +230,27 @@ describe('OrgAccessPanel', () => {
     renderPanel();
     await seen('Ana Reyes');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Ana Reyes' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0]);
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('deletes the account');
+  });
+
+  it('names the organization on Remove when the person keeps another profile, and says Delete account on their last one', async () => {
+    renderPanel();
+    await seen('Maria Santos');
+
+    expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toHaveTextContent('Remove from Computing Council');
+    const last = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0];
+    expect(last).toHaveTextContent('Delete account');
+    expect(last.className).toContain('bg-danger');
+    expect(screen.queryByRole('button', { name: /Remove Ana Reyes/ })).not.toBeInTheDocument();
   });
 
   it('disables actions the server will refuse and says why', async () => {
     mocks.getManagedAccountProfiles.mockResolvedValue(envelope([{ ...JUAN, deletion_block_reason: 'Only the dean or SAO can change or remove an Admin profile.' }]));
     renderPanel({ actorRole: 'ADMIN' });
 
-    const buttons = await screen.findAllByRole('button', { name: 'Remove Juan Cruz' });
+    const buttons = await screen.findAllByRole('button', { name: 'Delete account for Juan Cruz' });
     expect(buttons[0]).toBeDisabled();
     expect(buttons[0]).toHaveAttribute('title', 'Only the dean or SAO can change or remove an Admin profile.');
   });
@@ -249,6 +260,6 @@ describe('OrgAccessPanel', () => {
 
     expect(await seen('Maria Santos')).not.toHaveLength(0);
     expect(screen.queryByRole('button', { name: /Give access/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Remove Maria Santos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Maria Santos/ })).not.toBeInTheDocument();
   });
 });
