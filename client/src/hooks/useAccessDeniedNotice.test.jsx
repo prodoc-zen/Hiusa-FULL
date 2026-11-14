@@ -57,7 +57,7 @@ describe('useAccessDeniedNotice', () => {
     renderDenied();
 
     await waitFor(() => expect(mocks.info).toHaveBeenCalledTimes(1));
-    expect(mocks.info.mock.calls[0][0]).toBe('That page belongs to your College of Arts Admin workspace.');
+    expect(mocks.info.mock.calls[0][0]).toBe('That page belongs to your College of Arts Office staff workspace.');
   });
 
   it('offers the lowest id among their organization profiles when none is the college home', async () => {

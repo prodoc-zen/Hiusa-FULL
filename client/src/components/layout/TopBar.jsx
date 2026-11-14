@@ -6,7 +6,6 @@ import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Button, Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
-import { ROLE_LABELS } from './navigation';
 import { workspaceRoleWord } from '../../utils/workspaceLabels';
 import { logout } from '../../services/authService';
 import { clearApiCache } from '../../services/api';
@@ -120,7 +119,7 @@ export default function TopBar({ onMenuToggle }) {
   const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
-  const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
+  const roleLabel = workspaceRoleWord(role, user?.organization?.organization_type) || 'Member';
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = organizationLabel(user);
   const showCart = role === 'STUDENT';

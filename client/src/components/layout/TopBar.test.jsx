@@ -114,7 +114,15 @@ describe('TopBar notifications', () => {
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Account menu for Ramon Castillo' }));
     const panel = screen.getByRole('region', { name: 'Account and profiles' });
-    expect(within(panel).getByText('College of Computer Studies · Department Head')).toBeInTheDocument();
+    expect(within(panel).getByText('College of Computer Studies · Dean')).toBeInTheDocument();
+  });
+
+  it('uses the same workspace word in the account header as in the profile rows for office staff', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Mia', last_name: 'Reyes', organization: { id: 9, name: 'College of Arts', college: 'College of Arts', college_id: 1, organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Mia Reyes' }));
+    const panel = screen.getByRole('region', { name: 'Account and profiles' });
+    expect(within(panel).getByText('College of Arts · Office staff')).toBeInTheDocument();
   });
 
   it('keeps the account chip to one line with the name only', () => {
@@ -141,7 +149,7 @@ describe('TopBar notifications', () => {
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Account menu for Ramon Castillo' }));
     const panel = screen.getByRole('region', { name: 'Account and profiles' });
-    expect(panel).toHaveTextContent('College of Computer Studies · Department Head');
+    expect(panel).toHaveTextContent('College of Computer Studies · Dean');
     expect(panel).not.toHaveTextContent('PSITS');
   });
 

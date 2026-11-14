@@ -9,6 +9,11 @@ describe('workspaceRoleWord', () => {
     expect(workspaceRoleWord('SUPER_ADMIN')).toBe('SAO');
   });
 
+  it('calls an admin of the college home organization office staff', () => {
+    expect(workspaceRoleWord('ADMIN', 'COLLEGE')).toBe('Office staff');
+    expect(workspaceRoleWord('ADMIN', 'STUDENT_ORGANIZATION')).toBe('Admin');
+  });
+
   it('calls a student profile in the college Student and one in an organization Member', () => {
     expect(workspaceRoleWord('STUDENT', 'COLLEGE')).toBe('Student');
     expect(workspaceRoleWord('STUDENT', 'STUDENT_ORGANIZATION')).toBe('Member');
