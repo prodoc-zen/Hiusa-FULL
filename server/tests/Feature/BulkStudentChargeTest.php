@@ -69,18 +69,65 @@ class BulkStudentChargeTest extends TestCase
         $this->assertSame(3, $summary->new_values['charged']);
     }
 
-    public function test_a_member_who_already_holds_the_same_open_charge_is_skipped_but_a_paid_one_is_charged_again(): void
+    private function invoiceFor(User $member, string $status, string $reference, string $description = 'Membership fee'): Invoice
     {
-        Invoice::create(['organization_id' => $this->organization->id, 'student_id' => $this->members[0]->school_id, 'reference' => 'INV-OPEN', 'description' => 'Membership fee', 'amount_due' => '150.00', 'status' => 'unpaid']);
-        Invoice::create(['organization_id' => $this->organization->id, 'student_id' => $this->members[1]->school_id, 'reference' => 'INV-PAID', 'description' => 'Membership fee', 'amount_due' => '150.00', 'status' => 'paid']);
+        return Invoice::create(['organization_id' => $this->organization->id, 'student_id' => $member->school_id, 'reference' => $reference, 'description' => $description, 'amount_due' => '150.00', 'status' => $status]);
+    }
+
+    public function test_a_member_who_holds_the_same_open_charge_or_already_paid_it_is_skipped_by_default(): void
+    {
+        $this->invoiceFor($this->members[0], 'unpaid', 'INV-OPEN');
+        $this->invoiceFor($this->members[1], 'paid', 'INV-PAID');
 
         $this->postJson('/api/invoices', $this->body(['preview' => true]))->assertOk()
-            ->assertJsonPath('to_charge', 2)->assertJsonPath('skipped', 1)->assertJsonPath('total', 300);
+            ->assertJsonPath('members', 3)->assertJsonPath('to_charge', 1)->assertJsonPath('skipped', 1)
+            ->assertJsonPath('already_paid', 1)->assertJsonPath('total', 150);
 
         $this->postJson('/api/invoices', $this->body())->assertCreated()
-            ->assertJsonPath('charged', 2)->assertJsonPath('skipped', 1);
+            ->assertJsonPath('charged', 1)->assertJsonPath('skipped', 1)->assertJsonPath('already_paid', 1);
+        $this->assertSame(1, Invoice::where('student_id', $this->members[0]->school_id)->count());
+        $this->assertSame(1, Invoice::where('student_id', $this->members[1]->school_id)->count());
+        $this->assertSame(1, Invoice::where('student_id', $this->members[2]->school_id)->count());
+    }
+
+    public function test_members_who_already_paid_are_charged_again_only_when_the_flag_says_so(): void
+    {
+        $this->invoiceFor($this->members[0], 'unpaid', 'INV-OPEN');
+        $this->invoiceFor($this->members[1], 'paid', 'INV-PAID');
+        $this->invoiceFor($this->members[2], 'cancelled', 'INV-CANCELLED');
+
+        $this->postJson('/api/invoices', $this->body(['preview' => true, 'charge_already_paid' => true]))->assertOk()
+            ->assertJsonPath('to_charge', 2)->assertJsonPath('skipped', 1)->assertJsonPath('already_paid', 1)->assertJsonPath('total', 300);
+
+        $this->postJson('/api/invoices', $this->body(['charge_already_paid' => true]))->assertCreated()
+            ->assertJsonPath('charged', 2)->assertJsonPath('skipped', 1)->assertJsonPath('already_paid', 1);
         $this->assertSame(1, Invoice::where('student_id', $this->members[0]->school_id)->count());
         $this->assertSame(2, Invoice::where('student_id', $this->members[1]->school_id)->count());
+        $this->assertSame(2, Invoice::where('student_id', $this->members[2]->school_id)->count());
+        $this->assertTrue(AuditLog::where('action', 'created_for_all_members')->firstOrFail()->new_values['charged_already_paid']);
+    }
+
+    public function test_a_request_without_the_flag_never_charges_a_member_who_already_paid(): void
+    {
+        foreach ($this->members as $index => $member) {
+            $this->invoiceFor($member, 'paid', 'INV-PAID-'.$index);
+        }
+
+        foreach ([[], ['charge_already_paid' => false], ['charge_already_paid' => 0], ['charge_already_paid' => 'false']] as $extra) {
+            $this->postJson('/api/invoices', $this->body($extra))->assertStatus(422);
+        }
+        $this->assertSame(3, Invoice::count());
+    }
+
+    public function test_the_same_charge_after_everyone_paid_is_not_billed_again_without_the_flag(): void
+    {
+        $this->postJson('/api/invoices', $this->body())->assertCreated()->assertJsonPath('charged', 3);
+        Invoice::query()->update(['status' => 'paid']);
+
+        $this->postJson('/api/invoices', $this->body(['preview' => true]))->assertOk()
+            ->assertJsonPath('to_charge', 0)->assertJsonPath('skipped', 0)->assertJsonPath('already_paid', 3)->assertJsonPath('total', 0);
+        $this->postJson('/api/invoices', $this->body())->assertStatus(422);
+        $this->assertSame(3, Invoice::count());
     }
 
     public function test_running_it_twice_does_not_bill_anyone_twice(): void

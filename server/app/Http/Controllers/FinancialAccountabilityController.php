@@ -324,46 +324,51 @@ class FinancialAccountabilityController extends Controller
 
     /**
      * The same student charge for every active member of the organization, in one transaction. A member who already
-     * holds an open charge with the same description is skipped, so running it twice never bills anyone twice. With
-     * preview set it writes nothing and only reports the count and the total.
+     * holds an open charge with the same description is skipped, and so is one who already paid a charge with that
+     * exact description unless charge_already_paid is sent, so running it twice never bills anyone twice. With
+     * preview set it writes nothing and only reports the counts and the total.
      */
     private function chargeAllMembers(Request $request)
     {
-        $data = $request->validate(['all_members' => ['accepted'], 'preview' => ['nullable', 'boolean'], 'description' => ['required', 'string', 'max:255'], 'amount_due' => ['required', 'decimal:0,2', 'gt:0'], 'due_date' => ['nullable', 'date'], 'event_id' => ['nullable', 'integer']]);
+        $data = $request->validate(['all_members' => ['accepted'], 'preview' => ['nullable', 'boolean'], 'charge_already_paid' => ['nullable', 'boolean'], 'description' => ['required', 'string', 'max:255'], 'amount_due' => ['required', 'decimal:0,2', 'gt:0'], 'due_date' => ['nullable', 'date'], 'event_id' => ['nullable', 'integer']]);
         $organizationId = $request->user()->organization_id;
         if ($message = $this->validateLinks($request, $data)) {
             return response()->json(['message' => $message], 422);
         }
         $description = trim($data['description']);
-        $plan = function () use ($organizationId, $description, $data) {
+        $chargeAlreadyPaid = $request->boolean('charge_already_paid');
+        $plan = function () use ($organizationId, $description, $data, $chargeAlreadyPaid) {
             $members = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('role', 'STUDENT')->where('account_status', 'active'))->pluck('school_id');
             $holders = Invoice::where('organization_id', $organizationId)->where('description', $description)->whereNotIn('status', ['paid', 'cancelled', 'waived'])->pluck('student_id');
-            $owed = $members->diff($holders)->values();
+            $paid = Invoice::where('organization_id', $organizationId)->where('description', $description)->where('status', 'paid')->pluck('student_id');
+            $owed = $members->diff($holders)->when(! $chargeAlreadyPaid, fn ($candidates) => $candidates->diff($paid))->values();
 
-            return ['members' => $members->count(), 'owed' => $owed, 'skipped' => $members->count() - $owed->count(), 'total' => round($owed->count() * (float) $data['amount_due'], 2)];
+            return ['members' => $members->count(), 'owed' => $owed, 'skipped' => $members->intersect($holders)->count(), 'already_paid' => $members->diff($holders)->intersect($paid)->count(), 'total' => round($owed->count() * (float) $data['amount_due'], 2)];
         };
         if ($request->boolean('preview')) {
             $found = $plan();
 
-            return response()->json(['preview' => true, 'members' => $found['members'], 'to_charge' => $found['owed']->count(), 'skipped' => $found['skipped'], 'total' => $found['total']]);
+            return response()->json(['preview' => true, 'members' => $found['members'], 'to_charge' => $found['owed']->count(), 'skipped' => $found['skipped'], 'already_paid' => $found['already_paid'], 'total' => $found['total']]);
         }
 
-        return DB::transaction(function () use ($request, $organizationId, $description, $data, $plan) {
+        return DB::transaction(function () use ($request, $organizationId, $description, $data, $plan, $chargeAlreadyPaid) {
             Organization::lockForUpdate()->findOrFail($organizationId);
             $found = $plan();
             if ($found['members'] === 0) {
                 return response()->json(['message' => 'Your organization has no active members to charge.'], 422);
             }
             if ($found['owed']->isEmpty()) {
-                return response()->json(['message' => "Every active member already has an open charge named {$description}."], 422);
+                return response()->json(['message' => $found['already_paid'] > 0
+                    ? "Every active member already has or has paid a charge named {$description}."
+                    : "Every active member already has an open charge named {$description}."], 422);
             }
             foreach ($found['owed'] as $studentId) {
                 $row = Invoice::create([...Arr::only($data, ['amount_due', 'due_date', 'event_id']), 'description' => $description, 'student_id' => $studentId, 'organization_id' => $organizationId, 'reference' => 'INV-'.strtoupper(Str::random(10))]);
                 $this->audit($request, 'invoices', 'created', $row);
             }
-            AuditLog::create(['organization_id' => $organizationId, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'invoices', 'action' => 'created_for_all_members', 'description' => 'Invoices Created For All Members.', 'record_type' => Organization::class, 'record_id' => $organizationId, 'new_values' => ['entity_type' => 'organization', 'entity_id' => $organizationId, 'description' => $description, 'amount_due' => $data['amount_due'], 'charged' => $found['owed']->count(), 'skipped' => $found['skipped'], 'total' => $found['total']], 'ip_address' => $request->ip(), 'created_at' => now()]);
+            AuditLog::create(['organization_id' => $organizationId, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'invoices', 'action' => 'created_for_all_members', 'description' => 'Invoices Created For All Members.', 'record_type' => Organization::class, 'record_id' => $organizationId, 'new_values' => ['entity_type' => 'organization', 'entity_id' => $organizationId, 'description' => $description, 'amount_due' => $data['amount_due'], 'charged' => $found['owed']->count(), 'skipped' => $found['skipped'], 'already_paid' => $found['already_paid'], 'charged_already_paid' => $chargeAlreadyPaid, 'total' => $found['total']], 'ip_address' => $request->ip(), 'created_at' => now()]);
 
-            return response()->json(['preview' => false, 'charged' => $found['owed']->count(), 'skipped' => $found['skipped'], 'total' => $found['total']], 201);
+            return response()->json(['preview' => false, 'charged' => $found['owed']->count(), 'skipped' => $found['skipped'], 'already_paid' => $found['already_paid'], 'total' => $found['total']], 201);
         });
     }
 
