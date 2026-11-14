@@ -18,6 +18,14 @@ const ROLES = [
 ];
 const ROLE_NAMES = Object.fromEntries(ROLES);
 
+// The server writes "disabled" when an account is switched off and still accepts the older "inactive", so both read and filter as one state.
+const DEACTIVATED_FILTER = JSON.stringify(['disabled', 'inactive']);
+const PER_PAGE = 10;
+
+function AccountStatusBadge({ status }) {
+  return status === 'active' ? <StatusBadge status="active" /> : <StatusBadge status="disabled" label="Deactivated" />;
+}
+
 function fullName(user) {
   return `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
 }
@@ -38,7 +46,7 @@ export default function SaoUsersPage() {
   const [filters, setFilters] = useState({ search: '', role: '', status: '' });
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [state, setState] = useState({ loading: true, error: '', rows: [], meta: { total: 0, currentPage: 1, perPage: 20 } });
+  const [state, setState] = useState({ loading: true, error: '', rows: [], meta: { total: 0, currentPage: 1, perPage: PER_PAGE } });
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState('');
@@ -64,7 +72,7 @@ export default function SaoUsersPage() {
     loadCounter.current += 1;
     const ticket = loadCounter.current;
     setState((current) => ({ ...current, loading: true, error: '' }));
-    getSystemUsers({ page, per_page: 20, search: filters.search || undefined, role: filters.role || undefined, status: filters.status || undefined })
+    getSystemUsers({ page, per_page: PER_PAGE, search: filters.search || undefined, role: filters.role || undefined, status: filters.status || undefined })
       .then((data) => { if (ticket === loadCounter.current) setState({ loading: false, error: '', rows: unwrapList(data), meta: listMeta(data) }); })
       .catch((error) => { if (ticket === loadCounter.current) setState((current) => ({ ...current, loading: false, error: getApiErrorMessage(error, 'Could not load users.') })); });
   }, [filters, page]);
@@ -143,7 +151,8 @@ export default function SaoUsersPage() {
   }
 
   // A Department Head is switched off, corrected and reset from Colleges, and nobody switches off the account they are signed in with.
-  const canManageAccount = (user) => user.role !== 'DEPARTMENT_HEAD' && String(user.school_id) !== String(ownSchoolId);
+  const isOwnAccount = (user) => ownSchoolId != null && String(user?.school_id) === String(ownSchoolId);
+  const canManageAccount = (user) => user.role !== 'DEPARTMENT_HEAD' && !isOwnAccount(user);
 
   const columns = [
     {
@@ -151,9 +160,9 @@ export default function SaoUsersPage() {
       header: 'User',
       render: (user) => (
         <span className="block min-w-0">
-          <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">
+          <span className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-ink">{fullName(user)}</span>
-            {user.account_status && user.account_status !== 'active' && <StatusBadge status={user.account_status} />}
+            {user.account_status && user.account_status !== 'active' && <AccountStatusBadge status={user.account_status} />}
           </span>
           <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]">{user.email}</span>
           {visibleSchoolId(user.school_id) && <span className="block text-xs tabular-nums text-ink-muted">ID {user.school_id}</span>}
@@ -182,23 +191,24 @@ export default function SaoUsersPage() {
       filters={<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <Field label="Search users" className="sm:flex-1"><Input type="search" placeholder="Name, email, or school ID" value={query} onChange={(event) => setQuery(event.target.value)} /></Field>
         <Field label="Role" className="sm:w-48"><Select filter value={filters.role} onChange={(event) => changeFilter('role', event.target.value)}><option value="">All roles</option>{ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
-        <Field label="Status" className="sm:w-44"><Select filter value={filters.status} onChange={(event) => changeFilter('status', event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></Select></Field>
+        <Field label="Status" className="sm:w-44"><Select filter value={filters.status} onChange={(event) => changeFilter('status', event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value={DEACTIVATED_FILTER}>Deactivated</option></Select></Field>
         {filtersActive && <button type="button" onClick={clearFilters} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline sm:self-end">Clear</button>}
       </div>}
       actions={(user) => <TableRowActions subject={fullName(user)} actions={[
         { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
         canManageAccount(user) && { label: 'Edit details', icon: Pencil, onClick: () => setEditing(user) },
-        (['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) || (user.role === 'SUPER_ADMIN' && String(user.school_id) !== String(ownSchoolId))) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
+        (['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) || (user.role === 'SUPER_ADMIN' && !isOwnAccount(user))) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
         canManageAccount(user) && (user.account_status === 'active'
           ? { label: 'Deactivate', icon: UserX, onClick: () => { setActionError(''); setSwitching({ user, to: 'disabled' }); } }
           : { label: 'Reactivate', icon: UserCheck, onClick: () => { setActionError(''); setSwitching({ user, to: 'active' }); } }),
-        { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
+        !isOwnAccount(user) && { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
       ]} />}
       pagination={<PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" />}
     />
     <Drawer open={Boolean(selected)} title={fullName(selected)} description={selected && visibleSchoolId(selected.school_id) ? `School ID ${selected.school_id}` : undefined} onClose={() => setSelected(null)} width="max-w-2xl">
       {detailError ? <p role="alert" className="text-sm text-danger-strong">{detailError}</p> : !detail ? <SkeletonText lines={4} /> : <div className="space-y-6">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-xs font-semibold text-ink-muted">Email</dt><dd className="break-all font-medium text-ink">{detail.user.email}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Status</dt><dd><StatusBadge status={detail.user.account_status} /></dd></div></dl>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-xs font-semibold text-ink-muted">Email</dt><dd className="break-all font-medium text-ink">{detail.user.email}</dd></div><div><dt className="text-xs font-semibold text-ink-muted">Status</dt><dd><AccountStatusBadge status={detail.user.account_status} /></dd></div></dl>
+        {isOwnAccount(selected) && <p className="text-sm text-ink-muted">You cannot deactivate or delete your own account.</p>}
         <section><h3 className="text-sm font-semibold text-ink">Profiles</h3><ul className="mt-2 divide-y divide-line rounded-lg border border-line">{detail.user.profiles.map((profile) => <li key={profile.id} className="flex flex-wrap justify-between gap-2 px-3 py-2 text-sm"><span className="font-medium text-ink">{profile.organization?.name || 'Organization unavailable'}</span><span className="text-ink-muted">{ROLE_NAMES[profile.role] || profile.role}</span></li>)}</ul></section>
         <section><h3 className="text-sm font-semibold text-ink">Clearance history</h3>{detail.clearances.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No clearance periods for this user.</p> : <ul className="mt-2 divide-y divide-line rounded-lg border border-line">{detail.clearances.map((period) => <li key={period.period_id} className="px-3 py-3"><div className="flex flex-wrap justify-between gap-2"><span className="font-semibold text-ink">{period.title}</span><StatusBadge status={period.is_complete ? 'cleared' : 'pending'} /></div><p className="text-xs text-ink-muted">{period.academic_year}</p><div className="mt-2 flex flex-wrap gap-2">{period.signatures.map((signature) => <span key={signature.required_role} className="text-xs text-ink-muted">{signature.required_role.replaceAll('_', ' ')}: {signature.status}</span>)}</div></li>)}</ul>}</section>
         <section><h3 className="text-sm font-semibold text-ink">Linked records</h3>{detailRecords.length === 0 ? <p className="mt-2 text-sm text-ink-muted">No linked records. This account can be deleted.</p> : <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{detailRecords.map(({ key, label, count }) => <div key={key} className="rounded-lg border border-line p-2"><dt className="text-xs text-ink-muted">{label}</dt><dd className="text-sm font-semibold tabular-nums text-ink">{count}</dd></div>)}</dl>}</section>
