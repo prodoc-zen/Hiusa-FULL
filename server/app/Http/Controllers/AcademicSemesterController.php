@@ -276,24 +276,7 @@ class AcademicSemesterController extends Controller
 
     public function destroy(Request $request, AcademicSemester $academicSemester)
     {
-        $reasons = DB::transaction(function () use ($request, $academicSemester) {
-            $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
-            $compliance = ComplianceRequirementType::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
-            $events = EventRequirement::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
-            $reasons = $this->deletionBlockers($semester);
-
-            if ($reasons === []) {
-                $this->audit($request, 'academic_semester_deleted', $semester);
-                ComplianceRequirementType::where('academic_semester_id', $semester->id)->delete();
-                EventRequirement::where('academic_semester_id', $semester->id)->delete();
-                $semester->delete();
-                foreach ($compliance->concat($events) as $requirement) {
-                    app(RequirementSampleService::class)->deleteAfterCommit($requirement->template_path);
-                }
-            }
-
-            return $reasons;
-        });
+        $reasons = DB::transaction(fn () => $this->remove($request, $academicSemester));
 
         if ($reasons !== []) {
             return response()->json(['message' => 'This semester cannot be deleted because of: '.implode(', ', $reasons).'.', 'reasons' => $reasons], 409);
@@ -302,8 +285,34 @@ class AcademicSemesterController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Removes a semester and its requirements when nothing depends on it, otherwise says what does.
+     * Call inside a transaction.
+     *
+     * @return array<int, string>
+     */
+    public function remove(Request $request, AcademicSemester $academicSemester): array
+    {
+        $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+        $compliance = ComplianceRequirementType::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
+        $events = EventRequirement::where('academic_semester_id', $semester->id)->lockForUpdate()->get();
+        $reasons = $this->deletionBlockers($semester);
+
+        if ($reasons === []) {
+            $this->audit($request, 'academic_semester_deleted', $semester);
+            ComplianceRequirementType::where('academic_semester_id', $semester->id)->delete();
+            EventRequirement::where('academic_semester_id', $semester->id)->delete();
+            $semester->delete();
+            foreach ($compliance->concat($events) as $requirement) {
+                app(RequirementSampleService::class)->deleteAfterCommit($requirement->template_path);
+            }
+        }
+
+        return $reasons;
+    }
+
     /** @return array<int, string> */
-    private function deletionBlockers(AcademicSemester $semester): array
+    public function deletionBlockers(AcademicSemester $semester): array
     {
         $requirementTypes = ComplianceRequirementType::where('academic_semester_id', $semester->id)->select('id');
         $eventRequirements = EventRequirement::where('academic_semester_id', $semester->id)->select('id');
