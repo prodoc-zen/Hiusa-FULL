@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\AccountProfile;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
+use App\Models\AccountProfile;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
