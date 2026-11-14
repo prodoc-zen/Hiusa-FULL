@@ -78,6 +78,29 @@ describe('Add student charge to every member', () => {
       expect(mocks.createInvoice.mock.calls.every(([body]) => !('charge_already_paid' in body))).toBe(true);
     });
 
+    it('says in the success message how many who already paid were skipped', async () => {
+      mocks.createInvoice.mockImplementation(async (body) => (body.preview ? preview({ to_charge: 40, skipped: 2, already_paid: 18, total: 6000 }) : { data: { preview: false, charged: 40, skipped: 2, already_paid: 18, total: 6000 } }));
+      const dialog = await openCharge();
+      fillFee(dialog);
+      expect(await within(dialog).findByText(/40 members will be charged/)).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Charge 40 members' }));
+
+      expect(await screen.findByText('Charged 40 members. 2 already had it. 18 already paid it and were skipped.')).toBeInTheDocument();
+    });
+
+    it('does not call them skipped when the tick charged them again', async () => {
+      mocks.createInvoice.mockImplementation(async (body) => (body.preview ? preview({ to_charge: 58, skipped: 2, already_paid: 18, total: 8700 }) : { data: { preview: false, charged: 58, skipped: 2, already_paid: 18, total: 8700 } }));
+      const dialog = await openCharge();
+      fillFee(dialog);
+      fireEvent.click(await within(dialog).findByRole('checkbox', { name: TICK }));
+      expect(await within(dialog).findByText(/58 members will be charged/)).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Charge 58 members' }));
+
+      expect(await screen.findByText('Charged 58 members. 2 already had it.')).toBeInTheDocument();
+    });
+
     it('counts them in again only after the tick, and sends the tick with the charge', async () => {
       mocks.createInvoice.mockImplementation(async (body) => {
         if (body.preview) return body.charge_already_paid ? preview({ to_charge: 58, skipped: 2, already_paid: 18, total: 8700 }) : preview({ to_charge: 40, skipped: 2, already_paid: 18, total: 6000 });

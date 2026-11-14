@@ -122,6 +122,131 @@ class SystemUserAccountControlTest extends TestCase
         $this->assertContains('active', $first['bindings']);
     }
 
+    public function test_deactivating_a_student_takes_only_the_targets_row_lock(): void
+    {
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $student = User::factory()->student()->create(['account_status' => 'active']);
+
+        $locked = $this->recordLockedSelects(function () use ($actor, $student) {
+            Sanctum::actingAs($actor);
+            $this->patchJson('/api/system/users/'.$student->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+        });
+
+        $this->assertCount(1, $locked);
+        $this->assertSame('users', $locked[0]['table']);
+        $this->assertSame([$student->school_id], $locked[0]['bindings']);
+    }
+
+    public function test_deactivating_a_sao_locks_the_active_sao_rows_by_key_before_the_target(): void
+    {
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $target = User::factory()->superAdmin()->create(['account_status' => 'active']);
+
+        $locked = $this->recordLockedSelects(function () use ($actor, $target) {
+            Sanctum::actingAs($actor);
+            $this->patchJson('/api/system/users/'.$target->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+        });
+
+        $this->assertCount(2, $locked);
+        $this->assertContains('SUPER_ADMIN', $locked[0]['bindings']);
+        $this->assertContains('active', $locked[0]['bindings']);
+        $this->assertKeyedLock($locked[0], [$actor->school_id, $target->school_id]);
+        $this->assertSame([$target->school_id], $locked[1]['bindings']);
+    }
+
+    public function test_reactivating_a_sao_takes_only_the_targets_row_lock(): void
+    {
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $target = User::factory()->superAdmin()->create(['account_status' => 'disabled']);
+
+        $locked = $this->recordLockedSelects(function () use ($actor, $target) {
+            Sanctum::actingAs($actor);
+            $this->patchJson('/api/system/users/'.$target->school_id.'/status', ['account_status' => 'active'])->assertOk();
+        });
+
+        $this->assertCount(1, $locked);
+        $this->assertSame([$target->school_id], $locked[0]['bindings']);
+    }
+
+    public function test_deleting_a_sao_locks_the_active_sao_rows_first_and_a_student_does_not(): void
+    {
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $target = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $student = User::factory()->student()->create(['account_status' => 'active']);
+
+        $locked = $this->recordLockedSelects(function () use ($actor, $target) {
+            Sanctum::actingAs($actor);
+            $this->deleteJson('/api/system/users/'.$target->school_id, ['school_id' => $target->school_id])->assertOk();
+        });
+        $this->assertCount(2, $locked);
+        $this->assertContains('SUPER_ADMIN', $locked[0]['bindings']);
+        $this->assertContains('active', $locked[0]['bindings']);
+        $this->assertKeyedLock($locked[0], [$actor->school_id, $target->school_id]);
+        $this->assertSame([$target->school_id], $locked[1]['bindings']);
+
+        $locked = $this->recordLockedSelects(function () use ($student) {
+            $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])->assertOk();
+        });
+        $this->assertCount(1, $locked);
+        $this->assertSame([$student->school_id], $locked[0]['bindings']);
+    }
+
+    public function test_the_last_active_sao_cannot_be_deleted(): void
+    {
+        // Same race as the deactivate case: the acting account is switched off inside the transaction.
+        $actor = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $last = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $switched = false;
+        DB::beforeExecuting(function () use (&$switched, $actor) {
+            if (! $switched && DB::transactionLevel() > 0) {
+                $switched = true;
+                DB::table('users')->where('school_id', $actor->school_id)->update(['account_status' => 'disabled']);
+            }
+        });
+
+        Sanctum::actingAs($actor);
+        $this->deleteJson('/api/system/users/'.$last->school_id, ['school_id' => $last->school_id])
+            ->assertStatus(409)->assertJsonPath('message', 'The last active SAO account cannot be deleted.');
+        $this->assertTrue($switched);
+        $this->assertNotNull(User::find($last->school_id));
+    }
+
+    /** The set lock selects by primary key: Laravel writes integer keys into the SQL, so they are read from there. */
+    private function assertKeyedLock(array $lock, array $schoolIds): void
+    {
+        $this->assertMatchesRegularExpression('/"school_id" in \(([\d, ]+)\)/', $lock['sql']);
+        preg_match('/"school_id" in \(([\d, ]+)\)/', $lock['sql'], $found);
+        $this->assertEqualsCanonicalizing($schoolIds, array_map('intval', explode(',', $found[1])));
+    }
+
+    /** Runs the callback with a grammar that records every select taken with FOR UPDATE, in order. */
+    private function recordLockedSelects(callable $run): array
+    {
+        $original = DB::connection()->getQueryGrammar();
+        $recorder = new class(DB::connection()) extends SQLiteGrammar
+        {
+            public array $locked = [];
+
+            public function compileSelect(Builder $query)
+            {
+                $sql = parent::compileSelect($query);
+                if ($query->lock) {
+                    $this->locked[] = ['table' => $query->from, 'bindings' => $query->getBindings(), 'sql' => $sql];
+                }
+
+                return $sql;
+            }
+        };
+        DB::connection()->setQueryGrammar($recorder);
+        try {
+            $run();
+        } finally {
+            DB::connection()->setQueryGrammar($original);
+        }
+
+        return $recorder->locked;
+    }
+
     public function test_a_sao_who_was_just_deactivated_cannot_deactivate_the_other_one_back(): void
     {
         $first = User::factory()->superAdmin()->create(['account_status' => 'active']);

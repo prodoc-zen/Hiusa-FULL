@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -229,9 +230,12 @@ class SystemUsersController extends Controller
 
         try {
             $removed = DB::transaction(function () use ($request, $user, $data) {
+                $activeSaoIds = $user->getRawOriginal('role') === 'SUPER_ADMIN' ? $this->lockActiveSaoRows() : null;
                 $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
                 if ($locked->getRawOriginal('role') === 'SUPER_ADMIN') {
-                    abort_unless(User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists(), 409, 'The last active SAO account cannot be deleted.');
+                    // A role changed since the bound user was read is rare; lock the set now so the decision is still made on locked rows.
+                    $activeSaoIds ??= $this->lockActiveSaoRows();
+                    abort_if($this->noOtherActiveSao($activeSaoIds, $locked->school_id), 409, 'The last active SAO account cannot be deleted.');
                 }
                 $counts = $this->linkedRecordCounts($locked->school_id);
                 $linked = array_filter(Arr::except($counts, ['profiles']), fn (array $record) => $record['count'] > 0);
@@ -279,6 +283,23 @@ class SystemUsersController extends Controller
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
 
+    /**
+     * Locks every active SAO row by primary key, in school ID order, and returns the locked IDs. The plain read finds the keys,
+     * so the lock itself is a key lookup that takes record locks only, never a scan that locks the whole users table.
+     * Two SAOs switching each other off lock in the same order, so one waits for the other and then sees the true set.
+     */
+    private function lockActiveSaoRows(): Collection
+    {
+        $candidates = User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->pluck('school_id');
+
+        return User::whereKey($candidates)->where('role', 'SUPER_ADMIN')->where('account_status', 'active')->orderBy('school_id')->lockForUpdate()->pluck('school_id');
+    }
+
+    private function noOtherActiveSao(Collection $lockedIds, int $schoolId): bool
+    {
+        return $lockedIds->reject(fn ($id) => (int) $id === $schoolId)->isEmpty();
+    }
+
     /** The SAO switches any account except a Department Head (managed from Colleges) off or back on, never their own, never the last active SAO. */
     public function updateStatus(Request $request, User $user)
     {
@@ -291,14 +312,16 @@ class SystemUsersController extends Controller
         }
 
         $conflict = DB::transaction(function () use ($data, $request, $user) {
-            $activeSaoIds = User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->orderBy('school_id')->lockForUpdate()->pluck('school_id');
+            // Only switching a SAO off can leave none, so only that takes the set lock; every other change locks the target alone.
+            $activeSaoIds = $data['account_status'] === 'disabled' && $user->getRawOriginal('role') === 'SUPER_ADMIN' ? $this->lockActiveSaoRows() : null;
             $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
             $before = $locked->getRawOriginal('account_status');
             if ($before === $data['account_status']) {
                 return response()->json(['message' => 'This account is already '.($before === 'active' ? 'active' : 'disabled').'.'], 422);
             }
             if ($data['account_status'] === 'disabled' && $locked->getRawOriginal('role') === 'SUPER_ADMIN') {
-                if ($activeSaoIds->reject(fn ($schoolId) => (int) $schoolId === (int) $locked->school_id)->isEmpty()) {
+                $activeSaoIds ??= $this->lockActiveSaoRows();
+                if ($this->noOtherActiveSao($activeSaoIds, $locked->school_id)) {
                     return response()->json(['message' => 'The last active SAO account cannot be deactivated.'], 409);
                 }
             }

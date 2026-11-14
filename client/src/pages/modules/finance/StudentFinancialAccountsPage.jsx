@@ -78,7 +78,7 @@ export default function StudentFinancialAccountsPage() {
   const submitCharge = async (event) => {
     event.preventDefault(); setBusy(true); setFormError('');
     if (everyMember) {
-      try { const response = await createInvoice(bulkBody); const { charged, skipped } = response.data; setCharge(null); await load(); setFeedback({ open: true, type: 'success', message: `Charged ${plural(charged, 'member')}.${skipped ? ` ${skipped} already had it.` : ''}` }); }
+      try { const response = await createInvoice(bulkBody); const { charged, skipped, already_paid: paid } = response.data; const paidSkipped = !charge.charge_already_paid && paid > 0; setCharge(null); await load(); setFeedback({ open: true, type: 'success', message: `Charged ${plural(charged, 'member')}.${skipped ? ` ${skipped} already had it.` : ''}${paidSkipped ? ` ${paid} already paid it and ${paid === 1 ? 'was' : 'were'} skipped.` : ''}` }); }
       catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to add the charges.')); }
       finally { setBusy(false); }
       return;
