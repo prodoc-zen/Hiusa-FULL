@@ -169,10 +169,10 @@ export default function GeneralAuditLogPage() {
         <option value="">All actions</option>
         {ACTION_CATEGORY_OPTIONS.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
       </Select>
-      <Field label="From date" className="lg:w-40">
+      <Field label="From date" className="max-sm:col-span-2 lg:w-40">
         <Input type="date" aria-label="From date" value={filters.from} onChange={(event) => update("from", event.target.value)} />
       </Field>
-      <Field label="To date" className="lg:w-40">
+      <Field label="To date" className="max-sm:col-span-2 lg:w-40">
         <Input type="date" aria-label="To date" value={filters.to} onChange={(event) => update("to", event.target.value)} />
       </Field>
       {filtersActive && (

@@ -59,6 +59,15 @@ describe('GeneralAuditLogPage', () => {
     expect(screen.getByRole('textbox', { name: 'Search audit log' })).toHaveAttribute('placeholder', 'Search actor, module or record');
   });
 
+  it('gives each date filter a full row on a phone so the whole date shows', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<GeneralAuditLogPage />);
+
+    await screen.findByRole('table');
+    expect(screen.getByText('From date').parentElement).toHaveClass('max-sm:col-span-2');
+    expect(screen.getByText('To date').parentElement).toHaveClass('max-sm:col-span-2');
+  });
+
   it('names the last column Actions because it holds the row menu', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     render(<GeneralAuditLogPage />);
