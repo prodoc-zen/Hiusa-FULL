@@ -48,11 +48,34 @@ describe('buildWorkspaces for students and officers', () => {
     expect(current.label).toBe('Arts Guild');
   });
 
-  it('treats a student profile in any organization as My account', () => {
+  it('lists a plain member profile as its own space, so a student who is also a Member can reach it', () => {
     const member = profile(6, 'STUDENT', { name: 'Chess Club' });
-    const { current } = buildWorkspaces({ role: 'STUDENT', profiles: [home, officer, member], activeProfileId: 6 });
+    const { spaces, current } = buildWorkspaces({ role: 'STUDENT', profiles: [home, member], activeProfileId: 6 });
 
-    expect(current.label).toBe('My account');
+    expect(spaces.map((space) => space.label)).toEqual(['My account', 'Chess Club · Member']);
+    expect(current.label).toBe('Chess Club · Member');
+    expect(buildWorkspaces({ role: 'STUDENT', profiles: [home, member], activeProfileId: 1 }).current.label).toBe('My account');
+  });
+
+  it('keeps a member profile beside officer profiles in one list', () => {
+    const member = profile(6, 'STUDENT', { name: 'Chess Club' });
+    const { spaces } = buildWorkspaces({ role: 'STUDENT', profiles: [home, officer, member], activeProfileId: 1 });
+
+    expect(spaces.map((space) => space.label)).toEqual(['My account', 'Computing Society', 'Chess Club · Member']);
+  });
+
+  it('shows no switcher for a person with exactly one profile, member or not', () => {
+    const member = profile(6, 'STUDENT', { name: 'Chess Club' });
+
+    expect(buildWorkspaces({ role: 'STUDENT', profiles: [member], activeProfileId: 6 }).spaces).toEqual([]);
+  });
+
+  it('shows a switcher for two profiles that are both in organizations', () => {
+    const member = profile(6, 'STUDENT', { name: 'Chess Club' });
+    const { spaces, current } = buildWorkspaces({ role: 'SBO_OFFICER', profiles: [officer, member], activeProfileId: 2 });
+
+    expect(spaces.map((space) => space.label)).toEqual(['Computing Society', 'Chess Club · Member']);
+    expect(current.label).toBe('Computing Society');
   });
 });
 
