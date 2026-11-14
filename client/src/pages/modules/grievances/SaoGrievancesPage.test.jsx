@@ -163,6 +163,42 @@ describe('SaoGrievancesPage', () => {
     expect(screen.getByRole('button', { name: 'Why the machine rated it this way' })).toBeInTheDocument();
     expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: '["submitted","under_review"]', per_page: 1 });
   });
+  it('lets the SAO reopen a closed grievance with a reason', async () => {
+    const closed = { ...CRITICAL, status: 'dismissed', remarks: 'Not a concern.' };
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [closed] : [])));
+    mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...closed, status: 'under_review', remarks: 'The student sent new facts.' } });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    expect(screen.queryByText(/cannot be reopened/)).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Reopen grievance' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Reopen grievance' });
+    const confirm = within(dialog).getByRole('button', { name: 'Reopen grievance' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Remarks/), { target: { value: 'The student sent new facts.' } });
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(mocks.updateGrievanceStatus).toHaveBeenCalledWith(1, { status: 'under_review', remarks: 'The student sent new facts.' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reopen grievance' })).not.toBeInTheDocument());
+  });
+
+  it('shows why a reopen failed and keeps the reason', async () => {
+    const closed = { ...CRITICAL, status: 'resolved', remarks: 'Done.' };
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [closed] : [])));
+    mocks.updateGrievanceStatus.mockRejectedValue({ response: { data: { message: 'This grievance is resolved and cannot be moved to under_review.' } } });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reopen grievance' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Reopen grievance' });
+    fireEvent.change(within(dialog).getByLabelText(/Remarks/), { target: { value: 'New facts.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen grievance' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('cannot be moved');
+    expect(within(dialog).getByLabelText(/Remarks/)).toHaveValue('New facts.');
+  });
+
   it('asks for page one once when a filter changes on a later page', async () => {
     mocks.getGrievances.mockImplementation((params) => Promise.resolve({ data: { data: params?.per_page === 50 ? [CRITICAL] : [], current_page: params?.page || 1, last_page: 3, per_page: 50, total: 120 } }));
 
