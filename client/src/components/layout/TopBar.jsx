@@ -6,7 +6,7 @@ import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Button, Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
-import { ROLE_LABELS } from './navigation';
+import { workspaceRoleWord } from '../../utils/workspaceLabels';
 import { logout } from '../../services/authService';
 import { clearApiCache } from '../../services/api';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
@@ -119,7 +119,7 @@ export default function TopBar({ onMenuToggle }) {
   const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
-  const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
+  const roleLabel = workspaceRoleWord(role, user?.organization?.organization_type) || 'Member';
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = organizationLabel(user);
   const showCart = role === 'STUDENT';
@@ -652,7 +652,7 @@ export default function TopBar({ onMenuToggle }) {
                 {availableProfiles.map((profile) => {
                   const current = profile.id === (activeProfileId ?? user?.active_profile_id);
                   return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-12 w-full items-center gap-3 rounded-control px-2 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-default ${current ? 'bg-brand-50' : 'hover:bg-page'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-ink-muted">{profile.organization?.organization_type === 'COLLEGE' ? 'College profile' : 'Organization profile'} · {ROLE_LABELS[profile.role] || profile.role}</span></span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-ink-muted">{profile.organization?.organization_type === 'COLLEGE' ? 'College profile' : 'Organization profile'} · {workspaceRoleWord(profile.role, profile.organization?.organization_type)}</span></span>
                     {current && <span className="text-xs font-medium text-ink-muted-strong">Current</span>}
                   </button>;
                 })}

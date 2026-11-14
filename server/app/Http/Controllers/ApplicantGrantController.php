@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
@@ -58,7 +59,8 @@ class ApplicantGrantController extends Controller
                 'user_id' => $student->school_id,
                 'notification_type' => 'general',
                 'title' => 'You can apply for an organization',
-                'message' => "{$college->name} allowed you to apply to register a new student organization. Open Apply for an organization in your menu.",
+                'message' => "{$college->name} allowed you to apply to register a new student organization. "
+                    .(AcademicSemester::active() ? 'Open Apply for an organization in your menu.' : 'Applications open once the SAO starts a semester.'),
                 'reference_type' => 'organization_applicant_grant',
                 'reference_id' => $grant->id,
                 'is_read' => false,

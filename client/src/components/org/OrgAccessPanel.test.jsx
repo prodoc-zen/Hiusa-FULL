@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../services/authService', () => mocks);
 vi.mock('../../services/peopleService', () => ({ searchPeople: mocks.searchPeople }));
 
-const MARIA = { id: 11, school_id: 2100142, first_name: 'Maria', last_name: 'Santos', email: 'maria@example.edu', role: 'SBO_OFFICER', position_title: 'Secretary', modules: ['events', 'tasks'], profiles_count: 2, deletion_block_reason: null };
-const JUAN = { id: 12, school_id: 2100143, first_name: 'Juan', last_name: 'Cruz', email: 'juan@example.edu', role: 'ADMIN', position_title: 'President', modules: null, profiles_count: 1, deletion_block_reason: null };
-const ANA = { id: 13, school_id: 2100144, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.edu', role: 'STUDENT', position_title: null, modules: null, profiles_count: 1, deletion_block_reason: null };
+const MARIA = { id: 11, school_id: 2100142, first_name: 'Maria', last_name: 'Santos', email: 'maria@example.edu', role: 'SBO_OFFICER', position_title: 'Secretary', modules: ['events', 'tasks'], organization: { id: 5, name: 'Computing Council' }, profiles_count: 2, deletion_block_reason: null };
+const JUAN = { id: 12, school_id: 2100143, first_name: 'Juan', last_name: 'Cruz', email: 'juan@example.edu', role: 'ADMIN', position_title: 'President', modules: null, organization: { id: 5, name: 'Computing Council' }, profiles_count: 1, deletion_block_reason: null };
+const ANA = { id: 13, school_id: 2100144, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.edu', role: 'STUDENT', position_title: null, modules: null, organization: { id: 5, name: 'Computing Council' }, profiles_count: 1, deletion_block_reason: null };
 const PICKED = { school_id: 2100150, name: 'Lia Ramos', email: 'lia@example.edu', program: 'BSIT', role: 'STUDENT', organizations: [] };
 const envelope = (data) => ({ data: { data, current_page: 1, last_page: 1, per_page: 20, total: data.length } });
 
@@ -217,7 +217,7 @@ describe('OrgAccessPanel', () => {
     renderPanel();
     await seen('Maria Santos');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]);
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('They lose access to this organization only.');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove access' }));
@@ -226,20 +226,91 @@ describe('OrgAccessPanel', () => {
     expect(await screen.findByText('Maria Santos no longer has access.')).toBeInTheDocument();
   });
 
-  it('warns when removing the only profile would delete the account', async () => {
+  it('warns when removing the only profile would delete the account, and the dialog says Delete account', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
+    await seen('Ana Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('deletes the account');
+    expect(within(dialog).getByRole('heading', { name: 'Delete account' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('Remove access')).not.toBeInTheDocument();
+  });
+
+  it('keeps Remove access on the dialog for a person who keeps another profile', async () => {
+    renderPanel();
+    await seen('Maria Santos');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Remove access' })).toBeInTheDocument();
+  });
+
+  it('stops the dean at a last profile and says who can remove the account', async () => {
     renderPanel();
     await seen('Ana Reyes');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Ana Reyes' })[0]);
+    const button = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0];
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Ask the SAO to remove the account');
+    expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account');
+    expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toBeEnabled();
+  });
 
-    expect(await screen.findByRole('dialog')).toHaveTextContent('deletes the account');
+  it('shows the dean one visible line above the list that every blocked Delete account button points at', async () => {
+    renderPanel();
+    await seen('Ana Reyes');
+
+    const buttons = screen.getAllByRole('button', { name: /^Delete account for / });
+    expect(buttons.length).toBeGreaterThan(1);
+    const ids = new Set(buttons.map((button) => button.getAttribute('aria-describedby')));
+    expect(ids.size).toBe(1);
+    const [id] = [...ids];
+    const line = document.getElementById(id);
+    expect(line).toHaveTextContent('Ask the SAO to remove the account');
+    expect(line).not.toHaveClass('sr-only');
+    expect(line.className).toMatch(/text-(xs|\[12px\]|\[13px\])/);
+    buttons.forEach((button) => expect(button).toHaveAccessibleDescription('Ask the SAO to remove the account'));
+    // One line for the whole panel, not one per person or per layout, and its id is not repeated in the DOM.
+    expect(screen.getAllByText('Ask the SAO to remove the account')).toHaveLength(1);
+    expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1);
+    expect(line.compareDocumentPosition(screen.getAllByRole('table')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('adds no reason line when nobody shown is on their last profile', async () => {
+    mocks.getManagedAccountProfiles.mockResolvedValue(envelope([MARIA]));
+    renderPanel();
+    await seen('Maria Santos');
+
+    expect(screen.queryByText('Ask the SAO to remove the account')).not.toBeInTheDocument();
+  });
+
+  it('adds no helper line when the person keeps another profile or the actor is not a dean', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
+    await seen('Ana Reyes');
+
+    expect(screen.queryByText('Ask the SAO to remove the account')).not.toBeInTheDocument();
+  });
+
+  it('names the organization on Remove when the person keeps another profile, and says Delete account on their last one', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
+    await seen('Maria Santos');
+
+    expect(screen.getAllByRole('button', { name: 'Remove Maria Santos from Computing Council' })[0]).toHaveTextContent('Remove from Computing Council');
+    const last = screen.getAllByRole('button', { name: 'Delete account for Ana Reyes' })[0];
+    expect(last).toHaveTextContent('Delete account');
+    expect(last.className).toContain('bg-danger');
+    expect(screen.queryByRole('button', { name: /Remove Ana Reyes/ })).not.toBeInTheDocument();
   });
 
   it('disables actions the server will refuse and says why', async () => {
     mocks.getManagedAccountProfiles.mockResolvedValue(envelope([{ ...JUAN, deletion_block_reason: 'Only the dean or SAO can change or remove an Admin profile.' }]));
     renderPanel({ actorRole: 'ADMIN' });
 
-    const buttons = await screen.findAllByRole('button', { name: 'Remove Juan Cruz' });
+    const buttons = await screen.findAllByRole('button', { name: 'Delete account for Juan Cruz' });
     expect(buttons[0]).toBeDisabled();
     expect(buttons[0]).toHaveAttribute('title', 'Only the dean or SAO can change or remove an Admin profile.');
   });
@@ -249,6 +320,6 @@ describe('OrgAccessPanel', () => {
 
     expect(await seen('Maria Santos')).not.toHaveLength(0);
     expect(screen.queryByRole('button', { name: /Give access/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Remove Maria Santos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Maria Santos/ })).not.toBeInTheDocument();
   });
 });

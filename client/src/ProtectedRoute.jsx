@@ -51,11 +51,13 @@ export default function ProtectedRoute({ allowedRoles = null, requireVenueBookin
 
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     const fallback = ROLE_DASHBOARD_PATHS[role] || "/dashboard";
-    return <Navigate to={fallback} replace />;
+    // The dashboard reads this to say why the person landed there, and to offer their other profile that may open the page.
+    return <Navigate to={fallback} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 
   if (isOfficeStaff(user) && !officeStaffMayOpen(location.pathname)) {
-    return <Navigate to={ROLE_DASHBOARD_PATHS.ADMIN} replace />;
+    // No role can open the page for them (the menu decides), so the notice says plainly there is no access, never Switch.
+    return <Navigate to={ROLE_DASHBOARD_PATHS.ADMIN} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles: [] } }} />;
   }
 
   if (requireVenueBooking && role === "SBO_OFFICER" && user?.can_book_venues === false) {

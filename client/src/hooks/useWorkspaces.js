@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAccountProfiles, getCurrentUser, switchAccountProfile } from '../services/authService';
 import { getCollegeOrganizations } from '../services/collegeOrganizationService';
 import { unwrapList } from '../services/pagination';
-import { ROLE_HOME_PATHS, ROLE_LABELS } from '../components/layout/navigation';
+import { ROLE_HOME_PATHS } from '../components/layout/navigation';
 import { storedUser } from '../utils/collegeIdentity';
+import { workspaceRoleWord } from '../utils/workspaceLabels';
 
 const ORG_ROLES = ['ADMIN', 'SBO_OFFICER'];
 
@@ -37,18 +38,18 @@ async function followRoleChange(profiles, activeProfileId) {
   }
 }
 
-const usable = (profile) => profile.account_status === 'active'
+export const usable = (profile) => profile.account_status === 'active'
   && Boolean(profile.organization?.is_active)
   && profile.organization.college_is_active !== false;
 
 function profileDetail(profile) {
-  const role = ROLE_LABELS[profile.role] || profile.role;
+  const role = workspaceRoleWord(profile.role, profile.organization?.organization_type) || profile.role;
   return profile.position_title ? `${role} · ${profile.position_title}` : role;
 }
 
-// Every place a person can work, as plain rows. "My account" is the student side of a user; each
-// organization they lead or help run is a space of its own. A Department Head's spaces are the
-// college's active organizations, entered as an overview and not as a role change.
+// Every place a person can work, as plain rows. "My account" is the student side of a user in their college; each
+// organization they lead, help run or belong to as a plain member is a space of its own. A Department Head's spaces
+// are the college's active organizations, entered as an overview and not as a role change.
 export function buildWorkspaces({ role, profiles = [], activeProfileId = null, collegeOrganizations = [], activeSubAccount = null }) {
   if (role === 'DEPARTMENT_HEAD') {
     const main = { key: 'main', kind: 'main', label: 'My college', detail: 'Dean view' };
@@ -67,18 +68,21 @@ export function buildWorkspaces({ role, profiles = [], activeProfileId = null, c
 
   const profilesNow = profiles.filter(usable);
   const students = profilesNow.filter((profile) => profile.role === 'STUDENT');
-  const mainProfile = students.find((profile) => profile.organization?.organization_type === 'COLLEGE') ?? students[0];
+  // Only a student profile in a student organization is a space of its own; one with no recorded type still stands for the account.
+  const mainProfile = students.find((profile) => profile.organization?.organization_type === 'COLLEGE')
+    ?? students.find((profile) => profile.organization?.organization_type !== 'STUDENT_ORGANIZATION');
   const main = mainProfile ? { key: 'main', kind: 'main', label: 'My account', detail: 'Student view', profile: mainProfile } : null;
-  const orgs = profilesNow.filter((profile) => ORG_ROLES.includes(profile.role)).map((profile) => ({
+  const orgs = profilesNow.filter((profile) => profile !== mainProfile && (ORG_ROLES.includes(profile.role) || profile.role === 'STUDENT')).map((profile) => ({
     key: `profile-${profile.id}`,
     kind: 'org',
-    label: profile.organization.name,
-    detail: profileDetail(profile),
+    label: profile.role === 'STUDENT' ? `${profile.organization.name} · Member` : profile.organization.name,
+    detail: profile.role === 'STUDENT' ? 'Member access' : profileDetail(profile),
     profile,
   }));
-  const spaces = main && orgs.length > 0 ? [main, ...orgs] : orgs.length > 1 ? orgs : [];
-  const active = profilesNow.find((profile) => profile.id === activeProfileId);
-  const current = active && ORG_ROLES.includes(active.role) ? orgs.find((space) => space.profile.id === active.id) : main;
+  // Two places to work of any kind earn a switcher; one place never does.
+  const all = main ? [main, ...orgs] : orgs;
+  const spaces = all.length > 1 ? all : [];
+  const current = orgs.find((space) => space.profile.id === activeProfileId) ?? main;
 
   const activeStudent = students.find((profile) => profile.id === activeProfileId) ?? null;
 
