@@ -107,6 +107,12 @@ describe('ElectionPickerPage', () => {
     expect(within(row).queryByRole('button', { name: /Finalize ballot/ })).not.toBeInTheDocument();
   });
 
+  it('writes the voting period on one line with a to between the two dates', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).getByText('Oct 1 to Oct 2, 2026, 4:00 PM')).toBeInTheDocument();
+  });
+
   it('marks a returned election with the reason and an edit and resubmit action', async () => {
     electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Add the voting room.' }]);
     render(<ElectionPickerPage onSelect={vi.fn()} />);
