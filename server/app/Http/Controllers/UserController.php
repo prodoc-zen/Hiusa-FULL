@@ -652,6 +652,14 @@ class UserController extends Controller
             ->header('Cache-Control', 'no-store');
     }
 
+    /** A disabled person is told who can switch the account back on: the organization Admin for students and officers, the SAO for everyone else. */
+    private function inactiveAccountMessage(User $user): string
+    {
+        return in_array($user->getRawOriginal('role'), ['STUDENT', 'SBO_OFFICER'], true)
+            ? 'This account is not active. Ask your organization Admin to switch it back on.'
+            : 'This account is not active. Ask the Student Affairs Office (SAO) to switch it back on.';
+    }
+
     public function disable(Request $request, $id)
     {
         $user = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id))->find($id);
@@ -901,7 +909,7 @@ class UserController extends Controller
 
         if ($user->account_status !== 'active') {
             return response()->json([
-                'message' => 'This account is not active. Please contact an administrator.',
+                'message' => $this->inactiveAccountMessage($user),
                 'account_status' => $user->account_status,
             ], 403);
         }
@@ -1020,7 +1028,7 @@ class UserController extends Controller
 
         if ($user->account_status !== 'active') {
             return response()->json([
-                'message' => 'This account is not active. Please contact an administrator.',
+                'message' => $this->inactiveAccountMessage($user),
                 'account_status' => $user->account_status,
             ], 403);
         }
