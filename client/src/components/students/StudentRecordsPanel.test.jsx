@@ -33,6 +33,8 @@ const previewResult = {
   ],
 };
 
+const openUpload = () => fireEvent.click(screen.getByRole('button', { name: 'Upload school records' }));
+
 const csv = () => new File(['x'], 'records.csv', { type: 'text/csv' });
 
 describe('StudentRecordsPanel', () => {
@@ -51,7 +53,7 @@ describe('StudentRecordsPanel', () => {
     expect(screen.getAllByText('Signed up').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Not yet').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 2600101').length).toBeGreaterThan(0);
-    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student' });
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 10, record_type: 'student' });
   });
 
   it('shows each birth date as a long date, with a dash when a record has none, in the table and the mobile cards', async () => {
@@ -92,7 +94,7 @@ describe('StudentRecordsPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
 
     expect(screen.getByLabelText('Account')).toHaveValue('');
-    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'student' }));
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 10, record_type: 'student' }));
   });
 
   it('switches to the employee records, which show a position instead of a program', async () => {
@@ -105,7 +107,7 @@ describe('StudentRecordsPanel', () => {
     fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'employee' } });
 
     expect((await screen.findAllByText('Marites Dizon')).length).toBeGreaterThan(0);
-    expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'employee', college_id: 4 });
+    expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 10, record_type: 'employee', college_id: 4 });
     expect(screen.getByRole('columnheader', { name: 'Position' })).toBeInTheDocument();
     expect(screen.getAllByText('Department Secretary').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ID 7100101').length).toBeGreaterThan(0);
@@ -132,6 +134,7 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel collegeId={4} />);
     await screen.findAllByText('Hannah Reyes');
 
+    openUpload();
     fireEvent.change(screen.getByLabelText('CSV file'), { target: { files: [csv()] } });
     fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
 
@@ -147,6 +150,33 @@ describe('StudentRecordsPanel', () => {
     expect(screen.getAllByRole('button', { name: 'Remove Hannah Reyes' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Edit Ben Tan' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove Ben Tan' })).not.toBeInTheDocument();
+  });
+
+  it('says why a record tied to an account cannot be changed, in place of Edit and Remove', async () => {
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Ben Tan');
+
+    expect(screen.getAllByText('Tied to an account, so it cannot be changed here.').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Edit Ben Tan' })).not.toBeInTheDocument();
+  });
+
+  it('lets a dean edit and remove an unclaimed record of the own college', async () => {
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith(expect.objectContaining({ college_id: 4 }));
+    expect(screen.getAllByRole('button', { name: 'Edit Hannah Reyes' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Remove Hannah Reyes' }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the list short with ten records a page and pages through the rest', async () => {
+    const many = Array.from({ length: 25 }, (_, index) => entry({ id: index + 10, school_id: 2600200 + index, name: `Student ${index + 1}` }));
+    mocks.getStudentRegistry.mockResolvedValue({ data: many.slice(0, 10), total: 25, summary: { total: 25, claimed: 0 } });
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Student 1');
+
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith(expect.objectContaining({ page: 1, per_page: 10 }));
+    expect(screen.getAllByText('25').length).toBeGreaterThan(0);
   });
 
   it('removes a record only after the person confirms, then reloads the list', async () => {
@@ -264,7 +294,7 @@ describe('StudentRecordsPanel', () => {
     mocks.getStudentRegistry.mockResolvedValue(list([], { total: 2, claimed: 1 }));
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'zzz' } });
 
-    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 20, record_type: 'student', q: 'zzz' }));
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenLastCalledWith({ page: 1, per_page: 10, record_type: 'student', q: 'zzz' }));
     expect(await screen.findByText('No results')).toBeInTheDocument();
   });
 
@@ -272,8 +302,9 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel collegeId={4} />);
 
     await screen.findAllByText('Hannah Reyes');
-    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 20, record_type: 'student', college_id: 4 });
+    expect(mocks.getStudentRegistry).toHaveBeenCalledWith({ page: 1, per_page: 10, record_type: 'student', college_id: 4 });
     expect(screen.queryByRole('columnheader', { name: 'College' })).not.toBeInTheDocument();
+    openUpload();
     expect(screen.getByText(/birth_date, program, year_level/)).toBeInTheDocument();
     expect(screen.queryByText(/college_code/)).not.toBeInTheDocument();
   });
@@ -282,6 +313,7 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel />);
     await screen.findAllByText('Hannah Reyes');
 
+    openUpload();
     const checkButton = screen.getByRole('button', { name: 'Check file' });
     expect(checkButton).toBeDisabled();
 
@@ -304,6 +336,7 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel />);
     await screen.findAllByText('Hannah Reyes');
 
+    openUpload();
     fireEvent.change(screen.getByLabelText('CSV file'), { target: { files: [csv()] } });
     fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
 
@@ -315,6 +348,7 @@ describe('StudentRecordsPanel', () => {
     render(<StudentRecordsPanel />);
     await screen.findAllByText('Hannah Reyes');
 
+    openUpload();
     fireEvent.change(screen.getByLabelText('CSV file'), { target: { files: [csv()] } });
     fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
 

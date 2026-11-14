@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GraduationCap } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, Input, Select, StatusBadge } from '../ui';
+import { GraduationCap, Upload } from 'lucide-react';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, Select, StatusBadge } from '../ui';
 import ConfirmModal from '../ConfirmModal';
 import StudentRecordEditModal from './StudentRecordEditModal';
 import StudentRecordsUpload from './StudentRecordsUpload';
@@ -10,7 +10,9 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { manilaDate } from '../../lib/format';
 import notify from '../../lib/notify';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
+
+const CLAIMED_REASON = 'Tied to an account, so it cannot be changed here.';
 
 const TYPES = {
   student: { label: 'Students', one: 'Student', empty: 'No student records yet', all: 'All students' },
@@ -28,6 +30,7 @@ export default function StudentRecordsPanel({ collegeId }) {
   const [claimed, setClaimed] = useState('');
   const [recordType, setRecordType] = useState('student');
   const [page, setPage] = useState(1);
+  const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
@@ -125,23 +128,19 @@ export default function StudentRecordsPanel({ collegeId }) {
   return (
     <div className="flex flex-col gap-6">
       <Card
-        title="Upload school records"
-        description="Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are what they are checked against, and they show in the table below."
-      >
-        <StudentRecordsUpload collegeId={collegeId} onSaved={() => { setPage(1); load(); }} />
-      </Card>
-
-      <Card
         title={`${type.one} records`}
         description={summary.total > 0 ? `${summary.claimed} of ${summary.total} ${isEmployee ? 'have an account' : 'have signed up'}.` : 'No records loaded yet.'}
         bodyClassName="p-0"
+        actions={<Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload school records</Button>}
       >
         <DataTable
           caption={`${type.one} records`}
           columns={tableColumns}
           rows={rows}
           rowKey={(row) => row.id}
-          actions={(row) => (row.claimed ? null : (
+          actions={(row) => (row.claimed ? (
+            <span className="max-w-[16rem] text-right text-xs font-normal text-ink-muted">{CLAIMED_REASON}</span>
+          ) : (
             <span className="inline-flex items-center justify-end gap-2">
               <Button variant="secondary" size="sm" aria-label={`Edit ${row.name}`} onClick={() => setEditing(row)}>Edit</Button>
               <Button variant="secondary" size="sm" aria-label={`Remove ${row.name}`} onClick={() => setRemoving(row)}>Remove</Button>
@@ -181,13 +180,25 @@ export default function StudentRecordsPanel({ collegeId }) {
               icon={GraduationCap}
               title={type.empty}
               description={isEmployee
-                ? 'Upload a CSV above with record_type set to employee. You can then invite office staff from these records.'
-                : 'Upload a CSV above. Students whose school ID and birth date match a record can then create their own account.'}
+                ? 'Use Upload school records with a CSV that has record_type set to employee. You can then invite office staff from these records.'
+                : 'Use Upload school records to add a CSV. Students whose school ID and birth date match a record can then create their own account.'}
             />
           )}
           pagination={<PaginationControls currentPage={page} totalItems={meta.total} pageSize={PAGE_SIZE} onPageChange={setPage} label={type.label.toLowerCase()} />}
         />
       </Card>
+
+      <Drawer
+        open={uploading}
+        title="Upload school records"
+        description={collegeId
+          ? 'Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are only used for that check and are never shown.'
+          : 'Students are matched against these records when they sign up, and office staff are picked from them when you invite them. Birth dates are what they are checked against, and they show in the table.'}
+        onClose={() => setUploading(false)}
+        width="max-w-2xl"
+      >
+        <StudentRecordsUpload collegeId={collegeId} onSaved={() => { setPage(1); load(); }} />
+      </Drawer>
 
       {editing && (
         <StudentRecordEditModal

@@ -21,6 +21,9 @@ vi.mock('../../../components/students/StudentRecordsUpload', () => ({
     </div>
   ),
 }));
+vi.mock('../../../components/students/StudentRecordsPanel', () => ({
+  default: ({ collegeId }) => <div data-testid="records-panel">{`records panel for college ${collegeId}`}</div>,
+}));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 const pageOf = (rows, extra = {}) => ({ data: { data: rows, current_page: 1, last_page: 1, per_page: 25, total: rows.length, ...extra } });
@@ -182,6 +185,24 @@ describe('College people page', () => {
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
     expect(screen.queryByRole('button', { name: 'Upload student records' })).not.toBeInTheDocument();
+  });
+
+  it('gives the dean a School records tab that mounts the records panel for the own college', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    expect(screen.queryByTestId('records-panel')).not.toBeInTheDocument();
+
+    tab('School records');
+
+    expect(await screen.findByTestId('records-panel')).toHaveTextContent('records panel for college 5');
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  });
+
+  it('does not offer the School records tab to office staff', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', position_title: 'College Secretary', organization: { id: 9, college_id: 5, organization_type: 'COLLEGE' } }));
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    expect(screen.queryByRole('tab', { name: 'School records' })).not.toBeInTheDocument();
   });
 
   it('reloads the list from the first page, showing everyone, after records are saved', async () => {
