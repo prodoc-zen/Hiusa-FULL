@@ -55,11 +55,24 @@ describe('RoleBriefing', () => {
     expect(indicators).toHaveAttribute('open');
   });
 
+  it.each(['STUDENT', 'SBO_OFFICER'])('%s: the headline gives way to the attention list when it has rows, so one task is not said twice', async (role) => {
+    vi.mocked(getBriefing).mockResolvedValue(briefing(role));
+    renderBriefing();
+    expect(await screen.findByText('Foundation Week budget')).toBeInTheDocument();
+    expect(screen.queryByText('One approval needs you today.')).not.toBeInTheDocument();
+  });
+
+  it.each(['STUDENT', 'SBO_OFFICER'])('%s: keeps the headline when nothing is in the attention list', async (role) => {
+    vi.mocked(getBriefing).mockResolvedValue(briefing(role, { attention: [], summary: { attention_count: 0, headline: 'Nothing needs you today.' } }));
+    renderBriefing();
+    expect(await screen.findByText('Nothing needs you today.')).toBeInTheDocument();
+  });
+
   it('explains a failure and retries on request', async () => {
     vi.mocked(getBriefing).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(briefing('STUDENT'));
     renderBriefing();
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.getByText('One approval needs you today.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Foundation Week budget')).toBeInTheDocument());
     expect(getBriefing).toHaveBeenCalledTimes(2);
   });
 
@@ -139,7 +152,7 @@ describe('RoleBriefing', () => {
       expect(within(card).getByRole('link', { name: 'Propose an event' })).toHaveAttribute('href', '/dashboard/events/manage-events?new=1');
       expect(within(card).queryByText('Propose your first budget')).not.toBeInTheDocument();
 
-      fireEvent.click(within(card).getByRole('button', { name: 'Show all 6 steps' }));
+      fireEvent.click(within(card).getByRole('button', { name: 'Show all steps' }));
       expect(within(card).getAllByRole('listitem').map((row) => row.querySelector('p').textContent)).toEqual([
         'Set up your officer positions', 'Add your members', 'Plan your first event',
         'Set up programs and sections', 'Submit your accreditation requirements', 'Propose your first budget',
@@ -235,14 +248,14 @@ describe('RoleBriefing', () => {
         'Add your contact number', 'Register for an upcoming event', 'Check your statement of account',
       ]);
       expect(within(card).getByRole('link', { name: 'Open statement' })).toHaveAttribute('href', '/dashboard/finance/statement-of-account');
-      fireEvent.click(within(card).getByRole('button', { name: 'Show all 4 steps' }));
+      fireEvent.click(within(card).getByRole('button', { name: 'Show all steps' }));
       expect(within(card).getByRole('button', { name: 'Where to go' })).toBeInTheDocument();
 
       expect(screen.getByText('Open elections')).toBeInTheDocument();
       expect(screen.queryByText('My open tasks')).not.toBeInTheDocument();
       expect(screen.queryByText('Poster draft')).not.toBeInTheDocument();
       expect(screen.getByText('Orientation')).toBeInTheDocument();
-      expect(screen.getByText('1 item needs you today.')).toBeInTheDocument();
+      expect(screen.queryByText('1 item needs you today.')).not.toBeInTheDocument();
     });
 
     it('SAO: the inbox leads with a count per review area and registrations first', async () => {

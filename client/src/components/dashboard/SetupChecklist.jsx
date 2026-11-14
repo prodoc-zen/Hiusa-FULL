@@ -111,7 +111,7 @@ export default function SetupChecklist({ setup, title = 'Getting started', descr
           aria-expanded={expanded}
           className={`mt-2 min-h-11 rounded-control px-2 text-sm font-semibold text-brand-700 hover:bg-subtle ${canToggle ? '' : 'sm:hidden'}`}
         >
-          {expanded ? 'Show fewer' : `Show all ${steps.length} steps`}
+          {expanded ? 'Show fewer' : 'Show all steps'}
         </button>
       )}
     </section>
