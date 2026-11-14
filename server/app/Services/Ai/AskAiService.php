@@ -3304,12 +3304,12 @@ class AskAiService
         return $this->routeAccess->hrefFor($role, self::CORPUS_PAGES[$page][$role] ?? null);
     }
 
-    /** @return array{0: string, 1: array<int, string>} an ORDER BY that puts rows matching a word of the question first */
-    private function questionPriority(string $question, array $columns): array
+    /** @return array{0: string, 1: array<int, string>}|null an ORDER BY that puts rows matching a word of the question first, or null when the question has no searchable word */
+    private function questionPriority(string $question, array $columns): ?array
     {
         $terms = array_slice(array_values(array_filter($this->extractRawTokens($question), fn (string $t) => strlen($t) >= 3)), 0, 8);
         if ($terms === []) {
-            return ['0', []];
+            return null;
         }
 
         $clauses = [];
@@ -3339,10 +3339,10 @@ class AskAiService
         $showCompliance = $role !== 'STUDENT' && $this->moduleAllowed($user, 'compliance');
 
         // 1. Organizations & Accreditation Status
-        [$orgOrder, $orgOrderBindings] = $this->questionPriority($question, ['name', 'acronym', 'college']);
+        $orgPriority = $this->questionPriority($question, ['name', 'acronym', 'college']);
         $organizations = DB::table('organizations')
             ->whereIn('id', $orgIds)
-            ->orderByRaw($orgOrder, $orgOrderBindings)
+            ->when($orgPriority !== null, fn ($query) => $query->orderByRaw($orgPriority[0], $orgPriority[1]))
             ->orderBy('name')
             ->limit(30)
             ->get(['id', 'name', 'acronym', 'college', 'lifecycle_status', 'is_university_wide', 'review_remarks']);
@@ -3397,7 +3397,7 @@ class AskAiService
         // 2. Leadership, Admins & Officers Directory: one row per active profile, so an officer added to a second organization is listed there.
         $showLeaders = $role === 'STUDENT' || $this->moduleAllowed($user, 'members');
         $showContact = $role !== 'STUDENT';
-        [$leaderOrder, $leaderOrderBindings] = $this->questionPriority($question, ['users.first_name', 'users.last_name', 'account_profiles.position_title', 'organizations.name', 'organizations.acronym']);
+        $leaderPriority = $this->questionPriority($question, ['users.first_name', 'users.last_name', 'account_profiles.position_title', 'organizations.name', 'organizations.acronym']);
         $leaders = $showLeaders
             ? DB::table('account_profiles')
                 ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
@@ -3411,7 +3411,7 @@ class AskAiService
                 ->whereIn('account_profiles.role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'])
                 ->where('account_profiles.account_status', 'active')
                 ->where('users.account_status', 'active')
-                ->orderByRaw($leaderOrder, $leaderOrderBindings)
+                ->when($leaderPriority !== null, fn ($query) => $query->orderByRaw($leaderPriority[0], $leaderPriority[1]))
                 ->orderBy('organizations.name')
                 ->orderBy('account_profiles.role')
                 ->orderBy('users.last_name')

@@ -25,6 +25,9 @@ class HowToGuideLibrary
         'guide', 'process', 'procedure', 'walk', 'through', 'show', 'teach', 'tell', 'please', 'need',
         'want', 'way', 'there', 'this', 'that', 'by', 'from', 'into', 'as', 'about', 'tutorial',
         'instruction', 'instructions', 'hiusa', 'system', 'page', 'here', 'go', 'get', 'some', 'any',
+        'wanna', 'gonna', 'like', 'let', 'lets', 'help', 'pls', 'kindly', 'hey', 'hello', 'hi', 'ok', 'okay', 'bro', 'sir', 'up',
+        'gusto', 'nais', 'ko', 'kong', 'mag', 'ng', 'na', 'po', 'ba', 'pwede', 'puwede', 'paano', 'namin', 'naming',
+        'ako', 'akong', 'kami', 'kaming', 'mo', 'para', 'sa', 'ang', 'mga', 'paki', 'kailangan', 'naman', 'lang',
     ];
 
     public const ROLE_NAMES = [
@@ -972,7 +975,7 @@ class HowToGuideLibrary
             }
 
             foreach ($guide['keywords'] as $phrase) {
-                if (str_contains($phrase, ' ') && str_contains($questionLower, Str::lower($phrase))) {
+                if (str_contains($phrase, ' ') && (str_contains($questionLower, Str::lower($phrase)) || $this->containsSequence($queryTokens, $this->tokens($phrase)))) {
                     $score += 4.0;
                 }
             }
@@ -1075,27 +1078,59 @@ class HowToGuideLibrary
     {
         $aliases = [
             'org' => 'organization', 'orgs' => 'organization', 'club' => 'organization', 'clubs' => 'organization',
+            'organisation' => 'organization', 'organisations' => 'organization',
             'sy' => 'year', 'ay' => 'year', 'term' => 'semester', 'terms' => 'semester', 'sem' => 'semester',
             'dean' => 'department', 'merch' => 'merchandise', 'pw' => 'password', 'login' => 'password',
-            'make' => 'create', 'add' => 'create', 'new' => 'create', 'setup' => 'set', 'register' => 'register',
+            'make' => 'create', 'add' => 'create', 'new' => 'create', 'start' => 'create', 'set' => 'create', 'setup' => 'create',
+            'establish' => 'create', 'register' => 'register',
             'reserve' => 'book', 'reservation' => 'book', 'complaint' => 'grievance', 'complaints' => 'grievance',
             'expenses' => 'expense', 'buy' => 'order', 'purchase' => 'order', 'officers' => 'officer',
         ];
-        if (isset($aliases[$word])) {
-            return $aliases[$word];
-        }
 
+        $base = $word;
         if (strlen($word) > 5 && str_ends_with($word, 'ies')) {
-            return substr($word, 0, -3).'y';
+            $base = substr($word, 0, -3).'y';
+        } elseif (strlen($word) > 4 && str_ends_with($word, 's') && ! str_ends_with($word, 'ss')) {
+            $base = substr($word, 0, -1);
         }
-        if (strlen($word) > 5 && str_ends_with($word, 'ing')) {
-            return substr($word, 0, -3);
-        }
-        if (strlen($word) > 4 && str_ends_with($word, 's') && ! str_ends_with($word, 'ss')) {
-            return substr($word, 0, -1);
+        if (strlen($base) > 5 && str_ends_with($base, 'ing')) {
+            $base = $this->undouble(substr($base, 0, -3));
+        } elseif (strlen($base) > 4 && str_ends_with($base, 'ed')) {
+            $base = $this->undouble(substr($base, 0, -2));
         }
 
-        return $word;
+        foreach ([$word, $base, $base.'e'] as $candidate) {
+            if (isset($aliases[$candidate])) {
+                $base = $aliases[$candidate];
+                break;
+            }
+        }
+
+        // A trailing "e" is dropped so that create, creating and created share one stem.
+        return strlen($base) > 4 && str_ends_with($base, 'e') ? substr($base, 0, -1) : $base;
+    }
+
+    private function undouble(string $stem): string
+    {
+        return preg_match('/([^aeioulsz])\1$/', $stem) === 1 ? substr($stem, 0, -1) : $stem;
+    }
+
+    /** @param array<int, string> $haystack @param array<int, string> $needle */
+    private function containsSequence(array $haystack, array $needle): bool
+    {
+        $original = $haystack;
+        $haystack = array_values(array_filter($haystack, fn (string $token, int $i) => $i === 0 || $token !== $original[$i - 1], ARRAY_FILTER_USE_BOTH));
+        $length = count($needle);
+        if ($length < 2) {
+            return false;
+        }
+        for ($i = 0; $i + $length <= count($haystack); $i++) {
+            if (array_slice($haystack, $i, $length) === $needle) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function trigramSimilarity(string $a, string $b): float

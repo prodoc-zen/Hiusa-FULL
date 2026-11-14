@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSseParser, streamAiChat } from './askAiService';
+import api from './api';
+import { cancelAiAction, confirmAiAction, createSseParser, streamAiChat } from './askAiService';
 
 const encoder = new TextEncoder();
 
@@ -124,7 +125,17 @@ describe('streamAiChat', () => {
       'Content-Type': 'application/json',
       'X-Academic-Semester': '7',
     });
-    expect(JSON.parse(init.body)).toEqual({ conversation_id: 12, message: 'hi', topic: 'x', regenerate: false });
+    expect(JSON.parse(init.body)).toEqual({ conversation_id: 12, message: 'hi', topic: 'x', regenerate: false, source: 'link' });
+  });
+
+  it('sends source typed only when asked to, and link otherwise', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => streamResponse([sse('done', { conversation, message: doneMessage })]));
+    vi.stubGlobal('fetch', fetchMock);
+    await streamAiChat({ message: 'hi', source: 'typed' });
+    await streamAiChat({ message: 'hi' });
+    await streamAiChat({ message: 'hi', source: 'anything else' });
+    const sources = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).source);
+    expect(sources).toEqual(['typed', 'link', 'link']);
   });
 
   it('turns a redirect into a 422 error instead of following it', async () => {
@@ -208,5 +219,21 @@ describe('streamAiChat', () => {
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+describe('action calls', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('confirms with the fields on the message action route', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} });
+    await confirmAiAction(88, { title: 'General Assembly' });
+    expect(post).toHaveBeenCalledWith('/ai/assistant/messages/88/action/confirm', { fields: { title: 'General Assembly' } });
+  });
+
+  it('cancels on the message action route', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} });
+    await cancelAiAction(88);
+    expect(post).toHaveBeenCalledWith('/ai/assistant/messages/88/action/cancel');
   });
 });
