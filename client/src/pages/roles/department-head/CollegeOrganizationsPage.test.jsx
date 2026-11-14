@@ -390,7 +390,8 @@ describe('CollegeOrganizationsPage', () => {
 
       await waitFor(() => expect(grantMocks.allowStudentToApply).toHaveBeenCalledWith(20260042));
       expect(peopleMocks.searchPeople).toHaveBeenCalledWith(expect.objectContaining({ q: 'ana', scope: 'college', role: 'STUDENT' }));
-      await waitFor(() => expect(grantMocks.getApplicantGrants).toHaveBeenCalledTimes(2));
+      // Page load, the dialog checking that applications are open, then the reload after the grant.
+      await waitFor(() => expect(grantMocks.getApplicantGrants).toHaveBeenCalledTimes(3));
     });
 
     it('lists the students allowed to apply and lets the dean take one back', async () => {

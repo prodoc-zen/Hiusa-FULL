@@ -2,18 +2,29 @@ import { useEffect, useState } from 'react';
 import { Button, Drawer } from '../ui';
 import PersonPicker from '../people/PersonPicker';
 import notify from '../../lib/notify';
-import { allowStudentToApply } from '../../services/applicantGrantService';
+import { allowStudentToApply, getApplicantGrants } from '../../services/applicantGrantService';
 import { getApiErrorMessage } from '../../utils/apiError';
+
+// Where the student belongs (an organization if they are in one, else their college), then the email.
+// A student who already belongs to an active organization is marked, so the dean does not pick them to find out.
+function describeStudent(person) {
+  const place = person.blocked_by ? `Already in ${person.blocked_by.name}` : person.organizations?.[0]?.name || person.college;
+  return [place, person.email].filter(Boolean).join(' · ');
+}
 
 export default function ApplicantGrantModal({ open, onClose, onGranted }) {
   const [person, setPerson] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [closed, setClosed] = useState(false);
 
   useEffect(() => {
     if (open) {
       setPerson(null);
       setError('');
+      setClosed(false);
+      // Only a warning: if the check fails the dean can still allow the student.
+      getApplicantGrants().then(({ data }) => setClosed(data?.applications_open === false)).catch(() => {});
     }
   }, [open]);
 
@@ -58,8 +69,10 @@ export default function ApplicantGrantModal({ open, onClose, onGranted }) {
           placeholder="Type the student's name or email"
           hint="Only students of your college can be picked."
           value={person}
+          describe={describeStudent}
           onSelect={setPerson}
         />
+        {closed && <p className="rounded-control border border-warning/40 bg-warning-tint px-3 py-2 text-sm text-warning-strong">Applications are not open yet. The SAO has not opened a semester with its requirements. You can still allow this student. They can apply once it opens.</p>}
         {reason && <p role="alert" className="text-sm font-semibold text-danger-strong">{reason}</p>}
         {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
       </div>
