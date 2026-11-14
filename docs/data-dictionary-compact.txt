@@ -71,12 +71,15 @@ notifications(id bigint PK, organization_id bigint? FK>organizations, user_id in
 
 ## Approvals, grievances and clearance
 approval_requests(id bigint PK, organization_id bigint? FK>organizations, entity_type str(40), entity_id bigint, requested_by int FK>users, required_role str(30), assigned_approver int? FK>users, status str(20), decision str(20)?, active_key str(100)? UQ, reviewed_by int? FK>users, remarks text?, requested_at datetime, reviewed_at datetime?)
-grievances(id bigint PK, organization_id bigint? FK>organizations, submitted_by int FK>users, is_anonymous tinyint, title str(255), description text, category str(100)?, urgency str(20)?, classification_confidence double?, classification_reasoning text?, classification_engine str(20)?, status str(20), remarks text?, resolved_at datetime?, created_at datetime?, updated_at datetime?)
+grievances(id bigint PK, organization_id bigint? FK>organizations, submitted_by int FK>users, is_anonymous tinyint, title str(255), description text, category str(100)?, urgency str(20)?, classification_confidence double?, classification_reasoning text?, classification_engine str(20)?, machine_urgency str(20)?, machine_category str(100)?, classification_corrected_by int?, classification_corrected_at datetime?, status str(20), remarks text?, resolved_at datetime?, created_at datetime?, updated_at datetime?)
 clearance_periods(id bigint PK, academic_year str(20), title str(255), description text?, required_roles json, deadline_at datetime?, created_by int FK>users, created_at datetime?, updated_at datetime?)
 clearance_signatures(id bigint PK, clearance_period_id bigint FK>clearance_periods, student_id int FK>users, organization_id bigint FK>organizations, required_role str(50), status str(20), remarks text?, signed_by int? FK>users, signed_at datetime?, created_at datetime?, updated_at datetime?)
 
 ## AI and audit
 ai_outputs(id bigint PK, organization_id bigint? FK>organizations, feature_type str(40), reference_type str(40)?, reference_id bigint?, prompt_text text?, output_text text, model_name str(100)?, context_version str(40), structured_input json?, structured_output json?, status str(20), error_message text?, version int, decision_status str(20), requested_by int? FK>users, decided_by int? FK>users, decided_at datetime?, created_at datetime)
+ai_conversations(id bigint PK, user_id int FK>users, organization_id bigint? FK>organizations, role str(30), title str(160), last_message_at datetime?, created_at datetime?, updated_at datetime?)
+ai_messages(id bigint PK, conversation_id bigint FK>ai_conversations, role str(12), content longtext, payload json?, status str(12), feedback str(4)?, ai_output_id bigint? FK>ai_outputs, created_at datetime)
+ai_memories(id bigint PK, user_id int FK>users, organization_id bigint? FK>organizations, role str(30), content str(300), created_at datetime?, updated_at datetime?)
 audit_logs(id bigint PK, organization_id bigint? FK>organizations, user_id int? FK>users, actor_role str(30)?, module str(50), action str(100), description text?, record_type str(50)?, record_id bigint?, old_values text?, new_values text?, ip_address str(45)?, created_at datetime)
 
 ## Evaluation (kept in the database, no user access)
