@@ -24,6 +24,8 @@ class ProcessStatusService
 {
     private const APPLICATION_REVIEWED = ['pending_sao', 'approved', 'returned', 'rejected'];
 
+    private const DECIDE_APPLICATIONS = ['Review applications', '/dashboard/organization-applications'];
+
     public function __construct(private readonly ClientRouteAccess $routeAccess) {}
 
     public function forUser(User $user): array
@@ -113,33 +115,44 @@ class ProcessStatusService
             ->whereNotNull('college_id')->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
         $active = Organization::student()->where('lifecycle_status', 'active')->whereNotNull('college_id')
             ->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
+        // Endorsed by the Department Head and waiting for the SAO: the next step is to decide them, not to look at the organizations.
+        $endorsed = DB::table('organization_applications')->where('status', 'pending_sao')
+            ->whereNotNull('college_id')->groupBy('college_id')->selectRaw('college_id, count(*) as total')->pluck('total', 'college_id');
 
-        $rows = $colleges->map(function (College $college) use ($invited, $deans, $records, $applications, $active) {
+        $rows = $colleges->map(function (College $college) use ($invited, $deans, $records, $applications, $active, $endorsed) {
             $deanCount = (int) ($deans[$college->id] ?? 0);
             $inviteCount = (int) ($invited[$college->id] ?? 0);
             $applicationCount = (int) ($applications[$college->id] ?? 0);
             $activeCount = (int) ($active[$college->id] ?? 0);
+            $endorsedCount = (int) ($endorsed[$college->id] ?? 0);
 
             return ['college' => $college, 'definitions' => [
                 ['key' => 'dean-invited', 'label' => 'Dean invited', 'done' => $inviteCount > 0 || $deanCount > 0, 'count' => $inviteCount, 'action' => ['Invite the Department Head', '/dashboard/super-admin/colleges']],
                 ['key' => 'dean-active', 'label' => 'Dean active', 'done' => $deanCount > 0, 'count' => $deanCount, 'action' => ['Open colleges', '/dashboard/super-admin/colleges']],
                 ['key' => 'records-loaded', 'label' => 'School records loaded', 'done' => ($records[$college->id] ?? 0) > 0, 'count' => (int) ($records[$college->id] ?? 0), 'action' => ['Load school records', '/dashboard/super-admin/student-records']],
                 ['key' => 'organizations-applying', 'label' => 'Organizations applying', 'done' => $applicationCount > 0 || $activeCount > 0, 'count' => $applicationCount, 'action' => ['View applications', '/dashboard/organization-applications']],
-                ['key' => 'organizations-active', 'label' => 'Organizations active', 'done' => $activeCount > 0, 'count' => $activeCount, 'action' => ['View organizations', '/dashboard/super-admin/organizations']],
+                [
+                    'key' => 'organizations-active', 'label' => 'Organizations active', 'done' => $activeCount > 0, 'count' => $activeCount,
+                    'action' => $endorsedCount > 0 ? self::DECIDE_APPLICATIONS : ['View organizations', '/dashboard/super-admin/organizations'],
+                    'note' => $endorsedCount > 0 ? $this->endorsedNote($endorsedCount) : null,
+                ],
             ]];
         });
 
         $total = $rows->count();
+        $endorsedTotal = (int) $endorsed->sum();
         $aggregate = [];
         foreach ($rows->first()['definitions'] as $index => $definition) {
             $finished = $rows->filter(fn (array $row) => $row['definitions'][$index]['done'])->count();
+            $waiting = $definition['key'] === 'organizations-active' && $endorsedTotal > 0;
             $aggregate[] = [
                 'key' => $definition['key'],
                 'label' => $definition['label'],
                 'done' => $finished === $total,
                 'count' => $finished,
                 'total' => $total,
-                'action' => $definition['action'],
+                'action' => $waiting ? self::DECIDE_APPLICATIONS : $definition['action'],
+                'note' => $waiting ? $this->endorsedNote($endorsedTotal) : null,
             ];
         }
         $summary = $this->finish('SUPER_ADMIN', 'Setting up the colleges', $aggregate);
@@ -151,6 +164,11 @@ class ProcessStatusService
         ])->values()->all();
 
         return $summary;
+    }
+
+    private function endorsedNote(int $count): string
+    {
+        return $count === 1 ? '1 application is waiting for your decision.' : "{$count} applications are waiting for your decision.";
     }
 
     private function dean(User $user): array
