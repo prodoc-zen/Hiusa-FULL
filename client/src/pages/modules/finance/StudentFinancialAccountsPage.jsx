@@ -8,10 +8,11 @@ import PaginationControls from '../../../components/PaginationControls';
 import PersonPicker from '../../../components/people/PersonPicker';
 import { createInvoice, getStudentDebts, recordInvoicePayment, updateInvoiceStatus } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, SegmentedControl, Select, StatusBadge, Textarea } from '../../../components/ui';
 
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
 const plural = (count, noun) => `${count} ${noun}${Number(count) === 1 ? '' : 's'}`;
+const CHARGE_TARGETS = [{ value: 'one', label: 'One student' }, { value: 'all', label: 'Every member' }];
 const EMPTY_FILTERS ={ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };
 
 // Overdue and pending clearance carry a badge; a cleared student is the default and shows nothing.
@@ -35,6 +36,7 @@ export default function StudentFinancialAccountsPage() {
   const [payment, setPayment] = useState(null);
   const [closing, setClosing] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [count, setCount] = useState({ state: 'idle', data: null, message: '' });
   const [formError, setFormError] = useState('');
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
@@ -55,8 +57,31 @@ export default function StudentFinancialAccountsPage() {
   const clearFilters = () => { setFilters(EMPTY_FILTERS); setPage(1); };
   const refreshAndReselect = async (schoolId) => { await load(); if (schoolId) { const response = await getStudentDebts({ student_id: schoolId }); setSelected(response.data?.[0] || null); } };
 
+  // Every member: ask the server who would be charged before anything is saved, so the count and the total are on screen first.
+  const everyMember = charge?.target === 'all';
+  const feeReady = Boolean(charge?.description?.trim() && Number(charge?.amount_due) > 0);
+  const bulkBody = charge ? { all_members: true, description: charge.description.trim(), amount_due: charge.amount_due, due_date: charge.due_date || null } : null;
+  useEffect(() => {
+    if (!everyMember || !feeReady) { setCount({ state: 'idle', data: null, message: '' }); return undefined; }
+    let current = true;
+    setCount({ state: 'loading', data: null, message: '' });
+    const timer = setTimeout(async () => {
+      try { const response = await createInvoice({ ...bulkBody, preview: true }); if (current) setCount({ state: 'ready', data: response.data, message: '' }); }
+      catch (requestError) { if (current) setCount({ state: 'error', data: null, message: getApiErrorMessage(requestError, 'Unable to count the members.') }); }
+    }, 300);
+    return () => { current = false; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [everyMember, feeReady, charge?.description, charge?.amount_due, charge?.due_date]);
+  const toCharge = count.state === 'ready' ? Number(count.data?.to_charge || 0) : 0;
+
   const submitCharge = async (event) => {
     event.preventDefault(); setBusy(true); setFormError('');
+    if (everyMember) {
+      try { const response = await createInvoice(bulkBody); const { charged, skipped } = response.data; setCharge(null); await load(); setFeedback({ open: true, type: 'success', message: `Charged ${plural(charged, 'member')}.${skipped ? ` ${skipped} already had it.` : ''}` }); }
+      catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to add the charges.')); }
+      finally { setBusy(false); }
+      return;
+    }
     try { const invoice = { ...charge }; delete invoice.student; await createInvoice(invoice); const schoolId = invoice.student_id; setCharge(null); await refreshAndReselect(schoolId); setFeedback({ open: true, type: 'success', message: 'Student charge added successfully.' }); }
     catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to add the charge.')); }
     finally { setBusy(false); }
@@ -109,7 +134,7 @@ export default function StudentFinancialAccountsPage() {
 
   return <div className="space-y-6">
     <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-    <PageHeader primary={charge || payment || closing ? null : <Button leftIcon={FilePlus2} onClick={() => { setCharge({ student: null, student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
+    <PageHeader primary={charge || payment || closing ? null : <Button leftIcon={FilePlus2} onClick={() => { setCharge({ target: 'one', student: null, student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
 
     <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {[
@@ -157,13 +182,24 @@ export default function StudentFinancialAccountsPage() {
       open={Boolean(charge)}
       title="Add student charge"
       onClose={() => !busy && setCharge(null)}
-      footer={<><Button variant="secondary" onClick={() => setCharge(null)} disabled={busy}>Cancel</Button><Button type="submit" form="charge-form" disabled={!charge?.student_id} loading={busy}>Add charge</Button></>}
+      footer={<><Button variant="secondary" onClick={() => setCharge(null)} disabled={busy}>Cancel</Button><Button type="submit" form="charge-form" disabled={everyMember ? toCharge < 1 : !charge?.student_id} loading={busy}>{everyMember ? (toCharge > 0 ? `Charge ${plural(toCharge, 'member')}` : 'Charge every member') : 'Add charge'}</Button></>}
     >
       <form id="charge-form" onSubmit={submitCharge} className="space-y-4">
-        <PersonPicker label="Student" scope="college" role="STUDENT" value={charge?.student ?? null} onSelect={(person) => setCharge({ ...charge, student: person, student_id: person?.school_id ?? '' })} disabled={busy} />
+        <SegmentedControl options={CHARGE_TARGETS} value={charge?.target || 'one'} onChange={(target) => setCharge({ ...charge, target })} />
+        {!everyMember && <PersonPicker label="Student" scope="college" role="STUDENT" value={charge?.student ?? null} onSelect={(person) => setCharge({ ...charge, student: person, student_id: person?.school_id ?? '' })} disabled={busy} />}
         <Field label="Amount due" required><Input type="number" min="0.01" step="0.01" value={charge?.amount_due || ''} onChange={(event) => setCharge({ ...charge, amount_due: event.target.value })} /></Field>
         <Field label="Description" required><Input maxLength={255} value={charge?.description || ''} onChange={(event) => setCharge({ ...charge, description: event.target.value })} placeholder="e.g. Organization fee" /></Field>
         <Field label="Due date" optional><Input type="date" value={charge?.due_date || ''} onChange={(event) => setCharge({ ...charge, due_date: event.target.value })} /></Field>
+        {everyMember && <div aria-live="polite" className="rounded-control bg-subtle p-3 text-sm text-ink">
+          {count.state === 'idle' && <p className="text-ink-muted">Enter the amount and a description to see who will be charged.</p>}
+          {count.state === 'loading' && <p className="text-ink-muted">Counting members...</p>}
+          {count.state === 'error' && <p role="alert" className="font-semibold text-danger-strong">{count.message}</p>}
+          {count.state === 'ready' && (count.data.members === 0
+            ? <p>Your organization has no active members to charge. Add members first.</p>
+            : toCharge === 0
+              ? <p>Every active member already has an open charge named {charge.description.trim()}.</p>
+              : <><p className="font-semibold">{plural(toCharge, 'member')} will be charged {money(count.data.total)} in all.</p>{count.data.skipped > 0 && <p className="mt-1 text-xs text-ink-muted">{count.data.skipped} already {count.data.skipped === 1 ? 'has' : 'have'} an open charge named {charge.description.trim()} and {count.data.skipped === 1 ? 'is' : 'are'} skipped.</p>}</>)}
+        </div>}
         {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
       </form>
     </Drawer>
