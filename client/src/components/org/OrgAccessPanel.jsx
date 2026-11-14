@@ -12,10 +12,11 @@ import { ACCESS_LEVELS, grantableLevels, modulesLabel } from './orgAccess';
 
 const PER_PAGE = 20;
 
-export default function OrgAccessPanel({ organizationId, actorRole }) {
+// pageSize lets a page that already carries a long list above this one keep this one short.
+export default function OrgAccessPanel({ organizationId, actorRole, pageSize = PER_PAGE }) {
   const canGrant = grantableLevels(actorRole).length > 0;
   const [rows, setRows] = useState([]);
-  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: PER_PAGE });
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: pageSize });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
@@ -37,7 +38,7 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
   useEffect(() => {
     let current = true;
     setLoading(true);
-    getManagedAccountProfiles({ organization_id: organizationId, per_page: PER_PAGE, page, ...(term ? { search: term } : {}) })
+    getManagedAccountProfiles({ organization_id: organizationId, per_page: pageSize, page, ...(term ? { search: term } : {}) })
       .then((response) => {
         if (!current) return;
         setRows(unwrapList(response.data));
@@ -47,7 +48,7 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
       .catch((cause) => { if (current) setError(getApiErrorMessage(cause, 'We could not load the people in this organization.')); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [organizationId, page, term, reload]);
+  }, [organizationId, page, pageSize, term, reload]);
 
   const refresh = useCallback(() => setReload((value) => value + 1), []);
 

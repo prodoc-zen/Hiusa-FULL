@@ -891,7 +891,7 @@ export default function AdminUsersPage() {
         />
       </section>
 
-      {actorRole === 'ADMIN' && actorOrganizationId && <OrgAccessPanel organizationId={actorOrganizationId} actorRole={actorRole} />}
+      {actorRole === 'ADMIN' && actorOrganizationId && <OrgAccessPanel organizationId={actorOrganizationId} actorRole={actorRole} pageSize={5} />}
 
       <Drawer
         open={Boolean(profileUser)}
