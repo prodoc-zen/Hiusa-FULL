@@ -122,10 +122,31 @@ class AiFallbackParityTest extends TestCase
         $note = $response->json('ai_recommendation_note');
         $this->assertStringContainsString("inferred as 'finance'", $note);
         $this->assertStringContainsString('a primary match', $note);
-        $this->assertStringContainsString('40.00 (3/5 active tasks)', $note);
+        $this->assertStringContainsString('40.00 (3 open tasks, up to 5 allowed)', $note);
         $this->assertStringContainsString('performance 75.00', $note);
-        $this->assertStringContainsString('assignment recency 50.00 (last assigned 7 day(s) ago)', $note);
+        $this->assertStringContainsString('assignment recency 50.00 (last assigned 7 days ago)', $note);
         $this->assertEquals(50.0, (float) Task::latest('id')->first()->recency_score);
+    }
+
+    /**
+     * The same three rows are pinned word for word in ai-service/tests/test_engines.py
+     * (test_task_delegation_sentence_reads_in_plain_words), so the two engines cannot drift apart.
+     */
+    public function test_the_task_delegation_sentence_reads_in_plain_words(): void
+    {
+        $service = app(TaskDelegationService::class);
+        $ranking = ['name' => 'Ana Reyes', 'final_score' => 69.5, 'position_title' => 'Treasurer', 'position_tier' => 'primary', 'role_score' => 100.0, 'workload_score' => 40.0, 'active_tasks' => 3, 'max_active_tasks' => 5, 'performance_score' => 75.0, 'recency_score' => 50.0, 'days_since_last_assignment' => 7];
+        $lead = "Ana Reyes scored %s for a task inferred as 'finance': position 'Treasurer' is a primary match for this area (100.00 pts), ";
+
+        $this->assertSame(
+            sprintf($lead, '69.50').'workload 40.00 (3 open tasks, up to 5 allowed), past performance 75.00, and assignment recency 50.00 (last assigned 7 days ago).',
+            $service->explanation($ranking, 'finance', true)
+        );
+        $this->assertSame(
+            sprintf($lead, '73.00').'workload 80.00 (1 open task, up to 5 allowed), past performance 70.00 (no task history yet, so a starting score of 70 was used), and assignment recency 0.00 (last assigned today).',
+            $service->explanation([...$ranking, 'final_score' => 73.0, 'workload_score' => 80.0, 'active_tasks' => 1, 'performance_score' => 70.0, 'recency_score' => 0.0, 'days_since_last_assignment' => 0], 'finance', false)
+        );
+        $this->assertStringContainsString('assignment recency 7.14 (last assigned 1 day ago).', $service->explanation([...$ranking, 'recency_score' => 7.14, 'days_since_last_assignment' => 1], 'finance', true));
     }
 
     public function test_php_fallback_recommendation_numbers_the_rankings_with_ties_broken_by_officer_id(): void

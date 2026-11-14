@@ -131,6 +131,18 @@ def _recency_score(days_since_last_assignment: int | None, window_days: int) -> 
     return round(min(1.0, days_since_last_assignment / window_days) * 100, 2)
 
 
+def _open_tasks_phrase(open_tasks: int, limit: int) -> str:
+    return f"{open_tasks} open task{'' if open_tasks == 1 else 's'}, up to {limit} allowed"
+
+
+def _last_assigned_phrase(days: int | None) -> str:
+    if days is None:
+        return "never assigned a task here"
+    if days == 0:
+        return "last assigned today"
+    return f"last assigned {days} day{'' if days == 1 else 's'} ago"
+
+
 def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights: dict[str, float], window_days: int) -> dict:
     position_score, tier = _position_relevance(officer.position_title, area)
     workload_score = _workload_score(officer.active_tasks, max_active_tasks)
@@ -141,14 +153,10 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights:
         performance_note = ""
     else:
         performance_score = NEUTRAL_PERFORMANCE_SCORE
-        performance_note = f" (no task history yet, so the neutral baseline of {NEUTRAL_PERFORMANCE_SCORE:.0f} was used)"
+        performance_note = f" (no task history yet, so a starting score of {NEUTRAL_PERFORMANCE_SCORE:.0f} was used)"
 
     recency_score = _recency_score(officer.days_since_last_assignment, window_days)
-    recency_note = (
-        "never assigned a task here"
-        if officer.days_since_last_assignment is None
-        else f"last assigned {officer.days_since_last_assignment} day(s) ago"
-    )
+    recency_note = _last_assigned_phrase(officer.days_since_last_assignment)
 
     final_score = round(
         position_score * weights["position"]
@@ -172,7 +180,7 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights:
         "explanation": (
             f"{officer.name} scored {final_score:.2f} for a task inferred as '{area}': "
             f"position '{position_label}' is {_TIER_PHRASE[tier]} for this area ({position_score:.2f} pts), "
-            f"workload {workload_score:.2f} ({officer.active_tasks}/{max_active_tasks} active tasks), "
+            f"workload {workload_score:.2f} ({_open_tasks_phrase(officer.active_tasks, max_active_tasks)}), "
             f"past performance {performance_score:.2f}{performance_note}, "
             f"and assignment recency {recency_score:.2f} ({recency_note})."
         ),
