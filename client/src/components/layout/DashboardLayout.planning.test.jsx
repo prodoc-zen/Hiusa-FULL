@@ -94,7 +94,7 @@ describe('DashboardLayout planning and workspace banners', () => {
     sessionStorage.setItem(SUB_ACCOUNT_KEY, JSON.stringify({ id: 12, name: 'Computing Society', acronym: 'CS' }));
     renderLayout();
 
-    expect(await screen.findByRole('button', { name: 'Back to mine' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Back to my college' })).toBeInTheDocument();
     expect(screen.queryByText(/Sub-Account Oversight|Dean Supervisor/)).not.toBeInTheDocument();
   });
 });

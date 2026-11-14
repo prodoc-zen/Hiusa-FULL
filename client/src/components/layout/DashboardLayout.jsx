@@ -11,6 +11,9 @@ import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
 import { getPageMeta, getStoredRole } from '../../lib/pageMeta';
 import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
+import useAccessDeniedNotice from '../../hooks/useAccessDeniedNotice';
+import useProfileSync from '../../hooks/useProfileSync';
+import useWorkspaceTitle from '../../hooks/useWorkspaceTitle';
 import { PERIOD_EVENT, PERIOD_RESET_EVENT, readSelectedPeriod } from '../../utils/academicPeriodStore';
 
 // A page that was not moved to PageHeader yet still writes its own h1. Watching the content for one
@@ -45,6 +48,9 @@ export default function DashboardLayout() {
   const contentRef = useRef(null);
   const location = useLocation();
   const contentHasHeading = useContentHasHeading(contentRef, location.pathname);
+  useProfileSync();
+  useWorkspaceTitle();
+  useAccessDeniedNotice();
 
   const register = useCallback(() => {
     setRegisteredHeaders((count) => count + 1);

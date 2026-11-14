@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -88,5 +88,29 @@ describe('ProtectedRoute password change guard', () => {
     renderAt('/change-password');
 
     expect(screen.getByText('Landing page')).toBeInTheDocument();
+  });
+});
+
+describe('ProtectedRoute wrong-role redirect', () => {
+  beforeEach(() => localStorage.clear());
+
+  function Landed() {
+    const { state, pathname } = useLocation();
+    return <output data-testid="landed">{pathname}|{JSON.stringify(state)}</output>;
+  }
+
+  it('still sends the person to their own dashboard and remembers which page and roles were refused', () => {
+    signIn({ role: 'STUDENT' });
+    render(
+      <MemoryRouter initialEntries={['/dashboard/admin/users?tab=people']}>
+        <Routes>
+          <Route path="/dashboard/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><p>Admin users</p></ProtectedRoute>} />
+          <Route path="/dashboard/student" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText('Admin users')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/student|{"accessDenied":{"path":"/dashboard/admin/users?tab=people","allowedRoles":["ADMIN"]}}');
   });
 });

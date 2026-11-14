@@ -15,7 +15,7 @@ function Where() {
 
 const renderBanner = () => render(<MemoryRouter initialEntries={['/dashboard/officer']}><WorkspaceBanner /><Where /></MemoryRouter>);
 
-const profile = (id, role, name) => ({ id, role, account_status: 'active', organization: { id: id * 10, name, is_active: true, organization_type: role === 'STUDENT' ? 'COLLEGE' : 'STUDENT_ORGANIZATION' } });
+const profile = (id, role, name, extra = {}) => ({ id, role, account_status: 'active', organization: { id: id * 10, name, is_active: true, organization_type: role === 'STUDENT' ? 'COLLEGE' : 'STUDENT_ORGANIZATION' }, ...extra });
 
 describe('WorkspaceBanner', () => {
   beforeEach(() => {
@@ -32,7 +32,7 @@ describe('WorkspaceBanner', () => {
     expect(screen.getByText('Computing Society')).toBeInTheDocument();
     expect(screen.getByText(/Viewing/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to mine' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to my college' }));
 
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/department-head');
     expect(sessionStorage.getItem(SUB_ACCOUNT_KEY)).toBeNull();
@@ -48,12 +48,13 @@ describe('WorkspaceBanner', () => {
 
   it('shows an officer the organization they are in and switches back to the student profile', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', active_profile_id: 2 }));
-    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 2, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(2, 'SBO_OFFICER', 'Computing Society')] } });
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 2, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(2, 'SBO_OFFICER', 'Computing Society', { position_title: 'Treasurer' })] } });
     authMocks.switchAccountProfile.mockRejectedValue(new Error('offline'));
     renderBanner();
 
     expect(await screen.findByText('Computing Society')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to mine' }));
+    expect(screen.getByRole('complementary')).toHaveTextContent('Officer workspace · Computing Society · Treasurer');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to my account' }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch profile. Try again.');
@@ -65,7 +66,26 @@ describe('WorkspaceBanner', () => {
     renderBanner();
 
     await waitFor(() => expect(authMocks.getAccountProfiles).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Back to mine' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Back to/ })).not.toBeInTheDocument();
+  });
+
+  it('names an Admin workspace with the organization and no position', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', active_profile_id: 3 }));
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 3, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(3, 'ADMIN', 'Arts Guild')] } });
+    renderBanner();
+
+    expect(await screen.findByRole('complementary')).toHaveTextContent(/^Admin workspace · Arts Guild\s*Back to my account$/);
+  });
+
+  it('keeps a long organization name on one line with an ellipsis and the full name on hover', async () => {
+    const long = 'Association of Computer Science and Information Technology Students of the Philippines';
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', active_profile_id: 3 }));
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 3, profiles: [profile(1, 'STUDENT', 'College of Computing'), profile(3, 'ADMIN', long)] } });
+    renderBanner();
+
+    const name = await screen.findByText(long);
+    expect(name).toHaveAttribute('title', long);
+    expect(name).toHaveClass('truncate');
   });
 
   const studentProfile = (id, name, type) => ({ id, role: 'STUDENT', account_status: 'active', organization: { id: id * 10, name, is_active: true, organization_type: type } });
@@ -88,20 +108,19 @@ describe('WorkspaceBanner', () => {
     renderBanner();
 
     expect(await screen.findByText('PSITS')).toBeInTheDocument();
-    expect(screen.getByText(/Organization profile/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to college' }));
+    expect(screen.getByRole('complementary')).toHaveTextContent('Member workspace · PSITS');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to my account' }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(1));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch profile. Try again.');
   });
 
-  it('names the college when a student with an organization profile is on the college profile', async () => {
+  it('labels the student home as the Student workspace when the student has an organization profile too', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', active_profile_id: 1 }));
     authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [college, psits] } });
     renderBanner();
 
-    expect(await screen.findByText('College of Computer Studies')).toBeInTheDocument();
-    expect(screen.getByText(/College profile/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Back to college' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Student workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Back to/ })).not.toBeInTheDocument();
   });
 });
