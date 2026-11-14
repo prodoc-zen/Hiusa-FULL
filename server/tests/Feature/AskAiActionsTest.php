@@ -178,6 +178,30 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
     }
 
+    public function test_trying_a_link_message_again_never_turns_it_into_a_card_whatever_the_request_says(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $first = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called "General Assembly"', 'source' => 'link'])->assertOk();
+        $this->assertArrayNotHasKey('action', $first->json('message.payload'));
+        $this->assertNull($first->json('user_message.payload'));
+        $this->assertSame('link', AiMessage::findOrFail($first->json('user_message.id'))->payload['source']);
+
+        foreach (['typed', null] as $claimed) {
+            $again = $this->postJson('/api/ai/assistant/chat', array_filter(['conversation_id' => $first->json('conversation.id'), 'regenerate' => true, 'source' => $claimed]))->assertOk();
+            $this->assertArrayNotHasKey('action', $again->json('message.payload'), (string) $claimed);
+        }
+        $this->assertSame(0, AiMessage::query()->whereNotNull('payload->action')->count());
+    }
+
+    public function test_the_source_a_typed_message_arrived_with_is_kept_for_trying_again(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $typed = $this->postJson('/api/ai/assistant/chat', ['message' => 'create an event called Fun Run', 'source' => 'typed'])->assertOk();
+
+        $this->assertSame('typed', AiMessage::findOrFail($typed->json('user_message.id'))->payload['source']);
+        $this->assertSame('awaiting_confirmation', $typed->json('message.payload.action.status'));
+    }
+
     public function test_a_role_without_the_action_never_gets_it(): void
     {
         $org = Organization::factory()->create();
