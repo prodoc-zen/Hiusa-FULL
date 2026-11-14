@@ -18,9 +18,13 @@ HIGH_KEYWORDS = (
 )
 MEDIUM_KEYWORDS = ("broken", "delay*", "missing", "complaint*", "unfair", "issue*", "problem*")
 
-# A keyword from the three urgency lists does not count when one of these words comes
-# within two words before it in the same clause ("not an emergency").
-NEGATORS = ("not", "no", "hindi", "dili", "walang")
+# An urgency keyword is dropped only when one of these words directly denies it: the
+# negator is the word right before the keyword, or right before "a", "an", "any" or
+# "the" and then the keyword ("not an emergency"), in the same clause. Anything between
+# them ("not stop bullying", "can not take the bullying") means the word is kept, so
+# whenever it is unclear the higher urgency wins.
+NEGATORS = ("not", "no", "hindi", "dili", "walang", "wala", "walay", "wala'y", "di")
+_ARTICLES = ("a", "an", "any", "the")
 
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Safety & Security": CRITICAL_KEYWORDS + ("security", "unsafe", "guard", "theft"),
@@ -35,21 +39,29 @@ _URGENCY_KEYWORDS = frozenset(CRITICAL_KEYWORDS + HIGH_KEYWORDS + MEDIUM_KEYWORD
 _CLAUSE_BREAK = re.compile(r"[.!?;,:\n]")
 
 
-def _negated(text: str, start: int) -> bool:
-    clause = _CLAUSE_BREAK.split(text[:start])[-1]
-    return any(word in NEGATORS for word in re.findall(r"[\w']+", clause)[-2:])
+def _negator(text: str, start: int) -> str | None:
+    words = re.findall(r"[\w']+", _CLAUSE_BREAK.split(text[:start])[-1])
+    if words and words[-1] in _ARTICLES:
+        words.pop()
+    return words[-1] if words and words[-1] in NEGATORS else None
 
 
-def _found(text: str, keyword: str) -> str | None:
-    """The word in the text that the keyword matched, or None. Urgency words that are negated do not match."""
+def _found(text: str, keyword: str, denied: list[tuple[str, str]] | None = None) -> str | None:
+    """The word in the text that the keyword matched, or None. Urgency words that are denied do not match;
+    when `denied` is given, a word that matched only after a denial is added to it with its negator."""
     if keyword.endswith("*"):
         pattern = rf"\b{re.escape(keyword[:-1])}\w*"
     else:
         pattern = rf"\b{re.escape(keyword)}\b"
+    blocked: tuple[str, str] | None = None
     for match in re.finditer(pattern, text):
-        if keyword in _URGENCY_KEYWORDS and _negated(text, match.start()):
+        negator = _negator(text, match.start()) if keyword in _URGENCY_KEYWORDS else None
+        if negator is not None:
+            blocked = blocked or (match.group(0), negator)
             continue
         return match.group(0)
+    if blocked is not None and denied is not None and blocked not in denied:
+        denied.append(blocked)
     return None
 
 
@@ -62,9 +74,20 @@ def _words(text: str, keywords: tuple[str, ...]) -> list[str]:
     return words
 
 
-def _quoted(words: list[str]) -> str:
-    items = [f'"{word}"' for word in words[:5]]
+def _joined(items: list[str]) -> str:
+    items = items[:5]
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _quoted(words: list[str]) -> str:
+    return _joined([f'"{word}"' for word in words])
+
+
+def _denial_note(denied: list[tuple[str, str]]) -> str:
+    if not denied:
+        return ""
+    pairs = _joined([f'"{word}" after "{negator}"' for word, negator in denied])
+    return f" It also mentions {pairs}, which was not counted as urgent; a reviewer should check it."
 
 
 def classify_grievance(request: GrievanceClassificationRequest) -> dict:
@@ -74,7 +97,7 @@ def classify_grievance(request: GrievanceClassificationRequest) -> dict:
     reproducible so the Laravel-side PHP fallback (HiusaAiService::grievanceClassification
     callers) can mirror it exactly when this service is unreachable.
     """
-    text = f"{request.title} {request.description}".lower()
+    text = f"{request.title}. {request.description}".lower()
 
     urgency_words: list[str] = []
     for urgency, keywords, confidence_score in (
@@ -89,6 +112,10 @@ def classify_grievance(request: GrievanceClassificationRequest) -> dict:
         urgency = "Low"
         confidence_score = 0.5
 
+    denied: list[tuple[str, str]] = []
+    for keyword in CRITICAL_KEYWORDS + HIGH_KEYWORDS + MEDIUM_KEYWORDS:
+        _found(text, keyword, denied)
+
     matched_category = DEFAULT_CATEGORY
     category_words: list[str] = []
     for category, keywords in CATEGORY_KEYWORDS.items():
@@ -101,7 +128,7 @@ def classify_grievance(request: GrievanceClassificationRequest) -> dict:
         "urgency": urgency,
         "category": matched_category,
         "confidence_score": confidence_score,
-        "reasoning": _reasoning(urgency, urgency_words, matched_category, category_words),
+        "reasoning": _reasoning(urgency, urgency_words, matched_category, category_words) + _denial_note(denied),
     }
 
 

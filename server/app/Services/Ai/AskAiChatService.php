@@ -624,6 +624,11 @@ class AskAiChatService
             $facts['guide_steps'] = $steps;
         }
 
+        $nextStep = $payload['formatted_blocks']['recommended_action'] ?? null;
+        if (! empty($nextStep['href'])) {
+            $facts['next_step'] = ['label' => $nextStep['action_label'] ?? $nextStep['title'] ?? null, 'href' => $nextStep['href']];
+        }
+
         return $facts;
     }
 

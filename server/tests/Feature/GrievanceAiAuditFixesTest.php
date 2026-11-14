@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClassConstant;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -84,10 +85,69 @@ class GrievanceAiAuditFixesTest extends TestCase
 
         $result = $this->classify('Not urgent, but the treasurer stole the funds');
         $this->assertSame('High', $result['urgency']);
-        $this->assertSame('Marked High because the text mentions "stole"; filed under Financial Integrity because it mentions "funds" and "stole".', $result['reasoning']);
+        $this->assertSame('Marked High because the text mentions "stole"; filed under Financial Integrity because it mentions "funds" and "stole". It also mentions "urgent" after "not", which was not counted as urgent; a reviewer should check it.', $result['reasoning']);
 
         $this->assertSame('Critical', $this->classify('There is no excuse for this threat')['urgency']);
         $this->assertSame('Critical', $this->classify('I did not sleep. Emergency at the dorm')['urgency']);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function harmNextToANegator(): array
+    {
+        return array_map(null, [
+            ['Officer', 'They did not stop bullying me even after I reported it.'],
+            ['Officer conduct', 'The vice president would not stop harassing me after the meeting.'],
+            ['No more bullying in our org', 'Please act on this.'],
+            ['No response', 'Harassment by the treasurer during the meeting.'],
+            ['Not again', 'Threatened by an officer at the venue.'],
+            ['I can not take the bullying anymore', 'It happens every day.'],
+            ['Help', 'He did not stop abusing me after the party.'],
+            ['Not once did they stop the threats', 'Please help.'],
+            ['No one helps me', 'The abuse continues every day.'],
+            ['There is no way I can ignore the harassment', 'It is ongoing.'],
+            ['Hindi tumitigil ang pagbabanta sa akin', 'Humihingi po ako ng tulong.'],
+            ['Hindi na siya tumigil sa pananakit', 'Sinaktan niya ako ulit kahapon.'],
+            ['Walang tigil ang pambu-bully', 'Binantaan niya ako ulit.'],
+            ['Dili siya mohunong sa bullying nako', 'Gibantaan gyud ko niya.'],
+            ['Wala siya mohunong sa pagbully', 'Gibantaan ko niya ug gisaktan.'],
+        ]);
+    }
+
+    #[DataProvider('harmNextToANegator')]
+    public function test_the_fallback_never_lowers_harm_described_next_to_a_negator(string $title, string $description): void
+    {
+        $this->assertSame('Critical', $this->classify($title, $description)['urgency']);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function directDenials(): array
+    {
+        return array_map(null, [
+            ['There was no harassment', 'just a misunderstanding about the schedule'],
+            ['This is not a danger to anyone', 'I only have a question'],
+            ['Not any violence was reported', 'asking about the venue'],
+            ['Hindi emergency ito', 'tanong lang po'],
+            ['Dili emergency kini', 'pangutana lang'],
+            ['Walay bullying nga nahitabo', 'pangutana lang'],
+            ["Wala'y threat", 'pangutana lang'],
+        ]);
+    }
+
+    #[DataProvider('directDenials')]
+    public function test_the_fallback_lowers_urgency_for_a_direct_denial_and_says_so(string $title, string $description): void
+    {
+        $result = $this->classify($title, $description);
+
+        $this->assertSame('Low', $result['urgency']);
+        $this->assertStringContainsString('a reviewer should check it.', $result['reasoning']);
+    }
+
+    public function test_the_fallback_reasoning_names_the_denied_word(): void
+    {
+        $this->assertSame(
+            'No urgent words were found, so it is Low; filed under Academic / Faculty because it mentions "scheduling". It also mentions "emergency" after "not", which was not counted as urgent; a reviewer should check it.',
+            $this->classify('This is not an emergency', 'just a scheduling question')['reasoning'],
+        );
     }
 
     public function test_the_fallback_files_theft_of_money_under_financial_integrity(): void

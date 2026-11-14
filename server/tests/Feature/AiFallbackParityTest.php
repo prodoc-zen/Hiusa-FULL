@@ -546,7 +546,7 @@ class AiFallbackParityTest extends TestCase
         ]);
         FinancialForecast::create([
             'organization_id' => $admin->organization_id,
-            'forecast_period' => now('Asia/Manila')->addMonth()->format('Y-m'),
+            'forecast_period' => now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'),
             'predicted_income' => 500,
             'predicted_expense' => 900,
             'model_details' => ['engine' => 'php-fallback'],
@@ -621,7 +621,7 @@ class AiFallbackParityTest extends TestCase
         }
         $admin = $this->user('ADMIN');
         $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Live engine verification', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
-        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now('Asia/Manila')->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900, 'model_details' => ['engine' => 'php-fallback']]);
+        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900, 'model_details' => ['engine' => 'php-fallback']]);
         Sanctum::actingAs($admin);
         $this->postJson('/api/budgets/'.$budget->id.'/advice')->assertOk()
             ->assertJsonPath('engine', 'python-fastapi')->assertJsonPath('advice.recommended_allocation', 480)

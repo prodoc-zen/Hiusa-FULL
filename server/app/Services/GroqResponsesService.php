@@ -25,7 +25,10 @@ class GroqResponsesService implements TextGenerator
         $this->timeBudget = $seconds;
     }
 
-    /** True when the most recent call timed out or could not connect, so the chain can rest this provider briefly. */
+    /**
+     * True when the most recent call could not connect, or timed out while running with its full timeout, so the chain
+     * can rest this provider briefly. A timeout under a shortened shared deadline says nothing about the provider.
+     */
     public function lastCallUnreachable(): bool
     {
         return $this->unreachable;
@@ -178,9 +181,14 @@ class GroqResponsesService implements TextGenerator
         ];
     }
 
+    private function configuredSeconds(): int
+    {
+        return max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS));
+    }
+
     private function requestSeconds(): int|float
     {
-        $configured = max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS));
+        $configured = $this->configuredSeconds();
 
         return $this->timeBudget === null ? $configured : max(1.0, min((float) $configured, $this->timeBudget));
     }
@@ -195,6 +203,7 @@ class GroqResponsesService implements TextGenerator
         }
 
         $seconds = $this->requestSeconds();
+        $budgeted = $this->timeBudget !== null && $this->timeBudget < $this->configuredSeconds();
 
         try {
             $response = Http::acceptJson()
@@ -216,7 +225,8 @@ class GroqResponsesService implements TextGenerator
 
             return is_array($payload) ? $payload : null;
         } catch (\Throwable $exception) {
-            $this->unreachable = $exception instanceof ConnectionException;
+            $timedOut = str_contains($exception->getMessage(), 'cURL error 28');
+            $this->unreachable = $exception instanceof ConnectionException && (! $timedOut || ! $budgeted);
 
             Log::warning('Groq Responses API is unavailable.', [
                 'exception' => $exception::class,

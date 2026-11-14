@@ -43,7 +43,7 @@ class BudgetAdviceRules
             $risk = 'high';
             $forecastRisk = 'deficit';
             $advice = 'A deficit is projected. Pause discretionary spending, review committed costs, and secure additional income before approving new expenses.';
-        } elseif ($expense > $income || ($warningThreshold > 0 && $available <= $warningThreshold)) {
+        } elseif ($expense > $income || $available <= $warningThreshold) {
             $risk = 'high';
             $forecastRisk = 'overspending';
             $advice = 'Overspending risk is high. Keep new commitments below the safe spending limit and reduce nonessential expenses.';
