@@ -1,0 +1,122 @@
+[
+  {
+    "id": "ui-01",
+    "title": "A message sent while a conversation is still loading goes to the wrong thread, and the late load then overwrites the new one",
+    "severity": "high",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 399,
+    "evidence": "openConversation (399-429) clears the thread and only sets the id when the GET returns: `setMessages([]); ... const response = await getAiConversation(id); if (loadRef.current !== ticket) return; ... convIdRef.current = header.id; setActiveId(header.id); setMessages(asList(data, 'messages').map(withKey));`. send (287-358) never checks or cancels a load: `if (sendingRef.current) return false;` ... `conversationId: convIdRef.current`. The composer gets no loading state: `<ChatComposer ref={composerRef} streaming={streaming} offline={!online} onSend={(text) => send(text)} onStop={stop} />` (628-634). Reproduced on the live copy (GET delayed 4 s, opened ?c=1, typed 'hello' + Enter during the skeleton): POST body was `{\"conversation_id\":null,\"message\":\"hello\"...}`, the URL became ?c=20, but the screen showed conversation 1's messages (the late load replaced the new thread) while the screen reader region said 'Answer ready. Hello, Marco...'. The next message ('thanks') was posted with `\"conversation_id\":1` and the URL flipped to ?c=1.",
+    "impact": "Any user who opens a conversation from a link, a reload or the history list and types before it finishes loading (slow school Wi-Fi makes this easy). With no conversation open yet the question starts a new conversation the user never sees; when switching from conversation A to B it is posted into A (convIdRef still holds A). The answer they asked for disappears from the screen, the URL and the visible thread disagree, and their following messages are stored in a conversation they did not choose.",
+    "fix": "Block sending until the conversation is on screen. Add `const loadingRef = useRef(false)`; in openConversation set `loadingRef.current = true` next to `setConvLoading(true)` and set it false in the `finally` (same ticket guard) and in resetToNew. In send change the first guard to `if (sendingRef.current || loadingRef.current) return false;`. Pass `disabled={convLoading}` to ChatComposer and make its submit return early and its Send button `disabled` when `disabled` is true, so the typed text is kept. Also make the `?q=` effect (440-451) skip while `cParam` is set. Add a page test: delay getAiConversation, press Enter during the skeleton, assert streamAiChat was not called and the text is still in the box."
+  },
+  {
+    "id": "ui-02",
+    "title": "Regenerate after Stop, and Try again after a failure that followed `meta`, are always refused by the server and loop forever",
+    "severity": "high",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 366,
+    "evidence": "Client: `setSendError({ message: failureMessage(err), text, topic, regenerate: regenerate || metaReceived });` (366) and `onRegenerate={activeId && !streaming ? regenerate : undefined}` (599); ChatMessage shows it on any last answer, stored or not: `{isLast && onRegenerate && (<ActionButton icon={RefreshCw} onClick={onRegenerate} ...>` (ChatMessage.jsx 114-118). Server refuses regenerate unless the last stored message is an answer: `if ($last === null || $last->role !== 'assistant' || ! $hasQuestion) { throw ValidationException::withMessages(['regenerate' => 'There is no answer to regenerate in this conversation.']); }` (AskAiChatService.php 61-63), and a stopped stream with no verified text stores nothing: `if (trim($released) === '') { return null; }` (377-379); a failed stream stores nothing either (AskAiController.php 97-99 only writes the `error` event). Reproduced on the model-backed copy: asked a question, pressed Stop right after the URL got ?c=14; GET of the conversation returned only `[30,\"user\",\"completed\",...]`; the page showed 'You stopped this answer.' with a Regenerate button; clicking it posted `{\"conversation_id\":14,\"message\":null,\"topic\":null,\"regenerate\":true}`, the server rejected it, the page showed an error with Try again, and Try again posted the identical body and failed again.",
+    "impact": "Every user who stops an answer before the first checked line arrives (the normal case for an early Stop), and every user whose answer fails after the question was stored (provider error, dropped connection). The two buttons the page offers to recover can never succeed; the only way forward is to retype the question, which stores it a second time. The page test 'retries with regenerate and no second question when the failure came after meta' asserts exactly the request the real server rejects.",
+    "fix": "Make regenerate mean 'answer the last question again' on the server, which is what the client already assumes. In AskAiChatService::assertRegenerable throw only when the conversation has no user message. In respond() (75-78) delete the last message only when it is an assistant message newer than the last user message: `$userMessage = ...where('role','user')->orderByDesc('id')->first(); $conversation->messages()->where('role','assistant')->where('id','>',$userMessage->id)->delete();`. Add a server test: store a user message with no answer, POST regenerate, expect 200 and one user message. No client change is then needed; until the server changes, hide Regenerate when the last answer has no server id and empty content."
+  },
+  {
+    "id": "ui-03",
+    "title": "A validation failure on the streaming request comes back as a 302 redirect, which the page reports as 'You seem to be offline'",
+    "severity": "high",
+    "file": "client/src/services/askAiService.js",
+    "line": 101,
+    "evidence": "The client sends only `Accept: 'text/event-stream'` (101-104) and follows redirects by default (fetch at 114). The server renders validation errors as JSON only for JSON requests: `if ($exception->response || ! $request->expectsJson()) { return null; }` (server/bootstrap/app.php 99-101), so Laravel falls back to a redirect. Measured against the running API with a valid token: `POST /api/ai/assistant/chat` with `Accept: text/event-stream` and body `{\"message\":\"\"}` or `{\"conversation_id\":14,\"regenerate\":true}` returns `302 http://127.0.0.1:5174/dashboard/ask-ai text/html` (also with `Accept: text/event-stream, application/json`); with `Accept: application/json` it returns 422. In the browser the fetch follows the redirect to the web origin, fails CORS and throws a TypeError, which failureMessage maps to: `if (navigator.onLine === false || err instanceof TypeError) { return 'You seem to be offline. Check your connection, then try again.'; }` (AskAiPage.jsx 72-74). Seen live: the alert after the refused regenerate read 'You seem to be offline. Check your connection, then try again.'",
+    "impact": "Every validation refusal of a chat send (nothing to regenerate, an invalid conversation id, a topic over 60 characters, any rule added later) tells a connected user that their internet is down, and in production the browser also downloads the app's HTML page as the 'answer'. The contract (section 5) says these failures are ordinary JSON error responses.",
+    "fix": "Server: in bootstrap/app.php change the ValidationException renderer's guard to `if ($exception->response || ! ($request->is('api/*') || $request->expectsJson())) { return null; }` so every /api route gets the JSON 422, and add a feature test posting an invalid body to /api/ai/assistant/chat with `Accept: text/event-stream` that expects 422 JSON. Client: add `redirect: 'manual'` to the fetch in streamAiChat and, before the status checks, `if (response.type === 'opaqueredirect') throw streamError(GENERIC_ERROR, 422);`. In failureMessage report offline only when `navigator.onLine === false`, and use a separate sentence for a TypeError while online ('Could not reach HIUSA. Try again in a moment.')."
+  },
+  {
+    "id": "ui-04",
+    "title": "A records-only answer says the same thing three or four times before the user reaches the actions",
+    "severity": "medium",
+    "file": "client/src/components/ai/AnswerBlocks.jsx",
+    "line": 259,
+    "evidence": "For `model_written !== true` the component stacks every block under the written answer: `const recommended = !modelWritten && payload.recommended_action?.title ? payload.recommended_action : null;` (259), then highlights (286-297), then the first section opened by default: `defaultOpen={!modelWritten && idx === firstWithRows && list(section.rows).length <= OPEN_ROW_LIMIT}` (308), then one EmptySection per empty section (302-303). Live, Admin, 1440x900, 'Who has not submitted requirements?' (records copy): the answer sentence names 1 missing requirement, 0 events missing files and no financial report deadline; 'Recommended next step: Financial Statement' repeats the full return reason with an Upload button; the stats repeat 1 / 0 / 'No deadline'; the open table repeats 'Financial Statement' with the same return reason and a second Upload button; then 'Events missing required proposal documents: All current events have their required proposal documents uploaded.' and 'Financial report: No financial report deadline has been set yet.' repeat the zero and the missing deadline again. The single record fills the whole screen and the user's question has scrolled out of view.",
+    "impact": "All five roles whenever no model provider is configured or reachable, or the number guard replaces the written answer, which is the state production falls back to. The answer does not read like an assistant wrote it: the one thing to do (Upload) appears twice and is buried between repeats, so there is no single clear next action.",
+    "fix": "In AnswerBlocks for a records-only answer: (1) drop the 'Recommended next step' block when a section row has the same `primary` as `recommended.title` or the same `href` (the row already carries the detail and the button); (2) do not render EmptySection blocks when the payload has highlights (the stats already show the zero), otherwise render them as one muted line each without a heading; (3) keep the first section open only when no recommended block is shown. Add tests with the payload above asserting one Upload control and no empty-section headings."
+  },
+  {
+    "id": "ui-05",
+    "title": "Sending into a conversation that no longer exists shows a generic error whose Try again can never work",
+    "severity": "medium",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 68,
+    "evidence": "failureMessage only knows 429 and offline: `if (err?.status === 429 || err?.response?.status === 429) {...} if (navigator.onLine === false || err instanceof TypeError) {...} return 'Could not answer that right now. Try again.';` (68-76). The catch keeps the dead id: `setSendError({ message: failureMessage(err), text, topic, regenerate: regenerate || metaReceived });` (366) and retry resends with `conversationId: convIdRef.current` (352). The server answers a missing or out-of-scope conversation with JSON 404 even for the stream request (measured: `{\"conversation_id\":999999,\"message\":\"hi\"}` -> `404 application/json {\"message\":\"Not found.\"}`), from `AiConversation::ownedBy($user)->findOrFail(...)` (AskAiController.php 58-60). The 404 handling in openConversation (418-422) is not reused for sends.",
+    "impact": "A user who deleted the conversation (or all conversations) in another tab or on their phone, or whose role or organization changed so the conversation left their scope, and then sends in the still-open tab. They see 'Could not answer that right now. Try again.' and every Try again returns 404; the stale conversation also stays in the history list.",
+    "fix": "In the catch of send, before the generic branch: `if (err?.status === 404 && convIdRef.current !== null) { const gone = convIdRef.current; convIdRef.current = null; setActiveId(null); setConversations((list) => list.filter((c) => c.id !== gone)); updateParams((p) => p.delete('c')); setNotice('That conversation is no longer available, so this is a new one.'); setMessages((list) => list.filter((m) => m.key === userKey)); setSendError({ message: 'That conversation is no longer available. Try again to ask in a new one.', text, topic, regenerate: false }); return true; }` (for a regenerate there is no text, so show the notice and no Try again). Add a page test that rejects streamAiChat with `{ status: 404 }` and asserts the retry call has `conversationId: null`."
+  },
+  {
+    "id": "ui-06",
+    "title": "The records table labels its fourth column 'Count' but it holds due dates, places and other notes",
+    "severity": "medium",
+    "file": "client/src/components/ai/AnswerBlocks.jsx",
+    "line": 141,
+    "evidence": "`<th scope=\"col\" className=\"px-3 py-2 text-xs font-semibold\">Count</th>` (141) and `<td data-label=\"Count\" ...>{plainText(row.meta) || ''}</td>` (165-167). `row.meta` is free text on the server: `'meta' => $step['where'] ?? null` (AskAiService.php 521), `'meta' => \"{$pendingRegistrations} pending\"` (843), and in the live Admin answer the cell under 'Count' read 'Due Dec 1, 2026' for the Financial Statement row.",
+    "impact": "Every role that opens a records table on desktop or tablet: a due date or a location shown under the heading 'Count' reads as a mistake in the school's records, and screen reader users hear 'Count, Due Dec 1, 2026' for each row.",
+    "fix": "Rename the header and the `data-label` to a neutral word that fits dates, places and counts ('Info'), and update the AnswerBlocks test that names the column. Do not derive the label from the value."
+  },
+  {
+    "id": "ui-07",
+    "title": "The page tests replace the three rendering components and the stream, and two tests assert behaviour the real code does not have",
+    "severity": "medium",
+    "file": "client/src/pages/modules/ai/AskAiPage.test.jsx",
+    "line": 21,
+    "evidence": "`vi.mock('../../../services/askAiService', () => service); vi.mock('../../../components/ai/AiMarkdown', ...); vi.mock('../../../components/ai/AnswerBlocks', ...); vi.mock('../../../components/ai/ReasoningDisclosure', ...)` (21-34): no test renders a real answer through AskAiPage. The test at 239 'retries with regenerate and no second question when the failure came after meta' only checks `expect(call.regenerate).toBe(true)`, a request the server rejects (ui-02). ChatComposer.test.jsx 40 'keeps the text when the send is refused' uses `const onSend = vi.fn(() => false)`, but the page passes `onSend={(text) => send(text)}` where send is `async` (AskAiPage.jsx 287, 632), so `if (onSend(trimmed) !== false) setText('')` (ChatComposer.jsx 44) always clears the box: a refused send returns a Promise, never `false`. There is no test for a send during a conversation load (ui-01), a 404 or 422 on send (ui-03, ui-05), a stream that ends without `done`, or switching conversation mid-stream.",
+    "impact": "The suite is green while the three high findings above are live. The 'refused send keeps the text' guarantee is false in the app: once ui-01 is fixed by returning false from send, the typed question would still be wiped.",
+    "fix": "Make send's guard synchronous for the composer: in AskAiPage wrap it as `onSend={(text) => { if (sendingRef.current || loadingRef.current) return false; send(text); return true; }}`, and add a page-level test that a refused send keeps the text. Add one AskAiPage test file that does not mock AiMarkdown, AnswerBlocks or ReasoningDisclosure and drives a real `streamAiChat` through a stubbed `fetch` returning a ReadableStream of the exact bytes the server writes (meta, status, replace with empty text, deltas, keep-alive comment, done), plus tests for: stream closed without `done` after meta, 404 and 422 JSON bodies, and opening another conversation mid-stream leaving the new thread untouched."
+  },
+  {
+    "id": "ui-08",
+    "title": "An answer loses everything after a '<' that is followed by a letter and never closed",
+    "severity": "low",
+    "file": "client/src/components/ai/AiMarkdown.jsx",
+    "line": 40,
+    "evidence": "`const UNFINISHED_TAG = /<\\/?[a-zA-Z][^<>]*$/;` (40) is applied to every render, finished answers included: `{typeof content === 'string' ? content.replace(UNFINISHED_TAG, '') : ''}` (73). `[^<>]*` crosses newlines. Checked in node: `'Pick the option where turnout<quorum is false.\\n\\nThen open the page and submit.'.replace(UNFINISHED_TAG, '')` returns `'Pick the option where turnout'`. The server's sanitizer only removes complete tags (`/<\\/?[a-zA-Z][^<>]*>/`), so such a '<' reaches the client.",
+    "impact": "Any stored answer (and every reload of it) containing text such as 'votes<quorum' or 'a<b' with no later '<' or '>' is silently cut at that point: the rest of the answer, including the next step and its link, is not shown, while Copy still copies the full text.",
+    "fix": "Give AiMarkdown a `streaming` prop (ChatMessage passes `streaming`), strip only while it is true, and stop at a line break: `/<\\/?[a-zA-Z][^<>\\n]*$/`. Add a test that the finished text above renders in full."
+  },
+  {
+    "id": "ui-09",
+    "title": "A failure after text has streamed deletes the partial answer the user was reading",
+    "severity": "low",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 365,
+    "evidence": "`} else { setMessages((list) => list.filter((m) => m.key !== answerKey)); setSendError({...}); }` (364-367). This branch runs for a server `error` event (`if (failure) throw streamError(failure.message, response.status, null);`, askAiService.js 172), for a stream that closes without `done` (173) and for a dropped connection, in each case after `delta` text may already be on screen. ChatMessage already has a state for this that is never used by the page: `{failed && <p ...>This answer did not finish.</p>}` (ChatMessage.jsx 110).",
+    "impact": "A user on a weak connection, or when the provider fails mid-answer: several lines of a checked answer vanish and are replaced by a one-line error, so they cannot keep or copy what had already arrived.",
+    "fix": "In that branch keep the message when it has content: `setMessages((list) => list.flatMap((m) => (m.key !== answerKey ? [m] : m.content ? [{ ...m, streaming: false, status: 'failed' }] : [])));` and keep the alert with Try again below it. Add a page test: emit meta and a delta, reject, assert the text and 'This answer did not finish.' are shown."
+  },
+  {
+    "id": "ui-10",
+    "title": "The spoken announcement reads raw Markdown and HTML source, and Stop is never announced",
+    "severity": "low",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 320,
+    "evidence": "`setAnnouncement(`Answer ready. ${String(result.message.content || '').slice(0, 140)}`);` (320) feeds `<div role=\"status\" aria-live=\"polite\" className=\"sr-only\">{announcement}</div>` (613). Captured live on the model-backed copy: 'Answer ready. **Marco, here is what matters most right now.** Today for ...'; an answer that opens with a badge or callout would be read as '<span class=\"badge badge-warning\">'. The abort branch sets no announcement: `patchAnswer(() => ({ streaming: false, status: 'stopped' }));` (363), and the streaming answer is never marked busy (no `aria-busy` anywhere in pages/modules/ai or components/ai).",
+    "impact": "Screen reader users hear asterisks, pipes and tag source at the start of answers, get no confirmation that Stop worked, and cannot tell an in-progress answer from a finished one.",
+    "fix": "Announce the server's already-stripped text: `setAnnouncement(`Answer ready. ${result.conversation?.preview || ''}`)`. In the abort branch add `setAnnouncement('Answer stopped.')`. Put `aria-busy={streaming || undefined}` on the `<article aria-label=\"Answer\">` in ChatMessage.jsx (102)."
+  },
+  {
+    "id": "ui-11",
+    "title": "Copy puts Markdown and HTML source on the clipboard instead of the answer the user sees",
+    "severity": "low",
+    "file": "client/src/pages/modules/ai/ChatMessage.jsx",
+    "line": 113,
+    "evidence": "`{message.content && <CopyAction text={message.content} />}` (113) with `await navigator.clipboard.writeText(text);` (58). `message.content` is the stored Markdown, which per contract section 8 contains tags such as `<span class=\"badge badge-warning\">Overdue</span>` and `<div class=\"callout callout-info\">`; the live model-backed answer rendered both a badge and a callout from that source.",
+    "impact": "An officer or adviser who copies an answer into a chat message, an email or a document pastes '**', '|---|' and `<span class=...>` text; this is the main reason to copy an answer (drafting a message is one of the assistant's stated uses).",
+    "fix": "Copy the rendered text: give the answer's AiMarkdown wrapper a ref in ChatMessage and pass `() => proseRef.current?.innerText ?? message.content` to CopyAction; where `ClipboardItem` exists also write `text/html` from `proseRef.current.innerHTML` so lists and tables paste formatted."
+  },
+  {
+    "id": "ui-12",
+    "title": "Going Back to the page without ?c while an answer is streaming leaves that conversation on screen with no address",
+    "severity": "low",
+    "file": "client/src/pages/modules/ai/AskAiPage.jsx",
+    "line": 432,
+    "evidence": "`if (!cParam) { if (convIdRef.current !== null && !sendingRef.current) resetToNew(); return; }` (432-435). When `c` disappears during a send the reset is skipped and nothing runs the effect again when the stream ends (its dependencies are `[cParam, openConversation, resetToNew]`). Sequence: open /dashboard/ask-ai, pick conversation A from the list (pushed entry, 464), send a question, press Back while it streams.",
+    "impact": "The answer keeps streaming into conversation A, but the URL is the new-chat address: a reload or a shared link opens an empty chat, no history row is highlighted as current after a reload, and the next message is still stored in A.",
+    "fix": "In that branch, when a send is running, treat Back like New chat: `if (convIdRef.current !== null || sendingRef.current) resetToNew();` (resetToNew already aborts the run through cancelRun). Add a page test that navigates to the page without `c` mid-stream and asserts the thread is empty and the stream was aborted."
+  }
+]
