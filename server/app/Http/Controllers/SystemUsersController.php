@@ -23,6 +23,7 @@ use RuntimeException;
 class SystemUsersController extends Controller
 {
     private const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
+    private const DEPARTMENT_HEAD_ELSEWHERE = 'A Department Head is managed from Colleges, under Manage Department Head.';
 
     /**
      * Every foreign key to users is read from the schema and BLOCKS deleting the person unless it is listed here
@@ -275,6 +276,102 @@ class SystemUsersController extends Controller
         }
 
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
+    }
+
+    /** The SAO switches any account except a Department Head (managed from Colleges) off or back on, never their own, never the last active SAO. */
+    public function updateStatus(Request $request, User $user)
+    {
+        $data = $request->validate(['account_status' => ['required', 'in:active,disabled']]);
+        if ($user->getRawOriginal('role') === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => self::DEPARTMENT_HEAD_ELSEWHERE], 422);
+        }
+        if ($request->user()->school_id === $user->school_id) {
+            return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
+        }
+
+        $conflict = DB::transaction(function () use ($data, $request, $user) {
+            $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
+            $before = $locked->getRawOriginal('account_status');
+            if ($before === $data['account_status']) {
+                return response()->json(['message' => 'This account is already '.($before === 'active' ? 'active' : 'disabled').'.'], 422);
+            }
+            if ($data['account_status'] === 'disabled' && $locked->getRawOriginal('role') === 'SUPER_ADMIN') {
+                if (! User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists()) {
+                    return response()->json(['message' => 'The last active SAO account cannot be deactivated.'], 409);
+                }
+            }
+
+            $locked->forceFill(['account_status' => $data['account_status']])->save();
+            if ($data['account_status'] !== 'active') {
+                // A token is keyed by school ID only, so a disabled person is signed out of every device at once.
+                $locked->tokens()->delete();
+            }
+            $this->recordAccountAudit($request, $data['account_status'] === 'active' ? 'user_reactivated' : 'user_deactivated', $locked,
+                ['account_status' => $data['account_status'], 'before' => ['account_status' => $before]],
+                $data['account_status'] === 'active' ? 'SAO reactivated a user account.' : 'SAO deactivated a user account.');
+
+            return null;
+        });
+        if ($conflict) {
+            return $conflict;
+        }
+
+        return response()->json(['message' => $data['account_status'] === 'active' ? 'Account reactivated.' : 'Account deactivated.', 'user' => $this->summary($user->fresh())]);
+    }
+
+    /** The SAO's way to fix a misspelt name or a wrong email. A password is never set here; a Department Head is corrected from Colleges. */
+    public function update(Request $request, User $user)
+    {
+        if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
+            return response()->json(['message' => 'The SAO cannot set a password. Create a reset link instead.'], 422);
+        }
+        if ($user->getRawOriginal('role') === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => self::DEPARTMENT_HEAD_ELSEWHERE], 422);
+        }
+        $normalized = [];
+        foreach (['first_name', 'last_name', 'email'] as $field) {
+            if ($request->exists($field) && is_string($request->input($field))) {
+                $value = trim($request->string($field)->toString());
+                $normalized[$field] = $field === 'email' ? strtolower($value) : $value;
+            }
+        }
+        $request->merge($normalized);
+        $data = $request->validate([
+            'first_name' => ['sometimes', 'required', 'string', 'max:60'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:60'],
+            'email' => ['sometimes', 'required', 'email', 'max:100', Rule::unique('users', 'email')->ignore($user->school_id, 'school_id')],
+        ]);
+
+        DB::transaction(function () use ($data, $request, $user) {
+            $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
+            $keys = array_keys($data);
+            $before = Arr::only($locked->getAttributes(), $keys);
+            $emailChanges = isset($data['email']) && $data['email'] !== $locked->email;
+            $locked->update($data);
+            if ($emailChanges) {
+                $locked->tokens()->delete();
+            }
+            $this->recordAccountAudit($request, 'user_updated', $locked, ['before' => $before, 'after' => Arr::only($locked->fresh()->getAttributes(), $keys)], 'SAO corrected a user account.');
+        });
+
+        return response()->json(['message' => 'Account updated.', 'user' => $this->summary($user->fresh())]);
+    }
+
+    private function recordAccountAudit(Request $request, string $action, User $user, array $values, string $description): void
+    {
+        AuditLog::create([
+            'organization_id' => $user->getRawOriginal('organization_id'),
+            'user_id' => $request->user()->school_id,
+            'actor_role' => 'SUPER_ADMIN',
+            'module' => 'system_users',
+            'action' => $action,
+            'record_type' => User::class,
+            'record_id' => $user->school_id,
+            'description' => $description,
+            'new_values' => [...$values, 'role' => $user->getRawOriginal('role')],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
     }
 
     /** The SAO's way to reset a student, officer, organization Admin (head, adviser, office staff) or another SAO account, never their own. A Department Head has its own reset. */

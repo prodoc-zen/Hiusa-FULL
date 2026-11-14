@@ -6,6 +6,8 @@ export const getSystemOverview = (params) => unwrap(api.get('/system/overview', 
 export const getSystemUsers = (params) => unwrap(api.get('/system/users', { params }));
 export const getSystemUser = (schoolId) => unwrap(api.get(`/system/users/${schoolId}`));
 export const resetSystemUserPassword = (schoolId) => unwrap(api.post(`/system/users/${schoolId}/password-reset`));
+export const setSystemUserStatus = (schoolId, accountStatus) => unwrap(api.patch(`/system/users/${schoolId}/status`, { account_status: accountStatus }));
+export const updateSystemUser = (schoolId, payload) => unwrap(api.put(`/system/users/${schoolId}`, payload));
 export const deleteSystemUser = (schoolId) => unwrap(api.delete(`/system/users/${schoolId}`, { data: { school_id: schoolId } }));
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params, cache: false }));
 export const createUnifiedOrganization = (data) => unwrap(api.post('/system/unified-organizations', data));
