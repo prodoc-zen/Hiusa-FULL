@@ -266,7 +266,7 @@ class FinancialAccountabilityController extends Controller
             'department' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:150'])], 'program' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:150'])],
             'year_level' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:50'])], 'status' => ['nullable', FilterValues::rule(['nullable', 'in:all,owing,cleared,overdue,pending_payment'])],
             'sort' => ['nullable', 'in:highest_debt,name,recent'], 'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'in:10'],
+            'per_page' => ['nullable', 'integer', 'in:5,10'],
         ]);
         $organizationId = $request->user()->organization_id;
         $students = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('role', 'STUDENT')->where('account_status', 'active'))
@@ -312,7 +312,7 @@ class FinancialAccountabilityController extends Controller
             'name' => $accounts->sortBy('student.name', SORT_NATURAL | SORT_FLAG_CASE), 'recent' => $accounts->sortByDesc('last_activity_at'), default => $accounts->sortByDesc('total_debt'),
         };
         $page = (int) ($filters['page'] ?? 1);
-        $perPage = 10;
+        $perPage = (int) ($filters['per_page'] ?? 10);
         $accounts = $accounts->values();
         $paginator = new LengthAwarePaginator($accounts->forPage($page, $perPage)->values(), $accounts->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
         $payload = $paginator->toArray();

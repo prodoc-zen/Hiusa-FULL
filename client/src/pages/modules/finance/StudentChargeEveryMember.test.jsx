@@ -68,7 +68,7 @@ describe('Add student charge to every member', () => {
 
       expect(await within(dialog).findByText(/40 members will be charged/)).toBeInTheDocument();
       expect(within(dialog).getByText(/2 already have an open charge named Membership fee and are skipped/)).toBeInTheDocument();
-      expect(within(dialog).getByText(/18 already paid a charge named Membership fee and are skipped/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/18 already paid it and will be skipped/)).toBeInTheDocument();
       expect(within(dialog).getByRole('checkbox', { name: TICK })).not.toBeChecked();
       expect(mocks.createInvoice).toHaveBeenCalledWith({ all_members: true, preview: true, description: 'Membership fee', amount_due: '150', due_date: null });
 
@@ -113,7 +113,7 @@ describe('Add student charge to every member', () => {
       fireEvent.click(within(dialog).getByRole('checkbox', { name: TICK }));
 
       expect(await within(dialog).findByText(/58 members will be charged/)).toBeInTheDocument();
-      expect(within(dialog).getByText(/18 already paid a charge named Membership fee and will be charged again/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/18 already paid it and will be charged again/)).toBeInTheDocument();
       expect(within(dialog).getByRole('checkbox', { name: TICK })).toBeChecked();
       expect(mocks.createInvoice).toHaveBeenCalledWith({ all_members: true, preview: true, charge_already_paid: true, description: 'Membership fee', amount_due: '150', due_date: null });
 

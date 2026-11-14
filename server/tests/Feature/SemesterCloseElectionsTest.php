@@ -77,6 +77,32 @@ class SemesterCloseElectionsTest extends TestCase
             ->assertJsonPath('elections.0.organization_name', 'Cold Computing Society');
     }
 
+    public function test_switching_the_active_semester_is_refused_by_name_and_changes_nothing(): void
+    {
+        $this->upcomingElection();
+        $this->travelTo('2027-01-02');
+        Sanctum::actingAs($this->director);
+
+        $response = $this->patchJson("/api/system/academic-semesters/{$this->second->id}/active")->assertUnprocessable();
+
+        $response->assertJsonPath('errors.semester.0', fn ($message) => str_contains($message, 'The current semester still has an election that is upcoming or open')
+            && str_contains($message, '2026 Officer Election (Cold Computing Society)'));
+        $this->assertSame('active', $this->first->fresh()->status);
+        $this->assertSame('upcoming', $this->second->fresh()->status);
+    }
+
+    public function test_an_upcoming_election_the_sao_has_not_approved_does_not_stop_the_switch(): void
+    {
+        $this->upcomingElection(['approved_at' => null]);
+        $this->travelTo('2027-01-02');
+        Sanctum::actingAs($this->director);
+
+        $this->patchJson("/api/system/academic-semesters/{$this->second->id}/active")->assertOk();
+
+        $this->assertSame('completed', $this->first->fresh()->status);
+        $this->assertSame('active', $this->second->fresh()->status);
+    }
+
     public function test_a_refusal_for_another_reason_carries_no_election_list(): void
     {
         Sanctum::actingAs($this->director);

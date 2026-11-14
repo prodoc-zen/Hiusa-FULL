@@ -720,9 +720,15 @@ class DashboardBriefingService
             return [];
         }
 
-        $waiting = DB::table('organization_applications')->where('college_id', $home->college_id)->where('status', 'pending_dean')->count();
+        $queue = DB::table('organization_applications')->where('college_id', $home->college_id)->where('status', 'pending_dean');
+        $waiting = (clone $queue)->count();
         if ($waiting === 0) {
             return [];
+        }
+
+        // One application opens itself; several open the list.
+        if ($waiting === 1 && $href !== null) {
+            $href .= '?record='.(int) (clone $queue)->value('id');
         }
 
         return [[
@@ -731,7 +737,9 @@ class DashboardBriefingService
             'count' => $waiting,
             'severity' => 'medium',
             'title' => 'Applications awaiting your endorsement',
-            'detail' => "{$waiting} application(s) from your college wait for you to endorse or return them",
+            'detail' => $waiting === 1
+                ? '1 application from your college waits for you to endorse or return it'
+                : "{$waiting} applications from your college wait for you to endorse or return them",
             'due_at' => null,
             'href' => $href,
         ]];

@@ -77,6 +77,13 @@ function BriefingBody({ data, introduction }) {
     if (reviewAreas[0]?.href) actions = [{ label: reviewAreas[0].action, to: reviewAreas[0].href, icon: ClipboardCheck }];
   } else if (!setupOpen) {
     actions = ACTIONS[role] || [];
+    // A dean's one filled button goes to what waits longest on the dean: the applications to endorse
+    // (the one application itself when there is one), else the approvals queue.
+    const queue = role === 'DEPARTMENT_HEAD' ? attention.find((item) => item.type === 'applications_endorsement_pending' && item.href) : null;
+    if (queue) {
+      const count = Number(queue.count) || 1;
+      actions = [{ label: count === 1 ? 'Endorse the application' : `Endorse ${count} applications`, to: queue.href, icon: ClipboardCheck }];
+    }
   }
 
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;

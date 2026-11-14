@@ -8,12 +8,16 @@ import PaginationControls from '../../../components/PaginationControls';
 import PersonPicker from '../../../components/people/PersonPicker';
 import { createInvoice, getStudentDebts, recordInvoicePayment, updateInvoiceStatus } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import useNarrowScreen from '../venues/useNarrowScreen';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, SegmentedControl, Select, StatusBadge, Textarea } from '../../../components/ui';
 
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
 const plural = (count, noun) => `${count} ${noun}${Number(count) === 1 ? '' : 's'}`;
 const CHARGE_TARGETS = [{ value: 'one', label: 'One student' }, { value: 'all', label: 'Every member' }];
-const EMPTY_FILTERS ={ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 };
+const EMPTY_FILTERS = { search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt' };
+// A phone shows each account as a tall card, so a page holds fewer of them; the pager reaches the rest.
+const PAGE_SIZE = 10;
+const PHONE_PAGE_SIZE = 5;
 
 // Overdue and pending clearance carry a badge; a cleared student is the default and shows nothing.
 function standing(account) {
@@ -28,7 +32,9 @@ export default function StudentFinancialAccountsPage() {
   const [options, setOptions] = useState({ departments: [], programs: [], year_levels: [] });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, per_page: 10, current_page: 1 });
+  const narrow = useNarrowScreen();
+  const perPage = narrow ? PHONE_PAGE_SIZE : PAGE_SIZE;
+  const [meta, setMeta] = useState({ total: 0, per_page: PAGE_SIZE, current_page: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -40,16 +46,17 @@ export default function StudentFinancialAccountsPage() {
   const [formError, setFormError] = useState('');
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
-  const params = useMemo(() => ({ ...filters, page }), [filters, page]);
+  const params = useMemo(() => ({ ...filters, per_page: perPage, page }), [filters, perPage, page]);
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
       const response = await getStudentDebts(params); const payload = response.data;
       setRows(payload.data || []); setSummary(payload.summary || {}); setOptions(payload.filter_options || {});
-      setMeta({ total: payload.total || 0, per_page: payload.per_page || filters.per_page, current_page: payload.current_page || page });
+      setMeta({ total: payload.total || 0, per_page: payload.per_page || perPage, current_page: payload.current_page || page });
     } catch (requestError) { setError(getApiErrorMessage(requestError, 'Unable to load student financial accounts.')); }
     finally { setLoading(false); }
-  }, [filters.per_page, page, params]);
+  }, [perPage, page, params]);
+  useEffect(() => { setPage(1); }, [perPage]);
 
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
   const filtersActive = Boolean(filters.search.trim() || filters.department || filters.program || filters.year_level || filters.status !== 'all');
@@ -199,7 +206,7 @@ export default function StudentFinancialAccountsPage() {
             ? <p>Your organization has no active members to charge. Add members first.</p>
             : toCharge === 0
               ? <p>{alreadyPaid > 0 ? `Every active member already has or has paid a charge named ${charge.description.trim()}.` : `Every active member already has an open charge named ${charge.description.trim()}.`}</p>
-              : <><p className="font-semibold">{plural(toCharge, 'member')} will be charged {money(count.data.total)} in all.</p>{count.data.skipped > 0 && <p className="mt-1 text-xs text-ink-muted">{count.data.skipped} already {count.data.skipped === 1 ? 'has' : 'have'} an open charge named {charge.description.trim()} and {count.data.skipped === 1 ? 'is' : 'are'} skipped.</p>}{alreadyPaid > 0 && <p className="mt-1 text-xs text-ink-muted">{alreadyPaid} already paid a charge named {charge.description.trim()} and {charge.charge_already_paid ? 'will be charged again' : (alreadyPaid === 1 ? 'is' : 'are') + ' skipped'}.</p>}</>)}
+              : <><p className="font-semibold">{plural(toCharge, 'member')} will be charged {money(count.data.total)} in all.</p>{count.data.skipped > 0 && <p className="mt-1 text-xs text-ink-muted">{count.data.skipped} already {count.data.skipped === 1 ? 'has' : 'have'} an open charge named {charge.description.trim()} and {count.data.skipped === 1 ? 'is' : 'are'} skipped.</p>}{alreadyPaid > 0 && <p className="mt-1 text-xs text-ink-muted">{alreadyPaid} already paid it and {charge.charge_already_paid ? 'will be charged again' : 'will be skipped'}.</p>}</>)}
         </div>}
         {everyMember && (alreadyPaid > 0 || charge.charge_already_paid) && (
           <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink">

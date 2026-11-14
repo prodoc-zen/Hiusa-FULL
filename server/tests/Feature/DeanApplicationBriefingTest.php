@@ -57,6 +57,29 @@ class DeanApplicationBriefingTest extends TestCase
         $this->assertStringNotContainsString('all caught up', strtolower($response->json('summary.headline')));
     }
 
+    public function test_one_waiting_application_opens_itself_and_is_named_in_the_singular(): void
+    {
+        $only = $this->application($this->college, 'pending_dean', 2600204);
+        Sanctum::actingAs($this->dean);
+
+        $item = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->firstWhere('type', 'applications_endorsement_pending');
+
+        $this->assertSame('/dashboard/organization-applications?record='.$only->id, $item['href']);
+        $this->assertSame('1 application from your college waits for you to endorse or return it', $item['detail']);
+    }
+
+    public function test_several_waiting_applications_open_the_list_and_are_named_in_the_plural(): void
+    {
+        $this->application($this->college, 'pending_dean', 2600205);
+        $this->application($this->college, 'pending_dean', 2600206);
+        Sanctum::actingAs($this->dean);
+
+        $item = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->firstWhere('type', 'applications_endorsement_pending');
+
+        $this->assertSame('/dashboard/organization-applications', $item['href']);
+        $this->assertSame('2 applications from your college wait for you to endorse or return them', $item['detail']);
+    }
+
     public function test_a_single_application_is_named_in_the_singular(): void
     {
         $this->application($this->college, 'pending_dean', 2600203);

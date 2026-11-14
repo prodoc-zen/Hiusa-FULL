@@ -190,6 +190,37 @@ describe('RoleBriefing', () => {
       expect(within(queue).getAllByRole('listitem').map((row) => row.textContent)[0]).toContain('Registration returned: Robotics Club');
     });
 
+    describe('DEPARTMENT_HEAD: the one filled button goes to what waits for the dean', () => {
+      const queue = (count, href) => [{ id: 'dean_queue-applications', type: 'applications_endorsement_pending', count, severity: 'medium', title: 'Applications awaiting your endorsement', detail: `${count}`, due_at: null, href }];
+
+      it('opens the application itself when one waits', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(1, '/dashboard/organization-applications?record=7') }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Endorse the application' })).toHaveAttribute('href', '/dashboard/organization-applications?record=7');
+        expect(screen.queryByRole('link', { name: 'Review approvals' })).not.toBeInTheDocument();
+      });
+
+      it('opens the application list when several wait', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(3, '/dashboard/organization-applications') }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Endorse 3 applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+        expect(screen.queryByRole('link', { name: 'Review approvals' })).not.toBeInTheDocument();
+      });
+
+      it('keeps Review approvals when no application waits', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: [] }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/dashboard/department-head/approvals');
+      });
+
+      it('lets a long row title wrap instead of cutting it short', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(2, '/dashboard/organization-applications') }));
+        renderBriefing();
+        const title = await screen.findByText('Applications awaiting your endorsement');
+        expect(title).not.toHaveClass('truncate');
+      });
+    });
+
     it('SBO_OFFICER: work queue, then contact number, fingerprint in person, My tasks', async () => {
       const setup = withProgress([
         step('contact', 'Add your contact number', { href: '/dashboard/profile' }),

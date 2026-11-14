@@ -184,6 +184,52 @@ describe('StudentFinancialAccountsPage header and empty states', () => {
     expect(await screen.findByText('No student accounts yet')).toBeInTheDocument();
   });
 
+  describe('charging every member', () => {
+    const preview = (overrides) => ({ data: { preview: true, members: 12, to_charge: 9, skipped: 0, already_paid: 3, total: 2700, ...overrides } });
+
+    async function fillEveryMember() {
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Add student charge' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add student charge' });
+      fireEvent.click(within(dialog).getByText('Every member'));
+      fireEvent.change(within(dialog).getByLabelText(/Amount due/), { target: { value: '300' } });
+      fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: 'Organization fee' } });
+      return dialog;
+    }
+
+    it('says how many already paid it and will be skipped while the tick is off', async () => {
+      mocks.createInvoice.mockResolvedValue(preview());
+      const dialog = await fillEveryMember();
+
+      expect(await within(dialog).findByText('3 already paid it and will be skipped.')).toBeInTheDocument();
+      expect(within(dialog).getByRole('checkbox', { name: 'Charge members who already paid a charge with this name' })).not.toBeChecked();
+    });
+
+    it('says they will be charged again once the tick is on, and says nothing when nobody already paid', async () => {
+      mocks.createInvoice.mockResolvedValue(preview());
+      const dialog = await fillEveryMember();
+      await within(dialog).findByText('3 already paid it and will be skipped.');
+
+      fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Charge members who already paid a charge with this name' }));
+      expect(await within(dialog).findByText('3 already paid it and will be charged again.')).toBeInTheDocument();
+
+      fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: 'Another fee' } });
+      mocks.createInvoice.mockResolvedValue(preview({ already_paid: 0 }));
+      await waitFor(() => expect(within(dialog).getByText(/9 members will be charged/)).toBeInTheDocument());
+      await waitFor(() => expect(within(dialog).queryByText(/already paid it/)).not.toBeInTheDocument());
+    });
+  });
+
+  it('asks for five accounts a page on a phone and keeps the pager for the rest', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = (query) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} });
+    try {
+      renderPage();
+      await waitFor(() => expect(mocks.getStudentDebts).toHaveBeenCalledWith(expect.objectContaining({ per_page: 5, page: 1 })));
+      expect(mocks.getStudentDebts).not.toHaveBeenCalledWith(expect.objectContaining({ per_page: 10 }));
+    } finally { window.matchMedia = original; }
+  });
+
   it('says one student with a balance in the singular and keeps View account on one line', async () => {
     const account = accountWith([invoice()]);
     mocks.getStudentDebts.mockResolvedValue({ data: { data: [account], summary: { total_outstanding: 300, students_owing: 1, students_cleared: 0, students_overdue: 0, total_students: 1 }, filter_options: { departments: [], programs: [], year_levels: [] }, total: 1, per_page: 10, current_page: 1 } });

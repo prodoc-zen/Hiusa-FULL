@@ -163,10 +163,12 @@ export default function SaoClearancesPage() {
               <Card key={period.id}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
-                    <p className="text-base font-semibold text-ink">{formatDisplayText(period.title)}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-ink">{formatDisplayText(period.title)}</p>
+                      {closed && <span className="inline-flex h-6 items-center rounded-full bg-slate-200 px-3 text-xs font-bold text-slate-700">Closed</span>}
+                    </div>
                     <p className="text-xs text-ink-muted">{period.academic_year} · Deadline {period.deadline_at ? manilaDate(period.deadline_at) : 'not set'}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {closed && <StatusBadge tone="neutral" label="Closed" />}
                       {period.required_roles.map((role) => <StatusBadge key={role} tone="neutral" label={humanizeRole(role)} />)}
                     </div>
                   </div>
