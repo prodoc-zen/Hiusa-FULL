@@ -44,6 +44,22 @@ describe('DataTable', () => {
     expect(button.parentElement.parentElement).toBe(item);
   });
 
+  it('lets the phone actions drop to their own row so two buttons never squeeze the name', () => {
+    render(<DataTable columns={COLUMNS} rows={ROWS} actions={() => (
+      <>
+        <button type="button">View checklist</button>
+        <button type="button">Open space</button>
+      </>
+    )} />);
+
+    const item = document.querySelector('[data-view="cards"] li');
+    const actions = within(item).getAllByRole('button', { name: 'Open space' })[0].parentElement;
+    expect(item).toHaveClass('flex-wrap');
+    expect(item.firstElementChild).toHaveClass('min-w-[11rem]');
+    expect(actions).toHaveClass('ml-auto', 'sm:max-w-[55%]');
+    expect(actions).not.toHaveClass('max-w-[55%]');
+  });
+
   it('puts a column keyed actions beside the row on a phone instead of listing it as a detail', () => {
     const columns = [...COLUMNS, { key: 'actions', header: 'Actions', render: (row) => <button type="button">Open {row.name}</button> }];
     render(<DataTable columns={columns} rows={[{ id: 1, name: 'Maria Santos', role: 'Officer' }]} />);
