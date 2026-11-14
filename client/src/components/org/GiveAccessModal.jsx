@@ -76,7 +76,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
     <Drawer
       open
       title={title}
-      description={editing ? 'Update what this person can do in the organization.' : 'Pick a student from the college and choose what they can do in this organization.'}
+      description={editing ? undefined : 'Pick a student from the college and what they can do here.'}
       width="max-w-lg"
       onClose={busy ? undefined : onClose}
       closeOnEscape={!busy}

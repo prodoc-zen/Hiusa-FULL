@@ -83,7 +83,7 @@ export default function ChatMessage({
   const failed = message.status === 'failed';
   const stored = typeof message.id === 'number' || (typeof message.id === 'string' && message.id !== '');
   const reasoning = streaming
-    ? { steps: [message.statusLabel || 'Thinking'], summary: message.reasoningText || '' }
+    ? { steps: message.statusLabel ? [message.statusLabel] : [], summary: message.reasoningText || '' }
     : payload?.reasoning || null;
 
   return (

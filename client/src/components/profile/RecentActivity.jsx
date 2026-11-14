@@ -31,7 +31,8 @@ export default function RecentActivity() {
   return (
     <section className="rounded-card border border-line bg-surface" aria-labelledby="recent-activity-title">
       <div className="border-b border-line p-5 sm:p-6">
-        <h2 id="recent-activity-title" className="text-base font-semibold text-ink">Your recent activity</h2>      </div>
+        <h2 id="recent-activity-title" className="text-base font-semibold text-ink">Your recent activity</h2>
+      </div>
 
       <PhoneFold label="Show your recent activity" hideLabel="Hide your recent activity" className="px-5!">
       <div className="p-5 sm:p-6">

@@ -89,7 +89,7 @@ export default function SetupChecklist({ setup, title = 'Getting started', descr
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="setup-checklist-title" className="text-base font-semibold text-ink">{title}</h2>
-          <p className="mt-0.5 text-sm text-ink-muted max-sm:hidden">{description || 'Each step is checked off once the work is done.'}</p>
+          {description && <p className="mt-0.5 text-sm text-ink-muted max-sm:hidden">{description}</p>}
         </div>
         <button type="button" onClick={onHide} className="min-h-11 rounded-control px-2 py-1 text-xs font-semibold text-ink-muted transition-colors duration-150 hover:bg-subtle hover:text-ink">
           Hide checklist
