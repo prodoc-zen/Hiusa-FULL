@@ -840,7 +840,7 @@ class AskAiRoleIntents
     {
         $isSao = $user->role === 'SUPER_ADMIN';
         $collegeId = $isSao ? null : $this->collegeIdOf($user);
-        $href = $this->routeAccess->hrefFor($user->role, $isSao ? '/dashboard/super-admin/student-records' : '/dashboard/department-head/people?status=not_signed_up');
+        $href = $this->routeAccess->hrefFor($user->role, $isSao ? '/dashboard/super-admin/student-records' : '/dashboard/department-head/people?show=not_signed_up');
         $followUps = [['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?']];
         $empty = fn (string $answer) => [
             'title' => 'Students Who Have Not Signed Up',

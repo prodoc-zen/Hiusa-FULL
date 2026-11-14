@@ -588,4 +588,54 @@ class AskAiSmartAnswersTest extends TestCase
         $this->assertStringNotContainsString('50,000', $answer['text']);
         $this->assertStringNotContainsString('Working:', $answer['text']);
     }
+
+    public function test_an_officer_without_finance_access_reads_the_readiness_without_the_amount_or_other_peoples_tasks(): void
+    {
+        $people = $this->people();
+        $event = $this->sportsFest($people);
+        Budget::where('event_id', $event->id)->update(['allocated_amount' => 4321]);
+        $people['officer']->accountProfiles()->update(['modules' => ['events']]);
+
+        $full = $this->ask($people['admin'], 'Is Sports Fest 2024 ready?');
+        $this->assertStringContainsString('4,321', $full['text']);
+
+        Sanctum::actingAs($people['officer']);
+        $limited = $this->postJson('/api/ai/assistant/ask', ['question' => 'Is Sports Fest 2024 ready?'])->assertOk();
+        $limited->assertJsonPath('intent', 'event_readiness');
+        $text = json_encode($limited->json(), JSON_UNESCAPED_UNICODE);
+
+        $this->assertStringNotContainsString('4,321', $text);
+        $this->assertStringNotContainsString('Print tickets', $text);
+        $this->assertStringNotContainsString('Ana', $text);
+        $rows = collect($limited->json('sections.0.rows'));
+        $this->assertSame(['Ready', 'Not ready', 'Ready', 'Ready', 'Not ready'], $rows->pluck('status')->all());
+        $this->assertSame('A budget is approved for this event.', $rows->firstWhere('primary', 'Budget')['secondary']);
+        $this->assertSame('2 of 3 tasks done, 1 overdue.', $rows->firstWhere('primary', 'Tasks')['secondary']);
+        $this->assertStringStartsWith('Sports Fest 2024 is 3 of 5 ready.', $limited->json('answer'));
+    }
+
+    public function test_an_officer_is_told_the_name_of_a_task_that_is_their_own(): void
+    {
+        $people = $this->people();
+        $this->sportsFest($people);
+        Task::where('title', 'Print tickets')->update(['assigned_to' => $people['officer']->school_id]);
+
+        $answer = $this->ask($people['officer'], 'Is Sports Fest 2024 ready?');
+
+        $this->assertStringContainsString('finishes Print tickets', $answer['answer']);
+    }
+
+    public function test_the_dean_and_the_sao_are_told_no_records_were_read_for_the_questions_that_belong_to_an_organization(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $this->makeCollegeHome($college);
+        $service = $this->app->make(AskAiService::class);
+
+        foreach ([$this->makeCollegeHead($college), $this->sao()] as $user) {
+            foreach (['Which merchandise is running low?', 'Which merchandise orders are waiting?', 'Is our next event ready?'] as $question) {
+                $payload = $service->deterministicAnswer($user, $question, $service->classifyIntent($question, null, $user->role));
+                $this->assertSame('No records were read for this answer.', $payload['sources'], $user->role.': '.$question);
+            }
+        }
+    }
 }

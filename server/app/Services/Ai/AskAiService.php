@@ -77,7 +77,7 @@ class AskAiService
     private const INTENT_PATTERNS = [
         'daily_priorities' => '~\b(?:what (?:should|do|can|must) (?:i|we) (?:need to )?do today|what to do today|what(?:\'s| is) on (?:my|our) (?:desk|plate|list|agenda)|daily (?:priorities|briefing|checklist)|(?:action plan|checklist|priorities) (?:for )?today|today\'s (?:priorities|action plan)|where (?:do|should) (?:i|we) start|what needs (?:me|my attention|our attention))\b~',
         'organizations_without_admin' => '~\b(?:(?:without|no|missing|lacking|lacks?|needs?|needing|awaiting|vacant)(?: \w+){0,3} (?:admins?|administrators?|org(?:anization)? heads?|(?<!department )heads?)|(?:admins?|administrators?|org(?:anization)? heads?)(?: \w+){0,3} (?:missing|needed|vacant|unfilled)|returned registrations?)\b~',
-        'semantic_rag' => '~\b(?:who (?:are|is) the (?:officers|president|vice|secretary|treasurer|auditor|advis[eo]r|dean|candidates)|officer directory|leadership roster|list of officers|organization members|stocks?|inventory|catalog|price of|low stock|partylist|platform|tell me about|compare|search|everything about)\b~',
+        'semantic_rag' => '~\b(?:who (?:are|is) (?:the|my|our) (?:officers|president|vice|secretary|treasurer|auditor|advis[eo]r|dean|candidates)|officer directory|leadership roster|list of officers|organization members|stocks?|inventory|catalog|price of|low stock|partylist|platform|tell me about|compare|search|everything about)\b~',
         'grievances_status' => '~\b(?:grievances?|complaints?|concerns?)\b~',
         'clearances_status' => '~\b(?:clearances?|signator(?:y|ies)|signed my clearance)\b~',
         'missing_submissions' => '~\b(?:(?:haven\'t|havent|hasn\'t|hasnt|have not|has not|not|never|yet to|failed to|still need to|didn\'t|didnt)(?: \w+){0,3} (?:submit|submitted|upload|uploaded|file|filed|passed)|unsubmitted|overdue reports?)\b~',
@@ -823,8 +823,9 @@ class AskAiService
 
         $payload = $this->buildHowToGuide($user, $guide, true, $related);
         $start = $this->howToStart($user, $guide);
+        $single = $start !== null && $this->howToHasOneDestination($user, $guide, $start['href']);
 
-        if ($start !== null) {
+        if ($start !== null && ! $single) {
             array_unshift($payload['sections'], [
                 'id' => 'how-to-start',
                 'title' => 'Where to start',
@@ -861,6 +862,59 @@ class AskAiService
 
         $payload['title'] = $guide['title'];
         $payload['answer'] = $answer;
+
+        if ($single) {
+            $payload = $this->collapseHowToRequest($payload, $guide, $start);
+        }
+
+        return $payload;
+    }
+
+    /** True when every step of the guide, and its start button, open the same page for this role. */
+    private function howToHasOneDestination(User $user, array $guide, string $startHref): bool
+    {
+        $paths = [strtok($startHref, '?')];
+        foreach ($guide['steps'] as $step) {
+            $href = $this->linkTo($user, ...$this->guides->stepPaths($step, $user->role));
+            if ($href !== null) {
+                $paths[] = strtok($href, '?');
+            }
+        }
+
+        return count(array_unique($paths)) === 1;
+    }
+
+    /**
+     * A guide with one destination is the sentence plus one row carrying the button. The steps wait behind a single
+     * section with no buttons of their own, and the stat tiles, the readiness and tips sections go: what the person's
+     * records say is already in the sentence.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array{href: string, label: string, page: string, row: array<string, mixed>}  $start
+     * @return array<string, mixed>
+     */
+    private function collapseHowToRequest(array $payload, array $guide, array $start): array
+    {
+        $row = $start['row'];
+        $row['status'] = null;
+
+        $steps = [];
+        foreach ($payload['sections'] as $section) {
+            if ($section['id'] !== 'how-to-steps') {
+                continue;
+            }
+            $section['rows'] = array_map(fn (array $stepRow) => array_merge($stepRow, ['href' => null]), $section['rows']);
+            $steps[] = $section;
+        }
+
+        $payload['highlights'] = [];
+        $payload['sections'] = array_merge([[
+            'id' => 'how-to-start',
+            'title' => $guide['title'],
+            'description' => null,
+            'empty_message' => '',
+            'rows' => [$row],
+        ]], $steps);
 
         return $payload;
     }
@@ -1108,7 +1162,7 @@ class AskAiService
 
         if ($guide === null) {
             $payload = $this->buildHowToCatalog($user, $question, $request);
-        } elseif (! $result['accessible'] && in_array($role, ['STUDENT', 'SBO_OFFICER'], true)) {
+        } elseif (! $result['accessible']) {
             // Steps written for another role name menus and pages this role does not have, so it gets the one sentence
             // and the closest page it can open instead.
             $payload = $this->buildHowToWhoCan($user, $guide, $result['related']);
@@ -3240,6 +3294,7 @@ class AskAiService
             return [
                 'title' => 'Merchandise Orders Queue',
                 'answer' => 'Merchandise orders are handled by each student organization, so there is no order queue on your account. Ask the organization to check its own orders.',
+                'sources' => self::NO_RECORD_SOURCES,
                 'highlights' => [],
                 'sections' => [],
                 'follow_ups' => [
@@ -3345,6 +3400,7 @@ class AskAiService
             return [
                 'title' => 'Merchandise Stock Levels',
                 'answer' => 'Merchandise stock is handled by each student organization, so there is no stock on your account. Ask the organization to check its own stock.',
+                'sources' => self::NO_RECORD_SOURCES,
                 'highlights' => [],
                 'sections' => [],
                 'follow_ups' => [
@@ -3604,6 +3660,7 @@ class AskAiService
             return [
                 'title' => 'Event readiness',
                 'answer' => 'An event readiness checklist is kept by an organization head and officers from their own organization\'s records, so there is none on your account. What waits for your decision is under your approvals.',
+                'sources' => self::NO_RECORD_SOURCES,
                 'highlights' => [],
                 'sections' => [],
                 'follow_ups' => [
@@ -3760,8 +3817,13 @@ class AskAiService
         $budgets = DB::table('budgets')->where('event_id', $event->id)->orderByDesc('id')->get(['allocated_amount', 'submission_status']);
         $approvedBudgets = $budgets->where('submission_status', 'approved');
         $budgetHref = $this->linkTo($user, "/dashboard/finance/budget-allocation?event={$event->id}", '/dashboard/finance/budget-allocation');
+        // An officer whose access leaves out finance is shown that a budget is approved, not how much it is.
+        $showAmount = $user->role !== 'SBO_OFFICER' || $this->intentAllowed($user, 'finance_health');
+        $approvedDetail = $showAmount
+            ? '₱'.number_format((float) $approvedBudgets->sum('allocated_amount'), 2).' approved for this event.'
+            : 'A budget is approved for this event.';
         $budget = match (true) {
-            $approvedBudgets->isNotEmpty() => $check('budget', 'Budget', 'Ready', '₱'.number_format((float) $approvedBudgets->sum('allocated_amount'), 2).' approved for this event.', 'the Department Head', null, $budgetHref, 'Open budget'),
+            $approvedBudgets->isNotEmpty() => $check('budget', 'Budget', 'Ready', $approvedDetail, 'the Department Head', null, $budgetHref, 'Open budget'),
             $budgets->isEmpty() && ! $event->requires_budget => $check('budget', 'Budget', 'Not required', 'No budget is required for this event.', $you, null, $budgetHref, 'Open budget'),
             $budgets->isEmpty() => $check('budget', 'Budget', 'Not ready', 'No budget request has been filed yet.', $you, 'your organization files the budget request', $budgetHref, 'Open budget'),
             $budgets->first()->submission_status === 'pending_department_head' => $check('budget', 'Budget', 'Not ready', 'Budget request is waiting for the Department Head.', 'the Department Head', 'the Department Head decides the budget', $budgetHref, 'Open budget'),
@@ -3789,13 +3851,16 @@ class AskAiService
         $open = $tasks->where('status', '!=', 'completed');
         $overdue = $open->filter(fn ($task) => $task->status === 'overdue' || Carbon::parse($task->deadline)->isPast());
         $next = $overdue->first() ?? $open->first();
-        $assignee = $next?->assigned_to === null ? null : DB::table('users')->where('school_id', $next->assigned_to)->first(['first_name', 'last_name']);
+        // An officer sees other people's tasks as counts only; a task is named when it is the officer's own.
+        $nameable = $next !== null && ($user->role !== 'SBO_OFFICER' || (string) $next->assigned_to === (string) $user->school_id);
+        $assignee = ! $nameable || $next->assigned_to === null ? null : DB::table('users')->where('school_id', $next->assigned_to)->first(['first_name', 'last_name']);
         $assigneeName = $assignee === null ? null : trim($assignee->first_name.' '.$assignee->last_name);
         $done = $tasks->count() - $open->count();
         $taskDetail = "{$done} of {$tasks->count()} tasks done".($overdue->isEmpty() ? '.' : ", {$overdue->count()} overdue.");
         $tasksCheck = match (true) {
             $tasks->isEmpty() => $check('tasks', 'Tasks', 'Not required', 'No tasks are set for this event.', $you, null, null, 'Open tasks'),
             $open->isEmpty() => $check('tasks', 'Tasks', 'Ready', $taskDetail, $you, null, null, 'Open tasks'),
+            ! $nameable => $check('tasks', 'Tasks', 'Not ready', $taskDetail, $you, 'your organization finishes the open tasks', null, 'Open tasks'),
             default => $check('tasks', 'Tasks', 'Not ready', $taskDetail, $assigneeName ?: $you, $assigneeName ? "{$assigneeName} finishes {$next->title}" : "your organization assigns {$next->title}", null, 'Open tasks'),
         };
         $tasksCheck['href'] = $this->linkTo($user, '/dashboard/tasks/task-board', '/dashboard/tasks/assigned-tasks');

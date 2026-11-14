@@ -136,7 +136,7 @@ class AskAiAnswerQualityTest extends TestCase
         $this->assertStringContainsString('BSCS / 1', $rows);
         $this->assertStringNotContainsString('BSBA', $answer['text'], 'another college is never counted for a dean');
         $this->assertStringNotContainsString('First2001', $answer['text'], 'no student name is written into the answer');
-        $this->assertSame(['/dashboard/department-head/people?status=not_signed_up'], array_values(array_unique($answer['hrefs'])));
+        $this->assertSame(['/dashboard/department-head/people?show=not_signed_up'], array_values(array_unique($answer['hrefs'])));
         $this->assertHrefsOpenFor($answer, 'DEPARTMENT_HEAD');
     }
 
@@ -451,6 +451,8 @@ class AskAiAnswerQualityTest extends TestCase
         $users = [
             'STUDENT' => User::factory()->student()->create(['organization_id' => $org->id]),
             'SBO_OFFICER' => User::factory()->officer()->create(['organization_id' => $org->id]),
+            'ADMIN' => User::factory()->admin()->create(['organization_id' => $org->id]),
+            'DEPARTMENT_HEAD' => $this->makeCollegeHead($this->makeCollege('CCS')),
         ];
         $byTitle = [];
         foreach ($library->all() as $guide) {
@@ -597,5 +599,62 @@ class AskAiAnswerQualityTest extends TestCase
 
         $this->assertContains('The writing service did not finish, so this is the summary from your records', $payload['reasoning']['steps']);
         $this->assertNotContains('Answered directly from your records. No AI writer was used.', $payload['reasoning']['steps']);
+    }
+
+    public function test_who_questions_about_people_are_never_taken_for_a_glossary_lookup(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $this->makeCollegeHome($college);
+        $org = $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'active', 'is_active' => true]);
+        $service = $this->app->make(AskAiService::class);
+        $users = [
+            'STUDENT' => User::factory()->student()->create(['organization_id' => $org->id]),
+            'ADMIN' => User::factory()->admin()->create(['organization_id' => $org->id]),
+            'DEPARTMENT_HEAD' => $this->makeCollegeHead($college),
+        ];
+
+        foreach ($users as $role => $user) {
+            foreach (['who are the officers?', 'who is the dean?'] as $question) {
+                $this->assertSame('semantic_rag', $service->classifyIntent($question, null, $role), "{$role}: {$question}");
+            }
+        }
+        $this->assertSame('glossary', $service->classifyIntent('what is the SAO', null, 'STUDENT'));
+        $this->assertSame('SAO', $this->ask($users['STUDENT'], 'what is the SAO')['title']);
+    }
+
+    public function test_a_student_asking_who_their_officers_are_gets_the_officer_records(): void
+    {
+        $org = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $org->id]);
+        User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Marisol', 'last_name' => 'Quintela']);
+        $service = $this->app->make(AskAiService::class);
+
+        foreach (['who are my officers', 'who are our officers?', 'who is my president'] as $question) {
+            $this->assertSame('semantic_rag', $service->classifyIntent($question, null, 'STUDENT'), $question);
+        }
+        $answer = $this->ask($student, 'who are my officers');
+
+        $this->assertSame('semantic_rag', $answer['intent']);
+        $this->assertEmpty($answer['payload']['no_answer'] ?? null);
+        $this->assertStringNotContainsString(self::NO_ANSWER, $answer['answer']);
+    }
+
+    public function test_a_request_for_a_one_page_guide_is_one_sentence_and_one_row_with_the_button(): void
+    {
+        $org = $this->org();
+        $student = User::factory()->student()->create(['organization_id' => $org->id]);
+
+        $answer = $this->ask($student, 'I want to create an organization');
+
+        $this->assertSame('how_to_guide', $answer['intent']);
+        $this->assertSame([], $answer['payload']['highlights'], 'no Steps, Pages involved, Estimated time or Your access tiles');
+        $applyHref = '/dashboard/student/apply-organization';
+        $withHref = array_values(array_filter($answer['rows'], fn (array $row) => ! empty($row['href'])));
+        $this->assertCount(1, $withHref);
+        $this->assertSame($applyHref, $withHref[0]['href']);
+        $this->assertSame([$applyHref], $answer['hrefs']);
+        $this->assertNotContains('Start here', array_column($answer['rows'], 'status'));
+        $this->assertNotContains('Where to start', array_column($answer['payload']['sections'], 'title'));
+        $this->assertSame(['how-to-start', 'how-to-steps'], array_column($answer['payload']['sections'], 'id'));
     }
 }

@@ -86,7 +86,7 @@ class AskAiGlossary
     {
         foreach (self::TERMS as $key => $term) {
             $aliases = implode('|', array_map(fn (string $alias) => preg_quote($alias, '/'), $term['aliases']));
-            $pattern = "/^(?:what is|what's|whats|what are|what does|what do|who is|who are|define|meaning of|explain|ano ang|ano po ang)(?: (?:the|a|an))? (?:{$aliases})(?: (?:mean|means|stand for|stands for|is|are|do|does))?$/";
+            $pattern = "/^(?:what is|what's|whats|what are|what does|what do|define|meaning of|explain|ano ang|ano po ang)(?: (?:the|a|an))? (?:{$aliases})(?: (?:mean|means|stand for|stands for|is|are|do|does))?$/";
             if (preg_match($pattern, $q) === 1) {
                 return $key;
             }
