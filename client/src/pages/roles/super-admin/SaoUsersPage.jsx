@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, KeyRound, Trash2, UserPlus } from 'lucide-react';
+import { Eye, KeyRound, Pencil, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, SkeletonText, StatusBadge } from '../../../components/ui';
 import ConfirmModal from '../../../components/ConfirmModal';
 import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
 import SaoStaffInviteDialog from './SaoStaffInviteDialog';
-import { getSystemUser, getSystemUsers, deleteSystemUser, resetSystemUserPassword } from '../../../services/systemAdministrationService';
+import SaoUserEditDialog from './SaoUserEditDialog';
+import { getSystemUser, getSystemUsers, deleteSystemUser, resetSystemUserPassword, setSystemUserStatus } from '../../../services/systemAdministrationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { visibleSchoolId } from '../../../utils/schoolId';
@@ -44,6 +45,8 @@ export default function SaoUsersPage() {
   const [deleting, setDeleting] = useState(null);
   const [resetting, setResetting] = useState(null);
   const [resetLink, setResetLink] = useState(null);
+  const [switching, setSwitching] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
@@ -109,6 +112,23 @@ export default function SaoUsersPage() {
     }
   }
 
+  async function switchStatus() {
+    if (!switching) return;
+    const { user: target, to } = switching;
+    setBusy(true);
+    setActionError('');
+    try {
+      await setSystemUserStatus(target.school_id, to);
+      setNotice(`${fullName(target)} was ${to === 'active' ? 'reactivated' : 'deactivated'}.`);
+      setSwitching(null);
+      load();
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, to === 'active' ? 'Could not reactivate this account.' : 'Could not deactivate this account.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function changeFilter(key, value) {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -121,6 +141,9 @@ export default function SaoUsersPage() {
     setFilters({ search: '', role: '', status: '' });
     setPage(1);
   }
+
+  // A Department Head is switched off, corrected and reset from Colleges, and nobody switches off the account they are signed in with.
+  const canManageAccount = (user) => user.role !== 'DEPARTMENT_HEAD' && String(user.school_id) !== String(ownSchoolId);
 
   const columns = [
     {
@@ -164,7 +187,11 @@ export default function SaoUsersPage() {
       </div>}
       actions={(user) => <TableRowActions subject={fullName(user)} actions={[
         { label: 'View user and clearance', icon: Eye, onClick: () => openDetails(user) },
+        canManageAccount(user) && { label: 'Edit details', icon: Pencil, onClick: () => setEditing(user) },
         (['STUDENT', 'SBO_OFFICER', 'ADMIN'].includes(user.role) || (user.role === 'SUPER_ADMIN' && String(user.school_id) !== String(ownSchoolId))) && user.account_status === 'active' && { label: 'Reset password', icon: KeyRound, onClick: () => { setActionError(''); setResetting(user); } },
+        canManageAccount(user) && (user.account_status === 'active'
+          ? { label: 'Deactivate', icon: UserX, onClick: () => { setActionError(''); setSwitching({ user, to: 'disabled' }); } }
+          : { label: 'Reactivate', icon: UserCheck, onClick: () => { setActionError(''); setSwitching({ user, to: 'active' }); } }),
         { label: 'Delete user', icon: Trash2, danger: true, onClick: () => { setActionError(''); setDeleting(user); } },
       ]} />}
       pagination={<PaginationControls currentPage={state.meta.currentPage} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="users" />}
@@ -178,6 +205,8 @@ export default function SaoUsersPage() {
       </div>}
     </Drawer>
     {invitingSao && <SaoStaffInviteDialog onClose={() => setInvitingSao(false)} />}
+    {editing && <SaoUserEditDialog user={editing} onClose={() => setEditing(null)} onSaved={(saved) => { setNotice(`Details saved for ${fullName(saved)}.`); setEditing(null); load(); }} />}
+    <ConfirmModal open={Boolean(switching)} title={switching?.to === 'active' ? 'Reactivate account?' : 'Deactivate account?'} recordName={fullName(switching?.user)} message={switching?.to === 'active' ? 'They can sign in again with their current password. Nothing they did before is lost.' : 'They are signed out everywhere and cannot sign in until you reactivate the account. Everything they did stays on record.'} confirmText={switching?.to === 'active' ? 'Reactivate' : 'Deactivate'} variant={switching?.to === 'active' ? 'primary' : 'danger'} busy={busy} error={actionError} onCancel={() => setSwitching(null)} onConfirm={switchStatus} />
     <ConfirmModal open={Boolean(resetting)} title="Create reset link" recordName={fullName(resetting)} message="This creates a one-time reset link. It is shown to you once to hand over, and it is emailed only when email is turned on. Their current password is not shown." confirmText="Create reset link" variant="primary" busy={busy} error={actionError} onCancel={() => setResetting(null)} onConfirm={resetPassword} />
     {resetLink && <OneTimeLinkModal title="Reset link ready" description={`Send this to ${resetLink.name}. It lets them choose a new password.`} label="Reset link" hint="Works once and expires in 60 minutes. It is not shown again." link={resetLink.link} onClose={() => { setNotice(`Reset link created for ${resetLink.name}.`); setResetLink(null); }} />}
     <ConfirmModal open={Boolean(deleting)} title="Delete user?" recordName={fullName(deleting)} message="Only the account and its profiles are removed. An account with any history, such as submissions, finance, event, order, or clearance records, cannot be deleted and should be deactivated instead. This cannot be undone." confirmationText={fullName(deleting)} confirmText="Delete user" busy={busy} error={actionError} onCancel={() => setDeleting(null)} onConfirm={remove} />
