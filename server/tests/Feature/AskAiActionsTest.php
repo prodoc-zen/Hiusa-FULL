@@ -25,6 +25,8 @@ use App\Services\Ai\AskAiActions;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
@@ -494,6 +496,41 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(1, OrganizationApplicantGrant::count());
     }
 
+    public function test_a_student_who_sorts_after_the_three_hundredth_can_still_be_offered_and_confirmed(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $dean = $this->makeCollegeHead($college);
+        $home = Organization::where('organization_type', 'COLLEGE')->where('college_id', $college->id)->firstOrFail();
+        $club = $this->makeCollegeStudentOrganization($college);
+        $this->crowdTheClub($home, $club, 300);
+        $last = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Lorna', 'last_name' => 'Zamora']);
+        Sanctum::actingAs($dean);
+
+        $message = $this->ask('i want to start a new student organization');
+
+        $this->assertSame([(string) $last->school_id], array_column($message['payload']['action']['fields'][0]['options'], 'value'));
+
+        $this->confirm($message['id'], ['school_id' => (string) $last->school_id])->assertOk();
+        $this->assertSame($last->school_id, (int) OrganizationApplicantGrant::sole()->user_school_id);
+    }
+
+    public function test_an_applicant_from_another_college_or_left_empty_is_refused_on_the_student_field(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $dean = $this->makeCollegeHead($college);
+        $home = Organization::where('organization_type', 'COLLEGE')->where('college_id', $college->id)->firstOrFail();
+        $maria = User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
+        Sanctum::actingAs($dean);
+        $message = $this->ask('i want to start a new student organization');
+        $outsider = User::factory()->student()->create(['organization_id' => $this->makeCollegeHome($this->makeCollege('CAS'))->id]);
+
+        $this->confirm($message['id'], ['school_id' => (string) $outsider->school_id])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'Choose one of the listed options.');
+        $this->confirm($message['id'], ['school_id' => ''])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'Student is required.');
+        $this->confirm($message['id'], ['school_id' => (string) $maria->school_id])->assertOk();
+
+        $this->assertSame(1, OrganizationApplicantGrant::count());
+    }
+
     public function test_the_sao_adds_a_college_and_is_not_offered_a_dean_invitation_card(): void
     {
         $sao = $this->sao();
@@ -739,6 +776,24 @@ class AskAiActionsTest extends TestCase
         $event = Event::sole();
         $this->assertSame($admin->school_id, (int) $event->created_by);
         $this->assertSame($admin->organization_id, $event->organization_id);
+    }
+
+    /** Copies one real student and her profile many times in two inserts, because hashing 300 passwords takes seconds. */
+    private function crowdTheClub(Organization $home, Organization $club, int $count): void
+    {
+        $template = User::factory()->student()->create(['organization_id' => $home->id]);
+        $user = DB::table('users')->where('school_id', $template->school_id)->first();
+        $profile = DB::table('account_profiles')->where('user_school_id', $template->school_id)->first();
+        $users = [];
+        $profiles = [];
+        foreach (range(1, $count) as $number) {
+            $schoolId = 8000000 + $number;
+            $users[] = [...(array) $user, 'school_id' => $schoolId, 'email' => "member{$number}@example.test", 'first_name' => 'Member', 'last_name' => sprintf('Aaa%03d', $number)];
+            $profiles[] = [...Arr::except((array) $profile, ['id']), 'user_school_id' => $schoolId, 'organization_id' => $club->id];
+        }
+        DB::table('users')->insert($users);
+        DB::table('account_profiles')->insert($profiles);
+        $template->delete();
     }
 
     /** @return array{AcademicSemester, AcademicSemester, AcademicSemester} the active, upcoming and completed semesters */
