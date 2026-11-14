@@ -202,7 +202,7 @@ class RequestedWorkflowCompletionTest extends TestCase
 
             $otherStudent = $this->user('STUDENT', $buyer->organization_id);
             Sanctum::actingAs($otherStudent);
-            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertForbidden();
+            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertNotFound()->assertJsonPath('message', 'Order not found.');
 
             $otherOrganizationStudent = $this->user('STUDENT');
             Sanctum::actingAs($otherOrganizationStudent);

@@ -182,11 +182,16 @@ class User extends Authenticatable
      */
     public function inStudentOrganization(): bool
     {
-        return AccountProfile::query()
-            ->where('user_school_id', $this->school_id)
-            ->where('account_status', 'active')
-            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'COLLEGE')->where('is_active', true))
-            ->exists();
+        return $this->usableStudentOrganizationMemberships()->isNotEmpty();
+    }
+
+    /** The student organization profiles this person can work in: active, in an active club whose college is not archived. */
+    private function usableStudentOrganizationMemberships()
+    {
+        return AccountProfile::studentOrganizationMemberships($this->school_id)
+            ->with('organization')
+            ->get()
+            ->filter(fn (AccountProfile $profile) => $profile->isUsable());
     }
 
     /**
@@ -402,11 +407,7 @@ class User extends Authenticatable
             return [(int) $this->organization_id];
         }
 
-        $clubIds = AccountProfile::where('account_profiles.user_school_id', $this->school_id)
-            ->where('account_profiles.account_status', 'active')
-            ->where('account_profiles.role', 'STUDENT')
-            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'COLLEGE')->where('is_active', true))
-            ->pluck('organization_id');
+        $clubIds = $this->usableStudentOrganizationMemberships()->pluck('organization_id');
 
         return $clubIds->push($current->id)->map(fn ($id) => (int) $id)->unique()->values()->all();
     }

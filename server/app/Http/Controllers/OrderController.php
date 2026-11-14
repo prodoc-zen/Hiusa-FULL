@@ -429,7 +429,9 @@ class OrderController extends Controller
         ]);
 
         if (($data['payment_method'] ?? null) === 'gcash' && $organizationId !== (int) $user->organization_id) {
-            return response()->json(['message' => 'GCash is paid through the organization that sells this product. Reserve with cash, or sign in to that organization to pay with GCash.'], 422);
+            $sellerName = Organization::whereKey($organizationId)->value('name') ?? 'the selling organization';
+
+            return response()->json(['message' => "GCash is paid through {$sellerName}, which sells this product. Reserve with cash, or switch to your {$sellerName} profile to pay with GCash."], 422);
         }
 
         if (($data['payment_method'] ?? null) === 'gcash' && ! $this->organizationHasGcashQr($organizationId)) {
@@ -543,6 +545,14 @@ class OrderController extends Controller
             'payment_proof' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
+        // The cross-organization answer comes first: the signed-in profile's QR says nothing about a club that sells the product.
+        $ownOrder = Order::with('organization:id,name')->whereIn('organization_id', $this->buyerOrganizationIds($request->user()))->find($id);
+        if ($ownOrder && $ownOrder->student_id === $request->user()->id && (int) $ownOrder->organization_id !== (int) $request->user()->organization_id) {
+            $sellerName = $ownOrder->organization->name;
+
+            return response()->json(['message' => "GCash is paid through {$sellerName}, which sells this product. Pay cash at pickup, or switch to your {$sellerName} profile to submit the payment proof."], 422);
+        }
+
         if (! $this->organizationHasGcashQr($request->user()->organization_id)) {
             return response()->json(['message' => 'GCash payment is unavailable until an administrator uploads the official QR code.'], 422);
         }
@@ -562,10 +572,6 @@ class OrderController extends Controller
 
                 if ($order->student_id !== $request->user()->id) {
                     return null;
-                }
-
-                if ((int) $order->organization_id !== (int) $request->user()->organization_id) {
-                    abort(422, 'GCash is paid through the organization that sells this product. Sign in to that organization to submit the payment proof.');
                 }
 
                 if ($order->status !== 'pending' || $order->officer_review_status !== 'pending') {
@@ -830,11 +836,11 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order not found.'], 404);
         }
 
+        // Somebody else's order answers like one that does not exist, so a 403 never confirms it is there.
         $user = $request->user();
-        abort_unless(
-            in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $order->student_id === $user->school_id,
-            403
-        );
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) && $order->student_id !== $user->school_id) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
 
         $storedPath = $order->payment_proof_url;
         if (! $storedPath) {

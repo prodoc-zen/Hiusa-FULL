@@ -43,6 +43,18 @@ class AccountProfile extends Model
     }
 
     /**
+     * The one rule for a student organization somebody belongs to: an active profile of any role in an active student
+     * organization (a club, not a college). Every read under it is limited to the caller's own rows or public published
+     * content, so the role does not narrow it. Callers that also need the college to be open check isUsable().
+     */
+    public function scopeStudentOrganizationMemberships(Builder $query, $schoolId): Builder
+    {
+        return $query->where('account_profiles.user_school_id', $schoolId)
+            ->where('account_profiles.account_status', 'active')
+            ->whereHas('organization', fn ($organization) => $organization->student()->where('is_active', true));
+    }
+
+    /**
      * The voter roll of an election: the voting members who had a profile in the organization when its ballot was
      * finalized. A profile created afterwards is never on it, so nobody can be added to vote in a ballot already set.
      */

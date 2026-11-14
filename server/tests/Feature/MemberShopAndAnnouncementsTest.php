@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountProfile;
 use App\Models\Announcement;
+use App\Models\College;
 use App\Models\Grievance;
 use App\Models\Invoice;
 use App\Models\Merchandise;
@@ -12,6 +13,7 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -169,7 +171,7 @@ class MemberShopAndAnnouncementsTest extends TestCase
         $item = $this->product($this->guild, 'Guild Shirt');
 
         $this->signedInAsCollege($this->rina)->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1, 'payment_method' => 'gcash'])
-            ->assertStatus(422)->assertJsonPath('message', fn ($message) => str_contains($message, 'Reserve with cash'));
+            ->assertStatus(422)->assertJsonPath('message', 'GCash is paid through CCS Coders Guild, which sells this product. Reserve with cash, or switch to your CCS Coders Guild profile to pay with GCash.');
         $this->assertSame(0, Order::count());
     }
 
@@ -234,5 +236,80 @@ class MemberShopAndAnnouncementsTest extends TestCase
         $member->postJson('/api/grievances', [...$payload, 'organization_id' => $third->id])->assertCreated();
 
         $this->assertSame([$third->id], Grievance::where('submitted_by', $this->rina->school_id)->pluck('organization_id')->all());
+    }
+
+    /** A club in another college that the member belongs to; the college is archived afterwards. */
+    private function clubInArchivedCollege(): Organization
+    {
+        $other = $this->makeCollege('CAS');
+        $club = $this->makeCollegeStudentOrganization($other, ['name' => 'CAS Debate Club']);
+        AccountProfile::create(['user_school_id' => $this->rina->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $other->forceFill(['is_active' => false])->save();
+
+        return $club;
+    }
+
+    public function test_a_club_in_an_archived_college_is_not_one_the_member_belongs_to(): void
+    {
+        $club = $this->clubInArchivedCollege();
+        $archivedItem = $this->product($club, 'Debate Shirt');
+        $this->product($this->guild, 'Guild Shirt');
+        $order = Order::factory()->create(['organization_id' => $club->id, 'student_id' => $this->rina->school_id, 'merchandise_id' => $archivedItem->id, 'processed_by' => null, 'approved_by' => null]);
+        AccountProfile::create(['user_school_id' => $this->rina->school_id, 'organization_id' => $this->otherClub->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $member = $this->signedInAsCollege($this->rina);
+
+        $this->assertNotContains($club->id, $this->rina->memberOrganizationIds());
+        $this->assertSame(['Guild Shirt'], collect($member->getJson('/api/merchandise')->assertOk()->json('data'))->pluck('name')->all());
+        $this->assertNotContains($order->id, collect($member->getJson('/api/orders')->assertOk()->json('data'))->pluck('id')->all());
+        $this->assertNotContains($club->id, collect($member->getJson('/api/grievances/filing-options')->assertOk()->json())->pluck('id')->all());
+    }
+
+    public function test_a_member_whose_only_club_sits_in_an_archived_college_is_not_in_a_student_organization(): void
+    {
+        $other = $this->makeCollege('CAS');
+        $club = $this->makeCollegeStudentOrganization($other, ['name' => 'CAS Debate Club']);
+        $newcomer = User::factory()->student()->create(['organization_id' => $this->home->id]);
+        AccountProfile::create(['user_school_id' => $newcomer->school_id, 'organization_id' => $club->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->signedInAsCollege($newcomer)->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', true);
+
+        College::whereKey($other->id)->update(['is_active' => false]);
+
+        $this->signedInAsCollege($newcomer)->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', false);
+    }
+
+    public function test_a_club_officer_signed_in_on_the_college_profile_sees_the_clubs_shop(): void
+    {
+        $this->product($this->guild, 'Guild Shirt');
+        $officer = User::factory()->student()->create(['organization_id' => $this->home->id]);
+        AccountProfile::create(['user_school_id' => $officer->school_id, 'organization_id' => $this->guild->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']);
+
+        $names = collect($this->signedInAsCollege($officer)->getJson('/api/merchandise')->assertOk()->json('data'))->pluck('name')->all();
+
+        $this->assertSame(['Guild Shirt'], $names);
+        $this->signedInAsCollege($officer)->getJson('/api/user')->assertOk()->assertJsonPath('in_student_organization', true);
+    }
+
+    public function test_submitting_gcash_proof_from_the_college_profile_names_the_selling_club_even_when_the_college_has_no_qr(): void
+    {
+        $item = $this->product($this->guild, 'Guild Shirt');
+        $order = Order::factory()->create(['organization_id' => $this->guild->id, 'student_id' => $this->rina->school_id, 'merchandise_id' => $item->id, 'status' => 'pending', 'officer_review_status' => 'pending', 'processed_by' => null, 'approved_by' => null]);
+
+        $this->signedInAsCollege($this->rina)->post("/api/orders/{$order->id}/payment", [
+            'payment_reference' => '1234567890123',
+            'payment_proof' => UploadedFile::fake()->image('proof.png'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn ($message) => str_contains($message, 'GCash is paid through CCS Coders Guild') && str_contains($message, 'switch to your CCS Coders Guild profile'));
+    }
+
+    public function test_another_student_asking_for_a_payment_proof_gets_the_same_not_found_as_a_missing_order(): void
+    {
+        $item = $this->product($this->guild, 'Guild Shirt');
+        $order = Order::factory()->create(['organization_id' => $this->guild->id, 'student_id' => $this->rina->school_id, 'merchandise_id' => $item->id, 'payment_proof_url' => 'payment-proofs/00000000-0000-0000-0000-000000000000.png', 'processed_by' => null, 'approved_by' => null]);
+        AccountProfile::create(['user_school_id' => $this->leo->school_id, 'organization_id' => $this->guild->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->signedInAsCollege($this->leo)->getJson("/api/orders/{$order->id}/payment-proof")->assertNotFound()->assertJsonPath('message', 'Order not found.');
     }
 }
