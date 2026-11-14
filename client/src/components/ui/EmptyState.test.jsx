@@ -39,10 +39,11 @@ describe('EmptyState', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1);
   });
 
-  it('draws an icon only when the caller passes one, at 24px', () => {
+  it('draws no icon even when a caller passes one, so every empty state looks the same', () => {
     const Icon = (props) => <svg data-testid="icon" {...props} />;
     render(<EmptyState title="No files" icon={Icon} />);
-    expect(screen.getByTestId('icon')).toHaveAttribute('size', '24');
+    expect(screen.getByText('No files')).toBeInTheDocument();
+    expect(screen.queryByTestId('icon')).toBeNull();
   });
 
   it('shows no button for the restricted kind', () => {
