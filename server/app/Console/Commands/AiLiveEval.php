@@ -33,7 +33,7 @@ class AiLiveEval extends Command
 {
     protected $signature = 'ai:live-eval
         {--feature=* : Run only these features (announcement, budget_advice, event_plan, workflow_explanations, forecast_summary, report_summary, task_note, ask_ai)}
-        {--out=D:/Claude/scratch/hiusa-ai : Folder for the eval-<feature>.json files}';
+        {--out= : Folder for the eval-<feature>.json files (default storage/app/ai-live-eval)}';
 
     protected $description = 'Run every Claude-backed feature once on invented demo data and check the numbers in each answer against its input (needs ANTHROPIC_API_KEY, never production).';
 
@@ -70,7 +70,7 @@ class AiLiveEval extends Command
             return self::FAILURE;
         }
 
-        $out = rtrim((string) $this->option('out'), '/\\');
+        $out = rtrim((string) ($this->option('out') ?: storage_path('app/ai-live-eval')), '/\\');
         if (! is_dir($out) && ! mkdir($out, 0777, true) && ! is_dir($out)) {
             $this->error("Cannot create {$out}.");
 

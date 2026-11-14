@@ -181,10 +181,16 @@ class FinancialReportController extends Controller
             'verified_collections' => round((float) $collectionQuery->sum('amount_collected'), 2),
             'recorded_remittances' => round((float) $remittanceQuery->sum('amount'), 2),
         ];
-        $latestForecast = FinancialForecast::latestFor($organizationId);
+        $latestForecast = FinancialForecast::where('organization_id', $organizationId)
+            ->whereBetween('forecast_period', [substr($start, 0, 7), substr($end, 0, 7)])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
         $budgets = SemesterScope::budgets(Budget::where('organization_id', $organizationId)
             ->when($event, fn ($query) => $query->where('event_id', $event->id)), $semester)
+            ->where('submission_status', 'approved')
             ->whereNotNull('advice_generated_at')
+            ->when(! $event, fn ($query) => $query->whereBetween('advice_generated_at', [Carbon::parse($start)->startOfDay(), Carbon::parse($end)->endOfDay()]))
             ->get([
                 'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
                 'recommended_allocation', 'safe_spending_limit', 'overspending_risk',

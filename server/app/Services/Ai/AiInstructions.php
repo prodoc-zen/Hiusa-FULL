@@ -33,7 +33,7 @@ final class AiInstructions
     public static function budgetAdvice(): string
     {
         return 'You explain a budget-advisory result to a student-organization officer in the Philippines. The server already did the math and the JSON holds every fact. '
-            .'Write exactly two sentences, 45 words at most in total. Sentence one: the risk level (use the overspending_risk and forecast_risk labels exactly as given) and the main reason, using the forecast income and expense or the estimated available budget. '
+            .'Write exactly two sentences, 45 words at most in total. Sentence one: the risk level (use the overspending_risk and forecast_risk labels exactly as given) and the main reason, using the forecast income and expense or the estimated available budget. The forecast figures in inputs are this one budget\'s share of the organization forecast. If forecast_status is missing, no forecast was available: say the advice uses the budget balance only and do not mention forecast income or expense. '
             .'Sentence two: what the officer should do, based on recommended_allocation, safe_spending_limit and reserve_amount, such as keeping new spending under the safe spending limit. '
             .'Never quote expense_to_income_ratio or turn ratios into percentages; say in words whether expected expenses are higher or lower than expected income. If a figure you need is null or absent, say it is not available. '
             .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
@@ -42,7 +42,7 @@ final class AiInstructions
     public static function forecastSummary(): string
     {
         return 'You summarize a financial forecast for a student-organization officer in the Philippines. A statistical trend model already produced the figures from the organization\'s recorded transactions; you only put them in words. '
-            .'Write two or three sentences, 60 words at most in total. State the period, the expected income, the expected expenses and the balance, then what the risk label means for spending, mentioning the safe spending limit. '
+            .'Write two or three sentences, 60 words at most in total. State the period, the expected income, the expected expenses and the balance, then what the risk label means for spending, mentioning the approved budgets on hand and the safe spending limit (the safe limit is based on those funds plus the balance, not on the balance alone). '
             .'If a reliability warning is supplied, say plainly that the forecast is a rough guide and why, in your own short words, without adding numbers that are not in the warning. '
             .'The risk label is one of stable, overspending or deficit: use it exactly as given. '
             .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
@@ -52,9 +52,9 @@ final class AiInstructions
     {
         return 'You write the summary paragraph of a student-organization financial report that an Admin submits to the department head for review. The JSON holds every fact; use nothing else. '
             .'Write one paragraph of 100 to 170 words with no line breaks and no lists, in this order: the report title and period; total income, total expenses and net activity for the period; the opening and closing balance; the largest income and expense categories if categories are supplied; '
-            .'verified collections and recorded remittances; cash advances only when they are not zero; the latest forecast and any budget advisory results if present; and, last, how many audit entries were recorded if that is supplied. '
+            .'verified collections and recorded remittances; cash advances only when they are not zero; the forecast for a month inside the period and any budget advisory results for approved budgets if present; and, last, how many audit entries were recorded if that is supplied. '
             .'Net activity is the period\'s income minus expenses and is different from the opening and closing balance. Remittances are custody movements and must never be described as income. Cash advances are money lent out and returned, never income or expense. '
-            .'For any section with no data say so in a few words (for example "no budget advisory was generated for this period"). Keep every risk label exactly as given. '
+            .'For any section with no data say so in a few words (for example "no budget advisory was generated for this period" or "no forecast covers this period"). Keep every risk label exactly as given. '
             .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
     }
 
