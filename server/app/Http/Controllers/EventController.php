@@ -1468,7 +1468,7 @@ class EventController extends Controller
 
         return [
             'overview' => $reason === 'rejected'
-                ? 'Template draft: the suggested plan did not pass the checks, so this is a standard checklist built from the event dates instead. The context you typed was not used. Review and edit every item before saving.'
+                ? 'Template draft: the suggested plan did not pass the checks, so this is a standard checklist built from the event dates instead.'.(trim($context['requirements']) !== '' ? ' The context you typed was not used.' : '').' Review and edit every item before saving.'
                 : 'Template draft: the AI writer is not available right now, so this is a standard checklist built from the event dates. Review and edit every item before saving.',
             'preparation_phases' => ['Before the event: confirm the plan, announce it and prepare the venue.', 'On the day: run the program and record attendance.', 'After the event: settle expenses, collect feedback and write the report.'],
             'timeline' => ['Event starts '.$event->start_time->toISOString(), 'Event ends '.$event->end_time->toISOString()],

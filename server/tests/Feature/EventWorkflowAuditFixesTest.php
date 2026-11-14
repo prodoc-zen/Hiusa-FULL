@@ -9,8 +9,8 @@ use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Database\Events\TransactionBeginning;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -238,6 +238,11 @@ class EventWorkflowAuditFixesTest extends TestCase
 
         $this->assertStringContainsString('did not pass the checks', $rejected->json('workflow.overview'));
         $this->assertStringNotContainsString('not available', $rejected->json('workflow.overview'));
+        $this->assertStringContainsString('The context you typed was not used.', $rejected->json('workflow.overview'));
+
+        $empty = $this->postJson("/api/events/{$this->event->id}/generate-plan", [])->assertCreated();
+        $this->assertStringContainsString('did not pass the checks', $empty->json('workflow.overview'));
+        $this->assertStringNotContainsString('context you typed', $empty->json('workflow.overview'));
         $this->assertSame('event-workflow-template-v1', $rejected->json('ai_output.context_version'));
         $this->assertSame('Bring the band.', $rejected->json('ai_output.structured_input.requirements'));
 

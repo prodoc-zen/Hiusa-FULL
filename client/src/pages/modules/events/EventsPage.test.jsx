@@ -677,7 +677,23 @@ describe('EventsPage walkthrough fixes', () => {
 
       expect(screen.getByText('Standard checklist')).toBeInTheDocument();
       expect(screen.getByText(/not a plan written for this event/)).toBeInTheDocument();
+      expect(screen.getByText(/planning context you entered was not used and is still above/)).toBeInTheDocument();
       expect(screen.getByLabelText(/^Planning context/)).toHaveValue('Bring the band.');
+    });
+
+    it('does not claim typed context was ignored when none was typed or the draft is reopened from history', async () => {
+      const response = draft();
+      response.data.is_template = true;
+      eventMocks.generateEventPlan.mockResolvedValue(response);
+      renderAt('/dashboard/events/event-planner', 'tasks');
+      await screen.findByRole('option', { name: 'Sports Fest 2024' });
+      fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '7' } });
+      fireEvent.change(screen.getByLabelText(/^Planning context/), { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Draft to-do list' }));
+      await screen.findByText('1 suggested to-do item');
+
+      expect(screen.getByText(/not a plan written for this event/)).toBeInTheDocument();
+      expect(screen.queryByText(/planning context you entered was not used/)).not.toBeInTheDocument();
     });
 
     it('marks the other pending drafts discarded once one is saved', async () => {

@@ -809,7 +809,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       });
       showFeedback('success', response.data?.forecast_status === 'used'
         ? `Budget advice generated from this budget's balance and the ${response.data.forecast_period} forecast.`
-        : 'Budget advice generated from this budget\'s balance only. No current forecast was available, so generate a forecast for forecast-based advice.');
+        : response.data?.forecast_status === 'not_applied'
+          ? 'Budget advice generated from this budget\'s balance only. This budget is outside the current semester, so the forecast was not applied.'
+          : 'Budget advice generated from this budget\'s balance only. No current forecast was available, so generate a forecast for forecast-based advice.');
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to generate budget advice.');
       setBudgetAdviceErrors((current) => ({ ...current, [budgetId]: message }));
@@ -1565,7 +1567,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                                 `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
                                 adviceInputs.forecast_status === 'used'
                                   ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
-                                  : 'No current forecast was available, so no forecast income or expenses were used.',
+                                  : adviceInputs.forecast_status === 'not_applied'
+                                    ? 'This budget is outside the current semester, so no forecast income or expenses were used.'
+                                    : 'No current forecast was available, so no forecast income or expenses were used.',
                               ]
                               : []),
                             ...(adviceDetail.advice.deterministic_advice

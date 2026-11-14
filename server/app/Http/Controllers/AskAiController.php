@@ -9,6 +9,7 @@ use App\Services\Ai\AskAiChatService;
 use App\Services\Ai\AskAiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -48,31 +49,50 @@ class AskAiController extends Controller
         $user = $request->user();
         $regenerate = $request->boolean('regenerate');
 
-        $validated = $request->validate([
-            'conversation_id' => [Rule::requiredIf($regenerate), 'nullable', 'integer'],
-            'message' => [Rule::requiredIf(! $regenerate), 'nullable', 'string', 'min:1', 'max:2000'],
-            'topic' => ['nullable', 'string', 'max:60'],
-            'regenerate' => ['sometimes', 'boolean'],
-        ]);
+        try {
+            $validated = $request->validate([
+                'conversation_id' => [Rule::requiredIf($regenerate), 'nullable', 'integer'],
+                'message' => [Rule::requiredIf(! $regenerate), 'nullable', 'string', 'min:1', 'max:2000'],
+                'topic' => ['nullable', 'string', 'max:60'],
+                'source' => ['nullable', 'in:typed,link'],
+                'regenerate' => ['sometimes', 'boolean'],
+            ]);
 
-        $conversation = isset($validated['conversation_id'])
-            ? AiConversation::ownedBy($user)->findOrFail($validated['conversation_id'])
-            : null;
+            $conversation = null;
+            if (isset($validated['conversation_id'])) {
+                $conversation = AiConversation::ownedBy($user)->find($validated['conversation_id']);
+                if ($conversation === null) {
+                    return response()->json(['message' => 'Conversation not found.'], 404);
+                }
+            }
 
-        if ($regenerate) {
-            $this->chat->assertRegenerable($conversation);
+            if ($regenerate) {
+                $this->chat->assertRegenerable($conversation);
+            }
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+
+            return response()->json(['message' => collect($errors)->flatten()->first() ?? $e->getMessage(), 'errors' => $errors], 422);
         }
 
         $message = $regenerate ? null : trim((string) $validated['message']);
         $topic = $validated['topic'] ?? null;
+        $source = $validated['source'] ?? 'typed';
 
-        if (! str_contains((string) $request->header('Accept'), 'text/event-stream')) {
-            $result = $this->chat->respond($user, $conversation, $message, $topic, $regenerate, static function (): void {});
-
-            return response()->json($result);
+        $lock = Cache::lock('ask-ai-chat:'.$user->school_id, 150);
+        if (! $lock->get()) {
+            return response()->json(['message' => 'Wait for the current answer to finish.'], 429);
         }
 
-        return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate): void {
+        if (! str_contains((string) $request->header('Accept'), 'text/event-stream')) {
+            try {
+                return response()->json($this->chat->respond($user, $conversation, $message, $topic, $regenerate, static function (): void {}, null, $source));
+            } finally {
+                $lock->release();
+            }
+        }
+
+        return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate, $source, $lock): void {
             ignore_user_abort(true);
             $began = false;
             $emit = function (string $event, array $data) use (&$began): void {
@@ -89,6 +109,7 @@ class AskAiController extends Controller
                     $regenerate,
                     $emit,
                     static fn (): bool => connection_aborted() === 1,
+                    $source,
                 );
 
                 if ($result['message'] !== null) {
@@ -97,6 +118,8 @@ class AskAiController extends Controller
             } catch (Throwable $e) {
                 report($e);
                 $this->writeEvent('error', ['message' => 'Could not answer that right now. Try again.']);
+            } finally {
+                $lock->release();
             }
         }, 200, [
             'Content-Type' => 'text/event-stream',
@@ -121,7 +144,7 @@ class AskAiController extends Controller
 
         $rows = $query->orderByDesc('last_message_at')->orderByDesc('id')->limit(50)->get();
 
-        return response()->json(['data' => $rows->map(fn (AiConversation $row) => $this->chat->conversationRow($row))->all()]);
+        return response()->json(['data' => $rows->map(fn (AiConversation $row) => $this->chat->conversationRow($row, $request->user()))->all()]);
     }
 
     public function showConversation(Request $request, int $conversation): JsonResponse
@@ -129,8 +152,8 @@ class AskAiController extends Controller
         $row = AiConversation::ownedBy($request->user())->withSummary()->findOrFail($conversation);
 
         return response()->json([
-            'conversation' => $this->chat->conversationRow($row),
-            'messages' => $row->messages()->get()->map(fn (AiMessage $message) => $this->chat->presentMessage($message))->all(),
+            'conversation' => $this->chat->conversationRow($row, $request->user()),
+            'messages' => $row->messages()->get()->map(fn (AiMessage $message) => $this->chat->presentMessageFor($request->user(), $message))->all(),
         ]);
     }
 
@@ -141,12 +164,12 @@ class AskAiController extends Controller
 
         $row->update(['title' => $validated['title']]);
 
-        return response()->json(['conversation' => $this->chat->presentConversation($row)]);
+        return response()->json(['conversation' => $this->chat->presentConversation($row, $request->user())]);
     }
 
     public function destroyConversation(Request $request, int $conversation): JsonResponse
     {
-        AiConversation::ownedBy($request->user())->findOrFail($conversation)->delete();
+        AiConversation::eraseWithOutputs(AiConversation::ownedBy($request->user())->whereKey($conversation)->limit(1));
 
         return response()->json(['message' => 'Conversation deleted.']);
     }

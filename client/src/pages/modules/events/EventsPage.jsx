@@ -428,7 +428,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [workflowAction, setWorkflowAction] = useState(false);
   const [rankingTaskKey, setRankingTaskKey] = useState(null);
   const [workflowHistory, setWorkflowHistory] = useState([]);
-  const [workflowMeta, setWorkflowMeta] = useState({ template: false, positions: [] });
+  const [workflowMeta, setWorkflowMeta] = useState({ template: false, contextIgnored: false, positions: [] });
   const [workflowHistoryError, setWorkflowHistoryError] = useState('');
   const [planError, setPlanError] = useState(null);
   const [planSubmitting, setPlanSubmitting] = useState(false);
@@ -916,7 +916,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setPlanResult(res.data?.plan || '');
       setWorkflowDraft(res.data?.workflow || null);
       setWorkflowOutputId(res.data?.ai_output?.id || null);
-      setWorkflowMeta({ template: res.data?.is_template === true, positions: res.data?.allowed_positions || [] });
+      setWorkflowMeta({ template: res.data?.is_template === true, contextIgnored: res.data?.is_template === true && planForm.requirements.trim() !== '', positions: res.data?.allowed_positions || [] });
       getEventWorkflowHistory(planForm.event_id)
         .then((history) => { setWorkflowHistory(history.data || []); setWorkflowHistoryError(''); })
         .catch(() => setWorkflowHistoryError('The previous workflow drafts could not be loaded.'));
@@ -974,7 +974,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     if (output.decision_status === 'pending' && output.structured_output) {
       setWorkflowDraft(output.structured_output);
       setWorkflowOutputId(output.id);
-      setWorkflowMeta({ template: String(output.context_version || '').includes('template'), positions: output.structured_input?.allowed_positions || [] });
+      setWorkflowMeta({ template: String(output.context_version || '').includes('template'), contextIgnored: false, positions: output.structured_input?.allowed_positions || [] });
     } else {
       setWorkflowDraft(null);
       setWorkflowOutputId(null);
@@ -1570,7 +1570,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       <div><h3 className="text-base font-semibold text-ink">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm text-ink-muted-strong">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
                       <div className="flex flex-wrap gap-2">{workflowMeta.template && <StatusBadge tone="neutral" label="Standard checklist" className="w-fit" />}<StatusBadge tone="warning" label="Nothing saved yet" className="w-fit" /></div>
                     </div>
-                    {workflowMeta.template && <p className="mt-3 text-sm text-ink-muted-strong">This is a standard checklist built from the event dates, not a plan written for this event. The planning context you entered was not used and is still above, so you can change it and draft again.</p>}
+                    {workflowMeta.template && <p className="mt-3 text-sm text-ink-muted-strong">This is a standard checklist built from the event dates, not a plan written for this event.{workflowMeta.contextIgnored && ' The planning context you entered was not used and is still above, so you can change it and draft again.'}</p>}
 
                     <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
                       {[
