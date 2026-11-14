@@ -461,6 +461,22 @@ class AskAiChatTest extends TestCase
         $this->assertCount(50, $this->getJson('/api/ai/assistant/conversations')->json('data'));
     }
 
+    public function test_the_recommended_next_step_reaches_the_facts_the_model_receives(): void
+    {
+        Sanctum::actingAs($this->admin());
+        $fake = $this->fake(['Open the page below.']);
+
+        $recommended = $this->postJson('/api/ai/assistant/chat', ['message' => 'How do I create an event?'])
+            ->assertOk()
+            ->json('message.payload.recommended_action');
+
+        $this->assertNotEmpty($recommended['href'] ?? null, 'the seeded question must produce a recommended action');
+        $turn = $fake->lastUserTurn();
+        $facts = json_decode(substr($turn, strpos($turn, '```json') + 8, strrpos($turn, '```') - strpos($turn, '```json') - 8), true);
+        $this->assertSame($recommended['href'], $facts['next_step']['href']);
+        $this->assertNotEmpty($facts['next_step']['label']);
+    }
+
     public function test_memory_is_saved_by_phrase_listed_and_reaches_the_facts(): void
     {
         $admin = $this->admin();

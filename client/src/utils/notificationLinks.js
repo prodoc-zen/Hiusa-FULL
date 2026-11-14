@@ -150,7 +150,7 @@ const DESTINATIONS = {
   grievance: (role, id) => pick({
     SUPER_ADMIN: record('/dashboard/super-admin/grievances', id),
     ADMIN: record('/dashboard/grievances', id),
-    STUDENT: '/dashboard/my-grievances',
+    STUDENT: record('/dashboard/my-grievances', id),
   }, role),
 };
 

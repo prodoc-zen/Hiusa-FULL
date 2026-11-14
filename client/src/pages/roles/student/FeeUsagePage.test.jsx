@@ -13,7 +13,7 @@ const first = {
   period_start: '2026-08-01',
   period_end: '2026-12-31',
   approved_at: '2026-11-03T02:00:00+00:00',
-  totals: { collected: 12500, spent: 5000, balance: 8500.5 },
+  totals: { collected: 12500, spent: 5000, opening: 1000.5, advances: 0, balance: 8500.5 },
   spending: [
     { category: 'Events', amount: 3750, share_percent: 75 },
     { category: 'Supplies', amount: 1250, share_percent: 25 },
@@ -30,7 +30,7 @@ const second = {
   period_start: '2026-08-01',
   period_end: '2026-10-31',
   approved_at: '2026-09-01T02:00:00+00:00',
-  totals: { collected: 900, spent: 300, balance: 600 },
+  totals: { collected: 900, spent: 300, opening: 0, advances: 0, balance: 600 },
   spending: [{ category: 'Printing', amount: 300, share_percent: 100 }],
   income: [{ category: 'Donations', amount: 900 }],
 };
@@ -131,10 +131,27 @@ describe('FeeUsagePage', () => {
   });
 
   it('says so when a report has no spending or income', async () => {
-    mocks.getFeeUsage.mockResolvedValue(usage([{ ...second, totals: { collected: 0, spent: 0, balance: 100 }, spending: [], income: [] }]));
+    mocks.getFeeUsage.mockResolvedValue(usage([{ ...second, totals: { collected: 0, spent: 0, opening: 100, advances: 0, balance: 100 }, spending: [], income: [] }]));
     renderPage();
 
     expect(await screen.findByText('This report has no spending.')).toBeInTheDocument();
     expect(screen.getByText('This report has no income.')).toBeInTheDocument();
+  });
+
+  it('shows the carried-over opening balance so the three figures reconcile', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Includes ₱1,000.50 carried over from before this period')).toBeInTheDocument();
+  });
+
+  it('says closing balance when nothing was carried over and adds cash advances when there are some', async () => {
+    mocks.getFeeUsage.mockResolvedValue(usage([second]));
+    const { unmount } = renderPage();
+    expect(await screen.findByText('Closing balance')).toBeInTheDocument();
+    unmount();
+
+    mocks.getFeeUsage.mockResolvedValue(usage([{ ...second, totals: { ...second.totals, advances: -200 } }]));
+    renderPage();
+    expect(await screen.findByText(/Includes .*in cash advances returned or lent out/)).toBeInTheDocument();
   });
 });

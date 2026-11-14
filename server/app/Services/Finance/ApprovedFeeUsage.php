@@ -33,13 +33,13 @@ class ApprovedFeeUsage
      *         period_start: string|null,
      *         period_end: string|null,
      *         approved_at: string|null,
-     *         totals: array{collected: float, spent: float, opening: float, balance: float},
+     *         totals: array{collected: float, spent: float, opening: float, advances: float, balance: float},
      *         spending: list<array{category: string, amount: float, share_percent: int}>,
      *         income: list<array{category: string, amount: float}>
      *     }>
      * } organization is null for a student without one; reports are newest approved first, and
      *   empty when the organization has no approved report (or none matches $reportId).
-     *   period_start and period_end are Y-m-d. opening is the balance carried in from before the period and balance is the report's closing balance,
+     *   period_start and period_end are Y-m-d. opening is the balance carried in from before the period, advances the cash advances returned minus those lent out, and balance is the report's closing balance,
      *   spending is largest first with share_percent of total spent as a whole number, income is largest first.
      */
     public function summaryFor(User $user, ?int $reportId = null): array
@@ -87,6 +87,7 @@ class ApprovedFeeUsage
                 'collected' => $statement['totals']['income'],
                 'spent' => $spent,
                 'opening' => $statement['totals']['opening_balance'],
+                'advances' => round($statement['cash_advances']['repayments'] - $statement['cash_advances']['released'], 2),
                 'balance' => $statement['totals']['closing_balance'],
             ],
             'spending' => $this->byCategory($ordinary, 'expense')

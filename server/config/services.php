@@ -71,7 +71,8 @@ return [
         // enforces no timeout itself, so the HTTP transport carries it. ANTHROPIC_CHAT_TIMEOUT below is not capped at 12.
         'timeout' => env('ANTHROPIC_TIMEOUT', 12),
         'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
-        // Ask AI conversations stream and think, so they get their own effort and a longer total timeout.
+        // Ask AI conversations stream and think, so they get their own effort and a longer ceiling: chat_timeout is the
+        // wall-clock limit for the whole turn, and a stream silent for 15 seconds ends sooner.
         'chat_effort' => env('ANTHROPIC_CHAT_EFFORT', 'medium'),
         'chat_timeout' => env('ANTHROPIC_CHAT_TIMEOUT', 60),
     ],

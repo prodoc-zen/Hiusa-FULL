@@ -448,7 +448,8 @@ class DashboardBriefingService
             'severity' => $urgent > 0 ? 'high' : 'medium',
             'title' => $count === 1 ? 'Grievance waiting for your decision' : 'Grievances waiting for your decision',
             'detail' => ($count === 1 ? '1 grievance filed against your organization is unresolved' : "{$count} grievances filed against your organization are unresolved")
-                .($urgent > 0 ? ", {$urgent} of high or critical urgency" : '').'. You review it and decide the outcome.',
+                .($urgent > 0 ? ($count === 1 ? ', and it is marked high or critical' : ", {$urgent} of them marked high or critical") : '')
+                .($count === 1 ? '. You review it and decide the outcome.' : '. You review each one and decide the outcome.'),
             'due_at' => null,
             'href' => $this->routeAccess->hrefFor($role, $path),
         ]];
