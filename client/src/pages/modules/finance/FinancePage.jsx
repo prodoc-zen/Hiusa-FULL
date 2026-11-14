@@ -86,6 +86,16 @@ function forecastOrder(period) {
   return Number.POSITIVE_INFINITY;
 }
 
+// A forecast looks ahead, so one whose period is over (the old placeholder quarters, say) only adds zero rows
+// and flat points to the chart. A month ends with itself, a quarter two months after its first.
+function forecastHasEnded(period, now = new Date()) {
+  const text = String(period ?? '').trim();
+  const order = forecastOrder(text);
+  if (!Number.isFinite(order)) return false;
+  const lastMonth = /^Q[1-4]\s/i.test(text) ? order + 2 : order;
+  return lastMonth < now.getFullYear() * 12 + now.getMonth();
+}
+
 function sortForecasts(forecasts) {
   return [...forecasts].sort((a, b) => forecastOrder(a.forecast_period) - forecastOrder(b.forecast_period)
     || String(a.forecast_period ?? '').localeCompare(String(b.forecast_period ?? '')));
@@ -249,6 +259,10 @@ function getClampNotice(forecast) {
     ? 'The raw projected income was negative and has been clamped to ₱0.00 for display.'
     : 'The raw projected expense was negative and has been clamped to ₱0.00 for display.';
 }
+
+// The stored risk is a code. "Overspending" read as a verdict beside a healthy balance, so it says what the
+// forecast measures: this month's spending against this month's income.
+const FORECAST_RISK_LABELS = { overspending: 'Spending may outrun income' };
 
 const REPORT_STATUS_LABELS = { draft: 'Draft', pending_department_head: 'Pending Department Head', pending_sao: 'Pending SAO', approved: 'Approved', rejected: 'Returned' };
 
@@ -1170,7 +1184,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       })
       .catch(() => setReportSemesters([]));
   }, [activeTab, reportFormVisible, reportSemesters]);
-  const sortedForecasts = sortForecasts(forecasts);
+  const sortedForecasts = sortForecasts(forecasts.filter((forecast) => !forecastHasEnded(forecast.forecast_period)));
 
   // A form drawer carries its own filled button, so the header's one is hidden while it is open.
   let headerPrimary = null;
@@ -1610,7 +1624,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             )}
             {loading ? (
               <SkeletonTable rows={3} columns={3} className="border-0" />
-            ) : forecasts.length === 0 ? (
+            ) : sortedForecasts.length === 0 ? (
               canGenerateForecast ? (
                 <EmptyState
                   icon={TrendingUp}
@@ -1644,7 +1658,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                             <div><dt className="text-ink-muted">Balance</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.predicted_balance)}</dd></div>
                             {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Left in approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
                             <div><dt className="text-ink-muted">Safe spend</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.safe_spending_limit)}</dd></div>
-                            {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{sentence(f.model_details.risk)}</dd></div>}
+                            {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{FORECAST_RISK_LABELS[f.model_details.risk] || sentence(f.model_details.risk)}</dd></div>}
                           </dl>
                         ) : (
                           <p className="mt-3 text-sm text-ink-muted">Not enough ledger history to project this period. Record income and expenses over a few months, then generate again.</p>

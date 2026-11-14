@@ -124,7 +124,7 @@ class DashboardInsightEngine
         $risk = $details['risk'] ?? 'stable';
         $period = $this->periodLabel((string) $forecast->forecast_period);
         $title = match ($risk) {
-            'overspending' => "Spending may outpace income in {$period}",
+            'overspending' => "Spending may outrun income in {$period}",
             'deficit' => "A shortfall is possible in {$period}",
             default => "Spending looks on track for {$period}",
         };
