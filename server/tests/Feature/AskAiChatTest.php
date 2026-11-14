@@ -732,7 +732,7 @@ class AskAiChatTest extends TestCase
         $this->assertSame(['their question'], AiOutput::pluck('prompt_text')->all());
     }
 
-    public function test_regenerating_replaces_the_answer_and_its_output_row(): void
+    public function test_regenerating_replaces_the_answer_and_keeps_its_output_row_as_superseded(): void
     {
         Sanctum::actingAs($this->admin());
         $this->fake(['Fine.']);
@@ -741,7 +741,8 @@ class AskAiChatTest extends TestCase
 
         $this->postJson('/api/ai/assistant/chat', ['conversation_id' => $id, 'regenerate' => true])->assertOk();
 
-        $this->assertSame(1, AiOutput::count());
+        $this->assertSame(2, AiOutput::count());
+        $this->assertSame('superseded', AiOutput::find($oldOutput)->decision_status);
         $this->assertNotSame($oldOutput, AiMessage::where('role', 'assistant')->value('ai_output_id'));
         $this->assertSame(1, AiMessage::where('role', 'assistant')->count());
     }

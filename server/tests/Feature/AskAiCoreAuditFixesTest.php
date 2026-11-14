@@ -157,7 +157,7 @@ class AskAiCoreAuditFixesTest extends TestCase
             ['Which organizations haven\'t submitted compliance or financial reports?', 'SUPER_ADMIN', 'missing_submissions'],
             ['Who has submitted compliance documents or reports for review?', 'SUPER_ADMIN', 'submitted_documents'],
             ['Are there urgent grievances?', 'SUPER_ADMIN', 'grievances_status'],
-            ['Are there urgent grievances?', 'ADMIN', 'semantic_rag'],
+            ['Are there urgent grievances?', 'ADMIN', 'grievances_status'],
             ['How do I endorse an application?', 'DEPARTMENT_HEAD', 'how_to_guide'],
             ['Which applications need my endorsement?', 'DEPARTMENT_HEAD', 'applications_queue'],
             ['Where is my event proposal?', 'ADMIN', 'my_submissions'],
