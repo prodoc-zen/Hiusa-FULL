@@ -745,7 +745,7 @@ class HowToGuideLibrary
                 'question' => 'How do I set up an election?',
                 'action' => 'set up and run an election',
                 'summary' => 'Create the election, add positions, party lists, and candidates, open voting, then finalize the results.',
-                'keywords' => ['election', 'elections', 'vote', 'voting', 'ballot', 'candidate', 'candidates', 'partylist', 'party list', 'position', 'finalize'],
+                'keywords' => ['election', 'elections', 'vote', 'voting', 'ballot', 'candidate', 'candidates', 'partylist', 'party list', 'position', 'finalize', 'open election', 'start election', 'create election', 'run election', 'set up election', 'hold election'],
                 'checks' => ['active_semester'],
                 'minutes' => 5,
                 'steps' => [
@@ -908,7 +908,7 @@ class HowToGuideLibrary
                 'title' => 'Check your fees, invoices, and receipts',
                 'question' => 'How do I check what fees I owe?',
                 'summary' => 'Your statement of account shows open invoices, payments, and your remaining balance.',
-                'keywords' => ['fee', 'fees', 'invoice', 'balance', 'owe', 'statement of account', 'receipt', 'receipts', 'payment', 'unpaid'],
+                'keywords' => ['fee', 'fees', 'invoice', 'balance', 'owe', 'statement of account', 'receipt', 'receipts', 'payment', 'unpaid', 'pay fees', 'pay invoice', 'pay balance', 'settle balance', 'settle fees'],
                 'checks' => [],
                 'minutes' => 1,
                 'steps' => [
@@ -1072,6 +1072,16 @@ class HowToGuideLibrary
         }
 
         usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
+
+        // A guide for this role that scores nearly as well as another role's guide is the one the person means.
+        if ($scored !== [] && ! $scored[0]['accessible']) {
+            foreach ($scored as $position => $candidate) {
+                if ($candidate['accessible'] && $candidate['score'] >= 2.5 && $candidate['score'] >= $scored[0]['score'] * 0.7) {
+                    array_unshift($scored, ...array_splice($scored, $position, 1));
+                    break;
+                }
+            }
+        }
 
         if ($scored === [] || $scored[0]['score'] < 2.5) {
             return ['best' => null, 'accessible' => false, 'related' => [], 'total' => $total, 'categories' => $categories, 'top_confidence' => 0];

@@ -57,6 +57,7 @@ class AskAiRoleIntents
     private const REVIEWER_NAMES = [
         'DEPARTMENT_HEAD' => 'the Department Head',
         'SUPER_ADMIN' => 'SAO',
+        'ADMIN' => 'you',
     ];
 
     private const TOOLS = [
@@ -333,13 +334,15 @@ class AskAiRoleIntents
         $latest = $this->latestApprovals($organizationId, $type);
         $approvalCounts = (clone $latest)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
         $waitingByRole = (clone $latest)->where('status', 'pending')->selectRaw('required_role, count(*) as total')->groupBy('required_role')->pluck('total', 'required_role');
+        $rejectedByRole = (clone $latest)->where('status', 'rejected')->selectRaw('required_role, count(*) as total')->groupBy('required_role')->pluck('total', 'required_role');
         $venueCounts = $type === null || $type === 'venue'
             ? VenueBooking::query()->where('organization_id', $organizationId)->whereIn('status', ['pending', 'approved', 'rejected'])
                 ->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status')
             : collect();
 
-        $returned = (int) ($approvalCounts['rejected'] ?? 0) + (int) ($venueCounts['rejected'] ?? 0);
-        $waiting = (int) ($approvalCounts['pending'] ?? 0) + (int) ($venueCounts['pending'] ?? 0);
+        $waitingForYou = (int) ($waitingByRole['ADMIN'] ?? 0);
+        $returned = (int) ($approvalCounts['rejected'] ?? 0) - (int) ($rejectedByRole['ADMIN'] ?? 0) + (int) ($venueCounts['rejected'] ?? 0);
+        $waiting = (int) ($approvalCounts['pending'] ?? 0) - $waitingForYou + (int) ($venueCounts['pending'] ?? 0);
         $approved = (int) ($approvalCounts['approved'] ?? 0) + (int) ($venueCounts['approved'] ?? 0);
         $withDean = (int) ($waitingByRole['DEPARTMENT_HEAD'] ?? 0);
         $withSao = (int) ($waitingByRole['SUPER_ADMIN'] ?? 0) + (int) ($venueCounts['pending'] ?? 0);
@@ -353,10 +356,21 @@ class AskAiRoleIntents
             $items = $items->concat($this->submissionItems($organizationId, $type, $status, $room));
         }
 
+        $yourStage = fn (array $item) => $item['stage_role'] === 'ADMIN';
+        $priority = fn (array $item) => match (true) {
+            $item['status'] === 'pending' && $yourStage($item) => 0,
+            $item['status'] === 'rejected' && ! $yourStage($item) => 1,
+            $item['status'] === 'pending' => 2,
+            default => 3,
+        };
+        $items = $items->sortBy($priority)->values();
         $rows = $items->map(fn (array $item) => $this->submissionRow($role, $item))->all();
 
-        $first = $items->first();
-        $answer = match (true) {
+        $first = $items->first(fn (array $item) => ! $yourStage($item) && in_array($item['status'], $returned > 0 ? ['rejected'] : ['pending'], true)) ?? $items->first();
+        $lead = $waitingForYou > 0
+            ? sprintf('%s from your officers %s waiting for your approval. ', $this->count($waitingForYou, $one, $many), $waitingForYou === 1 ? 'is' : 'are')
+            : '';
+        $answer = $lead.match (true) {
             $returned > 0 => sprintf(
                 '%s come back to you for changes. Start with %s, returned by %s%s. Fix it and send it again; the next move is yours.%s',
                 $this->count($returned, "{$one} has", "{$many} have"),
@@ -372,6 +386,7 @@ class AskAiRoleIntents
                 $first['label'],
                 $first['submitted_at']?->diffForHumans() ?? 'earlier'
             ),
+            $waitingForYou > 0 => '',
             $approved > 0 => sprintf('%s approved. Nothing is waiting on you or on a reviewer right now.', $approved === 1 ? "Your {$one} is" : "All {$approved} of your {$many} are"),
             default => "Your organization has not sent any {$many} for approval yet. When you are ready, start a request from the Approvals page.",
         };
@@ -381,6 +396,7 @@ class AskAiRoleIntents
             'answer' => $answer,
             'highlights' => [
                 ['label' => 'Returned to you', 'value' => (string) $returned, 'tone' => $returned > 0 ? 'danger' : 'neutral'],
+                ...($waitingForYou > 0 ? [['label' => 'Waiting for you', 'value' => (string) $waitingForYou, 'tone' => 'warning']] : []),
                 ['label' => 'Waiting for a reviewer', 'value' => (string) $waiting, 'tone' => $waiting > 0 ? 'warning' : 'neutral'],
                 ['label' => 'Approved', 'value' => (string) $approved, 'tone' => $approved > 0 ? 'success' : 'neutral'],
             ],
@@ -388,7 +404,7 @@ class AskAiRoleIntents
                 [
                     'id' => 'my-submissions-list',
                     'title' => 'Your Submissions',
-                    'description' => 'Returned items come first because they need you, then those waiting for a reviewer, then approved ones.',
+                    'description' => 'What needs you comes first, then returned items, then those waiting for a reviewer, then approved ones.',
                     'empty_message' => 'Your organization has not sent anything for approval yet.',
                     'rows' => $rows,
                 ],
@@ -441,7 +457,7 @@ class AskAiRoleIntents
         $items = collect();
 
         if ($type !== 'venue') {
-            $latest = $this->latestApprovals($organizationId, $type);
+            $latest = $this->latestApprovals($organizationId, $type)->with('requester:school_id,first_name,last_name');
             $items = $items->concat($latest->where('status', $status)
                 ->orderBy($status === 'pending' ? 'requested_at' : 'reviewed_at', $direction)->orderBy('id', $direction)->limit($limit)->get()
                 ->map(fn (ApprovalRequest $approval) => [
@@ -452,6 +468,7 @@ class AskAiRoleIntents
                     'stage_role' => $approval->required_role,
                     'reviewer_role' => $approval->required_role,
                     'remarks' => $approval->remarks,
+                    'requester' => trim(($approval->requester?->first_name ?? '').' '.($approval->requester?->last_name ?? '')) ?: 'your officer',
                     'submitted_at' => $approval->requested_at,
                     'decided_at' => $approval->reviewed_at,
                 ]));
@@ -483,6 +500,10 @@ class AskAiRoleIntents
         $typeLabel = self::SUBMISSION_LABELS[$item['type']] ?? Str::headline($item['type']);
         $submitted = $item['submitted_at'] ? 'Submitted '.$item['submitted_at']->format('M j, Y') : 'Submitted';
         $reviewer = self::REVIEWER_NAMES[$item['stage_role']] ?? null;
+
+        if ($item['stage_role'] === 'ADMIN' && in_array($item['status'], ['pending', 'rejected'], true)) {
+            return $this->ownStageRow($role, $item, $typeLabel, $submitted);
+        }
 
         [$status, $tone, $secondary, $meta] = match ($item['status']) {
             'rejected' => [
@@ -519,6 +540,27 @@ class AskAiRoleIntents
             'meta' => $meta,
             'href' => $href,
             'action_label' => $item['status'] === 'rejected' ? 'Fix and resend' : 'Open',
+        ];
+    }
+
+    /** A request from an officer that waits for this Admin, or that this Admin sent back. */
+    private function ownStageRow(string $role, array $item, string $typeLabel, string $submitted): array
+    {
+        $waiting = $item['status'] === 'pending';
+
+        return [
+            'id' => $item['key'],
+            'primary' => $item['label'],
+            'secondary' => $waiting
+                ? "{$typeLabel} from {$item['requester']} · {$submitted}"
+                : "You returned this to {$item['requester']}: ".(filled($item['remarks']) ? Str::limit(trim((string) $item['remarks']), 160) : 'no remark was left')." · {$typeLabel} · {$submitted}",
+            'status' => $waiting ? 'Waiting for you' : 'You returned this',
+            'status_tone' => $waiting ? 'warning' : 'neutral',
+            'meta' => $waiting
+                ? ($item['submitted_at'] ? 'Sent '.$item['submitted_at']->diffForHumans() : 'Waiting')
+                : ($item['decided_at'] ? 'Returned '.$item['decided_at']->diffForHumans() : 'Returned'),
+            'href' => $this->routeAccess->hrefFor($role, '/dashboard/approvals'),
+            'action_label' => $waiting ? 'Review' : 'Open',
         ];
     }
 

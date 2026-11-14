@@ -16,6 +16,8 @@ const service = vi.hoisted(() => ({
   addAiMemory: vi.fn(),
   deleteAiMemory: vi.fn(),
   deleteAllAiMemories: vi.fn(),
+  confirmAiAction: vi.fn(),
+  cancelAiAction: vi.fn(),
 }));
 
 vi.mock('../../../services/askAiService', () => service);
@@ -740,6 +742,161 @@ describe('AskAiPage', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'blocks:Answer title' })[1]);
       expect(service.streamAiChat).toHaveBeenCalledWith(expect.objectContaining({ message: 'Follow up?', topic: 'finance_health', conversationId: 3 }));
       await stream.reject(new Error('x'));
+    });
+  });
+
+  describe('request source and actions', () => {
+    const lastCall = () => service.streamAiChat.mock.calls.at(-1)[0];
+
+    const proposalMessage = (id, status = 'awaiting_confirmation', title = 'Create an event') => ({
+      id,
+      role: 'assistant',
+      content: `Proposal ${id}.`,
+      status: 'completed',
+      feedback: null,
+      payload: {
+        action: {
+          key: 'create_event',
+          title,
+          status,
+          submit_label: `Create ${id}`,
+          fields: [{ name: 'title', label: `Title ${id}`, type: 'text', required: true, value: 'Assembly', max: 255, help: null, options: null }],
+          errors: {},
+          result: null,
+          expires_at: new Date(Date.now() + 600000).toISOString(),
+        },
+      },
+    });
+
+    it('marks a composer send as typed', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('create an event');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      expect(lastCall().source).toBe('typed');
+      await stream.reject(new Error('x'));
+    });
+
+    it('marks a starter prompt as a link', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      fireEvent.click(screen.getByRole('button', { name: 'Who has not submitted?' }));
+      expect(lastCall().source).toBe('link');
+      await stream.reject(new Error('x'));
+    });
+
+    it('marks the ?q= address as a link', async () => {
+      const stream = deferredStream();
+      renderPage('/dashboard/ask-ai?q=Create%20an%20event&topic=x');
+      await waitFor(() => expect(service.streamAiChat).toHaveBeenCalledTimes(1));
+      expect(lastCall().source).toBe('link');
+      await stream.reject(new Error('x'));
+    });
+
+    it('marks a follow-up chip as a link', async () => {
+      service.getAiConversation.mockResolvedValue({
+        data: { conversation: conversation(3, 'One'), messages: [{ id: 1, role: 'user', content: 'q', status: 'completed', payload: null }, storedAnswer(2, 'A.')] },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      await screen.findByText('A.');
+      const stream = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'blocks:Answer title' }));
+      expect(lastCall().source).toBe('link');
+      await stream.reject(new Error('x'));
+    });
+
+    it('keeps the source on Try again after a failed send', async () => {
+      const first = deferredStream();
+      renderPage();
+      await ready();
+      type('create an event');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await first.reject(Object.assign(new Error('x'), { status: 500 }));
+      const second = deferredStream();
+      fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+      expect(lastCall().source).toBe('typed');
+      await second.reject(Object.assign(new Error('x'), { status: 500 }));
+    });
+
+    it('regenerates a typed answer as typed and a stored one as a link', async () => {
+      const stream = deferredStream();
+      renderPage();
+      await ready();
+      type('how is finance?');
+      fireEvent.keyDown(composer(), { key: 'Enter' });
+      await stream.emit('meta', { conversation: conversation(12, 'Finance'), user_message: { id: 1, role: 'user', content: 'how is finance?' } });
+      await stream.resolve({ conversation: conversation(12, 'Finance'), message: storedAnswer(2, 'Fine.') });
+      await screen.findByText('Fine.');
+      const again = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+      expect(lastCall()).toEqual(expect.objectContaining({ regenerate: true, source: 'typed' }));
+      await again.reject(new Error('x'));
+    });
+
+    it('regenerates an answer loaded from history as a link', async () => {
+      service.getAiConversation.mockResolvedValue({
+        data: { conversation: conversation(3, 'One'), messages: [{ id: 1, role: 'user', content: 'q', status: 'completed', payload: null }, storedAnswer(2, 'A.')] },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      await screen.findByText('A.');
+      const stream = deferredStream();
+      fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
+      expect(lastCall()).toEqual(expect.objectContaining({ regenerate: true, source: 'link' }));
+      await stream.reject(new Error('x'));
+    });
+
+    it('lets only the newest awaiting card be pressed and replaces a message with the confirmed one', async () => {
+      service.getAiConversation.mockResolvedValue({
+        data: {
+          conversation: conversation(3, 'Actions'),
+          messages: [
+            { id: 1, role: 'user', content: 'one', status: 'completed', payload: null },
+            proposalMessage(2),
+            { id: 3, role: 'user', content: 'two', status: 'completed', payload: null },
+            proposalMessage(4),
+          ],
+        },
+      });
+      renderPage('/dashboard/ask-ai?c=3');
+      await screen.findByText('Proposal 4.');
+      expect(screen.getByLabelText(/^Title 2/)).toHaveAttribute('readonly');
+      expect(screen.getByText('A newer request replaced this one.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create 2' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/^Title 4/)).not.toHaveAttribute('readonly');
+
+      service.confirmAiAction.mockResolvedValue({
+        data: {
+          message: {
+            ...proposalMessage(4, 'done'),
+            content: 'Event created.',
+            payload: { action: { ...proposalMessage(4, 'done').payload.action, result: { message: 'Event created.', href: '/dashboard/events/9', action_label: 'Open event' } } },
+          },
+        },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Create 4' }));
+      expect(await screen.findByRole('link', { name: /Open event/ })).toHaveAttribute('href', '/dashboard/events/9');
+      expect(service.confirmAiAction).toHaveBeenCalledWith(4, { title: 'Assembly' });
+      expect(screen.getByText('A newer request replaced this one.')).toBeInTheDocument();
+    });
+
+    it('tells the person they can ask it to do things, with examples for their role', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
+      try {
+        renderPage();
+        await ready();
+        expect(screen.getByText(/You can also ask me to do things/)).toHaveTextContent('Create an event for Friday at 3 pm');
+        expect(screen.getByText(/You can also ask me to do things/)).toHaveTextContent('Draft an announcement about the general assembly');
+      } finally {
+        localStorage.removeItem('user');
+      }
+    });
+
+    it('leaves the line out when the role is unknown', async () => {
+      renderPage();
+      await ready();
+      expect(screen.queryByText(/You can also ask me to do things/)).not.toBeInTheDocument();
     });
   });
 });

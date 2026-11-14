@@ -16,6 +16,8 @@ use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\OrganizationApplicantGrant;
+use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Transaction;
 use App\Models\User;
@@ -24,6 +26,8 @@ use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
 use App\Services\StudentAccountBalances;
 use App\Support\SemesterScope;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -209,6 +213,8 @@ class AskAiService
         }
         $answer = 'I can read the records your account can already open and put them in plain words. As '.$this->roleName($user->role).' for '.$this->scopeLabel($user).", you can ask me things like:\n\n"
             .implode("\n", $lines)
+            ."\n\nI can also take you to where things get done. Say what you want to do, for example \"".(self::REQUEST_EXAMPLES[$user->role] ?? 'I want to create an event')."\", and I will tell you whether you are ready and open the right page. Here is what I can help you start:\n\n"
+            .implode("\n", $this->capabilityGuideLines($user->role))
             ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I only read: I never approve, assign or publish anything for you.";
 
         return $this->enrichWithFormattedBlocksAndCharts([
@@ -311,6 +317,12 @@ class AskAiService
             return $roleIntent;
         }
 
+        // "I wanna create an org", "book a venue", "can you post an announcement": someone saying what they want to do
+        // is taken to the guide for it, after the role intents above have claimed their own wording.
+        if ($this->isActionRequest($q)) {
+            return 'how_to_guide';
+        }
+
         foreach (self::INTENT_PATTERNS as $intent => $pattern) {
             if (preg_match($pattern, $q) !== 1) {
                 continue;
@@ -363,6 +375,11 @@ class AskAiService
             }
         }
 
+        $payload['follow_ups'] = array_values(array_filter(
+            $payload['follow_ups'] ?? [],
+            fn (array $followUp) => $this->intentAllowed($user, $followUp['topic'])
+        ));
+
         $modelName = null;
         if ($allowModel && $callModel) {
             $enhanced = $this->enhanceWithModel($user, $question, $payload, $rag);
@@ -407,9 +424,387 @@ class AskAiService
             '/\b(how\s+(do|can|should|would|could|does|will)\s+(i|we|you|a|an|the|students?|officers?|admins?|sao|deans?)\b'
             .'|how\s+to\b|steps?\s+(to|for|in|on)\b|step[\s-]by[\s-]step|walk\s+me\s+through|guide\s+me|show\s+me\s+how'
             .'|teach\s+me|where\s+(do|can|should)\s+(i|we)\b|what\s+(is|are)\s+the\s+(steps|process|procedure)'
-            .'|process\s+(of|for|to)\b|procedure\s+(for|to)\b|tutorial|instructions?\s+(for|to|on)\b)/',
+            .'|process\s+(of|for|to)\b|procedure\s+(for|to)\b|tutorial|instructions?\s+(for|to|on)\b|paano\s+(ako\s+|kami\s+)?mag\b)/',
             $q
         ) === 1;
+    }
+
+    // The doing verbs that open a request. Seeing, listing, telling, knowing and checking are left out on purpose:
+    // "show me", "list", "tell me" and "I want to know" stay record questions. "send me" is a record question too.
+    private const REQUEST_VERBS = '(?:create|make|add|register|start|set ?up|open|file|submit|send|book|reserve|post|publish|invite|import|upload|record|approve|endorse|return|order|buy|vote|pay|sign|assign|schedule|plan|draft|write|change|update|delete|remove|archive|close|reset|apply|join|claim|request|enroll)\b(?!\s+(?:me|us)\b)';
+
+    private const REQUEST_OPENERS = '(?:(?:hi|hello|hey|ok|okay|so|um|bro|sir|po)\b[ ,.!]*)*';
+
+    // Whole-word patterns, tried in this order, for the ways people say what they want to do.
+    private const REQUEST_PATTERNS = [
+        'first_person' => '~^'.self::REQUEST_OPENERS.'(?:i(?: would| ?\'d)? (?:like|want|need)|i wanna|let me|let\'s|let us|we(?: would| ?\'d)? (?:like|want|need)|we wanna)(?: to)?\s+(?:also |now |just )?'.self::REQUEST_VERBS.'~',
+        'polite' => '~^'.self::REQUEST_OPENERS.'(?:(?:can you|could you|would you|will you|can u|can i|could i|may i|can we|could we|please|pls|kindly|help me to|help me|i want you to)\s+)+(?:to )?'.self::REQUEST_VERBS.'~',
+        'filipino' => '~^'.self::REQUEST_OPENERS.'(?:gusto|nais|kailangan|pwede|puwede|paki|tulungan)\b(?:\s+(?:ba|po|ko|kong|namin|naming|ako|akong|kami|kaming|na|ng|mo|mong))*\s+(?:mag-?\s?|pa-?)?'.self::REQUEST_VERBS.'~',
+        'imperative' => '~^'.self::REQUEST_OPENERS.'(?:(?:please|pls|just|now|then)\s+)*(?!(?:open|close)\s+(?!an?\b|the\b|my\b|our\b|new\b))'.self::REQUEST_VERBS.'(?!\s+(?:on|about|of|is|are|was|were|has|have|had|for|by|status|history|summary|count|total|details?|number|dates?|times?|results?)\b)\s+\S~',
+    ];
+
+    private const ROLE_SELF = [
+        'SUPER_ADMIN' => 'The SAO',
+        'DEPARTMENT_HEAD' => 'A Department Head',
+        'ADMIN' => 'An Organization Admin',
+        'SBO_OFFICER' => 'An SBO Officer',
+        'STUDENT' => 'A student',
+    ];
+
+    private const ROLE_DOERS = [
+        'SUPER_ADMIN' => 'the SAO',
+        'DEPARTMENT_HEAD' => 'the Department Head',
+        'ADMIN' => 'the Organization Admin',
+        'SBO_OFFICER' => 'an SBO Officer',
+        'STUDENT' => 'a student',
+    ];
+
+    private const ROLE_HOME = [
+        'SUPER_ADMIN' => '/dashboard/super-admin',
+        'DEPARTMENT_HEAD' => '/dashboard/department-head',
+        'ADMIN' => '/dashboard/admin',
+        'SBO_OFFICER' => '/dashboard/officer',
+        'STUDENT' => '/dashboard/student',
+    ];
+
+    private const REQUEST_EXAMPLES = [
+        'SUPER_ADMIN' => 'I want to invite a dean',
+        'DEPARTMENT_HEAD' => 'I wanna create an org',
+        'ADMIN' => 'I need to create an event',
+        'SBO_OFFICER' => 'I want to book a venue',
+        'STUDENT' => 'I want to file a grievance',
+    ];
+
+    // The closest page a role can open for a kind of work it cannot do: [path, button label, what the person can do there].
+    private const NEAREST_PAGES = [
+        'Events' => [['/dashboard/events/activity-calendar', 'Open the events calendar', 'see what is coming up on the events calendar']],
+        'Venues' => [['/dashboard/events/activity-calendar', 'Open the events calendar', 'see what is coming up on the events calendar']],
+        'Announcements' => [['/dashboard/announcements/view-announcements', 'Open the announcements', 'read the announcements that were posted']],
+        'Members' => [
+            ['/dashboard/department-head/people', 'Open People', 'see the students and staff of your college'],
+            ['/dashboard/super-admin/users', 'Open University users', 'look up the people who have accounts'],
+        ],
+        'Elections' => [['/dashboard/elections', 'Open the elections', 'see the elections and their results']],
+        'Approvals' => [['/dashboard/finance/budget-allocation', 'Open the budgets', 'read the budgets that are already approved']],
+        'Finance' => [
+            ['/dashboard/finance/budget-allocation', 'Open the budgets', 'read the budgets that are already approved'],
+            ['/dashboard/finance/statement-of-account', 'Open my statement of account', 'see what you owe and what you have paid'],
+        ],
+        'Tasks' => [['/dashboard/tasks/assigned-tasks', 'Open My tasks', 'see the tasks that were given to you']],
+        'Merchandise' => [['/dashboard/merchandise/order-merchandise', 'Open the shop', 'look at the merchandise that is on sale']],
+        'Clearances' => [['/dashboard/my-clearance', 'Open My clearance', 'see who has signed your clearance']],
+        'Organizations' => [
+            ['/dashboard/department-head/organizations', 'Open Organizations', 'see the organizations of your college'],
+            ['/dashboard/super-admin/organizations', 'Open Organizations', 'see the organizations and their registrations'],
+        ],
+        'Accreditation & compliance' => [
+            ['/dashboard/compliance', 'Open Compliance', 'see the requirements and what has been sent'],
+            ['/dashboard/department-head/compliance', 'Open College compliance', 'see which organizations still owe files'],
+            ['/dashboard/super-admin/compliance', 'Open Compliance', 'see the requirements and what has been sent'],
+        ],
+    ];
+
+    private function plainQuestion(string $question): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', Str::lower(str_replace(['’', '‘'], "'", $question))));
+    }
+
+    private function isActionRequest(string $q): bool
+    {
+        if ($this->isHowToQuestion($q)) {
+            return false;
+        }
+
+        foreach (self::REQUEST_PATTERNS as $pattern) {
+            if (preg_match($pattern, $q) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** What a guide is called as a thing to do: "create an event". With $own it keeps "your". */
+    private function howToAction(array $guide, bool $own = false): string
+    {
+        $action = (string) ($guide['action'] ?? lcfirst($guide['title']));
+
+        return $own ? $action : (string) preg_replace('/\byour\b/', 'the', $action);
+    }
+
+    /**
+     * The page where this role begins a guide, as a row with a button: the guide's own form link when it has one,
+     * otherwise the first step that has a page this role can open.
+     *
+     * @return null|array{href: string, label: string, page: string, row: array<string, mixed>}
+     */
+    private function howToStart(User $user, array $guide): ?array
+    {
+        $role = $user->role;
+        $first = null;
+        $href = null;
+        foreach ($guide['steps'] as $step) {
+            $href = $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role));
+            if ($href !== null) {
+                $first = $step;
+                break;
+            }
+        }
+
+        if ($first === null) {
+            return null;
+        }
+
+        $segments = explode('→', (string) ($first['where'] ?? $first['title']));
+        $page = trim((string) end($segments));
+        $form = isset($guide['open_path']) ? $this->routeAccess->hrefFor($role, $guide['open_path']) : null;
+        $label = $form !== null ? (string) ($guide['open_label'] ?? $first['title']) : (string) $first['title'];
+
+        return [
+            'href' => $form ?? $href,
+            'label' => $label,
+            'page' => $page,
+            'row' => [
+                'id' => $guide['id'].'-start',
+                'primary' => $label,
+                'secondary' => $form !== null ? 'The form opens ready to fill in.' : $first['detail'],
+                'status' => 'Start here',
+                'status_tone' => 'primary',
+                'meta' => $first['where'] ?? null,
+                'href' => $form ?? $href,
+                'action_label' => $label,
+            ],
+        ];
+    }
+
+    /** A request in the doing voice: where to do it, what happens next, and where the person stands. */
+    private function buildHowToRequest(User $user, array $guide, bool $accessible, array $related): array
+    {
+        if (! $accessible) {
+            return $this->buildHowToWhoCan($user, $guide, $related);
+        }
+
+        $payload = $this->buildHowToGuide($user, $guide, true, $related);
+        $start = $this->howToStart($user, $guide);
+
+        if ($start !== null) {
+            array_unshift($payload['sections'], [
+                'id' => 'how-to-start',
+                'title' => 'Where to start',
+                'description' => null,
+                'empty_message' => '',
+                'rows' => [$start['row']],
+            ]);
+        }
+
+        $doing = $guide['doing'] ?? null;
+        $doing = is_array($doing) ? ($doing[$user->role] ?? null) : $doing;
+        $answer = $doing ?? sprintf(
+            'Yes, you can do that%s. %s',
+            $start !== null ? ', and it starts on the '.$start['page'].' page' : '',
+            $guide['summary']
+        );
+
+        $stands = [];
+        foreach ($payload['sections'] as $section) {
+            if ($section['id'] !== 'how-to-readiness') {
+                continue;
+            }
+            foreach ($section['rows'] as $row) {
+                $stands[] = rtrim((string) $row['primary'], '. ').'.'
+                    .($row['status_tone'] === 'warning' && ! empty($row['secondary']) ? ' '.rtrim((string) $row['secondary'], '. ').'.' : '');
+            }
+        }
+        if ($stands !== []) {
+            $answer .= ' From your records: '.implode(' ', $stands);
+        }
+        if ($start !== null) {
+            $answer .= ' The "'.$start['label'].'" button below takes you there, and the steps are listed under it.';
+        }
+
+        $payload['title'] = $guide['title'];
+        $payload['answer'] = $answer;
+
+        return $payload;
+    }
+
+    /** A request this role cannot carry out: say who can, then offer the closest thing this person can do. */
+    private function buildHowToWhoCan(User $user, array $guide, array $related): array
+    {
+        $role = $user->role;
+        $doers = array_map(fn (string $r) => self::ROLE_DOERS[$r] ?? $r, $guide['roles']);
+        $nearest = $this->howToNearest($user, $guide, $related);
+
+        $answer = sprintf('%s cannot %s in HIUSA; that is done by %s.', self::ROLE_SELF[$role] ?? 'Your role', $this->howToAction($guide), $this->joinPhrases($doers));
+        if ($nearest !== null) {
+            $answer .= ' The nearest thing you can do is '.$nearest['phrase'].', and the button below opens it.';
+        }
+
+        $followUps = array_map(fn (array $g) => [
+            'topic' => 'how_to_guide',
+            'label' => $g['title'],
+            'question' => $g['question'],
+        ], $related);
+        if (count($followUps) < 3) {
+            $followUps[] = [
+                'topic' => 'daily_priorities',
+                'label' => 'What should I do today?',
+                'question' => $this->defaultDailyQuestion($role),
+            ];
+        }
+
+        return [
+            'title' => $guide['title'],
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'Your access', 'value' => 'Other role', 'tone' => 'warning'],
+                ['label' => 'Done by', 'value' => implode(', ', array_map(fn (string $r) => HowToGuideLibrary::ROLE_NAMES[$r] ?? $r, $guide['roles'])), 'tone' => 'info'],
+            ],
+            'sections' => $nearest === null ? [] : [[
+                'id' => 'how-to-nearest',
+                'title' => 'The nearest thing you can do',
+                'description' => null,
+                'empty_message' => '',
+                'rows' => [$nearest['row']],
+            ]],
+            'follow_ups' => array_slice($followUps, 0, 3),
+        ];
+    }
+
+    /**
+     * The closest page this role can open: one of its own guides in the same category, then a page that fits the
+     * category, then one of the related guides, then its own dashboard. Every href goes through the role's allowlist.
+     *
+     * @return null|array{phrase: string, row: array<string, mixed>}
+     */
+    private function howToNearest(User $user, array $guide, array $related): ?array
+    {
+        $role = $user->role;
+        $row = fn (string $label, string $phrase, string $href) => [
+            'phrase' => $phrase,
+            'row' => [
+                'id' => 'how-to-nearest',
+                'primary' => $label,
+                'secondary' => ucfirst($phrase).'.',
+                'status' => 'Closest option',
+                'status_tone' => 'info',
+                'meta' => null,
+                'href' => $href,
+                'action_label' => $label,
+            ],
+        ];
+
+        $own = array_filter($this->guides->forRole($role), fn (array $g) => $g['category'] === $guide['category'] && $g['category'] !== 'Getting around');
+        foreach ([...$own, ...$related] as $candidate) {
+            $start = $this->howToStart($user, $candidate);
+            if ($start !== null) {
+                return $row($start['label'], $this->howToAction($candidate, true), $start['href']);
+            }
+        }
+
+        foreach (self::NEAREST_PAGES[$guide['category']] ?? [] as [$path, $label, $phrase]) {
+            $href = $this->routeAccess->hrefFor($role, $path);
+            if ($href !== null) {
+                return $row($label, $phrase, $href);
+            }
+        }
+
+        $home = $this->routeAccess->hrefFor($role, self::ROLE_HOME[$role] ?? null);
+
+        return $home === null ? null : $row('Open my dashboard', 'start from your dashboard, where your own work is gathered', $home);
+    }
+
+    /** Rows that come from the person's own records for the readiness checks beyond the active semester. */
+    private function howToRecordRows(User $user, array $checks): array
+    {
+        $role = $user->role;
+        $home = $user->organization;
+        $collegeId = $home?->organization_type === 'COLLEGE' && $home->college_id ? (int) $home->college_id : null;
+        $row = fn (string $id, string $primary, ?string $secondary, string $status, string $tone, ?string $href = null, ?string $label = null) => [
+            'id' => 'ready-'.$id,
+            'primary' => $primary,
+            'secondary' => $secondary,
+            'status' => $status,
+            'status_tone' => $tone,
+            'meta' => null,
+            'href' => $href,
+        ] + ($label !== null ? ['action_label' => $label] : []);
+        $rows = [];
+
+        if ($role === 'DEPARTMENT_HEAD' && $collegeId !== null && in_array('college_organizations', $checks, true)) {
+            $counts = Organization::whereIn('id', $user->scopedOrganizationIds())
+                ->selectRaw('lifecycle_status, count(*) as total')->groupBy('lifecycle_status')->pluck('total', 'lifecycle_status');
+            $total = (int) $counts->sum();
+            $parts = [];
+            foreach (['active' => 'active', 'pending' => 'waiting for the SAO', 'returned' => 'returned', 'archived' => 'archived'] as $key => $label) {
+                if ((int) ($counts[$key] ?? 0) > 0) {
+                    $parts[] = $counts[$key].' '.$label;
+                }
+            }
+            $rows[] = $total === 0
+                ? $row('organizations', 'No student organization has started in your college yet', null, 'Your college', 'info')
+                : $row('organizations', 'Your college has '.$this->plural($total, 'student organization'), implode(', ', $parts), 'Your college', 'info');
+        }
+
+        if ($role === 'DEPARTMENT_HEAD' && $collegeId !== null && in_array('applicant_grants', $checks, true)) {
+            $allowed = OrganizationApplicantGrant::query()->where('college_id', $collegeId)->usable()->count();
+            $rows[] = $allowed > 0
+                ? $row('grants', $this->plural($allowed, 'student').' '.$this->be($allowed).' allowed to apply and '.($allowed === 1 ? 'has' : 'have').' not applied yet', 'You can take a permission back from the same list before the student applies.', 'Ready', 'success')
+                : $row('grants', 'No student is allowed to apply yet', 'Choose one with Allow a student to apply.', 'Action needed', 'warning');
+        }
+
+        if (in_array('applications_waiting', $checks, true) && ($role === 'SUPER_ADMIN' || ($role === 'DEPARTMENT_HEAD' && $collegeId !== null))) {
+            $query = OrganizationApplication::query()->where('status', $role === 'SUPER_ADMIN' ? 'pending_sao' : 'pending_dean');
+            if ($role === 'DEPARTMENT_HEAD') {
+                $query->where('college_id', $collegeId);
+            }
+            $waiting = $query->count();
+            $rows[] = $waiting > 0
+                ? $row('applications', $this->plural($waiting, 'application').' '.$this->be($waiting).' waiting for your decision', null, 'Waiting', 'warning', $this->routeAccess->hrefFor($role, '/dashboard/organization-applications'), 'Open applications')
+                : $row('applications', 'No application is waiting for your decision', null, 'Clear', 'success');
+        }
+
+        if ($role === 'STUDENT' && in_array('own_application', $checks, true)) {
+            $application = OrganizationApplication::query()
+                ->where('school_id', $user->school_id)
+                ->whereNotIn('status', OrganizationApplication::LEGACY_UNQUEUED)
+                ->latest('id')->first();
+
+            if ($application !== null) {
+                [$primary, $secondary, $tone] = match ($application->status) {
+                    'pending_dean' => ['Your application is with your Department Head', 'The Department Head endorses it to the SAO or returns it to you.', 'info'],
+                    'pending_sao' => ['Your application is with the SAO', 'The SAO makes the final decision.', 'info'],
+                    'returned' => ['Your application was returned to you', 'Read the notes and send it again from the same page.', 'warning'],
+                    'approved' => ['Your application was approved', 'You are now the Admin of the organization.', 'success'],
+                    default => ['Your application was not approved', null, 'warning'],
+                };
+                $rows[] = $row('application', $primary, $secondary, 'Your application', $tone);
+            } elseif (OrganizationApplicantGrant::query()->usable()->where('user_school_id', $user->school_id)->exists()) {
+                $rows[] = $row('application', 'Your Department Head has allowed you to apply', 'The Apply for an organization page is in your menu.', 'Ready', 'success');
+            } else {
+                $rows[] = $row('application', 'Your Department Head has not allowed you to apply yet', 'The Apply for an organization page opens in your menu once you are allowed.', 'Not yet', 'warning');
+            }
+        }
+
+        return $rows;
+    }
+
+    /** @return array<int, string> */
+    private function capabilityGuideLines(string $role): array
+    {
+        $byCategory = [];
+        foreach ($this->guides->forRole($role) as $guide) {
+            if ($guide['category'] !== 'Getting around') {
+                $byCategory[$guide['category']][] = $this->howToAction($guide, true);
+            }
+        }
+
+        $lines = [];
+        foreach ($byCategory as $category => $actions) {
+            $lines[] = '- **'.$category.'**: '.implode('; ', array_slice($actions, 0, 3)).(count($actions) > 3 ? '; and more' : '');
+        }
+
+        return $lines;
     }
 
     private function moduleAllowed(User $user, string $module): bool
@@ -470,15 +865,19 @@ class AskAiService
         $result = $this->guides->search($question, $role);
         $guide = $result['best'];
 
+        $request = $this->isActionRequest($this->plainQuestion($question));
+
         if ($guide === null) {
-            $payload = $this->buildHowToCatalog($user, $question);
+            $payload = $this->buildHowToCatalog($user, $question, $request);
+        } elseif ($request) {
+            $payload = $this->buildHowToRequest($user, $guide, (bool) $result['accessible'], $result['related']);
         } else {
             $payload = $this->buildHowToGuide($user, $guide, (bool) $result['accessible'], $result['related']);
         }
 
         $payload['model_name'] = null;
         $payload['rag_metadata'] = [
-            'engine' => 'Procedural Knowledge RAG (BM25 + Trigram over role guides)',
+            'engine' => 'HIUSA guides',
             'corpus_size' => $result['total'],
             'retrieved_count' => $guide === null ? 0 : 1 + count($result['related']),
             'domains_searched' => $result['categories'],
@@ -654,7 +1053,7 @@ class AskAiService
             }
         }
 
-        return $rows;
+        return [...$rows, ...$this->howToRecordRows($user, $checks)];
     }
 
     private function semesterLabel(int $number): string
@@ -667,7 +1066,7 @@ class AskAiService
         };
     }
 
-    private function buildHowToCatalog(User $user, string $question): array
+    private function buildHowToCatalog(User $user, string $question, bool $request = false): array
     {
         $role = $user->role;
         $guides = $this->guides->forRole($role);
@@ -697,11 +1096,13 @@ class AskAiService
         return [
             'title' => 'How-to guides for your role',
             'answer' => sprintf(
-                'I could not match "%s" to one procedure. I can walk you through %s for %s, so ask about any of them, for example "%s".',
+                $request
+                    ? 'I could not tell which task you mean by "%s". I can take you to the right page for %s for %s, so say which one you want to start, for example "%s".'
+                    : 'I could not match "%s" to one procedure. I can walk you through %s for %s, so ask about any of them, for example "%s".',
                 Str::limit($question, 80),
-                $this->plural(count($guides), 'guide'),
+                $this->plural(count($guides), $request ? 'task' : 'guide'),
                 HowToGuideLibrary::ROLE_NAMES[$role] ?? $role,
-                $guides[0]['question'] ?? 'How do I use Ask AI?'
+                $request ? (self::REQUEST_EXAMPLES[$role] ?? 'I want to create an event') : ($guides[0]['question'] ?? 'How do I use Ask AI?')
             ),
             'highlights' => [
                 ['label' => 'Guides available', 'value' => (string) count($guides), 'tone' => 'primary'],
@@ -780,7 +1181,7 @@ class AskAiService
                     ->whereIn('organization_id', Organization::student()->where('is_university_wide', true)->select('id'))));
         }
 
-        return $approvals->whereIn('organization_id', $user->role === 'ADMIN' ? [(int) $user->organization_id] : $organizationIds->all());
+        return $approvals->whereIn('organization_id', $organizationIds->all());
     }
 
     /**
@@ -832,10 +1233,10 @@ class AskAiService
                 ->where('lifecycle_status', 'pending')
                 ->count();
             $pendingCompliance = DB::table('organization_compliance_submissions')
+                ->whereIn('organization_id', $organizationIds)
                 ->where('status', 'submitted')
                 ->count();
-            $approvalCounts = ApprovalRequest::where('required_role', 'SUPER_ADMIN')
-                ->where('status', 'pending')
+            $approvalCounts = $this->awaitingApprovalsQuery($user, $organizationIds)
                 ->selectRaw('entity_type, COUNT(*) as total')
                 ->groupBy('entity_type')
                 ->pluck('total', 'entity_type');
@@ -844,8 +1245,7 @@ class AskAiService
             $pendingApprovals = (int) $approvalCounts->sum();
             $pendingOtherApprovals = $pendingApprovals - $pendingEventApprovals - $pendingReportApprovals;
             $pendingVenues = DB::table('venue_bookings')->where('status', 'pending')->count();
-            $urgentGrievances = DB::table('grievances')
-                ->whereNotIn('status', ['resolved', 'dismissed'])
+            $urgentGrievances = $this->openGrievancesQuery()
                 ->whereRaw('LOWER(urgency) in (?, ?)', ['high', 'critical'])
                 ->count();
             $pendingClearances = DB::table('clearance_signatures')
@@ -1013,13 +1413,11 @@ class AskAiService
         if ($role === 'DEPARTMENT_HEAD') {
             $orgIds = $organizationIds->all();
             $activeOrgCount = $this->activeOrganizationIds($organizationIds)->count();
-            $pendingApprovals = ApprovalRequest::where('required_role', 'DEPARTMENT_HEAD')
-                ->where('status', 'pending')
+            $pendingApprovals = $this->awaitingApprovalsQuery($user, $organizationIds)
                 ->where('entity_type', '!=', 'financial_report')
-                ->whereIn('organization_id', $orgIds)
                 ->count();
             $returnedOrgs = DB::table('organizations')
-                ->whereIn('id', $orgIds)
+                ->whereIn('id', $this->scopedStudentOrganizationIds($user, false))
                 ->where('lifecycle_status', 'returned')
                 ->count();
             $orgsWithoutAdmin = DB::table('organizations')
@@ -1265,8 +1663,8 @@ class AskAiService
         $orgId = (int) $user->organization_id;
         $isOfficer = $role === 'SBO_OFFICER';
 
-        $overdueTasksQuery = DB::table('tasks')->where('organization_id', $orgId)->where('status', 'overdue');
-        $openTasksQuery = DB::table('tasks')->where('organization_id', $orgId)->whereIn('status', ['pending', 'in_progress']);
+        $overdueTasksQuery = $this->inSelectedSemester(DB::table('tasks')->where('organization_id', $orgId)->where('status', 'overdue'), 'academic_semester_id');
+        $openTasksQuery = $this->inSelectedSemester(DB::table('tasks')->where('organization_id', $orgId)->whereIn('status', ['pending', 'in_progress']), 'academic_semester_id');
         if ($isOfficer) {
             $overdueTasksQuery->where('assigned_to', $user->school_id);
             $openTasksQuery->where('assigned_to', $user->school_id);
@@ -1275,27 +1673,21 @@ class AskAiService
         $openTasks = $openTasksQuery->count();
 
         $pendingApprovals = $role === 'ADMIN'
-            ? ApprovalRequest::where('required_role', 'ADMIN')->where('organization_id', $orgId)->where('status', 'pending')->count()
+            ? $this->awaitingApprovalsQuery($user, $organizationIds)->count()
             : 0;
 
         $ordersToVerify = $this->moduleAllowed($user, 'merchandise')
-            ? DB::table('orders')
-                ->where('organization_id', $orgId)
-                ->where('status', 'pending')
-                ->where('officer_review_status', 'pending')
-                ->whereNotNull('payment_proof_url')
-                ->count()
+            ? $this->ordersReadyForReview(DB::table('orders')->where('orders.organization_id', $orgId))->count()
             : 0;
 
         $missingComplianceCount = $this->moduleAllowed($user, 'compliance')
             ? count($this->missingComplianceRequirementsForOrganization($orgId))
             : 0;
         $staleEvents = $this->moduleAllowed($user, 'events')
-            ? DB::table('events')
+            ? $this->inSelectedSemester(DB::table('events')
                 ->where('organization_id', $orgId)
                 ->whereIn('status', ['approved', 'ongoing'])
-                ->where('end_time', '<', now())
-                ->count()
+                ->where('end_time', '<', now()), 'academic_semester_id')->count()
             : 0;
 
         $rows = [];
@@ -1324,11 +1716,12 @@ class AskAiService
             ];
         }
         if ($missingComplianceCount > 0) {
+            $notSubmitted = ucfirst($this->plural($missingComplianceCount, 'requirement')).' '.$this->be($missingComplianceCount).' not submitted yet or '.($missingComplianceCount === 1 ? 'was' : 'were').' returned.';
             $rows[] = [
                 'id' => 'org-missing-compliance',
-                'primary' => 'Upload your missing compliance files',
-                'secondary' => ucfirst($this->plural($missingComplianceCount, 'requirement')).' '.$this->be($missingComplianceCount).' not submitted yet or '.($missingComplianceCount === 1 ? 'was' : 'were').' returned.',
-                'status' => 'Incomplete',
+                'primary' => $isOfficer ? 'Your organization still owes compliance files' : 'Upload your missing compliance files',
+                'secondary' => $isOfficer ? $notSubmitted.' Your organization head uploads these.' : $notSubmitted,
+                'status' => $isOfficer ? 'Waiting for the organization head' : 'Incomplete',
                 'status_tone' => 'warning',
                 'meta' => "{$missingComplianceCount} missing",
                 'href' => $this->routeAccess->hrefFor($role, '/dashboard/compliance'),
@@ -1377,13 +1770,16 @@ class AskAiService
             $overdueTasks > 0 ? $this->plural($overdueTasks, 'overdue task') : null,
             $openTasks > 0 ? $this->plural($openTasks, 'active task') : null,
             $pendingApprovals > 0 ? $this->plural($pendingApprovals, 'request').' waiting for your approval' : null,
-            $missingComplianceCount > 0 ? $this->plural($missingComplianceCount, 'missing or returned compliance requirement') : null,
+            $missingComplianceCount > 0 && ! $isOfficer ? $this->plural($missingComplianceCount, 'missing or returned compliance requirement') : null,
             $ordersToVerify > 0 ? $this->plural($ordersToVerify, 'order').' waiting for a payment check' : null,
             $staleEvents > 0 ? $this->plural($staleEvents, 'ended event').' to close' : null,
         ]));
+        $owedByHead = $isOfficer && $missingComplianceCount > 0
+            ? ' Your organization head still has '.$this->plural($missingComplianceCount, 'compliance requirement').' to upload.'
+            : '';
         $answer = $standing !== []
-            ? "Today for {$organizationName} you have ".$this->joinPhrases($standing).'.'
-            : "Nothing needs you today for {$organizationName}. There are no open tasks, missing requirements, payment checks or ended events to close.";
+            ? "Today for {$organizationName} you have ".$this->joinPhrases($standing).'.'.$owedByHead
+            : "Nothing needs you today for {$organizationName}. There are no open tasks, ".($isOfficer ? '' : 'missing requirements, ').'payment checks or ended events to close.'.$owedByHead;
 
         return [
             'title' => $isOfficer ? "Today's Officer Action Plan" : "Today's Organization Action Plan",
@@ -1567,7 +1963,7 @@ class AskAiService
                         'id' => 'orgs-missing-compliance',
                         'title' => 'Organizations Missing Compliance Documents',
                         'description' => $this->showingFirst($missingComplianceTotal),
-                        'empty_message' => 'Every organization in scope has submitted all active compliance requirements.',
+                        'empty_message' => 'Every active organization has submitted all its compliance requirements.',
                         'rows' => array_slice($missingComplianceRows, 0, self::ROW_LIMIT),
                     ],
                     [
@@ -1669,6 +2065,9 @@ class AskAiService
             Str::plural('event', $eventTotal),
             $reportSentence
         );
+        if ($complianceTotal > 0 && $this->linkTo($user, '/dashboard/compliance') === null) {
+            $answer .= ' Your organization head uploads the compliance files.';
+        }
 
         return [
             'title' => 'Missing or Returned Requirements',
@@ -1874,19 +2273,7 @@ class AskAiService
             ];
         }
 
-        $approvalsQuery = ApprovalRequest::with('requester:school_id,first_name,last_name')
-            ->where('status', 'pending')
-            ->where('required_role', $user->approvalRole())
-            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
-
-        if ($role === 'SUPER_ADMIN') {
-            $saoEntityTypes = ['financial_report', 'event', ...(config('approvals.budget_final') === 'SUPER_ADMIN' ? ['budget'] : [])];
-            $approvalsQuery->where(fn ($allowed) => $allowed->whereIn('entity_type', $saoEntityTypes)
-                ->orWhere(fn ($unified) => $unified->whereIn('entity_type', ['budget', 'election'])
-                    ->whereIn('organization_id', Organization::student()->where('is_university_wide', true)->select('id'))));
-        } else {
-            $approvalsQuery->whereIn('organization_id', $orgIds);
-        }
+        $approvalsQuery = $this->awaitingApprovalsQuery($user, $organizationIds)->with('requester:school_id,first_name,last_name');
 
         $totalPendingApprovals = (clone $approvalsQuery)->count();
         $approvals = $approvalsQuery->orderBy('requested_at')->limit(self::ROW_LIMIT)->get();
@@ -1902,7 +2289,7 @@ class AskAiService
                 'id' => 'app-'.$req->id,
                 'primary' => $this->entityLabels->for($req),
                 'secondary' => Str::headline($req->entity_type)." · {$orgName} · Requested by {$requester}",
-                'status' => 'Pending '.$this->roleName($req->required_role),
+                'status' => 'Waiting for '.$this->reviewerName($req->required_role),
                 'status_tone' => 'warning',
                 'meta' => $req->requested_at ? $req->requested_at->diffForHumans() : 'Pending',
                 'href' => $this->linkTo($user, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organization-approvals' : '/dashboard/approvals'),
@@ -1985,7 +2372,7 @@ class AskAiService
     private function buildOrganizationsWithoutAdmin(User $user, Collection $organizationIds): array
     {
         $role = $user->role;
-        $orgIds = $organizationIds->all();
+        $orgIds = $this->scopedStudentOrganizationIds($user, false)->all();
 
         $noAdminOrgs = DB::table('organizations')
             ->whereIn('id', $orgIds)
@@ -2029,11 +2416,11 @@ class AskAiService
                     'description' => trim(($role === 'SUPER_ADMIN'
                         ? 'The Department Head names the admin of a college organization, and you name the admin of a university-wide one.'
                         : 'Open an organization and use Give access to name its head.').' '.$this->showingFirst($noAdminOrgs->count())),
-                    'empty_message' => 'Every active organization in scope has an assigned administrator.',
+                    'empty_message' => 'Every active organization has an organization head.',
                     'rows' => $noAdminOrgs->take(self::ROW_LIMIT)->map(fn ($org) => [
                         'id' => 'noadmin-'.$org->id,
                         'primary' => $org->acronym ? "{$org->name} ({$org->acronym})" : $org->name,
-                        'secondary' => 'Active organization with no active ADMIN profile',
+                        'secondary' => 'No organization head has been named yet',
                         'status' => 'Needs admin',
                         'status_tone' => 'warning',
                         'meta' => 'Active',
@@ -2085,9 +2472,7 @@ class AskAiService
             $query->where('tasks.assigned_to', $user->school_id);
         }
 
-        if ($semesterId = AcademicSemester::selected()?->id) {
-            $query->where('tasks.academic_semester_id', $semesterId);
-        }
+        $this->inSelectedSemester($query, 'tasks.academic_semester_id');
 
         $overdueCount = (clone $query)->where('tasks.status', 'overdue')->count();
         $openCount = (clone $query)->whereIn('tasks.status', ['pending', 'in_progress'])->count();
@@ -2256,7 +2641,8 @@ class AskAiService
         return [
             'title' => 'Budget Utilization & Financial Status',
             'answer' => sprintf(
-                'Approved budgets in scope total ₱%s allocated with ₱%s remaining, and %d student %s %s unpaid.',
+                '%s approved budgets total ₱%s allocated with ₱%s remaining, and %d student %s %s unpaid.',
+                ucfirst($this->ownerPhrase($user)),
                 number_format($allocated, 2),
                 number_format($remaining, 2),
                 $unpaidInvoicesCount,
@@ -2273,7 +2659,7 @@ class AskAiService
                     'id' => 'approved-budgets-list',
                     'title' => 'Approved Budgets',
                     'description' => $this->showingFirst($budgetTotal, 'largest allocation first'),
-                    'empty_message' => 'No approved budgets recorded in scope.',
+                    'empty_message' => 'No approved budgets are recorded yet.',
                     'rows' => $approvedBudgets->map(function ($b) use ($budgetOrgs, $spentByBudget, $budgetHref) {
                         $org = $budgetOrgs->get($b->organization_id);
                         $spent = (float) ($spentByBudget[$b->id] ?? 0);
@@ -2329,10 +2715,7 @@ class AskAiService
             $query->where('orders.student_id', $user->school_id);
         }
 
-        $readyForReview = fn ($orders) => $orders->where('orders.status', 'pending')->where('orders.officer_review_status', 'pending')
-            ->where(fn ($ready) => $ready->whereNotNull('orders.payment_proof_url')
-                ->orWhereNull('orders.payment_method')->orWhere('orders.payment_method', '!=', 'gcash'));
-        $awaitingVerification = $readyForReview(clone $query)->count();
+        $awaitingVerification = $this->ordersReadyForReview(clone $query)->count();
         $awaitingPayment = (clone $query)->where('orders.status', 'pending')->whereNull('orders.payment_proof_url')->where('orders.payment_method', 'gcash')->count();
         $readyToClaim = (clone $query)->where('orders.status', 'paid')->count();
         $queueTotal = (clone $query)->whereIn('orders.status', ['pending', 'paid'])->count();
@@ -2442,27 +2825,30 @@ class AskAiService
                 'organizations.acronym as org_acronym',
             ]);
 
-        $staleEventsCount = DB::table('events')
+        $staleEventsCount = $this->inSelectedSemester(DB::table('events')
             ->whereIn('organization_id', $orgIds)
             ->whereIn('status', ['approved', 'ongoing'])
-            ->where('end_time', '<', now())
-            ->when($semesterId, fn ($events) => $events->where('academic_semester_id', $semesterId))
-            ->count();
+            ->where('end_time', '<', now()), 'academic_semester_id')->count();
 
         $href = $this->linkTo($user, '/dashboard/events/activity-calendar');
+        $closesEvents = in_array($role, ['ADMIN', 'SBO_OFFICER'], true);
 
         return [
             'title' => 'Upcoming Events & Attendance Status',
-            'answer' => sprintf(
-                '%d %s upcoming or ongoing, and %d past %s still open and should be marked completed.',
-                $upcomingTotal,
-                $upcomingTotal === 1 ? 'event is' : 'events are',
-                $staleEventsCount,
-                $staleEventsCount === 1 ? 'event is' : 'events are'
-            ),
+            'answer' => match (true) {
+                $role === 'STUDENT' => sprintf('%s coming up for your organization.', ucfirst($this->plural($upcomingTotal, 'event').' '.$this->be($upcomingTotal))),
+                $closesEvents => sprintf(
+                    '%d %s upcoming or ongoing, and %d past %s still open and should be marked completed.',
+                    $upcomingTotal,
+                    $upcomingTotal === 1 ? 'event is' : 'events are',
+                    $staleEventsCount,
+                    $staleEventsCount === 1 ? 'event is' : 'events are'
+                ),
+                default => sprintf('%s upcoming or ongoing.', ucfirst($this->plural($upcomingTotal, 'event').' '.$this->be($upcomingTotal))),
+            },
             'highlights' => [
                 ['label' => 'Upcoming / ongoing', 'value' => (string) $upcomingTotal, 'tone' => 'primary'],
-                ['label' => 'Needs closing', 'value' => (string) $staleEventsCount, 'tone' => $staleEventsCount > 0 ? 'warning' : 'neutral'],
+                ...($closesEvents ? [['label' => 'Needs closing', 'value' => (string) $staleEventsCount, 'tone' => $staleEventsCount > 0 ? 'warning' : 'neutral']] : []),
             ],
             'sections' => [
                 [
@@ -2482,10 +2868,17 @@ class AskAiService
                     ])->all(),
                 ],
             ],
-            'follow_ups' => [
-                ['topic' => 'missing_submissions', 'label' => 'Missing event files?', 'question' => "What compliance requirements, event files, or reports haven't we submitted?"],
-                ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
-            ],
+            'follow_ups' => $role === 'STUDENT'
+                ? [
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What do I need to do today?'],
+                    ['topic' => 'elections_status', 'label' => 'Can I vote?', 'question' => 'Are there elections I can vote in?'],
+                ]
+                : [
+                    ['topic' => 'missing_submissions', 'label' => 'Missing event files?', 'question' => $closesEvents
+                        ? "What compliance requirements, event files, or reports haven't we submitted?"
+                        : "Which organizations haven't submitted compliance or financial reports?"],
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+                ],
         ];
     }
 
@@ -2514,19 +2907,27 @@ class AskAiService
 
             $pending = $sigs->where('status', 'pending')->count();
             $held = $sigs->where('status', 'held')->count();
-            $signed = $sigs->whereIn('status', ['signed', 'approved', 'cleared'])->count();
+            $signedSigs = $sigs->whereIn('status', ['signed', 'approved', 'cleared']);
+            $signed = $signedSigs->count();
+            $signatory = fn ($sig) => match (Str::lower((string) $sig->required_role)) {
+                'organization' => 'your organization',
+                'department_head' => 'the Department Head',
+                'sao' => 'the SAO',
+                default => 'a signatory',
+            };
+            $named = fn ($group) => $this->joinPhrases($group->map($signatory)->unique()->values()->all());
+            $clearanceSentences = array_values(array_filter([
+                $signed > 0 ? ucfirst($named($signedSigs)).' '.($signed === 1 ? 'has' : 'have').' signed.' : null,
+                $pending > 0 ? ucfirst($named($sigs->where('status', 'pending'))).' '.($pending === 1 ? 'has' : 'have').' not signed yet.' : null,
+                $held > 0 ? ucfirst($named($sigs->where('status', 'held'))).' '.($held === 1 ? 'is' : 'are').' holding your clearance'
+                    .(filled($sigs->where('status', 'held')->first()->remarks) ? ': "'.Str::limit(trim((string) $sigs->where('status', 'held')->first()->remarks), 160).'"' : '').'.' : null,
+            ]));
 
             return [
                 'title' => 'Your Clearance Signatories Breakdown',
-                'answer' => sprintf(
-                    'On your clearance, %d %s signed, %d %s pending and %d %s on hold.',
-                    $signed,
-                    $signed === 1 ? 'signature is' : 'signatures are',
-                    $pending,
-                    $pending === 1 ? 'is' : 'are',
-                    $held,
-                    $held === 1 ? 'is' : 'are'
-                ),
+                'answer' => $sigs->isEmpty()
+                    ? 'No clearance signatures are assigned to your account yet.'
+                    : implode(' ', $clearanceSentences),
                 'highlights' => [
                     ['label' => 'Signed', 'value' => (string) $signed, 'tone' => 'success'],
                     ['label' => 'Pending', 'value' => (string) $pending, 'tone' => $pending > 0 ? 'warning' : 'neutral'],
@@ -2540,9 +2941,22 @@ class AskAiService
                         'empty_message' => 'No active clearance period signatures are assigned to your account.',
                         'rows' => $sigs->map(fn ($sig) => [
                             'id' => 'sig-'.$sig->id,
-                            'primary' => Str::upper($sig->required_role).' — '.($sig->org_name ?: 'University'),
-                            'secondary' => $sig->remarks ?: ($sig->status === 'pending' ? 'Awaiting review by signatory' : 'Cleared'),
-                            'status' => Str::headline($sig->status),
+                            'primary' => match (Str::lower((string) $sig->required_role)) {
+                                'organization' => $sig->org_name ?: 'Your organization',
+                                'department_head' => 'Department Head',
+                                'sao' => 'SAO',
+                                default => Str::headline((string) $sig->required_role),
+                            },
+                            'secondary' => $sig->remarks ?: match ($sig->status) {
+                                'pending' => 'Has not signed yet',
+                                'held' => 'On hold',
+                                default => 'Cleared',
+                            },
+                            'status' => match ($sig->status) {
+                                'pending' => 'Waiting for '.$signatory($sig),
+                                'held' => 'Held by '.$signatory($sig),
+                                default => Str::headline($sig->status),
+                            },
                             'status_tone' => match ($sig->status) {
                                 'held' => 'danger',
                                 'pending' => 'warning',
@@ -2618,10 +3032,10 @@ class AskAiService
                     'rows' => $rows->map(fn ($r) => [
                         'id' => 'clr-'.$r->id,
                         'primary' => "{$r->first_name} {$r->last_name} ({$r->school_id})",
-                        'secondary' => $r->remarks ?: 'Stage: '.Str::upper($r->required_role),
+                        'secondary' => $r->remarks ?: ($r->status === 'held' ? 'On hold' : 'Waiting for your signature'),
                         'status' => Str::headline($r->status),
                         'status_tone' => $r->status === 'held' ? 'danger' : 'warning',
-                        'meta' => Str::upper($r->required_role),
+                        'meta' => $r->status === 'held' ? 'On hold' : 'Waiting for your signature',
                         'href' => $href,
                         'action_label' => 'Review',
                     ])->all(),
@@ -2645,6 +3059,10 @@ class AskAiService
             : $user->electionOrganizationIds();
         $memberView = $role === 'STUDENT'
             || ($role === 'SBO_OFFICER' && $user->activeProfile() !== null && ! $user->activeProfile()->allowsModule('elections'));
+
+        if ($memberView) {
+            return $this->buildMemberElections($user);
+        }
 
         $electionQuery = DB::table('elections')
             ->join('organizations', 'organizations.id', '=', 'elections.organization_id')
@@ -2706,6 +3124,99 @@ class AskAiService
         ];
     }
 
+    /** What a voter can do in each election open to them: vote now, already voted, not on the voter list, or wait. */
+    private function buildMemberElections(User $user): array
+    {
+        $schoolId = (int) $user->school_id;
+        $elections = Election::with('organization:id,name,acronym')
+            ->whereIn('organization_id', $user->votingOrganizationIds())
+            ->whereNull('cancelled_at')
+            ->whereNotNull('finalized_at')
+            ->where(fn ($open) => $open->whereIn('status', ['active', 'upcoming'])->orWhere('phase', 'runoff'))
+            ->when(AcademicSemester::selected()?->id, fn ($query, $semesterId) => $query
+                ->where(fn ($period) => $period->where('academic_semester_id', $semesterId)->orWhereNull('academic_semester_id')))
+            ->orderBy('end_time')
+            ->get();
+
+        $counts = ['open' => 0, 'voted' => 0, 'unlisted' => 0];
+        $upcoming = 0;
+        $rows = [];
+        foreach ($elections as $election) {
+            $round = $election->openRound();
+            $organization = $election->organization?->acronym ?: $election->organization?->name;
+            $title = $election->title.($organization ? ' — '.$organization : '');
+
+            if ($round === null) {
+                if ($election->start_time === null || ! $election->start_time->isFuture()) {
+                    continue;
+                }
+                $upcoming++;
+                $rows[] = [
+                    'id' => 'el-'.$election->id,
+                    'primary' => $title,
+                    'secondary' => 'Voting opens '.$election->start_time->format('M j, Y g:i A'),
+                    'status' => 'Coming up',
+                    'status_tone' => 'info',
+                    'meta' => $election->start_time->diffForHumans(),
+                    'href' => $this->linkTo($user, '/dashboard/elections/election-info', '/dashboard/elections'),
+                    'action_label' => 'View details',
+                ];
+
+                continue;
+            }
+
+            $closes = $round === 2 ? $election->runoff_ends_at : $election->end_time;
+            $state = match (true) {
+                ElectionBallot::hasVoted($election->id, $schoolId, $round) => 'voted',
+                ! $election->listsVoter($schoolId) => 'unlisted',
+                default => 'open',
+            };
+            $counts[$state]++;
+
+            $rows[] = [
+                'id' => 'el-'.$election->id,
+                'primary' => $title,
+                'secondary' => ($round === 2 ? 'Runoff closes ' : 'Closes ').$closes->format('M j, Y g:i A'),
+                'status' => ['voted' => 'You have voted', 'unlisted' => 'You are not on the voter list', 'open' => 'You can vote now'][$state],
+                'status_tone' => ['voted' => 'success', 'unlisted' => 'warning', 'open' => 'info'][$state],
+                'meta' => $closes->diffForHumans(),
+                'href' => $state === 'open'
+                    ? $this->linkTo($user, '/dashboard/elections/cast-vote', '/dashboard/elections')
+                    : $this->linkTo($user, '/dashboard/elections/election-info', '/dashboard/elections'),
+                'action_label' => $state === 'open' ? 'Cast vote' : 'View details',
+            ];
+        }
+
+        ['open' => $canVote, 'voted' => $voted, 'unlisted' => $notListed] = $counts;
+        $answer = $rows === []
+            ? 'No election is open or coming up for you right now.'
+            : sprintf('You can vote in %s now; you have already voted in %d.', $this->plural($canVote, 'election'), $voted)
+                .($notListed > 0 ? ' You are not on the voter list for '.$this->plural($notListed, 'election').'.' : '')
+                .($upcoming > 0 ? ' '.ucfirst($this->plural($upcoming, 'election')).' '.$this->be($upcoming).' coming up.' : '');
+
+        return [
+            'title' => 'Your Elections',
+            'answer' => $answer,
+            'highlights' => [
+                ['label' => 'You can vote in', 'value' => (string) $canVote, 'tone' => $canVote > 0 ? 'primary' : 'neutral'],
+                ['label' => 'Already voted', 'value' => (string) $voted, 'tone' => $voted > 0 ? 'success' : 'neutral'],
+                ['label' => 'Coming up', 'value' => (string) $upcoming, 'tone' => 'neutral'],
+            ],
+            'sections' => [
+                [
+                    'id' => 'elections-status-list',
+                    'title' => 'Elections Schedule',
+                    'description' => $this->showingFirst(count($rows), 'closing soonest first'),
+                    'empty_message' => 'No active or upcoming elections right now.',
+                    'rows' => array_slice($rows, 0, self::ROW_LIMIT),
+                ],
+            ],
+            'follow_ups' => [
+                ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+            ],
+        ];
+    }
+
     // -------------------------------------------------------------------------
     // Intent 12: Grievances Status (SAO only, privacy-preserving)
     // -------------------------------------------------------------------------
@@ -2716,9 +3227,7 @@ class AskAiService
             return $this->buildDailyPriorities($user, $this->scopedStudentOrganizationIds($user));
         }
 
-        $grievanceQuery = DB::table('grievances')
-            ->whereNull('deleted_at')
-            ->whereNotIn('status', ['resolved', 'dismissed']);
+        $grievanceQuery = $this->openGrievancesQuery();
         $openCount = (clone $grievanceQuery)->count();
         $urgentCount = (clone $grievanceQuery)->whereRaw('LOWER(urgency) in (?, ?)', ['high', 'critical'])->count();
         $openGrievances = $grievanceQuery
@@ -2852,16 +3361,19 @@ class AskAiService
         return $order ? ucfirst($order).'.' : null;
     }
 
-    private function scopedStudentOrganizationIds(User $user): Collection
+    private function scopedStudentOrganizationIds(User $user, bool $activeOnly = true): Collection
     {
         if ($user->role === 'SUPER_ADMIN') {
             return DB::table('organizations')
                 ->where('organization_type', 'STUDENT_ORGANIZATION')
+                ->when($activeOnly, fn ($organizations) => $organizations->where('lifecycle_status', 'active'))
                 ->pluck('id');
         }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
-            return collect($user->scopedOrganizationIds());
+            $scoped = collect($user->scopedOrganizationIds());
+
+            return $activeOnly ? $this->activeOrganizationIds($scoped) : $scoped;
         }
 
         return collect([(int) $user->organization_id]);
@@ -2887,6 +3399,9 @@ class AskAiService
         $sections = array_map(function (array $section): array {
             $rows = array_map(function (array $row): array {
                 $row['progress_percent'] = $this->inferRowProgressPercent($row);
+                if (($row['href'] ?? null) === null) {
+                    unset($row['action_label']);
+                }
 
                 return $row;
             }, $section['rows'] ?? []);
@@ -2954,7 +3469,7 @@ class AskAiService
             'id' => $intent.'-status-distribution',
             'type' => 'distribution',
             'title' => 'Record Status Breakdown',
-            'subtitle' => sprintf('Distribution across %d matching record(s)', $totalRows),
+            'subtitle' => 'Across '.$this->plural($totalRows, 'record'),
             'items' => array_values($statusItems),
         ]];
     }
@@ -3155,9 +3670,8 @@ class AskAiService
             $fallback = $this->buildDailyPriorities($user, $organizationIds);
             $fallback['title'] = 'Search results and briefing';
             $fallback['answer'] = sprintf(
-                'Looked through the closest %d records in %d areas your account can open for "%s" and found no close match, so here is your briefing and priority queue.',
-                $rag['corpus_size'] ?? 0,
-                $rag['domains_searched'] ?? 0,
+                'I looked through %s your account can open for "%s" and found no close match, so here is your briefing and priority queue.',
+                $this->plural((int) ($rag['corpus_size'] ?? 0), 'record'),
                 $question
             );
 
@@ -3168,16 +3682,11 @@ class AskAiService
         $sections = [];
 
         foreach ($grouped as $domainTitle => $domainChunks) {
-            $first = $domainChunks->first();
             $sections[] = [
                 'id' => 'rag-sec-'.Str::slug((string) $domainTitle),
                 'title' => (string) $domainTitle,
-                'description' => sprintf(
-                    'Records matching "%s" (best match: %d%%).',
-                    Str::limit($question, 48),
-                    (int) ($first['relevance_percent'] ?? 85)
-                ),
-                'empty_message' => 'No records in this domain.',
+                'description' => sprintf('Records that match "%s".', Str::limit($question, 48)),
+                'empty_message' => 'No records here.',
                 'rows' => $domainChunks->take(10)->map(fn (array $c) => [
                     'id' => $c['id'],
                     'primary' => $c['primary'],
@@ -3193,7 +3702,7 @@ class AskAiService
         }
 
         $topThree = $chunks->take(3)->map(
-            fn (array $c) => sprintf('%s (%s — %s)', $c['primary'], $c['status'], $c['meta'] ?: $c['secondary'])
+            fn (array $c) => sprintf('%s (%s)', $c['primary'], $c['status'])
         )->implode('; ');
 
         $actionNeededCount = $chunks->filter(
@@ -3201,22 +3710,20 @@ class AskAiService
         )->count();
 
         $answer = sprintf(
-            'Found %d matching record(s) out of %d checked across %d area(s) (best match: %d%%). Key findings: %s.',
-            $chunks->count(),
+            'Found %s out of %d checked. The closest: %s.',
+            $this->plural($chunks->count(), 'record'),
             $rag['corpus_size'] ?? $chunks->count(),
-            $grouped->count(),
-            $rag['top_confidence'] ?? 88,
             $topThree
         );
 
         $highlights = [
             [
-                'label' => 'Retrieved matches',
+                'label' => 'Matching records',
                 'value' => (string) $chunks->count(),
                 'tone' => 'primary',
             ],
             [
-                'label' => 'Domains matched',
+                'label' => 'Sections matched',
                 'value' => (string) $grouped->count(),
                 'tone' => 'success',
             ],
@@ -3225,30 +3732,12 @@ class AskAiService
                 'value' => (string) $actionNeededCount,
                 'tone' => $actionNeededCount > 0 ? 'warning' : 'success',
             ],
-            [
-                'label' => 'Best match',
-                'value' => ($rag['top_confidence'] ?? 88).'%',
-                'tone' => 'primary',
-            ],
         ];
 
-        $followUps = [
-            [
-                'topic' => 'daily_priorities',
-                'label' => 'What should I do today?',
-                'question' => $this->defaultDailyQuestion($user->role),
-            ],
-            [
-                'topic' => 'missing_submissions',
-                'label' => 'Check missing submissions',
-                'question' => "Who hasn't submitted compliance or financial reports?",
-            ],
-            [
-                'topic' => 'finance_health',
-                'label' => 'Review financial health',
-                'question' => 'How is our budget utilization and financial status?',
-            ],
-        ];
+        $followUps = array_map(
+            fn (array $prompt) => ['topic' => $prompt['topic'], 'label' => $prompt['label'], 'question' => $prompt['question']],
+            array_slice($this->starterPrompts($user), 0, 3)
+        );
 
         return [
             'title' => 'Records matching: '.Str::limit($question, 54),
@@ -3282,8 +3771,8 @@ class AskAiService
             $payload['sections'][] = [
                 'id' => 'rag-augmented-context',
                 'title' => 'Related records',
-                'description' => 'Additional cross-domain records matching '.implode(', ', array_slice($matchedEntities, 0, 3)).'.',
-                'empty_message' => 'No additional cross-domain matches.',
+                'description' => 'Other records that mention '.implode(', ', array_slice($matchedEntities, 0, 3)).'.',
+                'empty_message' => 'No other records match.',
                 'rows' => $highConfidenceExtras->map(fn (array $c) => [
                     'id' => $c['id'],
                     'primary' => $c['primary'],
@@ -3374,7 +3863,7 @@ class AskAiService
                 'domain' => 'Organizations & Accreditation',
                 'primary' => $label,
                 'secondary' => sprintf(
-                    'College: %s · Lifecycle: %s · Accreditation: %s',
+                    'College: %s · Status: %s · Accreditation: %s',
                     $org->college ?: ($org->is_university_wide ? 'University-wide' : 'General'),
                     Str::headline((string) $org->lifecycle_status),
                     Str::headline((string) $accStatus)
@@ -3449,7 +3938,7 @@ class AskAiService
         foreach ($leaders as $leader) {
             $fullName = trim($leader->first_name.' '.$leader->last_name);
             $orgLabel = $leader->org_acronym ?: ($leader->org_name ?: ($leader->department ?: 'Campus'));
-            $position = $leader->position_title ?: $this->roleName($leader->role);
+            $position = $leader->position_title ?: $this->roleTitle($leader->role);
 
             $corpus[] = [
                 'id' => 'rag-leader-'.$leader->profile_id,
@@ -3459,11 +3948,11 @@ class AskAiService
                     ? sprintf(
                         'Organization: %s · Role: %s · ID: %s · Email: %s',
                         $orgLabel,
-                        $this->roleName($leader->role),
+                        $this->roleTitle($leader->role),
                         $leader->school_id,
                         $leader->email
                     )
-                    : sprintf('Organization: %s · Role: %s', $orgLabel, $this->roleName($leader->role)),
+                    : sprintf('Organization: %s · Role: %s', $orgLabel, $this->roleTitle($leader->role)),
                 'status' => $position,
                 'status_tone' => $leader->role === 'ADMIN' ? 'success' : 'info',
                 'meta' => $showContact ? 'ID #'.$leader->school_id : $orgLabel,
@@ -3630,10 +4119,10 @@ class AskAiService
                 'domain' => 'Merchandise & Store Inventory',
                 'primary' => "{$item->name} ({$orgLabel})",
                 'secondary' => sprintf(
-                    'Category: %s · Price: ₱%s · Stock: %d unit(s)',
+                    'Category: %s · Price: ₱%s · Stock: %s',
                     $item->category ?: 'Apparel & Merch',
                     number_format((float) $item->price, 2),
-                    $stock
+                    $this->plural($stock, 'unit')
                 ),
                 'excerpt' => $item->description ? Str::limit($item->description, 60) : null,
                 'quotable' => true,
@@ -4181,17 +4670,56 @@ class AskAiService
     private function roleLabel(string $role): string
     {
         return match ($role) {
-            'SUPER_ADMIN' => 'SAO Operations Copilot',
-            'DEPARTMENT_HEAD' => 'College Oversight Copilot',
-            'ADMIN' => 'Organization Admin Copilot',
-            'SBO_OFFICER' => 'Officer Workflow Copilot',
-            default => 'Student Portal Copilot',
+            'SUPER_ADMIN' => 'SAO assistant',
+            'DEPARTMENT_HEAD' => 'College assistant',
+            'ADMIN' => 'Organization assistant',
+            'SBO_OFFICER' => 'Officer assistant',
+            default => 'Student assistant',
         };
     }
 
     private function roleName(string $role): string
     {
-        return $role === 'SBO_OFFICER' ? 'SBO Officer' : Str::headline(Str::lower($role));
+        return match ($role) {
+            'SUPER_ADMIN' => 'the SAO',
+            'DEPARTMENT_HEAD' => 'the Department Head',
+            'ADMIN' => 'an organization head',
+            'SBO_OFFICER' => 'an officer',
+            default => 'a student',
+        };
+    }
+
+    /** The position a person holds, as a label rather than inside a sentence. */
+    private function roleTitle(string $role): string
+    {
+        return match ($role) {
+            'SUPER_ADMIN' => 'SAO',
+            'DEPARTMENT_HEAD' => 'Department Head',
+            'ADMIN' => 'Organization Head',
+            'SBO_OFFICER' => 'Officer',
+            default => 'Student',
+        };
+    }
+
+    /** Who a waiting request is waiting for. */
+    private function reviewerName(string $requiredRole): string
+    {
+        return match (Str::upper($requiredRole)) {
+            'SUPER_ADMIN', 'SAO' => 'the SAO',
+            'DEPARTMENT_HEAD' => 'the Department Head',
+            'ADMIN', 'ORGANIZATION' => 'the organization head',
+            default => 'a reviewer',
+        };
+    }
+
+    /** Whose records an answer covers, as a possessive that opens a sentence. */
+    private function ownerPhrase(User $user): string
+    {
+        return match ($user->role) {
+            'SUPER_ADMIN' => "all organizations'",
+            'DEPARTMENT_HEAD' => "your college's organizations'",
+            default => "your organization's",
+        };
     }
 
     private function scopeLabel(User $user): string

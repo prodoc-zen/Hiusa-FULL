@@ -10,11 +10,11 @@ export function effectiveStatus(action, now = Date.now()) {
   return action.status;
 }
 
-// The id of the one card the person can still press: the newest one the server still holds open.
+// The id of the one card the person can still press: the newest action in the conversation, if it is still open.
 export function liveActionId(messages) {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const action = actionOf(messages[i]);
-    if (action?.status === 'awaiting_confirmation' && messages[i].id != null) return messages[i].id;
+    if (action) return action.status === 'awaiting_confirmation' ? messages[i].id ?? null : null;
   }
   return null;
 }
