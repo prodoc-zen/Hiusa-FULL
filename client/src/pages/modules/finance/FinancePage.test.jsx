@@ -996,6 +996,25 @@ describe('FinancePage finance AI results', () => {
     expect(screen.queryByText('The projection is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Recommended allocation/)).not.toBeInTheDocument();
   });
+
+  it('dates stored advice in Manila time whatever the browser time zone is', async () => {
+    const browserZone = process.env.TZ;
+    process.env.TZ = 'UTC';
+    try {
+      financeMocks.getBudgets.mockResolvedValue({ data: [{
+        id: 4, title: 'Sportsfest', allocated_amount: 10000, remaining_amount: 7000, warning_threshold: 500, submission_status: 'approved',
+        overspending_risk: 'medium', recommended_allocation: 8000, safe_spending_limit: 8000, advisory_note: 'The projection is stable.',
+        advice_generated_at: '2026-11-14T00:30:00+08:00', advice_stale: false,
+      }] });
+
+      render(<FinancePage initialTab="budgets" />);
+
+      expect(await screen.findByText('Advice from Nov 14, 2026')).toBeInTheDocument();
+    } finally {
+      if (browserZone === undefined) delete process.env.TZ;
+      else process.env.TZ = browserZone;
+    }
+  });
 });
 
 describe('FinancePage statement of account for a student', () => {
