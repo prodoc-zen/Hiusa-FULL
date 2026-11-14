@@ -6,6 +6,7 @@ use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\Election;
 use App\Models\Grievance;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
@@ -63,6 +64,8 @@ class DashboardBriefingService
         'grievances_urgent' => ['urgent grievance', 'urgent grievances'],
         'clearance_sao_pending' => ['clearance to sign', 'clearances to sign'],
         'registrations_pending' => ['registration awaiting review', 'registrations awaiting review'],
+        'applications_pending' => ['application awaiting your decision', 'applications awaiting your decision'],
+        'applications_endorsement_pending' => ['application awaiting your endorsement', 'applications awaiting your endorsement'],
         'registration_returned' => ['returned registration', 'returned registrations'],
         'organization_awaiting_admin' => ['organization waiting for an administrator', 'organizations waiting for an administrator'],
     ];
@@ -165,6 +168,7 @@ class DashboardBriefingService
 
         $attention = $this->prioritize(array_merge(
             $this->approvalsAttention('DEPARTMENT_HEAD', $collegeIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
+            $this->applicationsAwaitingEndorsementAttention($user, $this->routeAccess->hrefFor($role, '/dashboard/organization-applications')),
             $this->returnedRegistrationsAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations?status=returned')),
             $this->organizationsAwaitingAdminAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/org/:orgId?tab=people')),
         ));
@@ -706,6 +710,39 @@ class DashboardBriefingService
             'due_at' => null,
             'href' => $href,
         ])->all(), $this->overflowTotal($rows->count(), $query));
+    }
+
+    /** The college's applications waiting at the Department Head's step: one item standing for the whole queue, so it carries its count for the headline. */
+    private function applicationsAwaitingEndorsementAttention(User $user, ?string $href): array
+    {
+        $home = Organization::whereKey($user->organization_id)->first(['id', 'organization_type', 'college_id']);
+        if (! $home || $home->organization_type !== 'COLLEGE' || ! $home->college_id) {
+            return [];
+        }
+
+        $queue = DB::table('organization_applications')->where('college_id', $home->college_id)->where('status', 'pending_dean');
+        $waiting = (clone $queue)->count();
+        if ($waiting === 0) {
+            return [];
+        }
+
+        // One application opens itself; several open the list.
+        if ($waiting === 1 && $href !== null) {
+            $href .= '?record='.(int) (clone $queue)->value('id');
+        }
+
+        return [[
+            'id' => 'dean_queue-applications',
+            'type' => 'applications_endorsement_pending',
+            'count' => $waiting,
+            'severity' => 'medium',
+            'title' => 'Applications awaiting your endorsement',
+            'detail' => $waiting === 1
+                ? '1 application from your college waits for you to endorse or return it'
+                : "{$waiting} applications from your college wait for you to endorse or return them",
+            'due_at' => null,
+            'href' => $href,
+        ]];
     }
 
     private function returnedRegistrationsAttention(array $organizationIds, ?string $href): array
@@ -1278,6 +1315,21 @@ class DashboardBriefingService
     private function saoQueuesAttention(): array
     {
         $items = [];
+
+        // The application pipeline: the Department Head endorses, and the SAO decides last.
+        $endorsedApplications = DB::table('organization_applications')->where('status', 'pending_sao')->count();
+        if ($endorsedApplications > 0) {
+            $items[] = [
+                'id' => 'sao_queue-applications',
+                'type' => 'applications_pending',
+                'count' => $endorsedApplications,
+                'severity' => 'medium',
+                'title' => 'Applications awaiting your decision',
+                'detail' => "{$endorsedApplications} application(s) were endorsed by a Department Head and wait for your decision",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/organization-applications'),
+            ];
+        }
 
         $pendingRegistrations = DB::table('organizations')->where('organization_type', 'STUDENT_ORGANIZATION')->where('lifecycle_status', 'pending')->count();
         if ($pendingRegistrations > 0) {

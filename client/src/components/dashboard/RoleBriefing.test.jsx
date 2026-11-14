@@ -203,6 +203,37 @@ describe('RoleBriefing', () => {
       expect(within(queue).getAllByRole('listitem').map((row) => row.textContent)[0]).toContain('Registration returned: Robotics Club');
     });
 
+    describe('DEPARTMENT_HEAD: the one filled button goes to what waits for the dean', () => {
+      const queue = (count, href) => [{ id: 'dean_queue-applications', type: 'applications_endorsement_pending', count, severity: 'medium', title: 'Applications awaiting your endorsement', detail: `${count}`, due_at: null, href }];
+
+      it('opens the application itself when one waits', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(1, '/dashboard/organization-applications?record=7') }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Endorse the application' })).toHaveAttribute('href', '/dashboard/organization-applications?record=7');
+        expect(screen.queryByRole('link', { name: 'Review approvals' })).not.toBeInTheDocument();
+      });
+
+      it('opens the application list when several wait', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(3, '/dashboard/organization-applications') }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Endorse 3 applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+        expect(screen.queryByRole('link', { name: 'Review approvals' })).not.toBeInTheDocument();
+      });
+
+      it('keeps Review approvals when no application waits', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: [] }));
+        renderBriefing();
+        expect(await screen.findByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/dashboard/department-head/approvals');
+      });
+
+      it('lets a long row title wrap instead of cutting it short', async () => {
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { attention: queue(2, '/dashboard/organization-applications') }));
+        renderBriefing();
+        const title = await screen.findByText('Applications awaiting your endorsement');
+        expect(title).not.toHaveClass('truncate');
+      });
+    });
+
     it('SBO_OFFICER: work queue, then contact number, fingerprint in person, My tasks', async () => {
       const setup = withProgress([
         step('contact', 'Add your contact number', { href: '/dashboard/profile' }),
@@ -319,6 +350,17 @@ describe('RoleBriefing', () => {
       expect(screen.getByRole('link', { name: 'Set the academic year' })).toHaveClass('bg-brand-700');
     });
 
+    it('SAO: an application the dean endorsed fills the inbox and leads with Review applications', async () => {
+      const attention = [{ id: 'sao_queue-applications', type: 'applications_pending', count: 1, severity: 'medium', title: 'Applications awaiting your decision', detail: '1', due_at: null, href: '/dashboard/organization-applications' }];
+      vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { attention, organizations: [] }));
+      renderBriefing();
+
+      const inbox = (await screen.findByRole('heading', { name: 'Review inbox' })).closest('section');
+      expect(within(inbox).getAllByRole('listitem').map((row) => row.textContent)).toEqual(['1Applications awaiting your decision']);
+      expect(screen.queryByText('No reviews are waiting')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+    });
+
     it('SAO: the financial reports action leads when only a financial report waits', async () => {
       const attention = [{ id: 'approval-9', type: 'approval', severity: 'high', title: 'Report', detail: 'x', due_at: null, href: '/dashboard/super-admin/compliance?tab=financial' }];
       vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { attention, organizations: [] }));
@@ -338,6 +380,27 @@ describe('RoleBriefing', () => {
         await screen.findByRole('heading', { name: role === 'SUPER_ADMIN' ? 'Review inbox' : 'Needs attention' });
         expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: 'Next for you' })).not.toBeInTheDocument();
+      });
+
+      it('DEPARTMENT_HEAD: the tracker is the one list, with Needs attention directly under the headline', async () => {
+        setTrackerShown(true);
+        const attention = [{ id: 'dean_queue-applications', type: 'applications_endorsement_pending', count: 1, severity: 'medium', title: 'Applications awaiting your endorsement', detail: '1', due_at: null, href: '/dashboard/organization-applications' }];
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup, attention }));
+        renderBriefing();
+
+        const queue = (await screen.findByRole('heading', { name: 'Needs attention' })).closest('section');
+        expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+        expect(queue.parentElement).not.toHaveClass('grid');
+        expect(within(queue).getByText('Applications awaiting your endorsement')).toBeInTheDocument();
+      });
+
+      it('DEPARTMENT_HEAD: shows its own checklist when no tracker shows', async () => {
+        setTrackerShown(false);
+        vi.mocked(getBriefing).mockResolvedValue(briefing('DEPARTMENT_HEAD', { setup }));
+        renderBriefing();
+
+        expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
       });
 
       it('brings the checklist back once the tracker has nothing to show', async () => {

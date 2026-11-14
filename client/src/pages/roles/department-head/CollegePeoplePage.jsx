@@ -5,6 +5,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import AddStaffModal from '../../../components/people/AddStaffModal';
 import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import PaginationControls from '../../../components/PaginationControls';
+import StudentRecordsPanel from '../../../components/students/StudentRecordsPanel';
 import StudentRecordsUpload from '../../../components/students/StudentRecordsUpload';
 import notify from '../../../lib/notify';
 import { getCollegePeople } from '../../../services/collegePeopleService';
@@ -21,6 +22,9 @@ const TABS = [
   { key: 'staff', label: 'Office staff' },
   { key: 'leaders', label: 'Leaders' },
 ];
+
+// Only the dean of a college can correct or remove its school records.
+const RECORDS_TAB = { key: 'records', label: 'School records' };
 
 const SHOW_OPTIONS = [
   { value: 'all', label: 'All students' },
@@ -108,6 +112,7 @@ export default function CollegePeoplePage() {
   }, [search]);
 
   useEffect(() => {
+    if (tab === 'records') return undefined;
     let current = true;
     setState((value) => ({ ...value, loading: true, error: '' }));
     getCollegePeople({ tab, q: query || undefined, show: tab === 'students' && show !== 'all' ? show : undefined, page, per_page: PAGE_SIZE })
@@ -150,6 +155,8 @@ export default function CollegePeoplePage() {
 
   const dean = !isOfficeStaff(storedUser());
   const collegeId = dean ? storedUser()?.organization?.college_id || null : null;
+  const tabs = collegeId ? [...TABS, RECORDS_TAB] : TABS;
+  const recordsTab = tab === 'records' && Boolean(collegeId);
   const filtersActive = Boolean(query || (tab === 'students' && show !== 'all'));
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
@@ -168,58 +175,66 @@ export default function CollegePeoplePage() {
       />
 
       <div className="flex flex-col gap-4">
-        <Tabs tabs={TABS} value={tab} onChange={changeTab} />
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full max-w-sm">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
-            <Input
-              type="search"
-              aria-label={SEARCH_LABEL[tab]}
-              placeholder="Name or email"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="pl-9"
-            />
+        <Tabs tabs={tabs} value={tab} onChange={changeTab} />
+        {recordsTab ? (
+          <div role="tabpanel">
+            <StudentRecordsPanel collegeId={collegeId} />
           </div>
-          {tab === 'students' && (
-            <Select aria-label="Show" value={show} onChange={(event) => { setShow(event.target.value); setPage(1); }} className="w-full sm:w-44">
-              {SHOW_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </Select>
-          )}
-          {(search || filtersActive) && (
-            <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
-          )}
-          {tab === 'students' && collegeId && (
-            <Button variant="secondary" leftIcon={Upload} className="sm:ml-auto" onClick={() => setUploading(true)}>Upload student records</Button>
-          )}
-        </div>
-        <div role="tabpanel">
-          <DataTable
-            columns={columns}
-            rows={state.tab === tab ? state.rows : []}
-            rowKey={rowKey}
-            loading={state.loading || state.tab !== tab}
-            error={state.error}
-            onRetry={() => setReload((value) => value + 1)}
-            filtersActive={filtersActive}
-            onClearFilters={clearSearch}
-            emptyState={filtersActive ? (
-              <EmptyState kind="filtered" query={query} description="Try a different name or email, or show all students." onClearFilters={clearSearch} />
-            ) : (
-              <EmptyState
-                title={EMPTY[tab].title}
-                description={EMPTY[tab].description}
-                action={tab === 'students' && collegeId ? <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button> : undefined}
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-full max-w-sm">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
+                <Input
+                  type="search"
+                  aria-label={SEARCH_LABEL[tab]}
+                  placeholder="Name or email"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {tab === 'students' && (
+                <Select aria-label="Show" value={show} onChange={(event) => { setShow(event.target.value); setPage(1); }} className="w-full sm:w-44">
+                  {SHOW_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </Select>
+              )}
+              {(search || filtersActive) && (
+                <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
+              )}
+              {tab === 'students' && collegeId && (
+                <Button variant="secondary" leftIcon={Upload} className="sm:ml-auto" onClick={() => setUploading(true)}>Upload student records</Button>
+              )}
+            </div>
+            <div role="tabpanel">
+              <DataTable
+                columns={columns}
+                rows={state.tab === tab ? state.rows : []}
+                rowKey={rowKey}
+                loading={state.loading || state.tab !== tab}
+                error={state.error}
+                onRetry={() => setReload((value) => value + 1)}
+                filtersActive={filtersActive}
+                onClearFilters={clearSearch}
+                emptyState={filtersActive ? (
+                  <EmptyState kind="filtered" query={query} description="Try a different name or email, or show all students." onClearFilters={clearSearch} />
+                ) : (
+                  <EmptyState
+                    title={EMPTY[tab].title}
+                    description={EMPTY[tab].description}
+                    action={tab === 'students' && collegeId ? <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button> : undefined}
+                  />
+                )}
+                actions={tab === 'staff' ? staffActions : undefined}
+                actionsHeader=""
+                caption={TABS.find((item) => item.key === tab).label}
+                pagination={state.error ? null : (
+                  <PaginationControls currentPage={page} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="people" />
+                )}
               />
-            )}
-            actions={tab === 'staff' ? staffActions : undefined}
-            actionsHeader=""
-            caption={TABS.find((item) => item.key === tab).label}
-            pagination={state.error ? null : (
-              <PaginationControls currentPage={page} totalItems={state.meta.total} pageSize={state.meta.perPage} onPageChange={setPage} label="people" />
-            )}
-          />
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       <Drawer

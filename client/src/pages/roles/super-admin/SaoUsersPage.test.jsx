@@ -26,9 +26,9 @@ describe('SAO university users', () => {
     await screen.findAllByText('Ana Cruz');
     expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
     const [ben] = screen.getAllByRole('row').filter((row) => within(row).queryByText('Ben Cruz'));
-    expect(within(ben).getByText('Disabled')).toBeInTheDocument();
+    expect(within(ben).getByText('Deactivated')).toBeInTheDocument();
     const [ana] = screen.getAllByRole('row').filter((row) => within(row).queryByText('Ana Cruz'));
-    expect(within(ana).queryByText(/^(Active|Disabled|Inactive)$/)).not.toBeInTheDocument();
+    expect(within(ana).queryByText(/^(Active|Deactivated|Disabled|Inactive)$/)).not.toBeInTheDocument();
   });
 
   it('keeps the name on the same left edge as the email on a phone card', async () => {
@@ -208,11 +208,49 @@ describe('SAO university users', () => {
       expect(screen.getByRole('menuitem', { name: 'Reset password' })).toBeInTheDocument();
       fireEvent.keyDown(document, { key: 'Escape' });
       fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Own Account' })[0]);
-      expect(screen.getByRole('menuitem', { name: 'Delete user' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Delete user' })).not.toBeInTheDocument();
       expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
       fireEvent.keyDown(document, { key: 'Escape' });
       fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Dormant Staff' })[0]);
       expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
+    } finally { localStorage.removeItem('user'); }
+  });
+
+  it('calls a switched-off account Deactivated everywhere, with one matching filter option', async () => {
+    service.getSystemUsers.mockResolvedValue(page([{ ...user, first_name: 'Ben', account_status: 'disabled' }, { ...user, school_id: 2, first_name: 'Cara', account_status: 'inactive' }]));
+    render(<SaoUsersPage />);
+    await screen.findAllByText('Ben Cruz');
+    expect(screen.getAllByText('Deactivated')).toHaveLength(5);
+    expect(screen.queryByText(/^(Disabled|Inactive)$/)).not.toBeInTheDocument();
+    const status = screen.getByLabelText('Status');
+    expect(Array.from(status.options).map((option) => option.textContent)).toEqual(['All statuses', 'Active', 'Deactivated']);
+    fireEvent.change(status, { target: { value: status.options[2].value } });
+    await waitFor(() => expect(service.getSystemUsers).toHaveBeenLastCalledWith(expect.objectContaining({ status: '["disabled","inactive"]' })));
+  });
+
+  it('asks the server for ten users a page', async () => {
+    render(<SaoUsersPage />);
+    await screen.findAllByText('Ana Cruz');
+    expect(service.getSystemUsers).toHaveBeenCalledWith(expect.objectContaining({ page: 1, per_page: 10 }));
+  });
+
+  it('explains on the signed-in account that it cannot be deactivated or deleted, and nowhere else', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 990001, role: 'SUPER_ADMIN' }));
+    try {
+      const sao = { ...user, role: 'SUPER_ADMIN', organization: { id: 1, name: 'Student Affairs Office' } };
+      service.getSystemUsers.mockResolvedValue(page([
+        { ...sao, school_id: 990001, first_name: 'Own', last_name: 'Account' },
+        { ...sao, school_id: 990002, first_name: 'Other', last_name: 'Staff' },
+      ]));
+      render(<SaoUsersPage />);
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Own Account' }))[0]);
+      expect(screen.queryByRole('menuitem', { name: 'Delete user' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Deactivate' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'View user and clearance' }));
+      expect(await screen.findByText('You cannot deactivate or delete your own account.')).toBeInTheDocument();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Other Staff' })[0]);
+      expect(screen.getByRole('menuitem', { name: 'Delete user' })).toBeInTheDocument();
     } finally { localStorage.removeItem('user'); }
   });
 

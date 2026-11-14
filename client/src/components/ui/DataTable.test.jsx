@@ -31,7 +31,7 @@ describe('DataTable', () => {
     expect(cardView.querySelectorAll('li')).toHaveLength(2);
   });
 
-  it('lays each phone row out as a name, one detail line and the actions beside them', () => {
+  it('lays each phone row out as a name, one detail line and the actions on their own row on a phone', () => {
     const columns = [...COLUMNS, { key: 'program', header: 'Program', render: (row) => row.program }];
     const rows = [{ id: 1, name: 'Maria Santos', role: 'Officer', program: null }];
     render(<DataTable columns={columns} rows={rows} actions={(row) => <button type="button">Open {row.name}</button>} />);
@@ -42,22 +42,11 @@ describe('DataTable', () => {
     expect(within(item).queryByText('Program')).toBeNull();
     const button = within(item).getByRole('button', { name: 'Open Maria Santos' });
     expect(button.parentElement.parentElement).toBe(item);
-  });
-
-  it('lets the phone actions drop to their own row so two buttons never squeeze the name', () => {
-    render(<DataTable columns={COLUMNS} rows={ROWS} actions={() => (
-      <>
-        <button type="button">View checklist</button>
-        <button type="button">Open space</button>
-      </>
-    )} />);
-
-    const item = document.querySelector('[data-view="cards"] li');
-    const actions = within(item).getAllByRole('button', { name: 'Open space' })[0].parentElement;
-    expect(item).toHaveClass('flex-wrap');
-    expect(item.firstElementChild).toHaveClass('min-w-[11rem]');
-    expect(actions).toHaveClass('ml-auto', 'sm:max-w-[55%]');
-    expect(actions).not.toHaveClass('max-w-[55%]');
+    // On a phone the actions sit on their own row under the details, so they never cover them.
+    expect(item).toHaveClass('flex-col', 'sm:flex-row');
+    expect(button.parentElement).toHaveClass('flex-wrap', 'gap-2', 'sm:max-w-[55%]', 'sm:justify-end');
+    expect(button.parentElement).not.toHaveClass('max-w-[55%]', 'justify-end');
+    expect(item.lastElementChild).toBe(button.parentElement);
   });
 
   it('puts a column keyed actions beside the row on a phone instead of listing it as a detail', () => {

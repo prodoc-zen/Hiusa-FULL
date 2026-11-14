@@ -101,7 +101,8 @@ export default function ElectionNextStep({ election, role, onChanged }) {
   const filing = Boolean(election.filing_starts_at);
   const halted = Boolean(election.cancelled_at) || election.phase === 'cancelled';
   const suspended = Boolean(election.suspended_at) && !halted;
-  const canHalt = isAdmin && Boolean(election.phase) && !halted && !election.declined_at && election.phase !== 'completed';
+  // An approved election can be halted before the phase engine has given it a phase; one that closed without a phase is finished.
+  const canHalt = isAdmin && (Boolean(election.phase) || (Boolean(election.approved_at) && election.status !== 'closed')) && !halted && !election.declined_at && election.phase !== 'completed';
   const building = !filing && election.status === 'upcoming' && !election.finalized_at;
   const checklist = building && (isAdmin || role === 'SBO_OFFICER') ? finalizeChecklist(election) : null;
 

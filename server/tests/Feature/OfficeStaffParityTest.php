@@ -32,6 +32,7 @@ use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationApplicationReviewFile;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Partylist;
+use App\Models\StudentRegistryEntry;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
@@ -599,7 +600,8 @@ class OfficeStaffParityTest extends TestCase
         ]);
         $grant = OrganizationApplicantGrant::create(['college_id' => $this->dean->organization->college_id, 'user_school_id' => $this->ids['student']->school_id, 'granted_by' => $this->dean->school_id]);
         $profile = AccountProfile::where('user_school_id', $this->ids['student']->school_id)->firstOrFail();
-        $filled = ['{grant}' => $grant->id, '{invitation}' => $invitation->id, '{user}' => $other->school_id, '{profile}' => $profile->id, '{submission}' => $this->ids['submissions'][0],
+        $entry = StudentRegistryEntry::create(['school_id' => 2600777, 'first_name' => 'Ana', 'last_name' => 'Cruz', 'birth_date' => '2007-01-02', 'college_id' => $this->dean->organization->college_id, 'program' => 'BS IT', 'year_level' => '1st Year']);
+        $filled = ['{grant}' => $grant->id, '{invitation}' => $invitation->id, '{user}' => $other->school_id, '{profile}' => $profile->id, '{entry}' => $entry->id, '{submission}' => $this->ids['submissions'][0],
             '{organization}' => $this->psits->id, '{clearanceSignature}' => $this->ids['signature']];
 
         foreach (EnsureRole::DEAN_ONLY as $entry) {

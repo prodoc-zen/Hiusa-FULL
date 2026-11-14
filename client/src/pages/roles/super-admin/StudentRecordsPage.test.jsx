@@ -18,11 +18,11 @@ describe('StudentRecordsPage', () => {
     mocks.getStudentRegistry.mockResolvedValue({ data: [], total: 0, summary: { total: 0, claimed: 0 } });
   });
 
-  it('has one upload card and one records table under a Student records heading', async () => {
+  it('has one upload button and one records table under a Student records heading', async () => {
     render(<MemoryRouter initialEntries={['/dashboard/super-admin/student-records']}><StudentRecordsPage /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Student records' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Upload school records' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload school records' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Student records' })).toBeInTheDocument();
     expect(await screen.findByText('No student records yet')).toBeInTheDocument();
   });

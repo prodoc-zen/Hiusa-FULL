@@ -8,8 +8,10 @@ const order = (role, ...keys) => shapeSetup(role, setup(...keys)).steps.map((ste
 describe('shapeSetup', () => {
   it('puts the current setup steps first for each role', () => {
     expect(order('ADMIN', 'positions', 'members', 'academic', 'compliance', 'budget', 'event').slice(0, 3)).toEqual(['positions', 'members', 'event']);
-    expect(order('DEPARTMENT_HEAD', 'review', 'endorse')).toEqual(['endorse', 'review']);
-    expect(order('SUPER_ADMIN', 'academic-year', 'college-heads', 'admins', 'requirements', 'venues', 'announcement').slice(0, 3)).toEqual(['academic-year', 'college-heads', 'requirements']);
+    expect(order('DEPARTMENT_HEAD', 'review', 'endorse', 'office-staff', 'student-records')).toEqual(['student-records', 'office-staff', 'endorse', 'review']);
+    expect(order('SUPER_ADMIN', 'announcement', 'venues', 'admins', 'requirements', 'school-records', 'college-heads', 'colleges', 'semester-active', 'semester', 'academic-year'))
+      .toEqual(['academic-year', 'semester', 'semester-active', 'colleges', 'college-heads', 'school-records', 'requirements', 'admins', 'venues', 'announcement']);
+    expect(order('OFFICE_STAFF', 'endorse', 'contact')).toEqual(['contact', 'endorse']);
     expect(order('STUDENT', 'contact', 'fingerprint', 'event').slice(0, 3)).toEqual(['contact', 'event', 'statement']);
     expect(order('SBO_OFFICER', 'contact', 'fingerprint')).toEqual(['contact', 'fingerprint', 'tasks']);
   });
@@ -45,6 +47,15 @@ describe('shapeSetup', () => {
     const shaped = shapeSetup('DEPARTMENT_HEAD', setup('review', 'endorse'));
     expect(shaped.steps.find((step) => step.key === 'endorse').action).toBe('Review applications');
     expect(shaped.steps.find((step) => step.key === 'review').action).toBe('Open approvals');
+  });
+
+  it('labels every first-run button so none falls back to a bare Open', () => {
+    const dean = shapeSetup('DEPARTMENT_HEAD', setup('student-records', 'office-staff')).steps;
+    expect(dean.map((step) => step.action)).toEqual(['Load student records', 'Add office staff']);
+    const sao = shapeSetup('SUPER_ADMIN', setup('semester', 'semester-active', 'colleges', 'school-records')).steps;
+    expect(sao.map((step) => step.action)).toEqual(['Add the semesters', 'Activate a semester', 'Add the colleges', 'Load school records']);
+    const staff = shapeSetup('OFFICE_STAFF', setup('contact', 'endorse')).steps;
+    expect(staff.map((step) => step.action)).toEqual(['Add contact number', 'See applications']);
   });
 
   it('returns null when the role has no checklist', () => {

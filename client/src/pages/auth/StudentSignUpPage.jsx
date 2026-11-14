@@ -27,6 +27,7 @@ export default function StudentSignUpPage() {
   const [confirmation, setConfirmation] = useState('');
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [recordAnswered, setRecordAnswered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState(null);
   const [attempt, setAttempt] = useState(0);
@@ -36,6 +37,10 @@ export default function StudentSignUpPage() {
     const known = Object.fromEntries(Object.entries(byField).filter(([key]) => FIELD_KEYS.includes(key)));
     setErrors(known);
     setFormError(Object.keys(known).length ? '' : getApiErrorMessage(error, fallback));
+    // The records answer about the school ID and birth date together (no match, already claimed, college not open).
+    // That one message stays under the school ID, where it is announced, and is not repeated in the summary as a link.
+    setRecordAnswered(Boolean(known.school_id));
+    if (known.school_id) document.getElementById(FIELD_IDS.school_id)?.focus();
     setAttempt((count) => count + 1);
   };
 
@@ -56,6 +61,7 @@ export default function StudentSignUpPage() {
     else if (password !== confirmation) next.password_confirmation = 'The two passwords do not match.';
     setErrors(next);
     setFormError('');
+    setRecordAnswered(false);
     if (Object.keys(next).length) {
       setAttempt((count) => count + 1);
       return;
@@ -106,7 +112,7 @@ export default function StudentSignUpPage() {
   }
 
   const summaryItems = [
-    ...FIELD_KEYS.filter((key) => errors[key]).map((key) => ({ fieldId: FIELD_IDS[key], message: errors[key] })),
+    ...FIELD_KEYS.filter((key) => errors[key] && !(recordAnswered && key === 'school_id')).map((key) => ({ fieldId: FIELD_IDS[key], message: errors[key] })),
     ...(formError ? [{ message: formError }] : []),
   ];
 

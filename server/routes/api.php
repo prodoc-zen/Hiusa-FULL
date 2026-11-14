@@ -86,6 +86,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/students/registry', [StudentRegistryController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/preview', [StudentRegistryController::class, 'preview'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/apply', [StudentRegistryController::class, 'apply'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::patch('/students/registry/{entry}', [StudentRegistryController::class, 'update'])->whereNumber('entry')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::delete('/students/registry/{entry}', [StudentRegistryController::class, 'destroy'])->whereNumber('entry')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN']);
@@ -161,6 +163,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/system/users', [SystemUsersController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/system/users/{user}', [SystemUsersController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::patch('/system/users/{user}/status', [SystemUsersController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/system/users/{user}', [SystemUsersController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/users/{user}/password-reset', [SystemUsersController::class, 'initiatePasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::delete('/system/users/{user}', [SystemUsersController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/file-storage', [FileStorageController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
@@ -450,6 +454,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     // ADMIN or SBO_OFFICER. See ClearanceController docblock.
     Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/clearance-periods/{clearancePeriod}', [ClearanceController::class, 'periodsUpdate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/clearance-periods/{clearancePeriod}/close', [ClearanceController::class, 'periodsClose'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/clearance-periods/{clearancePeriod}/sync', [ClearanceController::class, 'periodsSync'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/clearance-periods/{clearancePeriod}', [ClearanceController::class, 'periodsDestroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
