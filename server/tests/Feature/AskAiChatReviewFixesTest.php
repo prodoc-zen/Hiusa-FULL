@@ -190,10 +190,10 @@ class AskAiChatReviewFixesTest extends TestCase
         Sanctum::actingAs($admin);
         $this->fake();
 
-        $this->say(['message' => 'remember that I am the treasurer'])->assertJsonPath('message.payload.intent', 'memory');
+        $this->say(['message' => 'remember that I am the treasurer', 'source' => 'typed'])->assertJsonPath('message.payload.intent', 'memory');
         $this->assertSame(1, AiMemory::ownedBy($admin)->count());
         $this->say(['message' => 'What can you do?'])->assertJsonPath('message.payload.intent', 'capabilities');
-        $this->say(['message' => 'forget everything'])->assertJsonPath('message.payload.intent', 'memory');
+        $this->say(['message' => 'forget everything', 'source' => 'typed'])->assertJsonPath('message.payload.intent', 'memory');
         $this->assertSame(0, AiMemory::ownedBy($admin)->count());
     }
 

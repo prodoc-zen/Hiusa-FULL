@@ -21,10 +21,6 @@ class AskAiActionController extends Controller
         private readonly AskAiChatService $chat,
     ) {}
 
-    private const RUNNING_SECONDS = 120;
-
-    private const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
-
     public function confirm(Request $request, int $message): JsonResponse
     {
         $user = $request->user();
@@ -33,7 +29,7 @@ class AskAiActionController extends Controller
         abort_if($definition === null, 404);
 
         $submitted = $request->validate(['fields' => ['sometimes', 'array']])['fields'] ?? [];
-        $claimed = $this->claim($row);
+        $claimed = $this->claim($user, $row);
         if (is_string($claimed)) {
             return response()->json(['message' => $claimed], 409);
         }
@@ -72,7 +68,7 @@ class AskAiActionController extends Controller
     {
         $row = $this->ownedAction($request, $message);
 
-        $claimed = $this->claim($row);
+        $claimed = $this->claim($request->user(), $row);
         if (is_string($claimed)) {
             return response()->json(['message' => $claimed], 409);
         }
@@ -102,21 +98,17 @@ class AskAiActionController extends Controller
      * Moves the action out of awaiting_confirmation under a row lock, so two presses cannot both run it. Returns the
      * claimed row, or the sentence for a 409 when it is no longer waiting or has expired.
      */
-    private function claim(AiMessage $row): AiMessage|string
+    private function claim(User $user, AiMessage $row): AiMessage|string
     {
-        return DB::transaction(function () use ($row): AiMessage|string {
+        return DB::transaction(function () use ($user, $row): AiMessage|string {
             $locked = AiMessage::query()->whereKey($row->id)->lockForUpdate()->firstOrFail();
             $payload = $locked->payload;
             $action = $payload['action'];
 
-            if (($action['status'] ?? null) === 'confirming') {
-                $started = isset($action['confirming_at']) ? Carbon::parse($action['confirming_at']) : null;
-                if ($started === null || $started->diffInSeconds(now(), true) >= self::RUNNING_SECONDS) {
-                    $payload['action']['status'] = 'failed';
-                    $locked->update(['payload' => $payload, 'content' => self::INTERRUPTED]);
+            if ($this->chat->isInterrupted($payload)) {
+                $this->chat->failInterrupted($user, $locked);
 
-                    return self::INTERRUPTED;
-                }
+                return AskAiChatService::INTERRUPTED;
             }
 
             if (($action['status'] ?? null) !== 'awaiting_confirmation') {
@@ -151,6 +143,8 @@ class AskAiActionController extends Controller
     {
         $this->store($row, $row->content, function (array $action) use ($definition, $user, $values, $errors): array {
             $action['status'] = 'awaiting_confirmation';
+            // A person fixing the form is still working on the card, so the refusal gives back a full window.
+            $action['expires_at'] = now()->addMinutes(AskAiActions::EXPIRES_MINUTES)->toIso8601String();
             $action['errors'] = $errors;
             $action['fields'] = $this->actions->presentFields($definition, $user, $values);
 
