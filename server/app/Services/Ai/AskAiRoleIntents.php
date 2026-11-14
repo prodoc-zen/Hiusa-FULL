@@ -538,7 +538,7 @@ class AskAiRoleIntents
         };
 
         $page = self::SUBMISSION_PAGES[$item['type']] ?? '/dashboard/approvals';
-        $href = $item['status'] === 'rejected'
+        $href = $item['status'] === 'rejected' || $item['type'] === 'venue'
             ? $this->routeAccess->hrefFor($role, $page) ?? $this->routeAccess->hrefFor($role, '/dashboard/approvals')
             : $this->routeAccess->hrefFor($role, '/dashboard/approvals') ?? $this->routeAccess->hrefFor($role, $page);
 
