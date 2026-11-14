@@ -9,6 +9,7 @@ use App\Http\Controllers\AgencyOverviewController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApplicantGrantController;
 use App\Http\Controllers\ApprovalRequestController;
+use App\Http\Controllers\AskAiActionController;
 use App\Http\Controllers\AskAiController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ClassListImportController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
+use App\Http\Controllers\StudentFeeUsageController;
 use App\Http\Controllers\StudentRegistryController;
 use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\SystemUsersController;
@@ -102,9 +104,23 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/user/notification-preferences', [NotificationController::class, 'preferences'])->middleware('throttle:api-read');
     Route::put('/user/notification-preferences', [NotificationController::class, 'updatePreferences'])->middleware('throttle:api-write');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
+    Route::get('/student/fee-usage', [StudentFeeUsageController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/ai/assistant', [AskAiController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/ask', [AskAiController::class, 'ask'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/ai/assistant/chat', [AskAiController::class, 'chat'])->middleware(['throttle:ai-chat', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/ai/assistant/conversations', [AskAiController::class, 'conversations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::delete('/ai/assistant/conversations', [AskAiController::class, 'destroyConversations'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'showConversation'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
+    Route::patch('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'renameConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
+    Route::delete('/ai/assistant/conversations/{conversation}', [AskAiController::class, 'destroyConversation'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('conversation');
+    Route::post('/ai/assistant/messages/{message}/feedback', [AskAiController::class, 'feedback'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/confirm', [AskAiActionController::class, 'confirm'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::post('/ai/assistant/messages/{message}/action/cancel', [AskAiActionController::class, 'cancel'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('message');
+    Route::get('/ai/assistant/memories', [AskAiController::class, 'memories'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/ai/assistant/memories', [AskAiController::class, 'storeMemory'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::delete('/ai/assistant/memories', [AskAiController::class, 'destroyMemories'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::delete('/ai/assistant/memories/{memory}', [AskAiController::class, 'destroyMemory'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('memory');
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
@@ -424,6 +440,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->withTrashed()->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::patch('/grievances/{grievance}/classification', [GrievanceController::class, 'updateClassification'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
 
     // Digital clearances: SUPER_ADMIN defines a period's required signatory

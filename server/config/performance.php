@@ -16,6 +16,7 @@ return [
         'read_per_minute' => (int) env('RATE_LIMIT_READ_PER_MINUTE', 300),
         'write_per_minute' => (int) env('RATE_LIMIT_WRITE_PER_MINUTE', 60),
         'people_search_per_minute' => (int) env('RATE_LIMIT_PEOPLE_SEARCH_PER_MINUTE', 60),
+        'ai_chat_per_minute' => (int) env('RATE_LIMIT_AI_CHAT_PER_MINUTE', 20),
         'expensive_per_minute' => (int) env('RATE_LIMIT_EXPENSIVE_PER_MINUTE', 10),
         'login_per_minute' => (int) env('RATE_LIMIT_LOGIN_PER_MINUTE', 10),
         'login_per_ip_per_minute' => (int) env('RATE_LIMIT_LOGIN_PER_IP_PER_MINUTE', 60),

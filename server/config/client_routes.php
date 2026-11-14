@@ -191,6 +191,7 @@ return [
         '/dashboard/events/activity-calendar',
         '/dashboard/finance/personal-receipts',
         '/dashboard/finance/statement-of-account',
+        '/dashboard/finance/where-fees-go',
         '/dashboard/merchandise/claim-tokens',
         '/dashboard/merchandise/order-merchandise',
         '/dashboard/merchandise/my-orders',

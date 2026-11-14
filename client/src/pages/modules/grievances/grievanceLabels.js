@@ -22,11 +22,6 @@ export function urgencyTone(urgency) {
   return URGENCY_TONE[urgency] || 'neutral';
 }
 
-export function urgencyRank(urgency) {
-  const index = URGENCY_ORDER.indexOf(urgency);
-  return index === -1 ? URGENCY_ORDER.length : index;
-}
-
 // Overrides for the two grievance statuses statusTones.js does not carry
 // (it only defines "submitted" and "under_review" for this lifecycle).
 const GRIEVANCE_STATUS_TONE = {

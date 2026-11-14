@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createGrievance: vi.fn(),
   deleteGrievance: vi.fn(),
   updateGrievanceStatus: vi.fn(),
+  updateGrievanceClassification: vi.fn(),
   notifyError: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock('../../../services/grievanceService', () => ({
   createGrievance: mocks.createGrievance,
   deleteGrievance: mocks.deleteGrievance,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
+  updateGrievanceClassification: mocks.updateGrievanceClassification,
 }));
 
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: mocks.notifyError } }));

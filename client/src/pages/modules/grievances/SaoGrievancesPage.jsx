@@ -3,13 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, DataTable, EmptyState, PageHeader, Select } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
-import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
+import { getGrievances, updateGrievanceClassification, updateGrievanceStatus } from '../../../services/grievanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
 import { StatusCell, UrgencyCell } from './GrievanceCells';
-import { urgencyRank } from './grievanceLabels';
 import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUSES = ['submitted', 'under_review', 'resolved', 'dismissed'];
@@ -17,10 +16,12 @@ const URGENCIES = ['Critical', 'High', 'Medium', 'Low'];
 // The three tiles are the queue that needs a person: new, in progress and most urgent.
 const TILE_STATUSES = ['submitted', 'under_review'];
 const TILE_URGENCIES = ['Critical'];
+// The API reads a multi-value filter as a JSON list (App\Support\FilterValues), never a comma list.
+const OPEN_STATUSES = JSON.stringify(TILE_STATUSES);
 
 const STATUS_OPTIONS = [{ value: '', label: 'All statuses' }, ...STATUSES.map((value) => ({ value, label: value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1) }))];
 const URGENCY_OPTIONS = [{ value: '', label: 'All urgencies' }, ...URGENCIES.map((value) => ({ value, label: value }))];
-const EMPTY_COUNTS = { submitted: 0, under_review: 0, Critical: 0 };
+const UNAVAILABLE_COUNTS = { submitted: null, under_review: null, Critical: null };
 
 export default function SaoGrievancesPage() {
   const [rows, setRows] = useState([]);
@@ -32,7 +33,7 @@ export default function SaoGrievancesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { selected, open, close, replace } = useGrievanceRecord();
-  const [counts, setCounts] = useState(EMPTY_COUNTS);
+  const [counts, setCounts] = useState(UNAVAILABLE_COUNTS);
   const loadCounter = useRef(0);
 
   const filters = useMemo(() => ({
@@ -47,7 +48,7 @@ export default function SaoGrievancesPage() {
     const ticket = loadCounter.current;
     setLoading(true);
     setError(null);
-    return getGrievances({ ...filters, page, per_page: 50 })
+    return getGrievances({ ...filters, sort: sort.key, direction: sort.direction, page, per_page: 50 })
       .then((res) => {
         if (ticket !== loadCounter.current) return;
         setRows(unwrapList(res.data));
@@ -55,7 +56,7 @@ export default function SaoGrievancesPage() {
       })
       .catch(() => { if (ticket === loadCounter.current) setError('Failed to load grievances.'); })
       .finally(() => { if (ticket === loadCounter.current) setLoading(false); });
-  }, [filters, page]);
+  }, [filters, page, sort]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -73,18 +74,20 @@ export default function SaoGrievancesPage() {
   // The tiles count the queue that needs a person, independent of the status and urgency selects
   // below (which narrow the table). There is no aggregate endpoint, so this is three lightweight
   // per_page=1 requests read for their `total` only.
-  useEffect(() => {
-    let cancelled = false;
+  const loadCounts = useCallback(() => Promise.allSettled([
+    ...TILE_STATUSES.map((value) => getGrievances({ status: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
+    ...TILE_URGENCIES.map((value) => getGrievances({ urgency: value, status: OPEN_STATUSES, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
+  ]).then((results) => setCounts({
+    ...UNAVAILABLE_COUNTS,
+    ...Object.fromEntries(results.filter((result) => result.status === 'fulfilled').map((result) => result.value)),
+  })), []);
 
-    Promise.all([
-      ...TILE_STATUSES.map((value) => getGrievances({ status: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
-      ...TILE_URGENCIES.map((value) => getGrievances({ urgency: value, per_page: 1 }).then((res) => [value, listMeta(res.data).total])),
-    ]).then((entries) => {
-      if (!cancelled) setCounts({ ...EMPTY_COUNTS, ...Object.fromEntries(entries) });
-    }).catch(() => { if (!cancelled) setCounts(EMPTY_COUNTS); });
+  useEffect(() => { loadCounts(); }, [loadCounts]);
 
-    return () => { cancelled = true; };
-  }, []);
+  function changeSort(next) {
+    setSort(next);
+    setPage(1);
+  }
 
   function clearFilters() {
     setStatus('');
@@ -97,20 +100,21 @@ export default function SaoGrievancesPage() {
     replace(res.data);
     notify.success('Grievance updated. The student has been notified.');
     load();
+    loadCounts();
   }
 
-  const sortedRows = useMemo(() => {
-    const copy = [...rows];
-    copy.sort((a, b) => {
-      if (sort.key === 'urgency') {
-        const diff = urgencyRank(a.urgency) - urgencyRank(b.urgency);
-        return sort.direction === 'asc' ? diff : -diff;
-      }
-      const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      return sort.direction === 'asc' ? diff : -diff;
-    });
-    return copy;
-  }, [rows, sort]);
+  async function handleClassify(id, data) {
+    const res = await updateGrievanceClassification(id, data);
+    replace(res.data);
+    notify.success('Classification corrected.');
+    load();
+    loadCounts();
+  }
+
+  function handleDeleted() {
+    load();
+    loadCounts();
+  }
 
   const columns = [
     {
@@ -146,13 +150,13 @@ export default function SaoGrievancesPage() {
         {TILE_STATUSES.map((value) => (
           <button key={value} type="button" onClick={() => changeStatus(status === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${status === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value === 'under_review' ? 'Under review' : value[0].toUpperCase() + value.slice(1)}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink" title={counts[value] === null ? 'Count unavailable' : undefined}>{counts[value] ?? '–'}</p>
           </button>
         ))}
         {TILE_URGENCIES.map((value) => (
           <button key={value} type="button" onClick={() => changeUrgency(urgency === value ? '' : value)} className={`min-h-11 rounded-card border p-3 text-left transition-colors duration-150 ${urgency === value ? 'border-brand-600 bg-brand-50' : 'border-line bg-surface hover:bg-subtle'}`}>
             <p className="text-xs font-medium text-ink-muted">{value}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{counts[value]}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-ink" title={counts[value] === null ? 'Count unavailable' : undefined}>{counts[value] ?? '–'}</p>
           </button>
         ))}
       </div>
@@ -160,13 +164,13 @@ export default function SaoGrievancesPage() {
       <Card bodyClassName="p-0">
         <DataTable
           columns={columns}
-          rows={sortedRows}
+          rows={rows}
           caption="Grievances, most urgent first"
           loading={loading}
           error={error}
           onRetry={load}
           sort={sort}
-          onSortChange={setSort}
+          onSortChange={changeSort}
           filtersActive={filtersActive}
           filters={(
             <div className="flex flex-wrap items-center gap-2 border-b border-line p-3 sm:p-4">
@@ -193,14 +197,14 @@ export default function SaoGrievancesPage() {
               kind="first-run"
               icon={MessageSquareWarning}
               title="No grievances to review"
-              description="Grievances from students appear here, most urgent first."
+              description="Grievances from students appear here."
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}
         />
       </Card>
 
-      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={close} onTransition={handleTransition} onDeleted={load} />
+      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={close} onTransition={handleTransition} onClassify={handleClassify} onDeleted={handleDeleted} />
     </div>
   );
 }

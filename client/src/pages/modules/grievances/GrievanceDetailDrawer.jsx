@@ -2,13 +2,16 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { useState } from 'react';
 import { deleteGrievance } from '../../../services/grievanceService';
 import { ShieldCheck, UserRound } from 'lucide-react';
-import { Button, Drawer, Field, FlowStepper, NextStep, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, Drawer, Field, FlowStepper, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
+import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import { toNextStepProps } from '../../../lib/lifecycle';
 import Modal from '../../../components/Modal';
 import { RichTextBody } from '../../../components/RichText';
 import { manilaDate, relativeTime } from '../../../lib/format';
 import {
   ALLOWED_TRANSITIONS,
+  CATEGORIES,
+  URGENCY_ORDER,
   TRANSITION_ACTION_LABEL,
   addressedToKey,
   addressedToLabel,
@@ -68,6 +71,63 @@ function IdentitySection({ grievance, viewerRole }) {
   );
 }
 
+function ClassificationForm({ grievance, onClassify }) {
+  const [urgency, setUrgency] = useState(grievance.urgency);
+  const [category, setCategory] = useState(grievance.category);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const unchanged = urgency === grievance.urgency && category === grievance.category;
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    try { await onClassify(grievance.id, { urgency, category }); }
+    catch (err) { setError(err.response?.data?.message || 'Could not correct the classification. Try again.'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Urgency">
+          <Select value={urgency} onChange={(event) => setUrgency(event.target.value)} disabled={saving}>
+            {URGENCY_ORDER.map((value) => <option key={value} value={value}>{value}</option>)}
+          </Select>
+        </Field>
+        <Field label="Category">
+          <Select value={category} onChange={(event) => setCategory(event.target.value)} disabled={saving}>
+            {CATEGORIES.map((value) => <option key={value} value={value}>{value}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <div>
+        <Button variant="secondary" size="sm" onClick={save} loading={saving} disabled={unchanged}>Correct classification</Button>
+      </div>
+      {error && <p role="alert" className="text-sm font-semibold text-danger-strong">{error}</p>}
+    </div>
+  );
+}
+
+function ClassificationSection({ grievance, viewerRole, onClassify }) {
+  const corrected = grievance.classification_engine === 'reviewer';
+
+  return (
+    <div className="border-t border-line pt-3">
+      <p className="text-xs font-medium text-ink-muted">{corrected ? 'Classification corrected by a reviewer' : 'Suggested classification'}</p>
+      {corrected && (
+        <p className="mt-1 text-sm text-ink-muted">
+          Machine rating: {grievance.machine_urgency} urgency, {grievance.machine_category}
+          {grievance.classification_corrected_at ? `. Corrected ${relativeTime(grievance.classification_corrected_at)}.` : ''}
+        </p>
+      )}
+      <RulesDisclosure label={corrected ? 'Why the machine rated it this way' : 'Why this classification?'} items={grievance.classification_reasoning ? [grievance.classification_reasoning] : []} />
+      {viewerRole === 'SUPER_ADMIN' && onClassify && (
+        <ClassificationForm key={`${grievance.id}-${grievance.urgency}-${grievance.category}`} grievance={grievance} onClassify={onClassify} />
+      )}
+    </div>
+  );
+}
+
 function TransitionModal({ transition, onCancel, onConfirm, submitting, error }) {
   const [remarks, setRemarks] = useState('');
   if (!transition) return null;
@@ -105,7 +165,7 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
   );
 }
 
-export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, onTransition, onDeleted }) {
+export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, onTransition, onClassify, onDeleted }) {
   const [pendingTransition, setPendingTransition] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -162,9 +222,11 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
-              <StatusBadge tone={urgencyTone(grievance.urgency)} label={`${grievance.urgency} urgency`} />
-              <StatusBadge tone="neutral" label={grievance.category} />
+              <StatusBadge tone={urgencyTone(grievance.urgency)} label={grievance.classification_engine === 'reviewer' ? `${grievance.urgency} urgency` : `Suggested urgency: ${grievance.urgency}`} />
+              <StatusBadge tone="neutral" label={grievance.classification_engine === 'reviewer' ? grievance.category : `Suggested category: ${grievance.category}`} />
             </div>
+
+            <ClassificationSection grievance={grievance} viewerRole={viewerRole} onClassify={onClassify} />
 
             <GrievanceStage grievance={grievance} viewerRole={viewerRole} />
 

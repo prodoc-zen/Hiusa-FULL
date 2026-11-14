@@ -102,7 +102,7 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
           <Input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
         </Field>
 
-        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]} hint="Each role signs its own line.">
+        <Field label="Required signatory roles" required error={fieldErrors.required_roles?.[0]}>
           <Select multiple value={roles} onChange={(event) => setRoles(Array.from(event.target.selectedOptions, (option) => option.value))}>
             {ROLE_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
           </Select>

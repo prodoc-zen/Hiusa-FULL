@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\ClearanceSignature;
 use App\Models\User;
@@ -46,6 +47,8 @@ class SystemUsersController extends Controller
         'announcements.created_by',
         'ai_outputs.requested_by',
         'ai_outputs.decided_by',
+        'ai_conversations.user_id',
+        'ai_memories.user_id',
         // Moved to the deleting SAO by transferInstitutionalRecords() before the delete.
         'compliance_requirement_types.created_by',
         'clearance_periods.created_by',
@@ -242,6 +245,11 @@ class SystemUsersController extends Controller
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
                 // A token is keyed by school ID only, so one left behind would sign in as whoever is later given the same ID.
                 $locked->tokens()->delete();
+                // The questions and answers are the person's own text; the foreign keys only null them.
+                AiOutput::query()->where('feature_type', 'ASK_AI_ASSISTANT')->where(fn ($owned) => $owned
+                    ->where('requested_by', $locked->school_id)
+                    ->orWhere('decided_by', $locked->school_id)
+                    ->orWhere(fn ($reference) => $reference->where('reference_type', User::class)->where('reference_id', $locked->school_id)))->delete();
                 $locked->delete();
                 AuditLog::create([
                     'organization_id' => $organizationId,

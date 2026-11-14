@@ -7,6 +7,10 @@ use App\Services\Ai\ClaudeMessagesService;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use App\Services\Ai\FallbackTextGenerator;
 use App\Services\GroqResponsesService;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -92,6 +96,74 @@ class FallbackTextGeneratorTest extends TestCase
         $this->assertSame('Heading', $generator->plainText('## Heading'));
     }
 
+    public function test_a_conversation_is_served_by_the_primary_without_a_reset(): void
+    {
+        $primary = new ScriptedGenerator(['text' => 'Hello there', 'reasoning' => null, 'model' => 'm', 'response_id' => 'a'], [['text', 'Hello '], ['text', 'there']]);
+        $secondary = new ScriptedGenerator(['text' => 'Other', 'reasoning' => null, 'model' => 'g', 'response_id' => 'b'], [['text', 'Other']]);
+        $events = [];
+
+        $result = (new FallbackTextGenerator($primary, $secondary))->converse('i', [['role' => 'user', 'content' => 'hi']], 900, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame('Hello there', $result['text']);
+        $this->assertSame([['text', 'Hello '], ['text', 'there']], $events);
+        $this->assertSame(0, $secondary->calls);
+        $this->assertSame(['i', [['role' => 'user', 'content' => 'hi']], 900], array_slice($primary->lastArguments, 0, 3));
+    }
+
+    public function test_a_conversation_resets_before_the_secondary_when_the_primary_already_streamed(): void
+    {
+        $primary = new ScriptedGenerator(null, [['reasoning', 'Thinking'], ['text', 'Half an ans']]);
+        $secondary = new ScriptedGenerator(['text' => 'Full answer', 'reasoning' => null, 'model' => 'g', 'response_id' => 'b'], [['text', 'Full answer']]);
+        $events = [];
+
+        $result = (new FallbackTextGenerator($primary, $secondary))->converse('i', [['role' => 'user', 'content' => 'hi']], 900, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame('Full answer', $result['text']);
+        $this->assertSame([['reasoning', 'Thinking'], ['text', 'Half an ans'], ['reset', ''], ['text', 'Full answer']], $events);
+    }
+
+    public function test_a_real_claude_that_errors_mid_stream_resets_before_the_secondary_answers(): void
+    {
+        config()->set('services.anthropic', ['key' => 'k', 'model' => 'claude-sonnet-5-5', 'chat_timeout' => 60, 'connect_timeout' => 3]);
+        $event = fn (string $name, array $data) => "event: {$name}\ndata: ".json_encode(['type' => $name] + $data)."\n\n";
+        $body = $event('message_start', ['message' => ['id' => 'm', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-sonnet-5-5', 'content' => [], 'stop_reason' => null, 'stop_sequence' => null, 'usage' => ['input_tokens' => 1, 'output_tokens' => 1]]])
+            .$event('content_block_start', ['index' => 0, 'content_block' => ['type' => 'text', 'text' => '']])
+            .$event('content_block_delta', ['index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Half an ans']])
+            .$event('error', ['error' => ['type' => 'overloaded_error', 'message' => 'x']]);
+        $claude = new ClaudeMessagesService(new Client(['handler' => HandlerStack::create(new MockHandler([new Response(200, ['content-type' => 'text/event-stream'], $body)]))]));
+        $secondary = new ScriptedGenerator(['text' => 'Full answer', 'reasoning' => null, 'model' => 'g', 'response_id' => 'b'], [['text', 'Full answer']]);
+        $events = [];
+
+        $result = (new FallbackTextGenerator($claude, $secondary))->converse('i', [['role' => 'user', 'content' => 'hi']], 900, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame('Full answer', $result['text']);
+        $this->assertSame([['text', 'Half an ans'], ['reset', ''], ['text', 'Full answer']], $events);
+    }
+
+    public function test_a_conversation_sends_no_reset_when_the_primary_failed_before_emitting(): void
+    {
+        $primary = new ScriptedGenerator(null);
+        $secondary = new ScriptedGenerator(['text' => 'Full answer', 'reasoning' => null, 'model' => 'g', 'response_id' => 'b'], [['text', 'Full answer']]);
+        $events = [];
+
+        (new FallbackTextGenerator($primary, $secondary))->converse('i', [['role' => 'user', 'content' => 'hi']], 900, function (string $type, string $delta) use (&$events) {
+            $events[] = [$type, $delta];
+        });
+
+        $this->assertSame([['text', 'Full answer']], $events);
+    }
+
+    public function test_a_conversation_is_null_only_when_both_fail(): void
+    {
+        $this->assertNull((new FallbackTextGenerator(new ScriptedGenerator(null), new ScriptedGenerator(null)))->converse('i', [['role' => 'user', 'content' => 'hi']]));
+    }
+
     public function test_the_groq_service_is_the_documented_secondary_type(): void
     {
         $this->assertInstanceOf(TextGenerator::class, new GroqResponsesService);
@@ -108,7 +180,21 @@ class ScriptedGenerator implements TextGenerator
 
     public array $lastArguments = [];
 
-    public function __construct(private readonly ?array $answer) {}
+    /** @param  array<int, array{0: string, 1: string}>  $events  emitted by converse() before it answers */
+    public function __construct(private readonly ?array $answer, private readonly array $events = []) {}
+
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        $this->calls++;
+        $this->lastArguments = [$instructions, $messages, $maxOutputTokens];
+        foreach ($this->events as [$type, $delta]) {
+            if ($onEvent !== null) {
+                $onEvent($type, $delta);
+            }
+        }
+
+        return $this->answer;
+    }
 
     public function generate(string $instructions, string $input, int $maxOutputTokens = 400, float $temperature = 0.2): ?array
     {

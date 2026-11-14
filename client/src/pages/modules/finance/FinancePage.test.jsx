@@ -900,6 +900,104 @@ describe('FinancePage forecast delete and approved budgets', () => {
   });
 });
 
+describe('FinancePage finance AI results', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+  });
+
+  it('shows predicted expenses and the approved funds on a forecast card', async () => {
+    financeMocks.getForecasts.mockResolvedValue({ data: [{
+      id: 1, forecast_period: '2026-12', predicted_income: 10000, predicted_expense: 8000, predicted_balance: 2000, safe_spending_limit: 41600,
+      model_details: { engine: 'php-fallback', is_reliable: true, current_available_budget: 50000 },
+    }] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText('Expenses')).toBeInTheDocument();
+    expect(screen.getByText('₱8,000.00')).toBeInTheDocument();
+    expect(screen.getByText('Approved budgets')).toBeInTheDocument();
+    expect(screen.getByText('₱50,000.00')).toBeInTheDocument();
+  });
+
+  it('prints the reliability warning once even when the stored summary ends with it', async () => {
+    const note = 'Only 2 month(s) of history were used. The current unfinished month is left out of the trend.';
+    financeMocks.getForecasts.mockResolvedValue({ data: [{
+      id: 1, forecast_period: '2026-12', predicted_income: 10000, predicted_expense: 8000, predicted_balance: 2000, safe_spending_limit: 1600,
+      confidence_note: `The 2026-12 forecast is stable. ${note}`,
+      model_details: { engine: 'php-fallback', is_reliable: false, confidence_note: note },
+    }] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    await screen.findByText(note);
+    expect(screen.getAllByText(/The current unfinished month is left out of the trend/)).toHaveLength(1);
+    expect(screen.getByText('The 2026-12 forecast is stable.')).toBeInTheDocument();
+  });
+
+  it('labels a manual forecast instead of showing an engine', async () => {
+    financeMocks.getForecasts.mockResolvedValue({ data: [{
+      id: 1, forecast_period: '2026-12', predicted_income: 1000, predicted_expense: 6000, predicted_balance: -5000, safe_spending_limit: 0,
+      model_details: { engine: 'manual', risk: 'deficit' },
+    }] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText(/Entered manually/)).toBeInTheDocument();
+    expect(screen.getByText('Deficit')).toBeInTheDocument();
+  });
+
+  it('keeps each organization forecasts in its own group for a Department Head', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
+    const base = { predicted_income: 1000, predicted_expense: 800, predicted_balance: 200, safe_spending_limit: 160, model_details: { is_reliable: true } };
+    financeMocks.getForecasts.mockResolvedValue({ data: [
+      { ...base, id: 1, organization_id: 7, organization: { id: 7, name: 'Chess Club', acronym: 'CC' }, forecast_period: '2026-12' },
+      { ...base, id: 2, organization_id: 8, organization: { id: 8, name: 'Drama Guild', acronym: 'DG' }, forecast_period: '2026-12' },
+    ] });
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByRole('heading', { name: 'Chess Club (CC)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Drama Guild (DG)' })).toBeInTheDocument();
+    expect(screen.getAllByText('Forecast for 2026-12')).toHaveLength(2);
+  });
+
+  it('offers Get advice only for an approved budget', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [
+      { id: 4, title: 'Approved Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, submission_status: 'approved' },
+      { id: 5, title: 'Draft Budget', allocated_amount: 2000, remaining_amount: 2000, warning_threshold: 200, submission_status: 'pending_department_head' },
+    ] });
+    render(<FinancePage initialTab="budgets" />);
+
+    await screen.findByText('Approved Budget');
+    expect(await findRowAction('Get advice', 'Approved Budget')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Draft Budget' }));
+    expect(screen.queryByRole('menuitem', { name: 'Get advice' })).not.toBeInTheDocument();
+  });
+
+  it('hides stored advice that no longer matches the balance and asks for new advice', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [{
+      id: 4, title: 'Sportsfest', allocated_amount: 10000, remaining_amount: 7000, warning_threshold: 500, submission_status: 'approved',
+      overspending_risk: 'medium', recommended_allocation: 8000, safe_spending_limit: 8000, advisory_note: 'The projection is stable.',
+      advice_generated_at: '2026-11-01T09:00:00+08:00', advice_stale: true,
+    }] });
+
+    render(<FinancePage initialTab="budgets" />);
+
+    expect(await screen.findByText(/is out of date because this budget's balance changed/)).toBeInTheDocument();
+    expect(screen.queryByText('The projection is stable.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Recommended allocation/)).not.toBeInTheDocument();
+  });
+});
+
 describe('FinancePage statement of account for a student', () => {
   const invoice = (overrides) => ({
     id: 1,

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ImagePlus } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
-import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import ConfirmModal from '../../../components/ConfirmModal';
 import RichTextEditor from '../../../components/RichText';
 import { Button, Field, Input, PageHeader, Select, Textarea } from '../../../components/ui';
 import { announcementImageError } from './announcementShared.jsx';
@@ -24,23 +24,7 @@ const CATEGORY_OPTIONS = [
   { label: 'Merchandise', value: 'merchandise' },
 ];
 
-function ConfirmModal({ open, title, message, confirmText, onCancel, onConfirm, busy }) {
-  if (!open) return null;
-
-  return (
-    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6">
-        <h3 className="text-lg font-semibold text-ink">{title}</h3>
-        <p className="mt-2 text-sm text-ink-muted-strong">{message}</p>
-        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button onClick={onConfirm} loading={busy}>{confirmText}</Button>
-        </div>
-      </div>
-    </AccessibleOverlay>
-  );
-}
-
+const AI_INSTRUCTIONS_MAX = 2000;
 const MANAGE_PATH = '/dashboard/announcements/manage-announcements';
 const REQUEST_PATH = '/dashboard/approval-requests/new/announcement';
 
@@ -63,7 +47,7 @@ export default function CreateAnnouncementPage() {
   const [aiInstructions, setAiInstructions] = useState('');
   const [aiOutputId, setAiOutputId] = useState(null);
   const [draftNotice, setDraftNotice] = useState(null);
-  const [generationQuota, setGenerationQuota] = useState({ limit: 20, used: 0, remaining: 20 });
+  const [generationQuota, setGenerationQuota] = useState(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [imageFile, setImageFile] = useState(null);
   const [imageError, setImageError] = useState('');
@@ -76,6 +60,7 @@ export default function CreateAnnouncementPage() {
   const [posted, setPosted] = useState(false);
   const [lastPublishState, setLastPublishState] = useState(true);
   const [confirmState, setConfirmState] = useState({ open: false, isPublished: true });
+  const [replaceOpen, setReplaceOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,12 +109,19 @@ export default function CreateAnnouncementPage() {
     }
   }
 
-  async function handleGenerateDraft() {
+  function askGenerateDraft() {
     if (!title.trim()) {
       setError('Enter a title before generating a draft.');
       return;
     }
+    if (body.trim()) {
+      setReplaceOpen(true);
+      return;
+    }
+    handleGenerateDraft();
+  }
 
+  async function handleGenerateDraft() {
     setGenerating(true);
     setError(null);
     setDraftNotice(null);
@@ -140,8 +132,10 @@ export default function CreateAnnouncementPage() {
         category,
         details: aiInstructions,
       });
-      setBody(res.data?.output_text || '');
-      setAiOutputId(res.data?.ai_output_id || null);
+      if (res.data?.output_text) {
+        setBody(res.data.output_text);
+        setAiOutputId(res.data.ai_output_id || null);
+      }
       setDraftNotice(res.data?.is_template ? res.data?.notice || 'This is a template draft. Add the details before you post it.' : null);
       if (res.data?.quota) setGenerationQuota(res.data.quota);
     } catch (err) {
@@ -157,6 +151,7 @@ export default function CreateAnnouncementPage() {
   const meta = getPageMeta(pathname, getStoredRole());
   const pageTitle = (onRequestRoute && !forApproval) || !meta.matched ? 'New announcement' : meta.title;
   const crumbs = getBreadcrumbs(pathname, getStoredRole()).map((crumb, index, all) => (index === all.length - 1 ? { label: pageTitle } : crumb));
+  const outOfDrafts = Boolean(generationQuota) && generationQuota.remaining < 1;
   const titleMissing = showMissing && !title.trim();
   const bodyMissing = showMissing && !body.trim();
 
@@ -218,16 +213,17 @@ export default function CreateAnnouncementPage() {
           <details className="border-t border-line pt-3">
             <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium text-brand-700">Draft the text with AI</summary>
             <div className="mt-3 space-y-3">
-              <Field label="Instructions for AI draft" optional hint={quotaLoading ? 'Checking daily limit...' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}>
-                <Textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Formal tone. Assembly is on September 30 at 2:00 PM. Bring your ID." />
+              <Field label="Instructions for AI draft" optional hint={quotaLoading ? 'Checking daily limit...' : generationQuota ? `${generationQuota.remaining} of ${generationQuota.limit} drafts left today` : 'Daily limit unavailable'}>
+                <Textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} maxLength={AI_INSTRUCTIONS_MAX} placeholder="Formal tone. Assembly is on September 30 at 2:00 PM. Bring your ID." />
               </Field>
+              <p className="-mt-2 text-right text-xs tabular-nums text-ink-muted">{aiInstructions.length.toLocaleString()} of 2,000 characters</p>
               <Button
                 variant="secondary"
-                onClick={handleGenerateDraft}
-                disabled={generating || !title.trim() || generationQuota.remaining < 1}
+                onClick={askGenerateDraft}
+                disabled={generating || !title.trim() || outOfDrafts}
                 className="w-full sm:w-auto"
               >
-                {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate draft'}
+                {generating ? 'Generating draft...' : outOfDrafts ? 'Daily limit reached' : 'Generate draft'}
               </Button>
               {draftNotice && <p role="status" className="text-sm text-ink-muted-strong">{draftNotice}</p>}
             </div>
@@ -281,7 +277,18 @@ export default function CreateAnnouncementPage() {
       </div>
 
       <ConfirmModal
+        open={replaceOpen}
+        variant="primary"
+        title="Replace your text?"
+        message="Generating a draft replaces the text in Content."
+        confirmText="Replace text"
+        onCancel={() => setReplaceOpen(false)}
+        onConfirm={() => { setReplaceOpen(false); handleGenerateDraft(); }}
+      />
+
+      <ConfirmModal
         open={confirmState.open}
+        variant="primary"
         title={forApproval ? 'Submit for approval' : confirmState.isPublished ? 'Publish announcement' : 'Save draft'}
         message={forApproval
           ? 'The Admin approves it before members see it. You can follow it in Announcements.'

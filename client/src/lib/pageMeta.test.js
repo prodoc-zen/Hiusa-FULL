@@ -67,6 +67,7 @@ describe('getPageMeta', () => {
     expect(getPageMeta('/dashboard/elections/cast-vote', 'STUDENT').group).toBe('Voting');
     expect(getPageMeta('/dashboard/merchandise/claim-tokens', 'ADMIN').title).toBe('Claim desk');
     expect(getPageMeta('/dashboard/finance/personal-receipts', 'STUDENT').group).toBe('My payments');
+    expect(getPageMeta('/dashboard/finance/where-fees-go', 'STUDENT')).toMatchObject({ title: 'Where your fees go', group: 'My payments' });
   });
 
   it('resolves a dynamic segment, a trailing slash and a query', () => {

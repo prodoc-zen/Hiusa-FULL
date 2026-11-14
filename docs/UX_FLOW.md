@@ -208,7 +208,7 @@ flowchart LR
   ST1[Dashboard: next steps] --> ST2[Events: register]
   ST1 --> ST3[Voting: vote, receipt]
   ST1 --> ST4[Store: shop, pay, token, claim]
-  ST1 --> ST5[My payments: owed, receipts]
+  ST1 --> ST5[My payments: owed, receipts, where fees go]
   ST1 --> ST6[Support: clearance, grievance]
 ```
 
@@ -271,9 +271,10 @@ Format: group (band): children in order, each `Label  route`.
 - Records `/dashboard/records` (every organization in the college, past school years, read only)
 - College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin, following the top bar semester); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 
-**STUDENT** (7 rows, 11 leaves; same size, renamed and reordered)
+**STUDENT** (8 rows, 13 leaves; same size, renamed and reordered)
 - Dashboard `/dashboard/student`
-- My payments: Statement of account; Receipts (same routes)
+- Ask AI `/dashboard/ask-ai`
+- My payments: Statement of account; Receipts (same routes); Where your fees go `/dashboard/finance/where-fees-go` (read only: collected, spending by category and balance from the reports the SAO approved for the student's organization, no names or ledger rows)
 - Events (single link): Events `/dashboard/events/activity-calendar`
 - Voting: Vote `/dashboard/elections/cast-vote`; Results
 - Store: Shop `/dashboard/merchandise/order-merchandise`; My orders `/dashboard/merchandise/my-orders`

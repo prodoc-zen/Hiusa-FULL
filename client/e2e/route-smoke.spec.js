@@ -131,6 +131,7 @@ const ROUTES = {
     '/dashboard/events/activity-calendar',
     '/dashboard/finance/personal-receipts',
     '/dashboard/finance/statement-of-account',
+    '/dashboard/finance/where-fees-go',
     '/dashboard/merchandise/order-merchandise',
     '/dashboard/merchandise/my-orders',
     '/dashboard/my-grievances',

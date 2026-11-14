@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CreateAnnouncementPage from './CreateAnnouncementPage';
-import { createAnnouncement, generateAnnouncementDraft } from '../../../services/announcementService';
+import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
 
 vi.mock('../../../services/announcementService', () => ({
   createAnnouncement: vi.fn(),
@@ -76,6 +76,46 @@ describe('CreateAnnouncementPage', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('This is a template draft');
     expect(screen.getByLabelText(/Content/)).toHaveValue('General Assembly. Please be informed.');
+  });
+
+  it('asks before replacing written text and keeps it when the writer says cancel', async () => {
+    vi.mocked(generateAnnouncementDraft).mockResolvedValue({ data: { output_text: 'Drafted text.', ai_output_id: 9, is_template: false } });
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+    fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'My own words.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate draft' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(generateAnnouncementDraft).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByLabelText(/Content/)).toHaveValue('My own words.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate draft' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Replace text' }));
+    await waitFor(() => expect(screen.getByLabelText(/Content/)).toHaveValue('Drafted text.'));
+  });
+
+  it('does not clear the text when the response has no draft', async () => {
+    vi.mocked(generateAnnouncementDraft).mockResolvedValue({ data: {} });
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+    fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'My own words.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate draft' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Replace text' }));
+    await waitFor(() => expect(generateAnnouncementDraft).toHaveBeenCalled());
+    expect(screen.getByLabelText(/Content/)).toHaveValue('My own words.');
+  });
+
+  it('shows no made-up count when the quota request fails and caps the instructions', async () => {
+    vi.mocked(getAnnouncementGenerationQuota).mockRejectedValueOnce(new Error('offline'));
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+
+    expect(await screen.findByText('Daily limit unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/of 20 drafts left/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Instructions for AI draft/)).toHaveAttribute('maxlength', '2000');
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+    expect(screen.getByRole('button', { name: 'Generate draft' })).toBeEnabled();
   });
 
   it('words the request route as a request for an Officer and as a new announcement for an Admin', () => {

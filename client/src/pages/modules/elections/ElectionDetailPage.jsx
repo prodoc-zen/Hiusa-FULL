@@ -209,7 +209,7 @@ export default function ElectionDetailPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Remove election position"
-        message="This removes the position from the ballot configuration."
+        message="This removes the position from the ballot."
         recordName={deleteTarget?.title}
         confirmText="Remove"
         busy={busy}

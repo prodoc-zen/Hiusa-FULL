@@ -23,7 +23,7 @@
 
 ## Implementation Coverage
 
-- **Generate Announcement Draft:** `POST /announcements/generate-draft` sends only supplied title/audience/category/details to Groq, records structured context and output, and returns a retryable error instead of placeholder copy when Groq fails.
+- **Generate Announcement Draft:** `POST /announcements/generate-draft` sends the supplied title, audience, category and details (at most 2,000 characters) to the configured writer (Claude first, Groq as fallback); when no writer answers, or the draft is empty or adds a date, time or number the officer did not give, it returns a template draft marked `is_template` with a notice. A draft slot is reserved against the daily limit before the call.
 - **Accept Generated Draft:** saving the editable announcement links the versioned AI output to the new announcement and marks it accepted.
 - **Create Announcement:** Admin and SBO Officer use organization announcements. A Department Head chooses an active student organization in their own college, then publishes immediately or saves a draft through College announcements. They may edit, publish/unpublish, or delete only their own posts while the target organization remains active. SAO uses the separate official-announcement endpoints and page, with no AI generation or organization approval step.
 - **SAO Photos:** official announcements accept a JPEG, PNG, or WebP photo up to 5 MB. The editor previews the photo and the notice displays it. Multipart requests carry nested audience fields in a validated JSON `payload`; updates use `POST` with `_method=PUT` so PHP receives the uploaded file.

@@ -15,6 +15,7 @@ use App\Models\FinancialReport;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
+use App\Services\BudgetAdviceRules;
 use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
 use App\Services\SubmissionStoragePolicy;
@@ -181,15 +182,35 @@ class FinancialReportController extends Controller
             'verified_collections' => round((float) $collectionQuery->sum('amount_collected'), 2),
             'recorded_remittances' => round((float) $remittanceQuery->sum('amount'), 2),
         ];
-        $latestForecast = FinancialForecast::latestFor($organizationId);
+        $latestForecast = FinancialForecast::where('organization_id', $organizationId)
+            ->whereBetween('forecast_period', [substr($start, 0, 7), substr($end, 0, 7)])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
         $budgets = SemesterScope::budgets(Budget::where('organization_id', $organizationId)
             ->when($event, fn ($query) => $query->where('event_id', $event->id)), $semester)
+            ->where('submission_status', 'approved')
             ->whereNotNull('advice_generated_at')
+            ->when(! $event, fn ($query) => $query->whereBetween('advice_generated_at', [Carbon::parse($start)->startOfDay(), Carbon::parse($end)->endOfDay()]))
             ->get([
                 'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
                 'recommended_allocation', 'safe_spending_limit', 'overspending_risk',
-                'advisory_note', 'advice_generated_at',
+                'advisory_note', 'advice_generated_at', 'warning_threshold',
             ]);
+        $adviceInputs = AiOutput::where('feature_type', 'BUDGET_EXPLANATION')
+            ->where('reference_type', Budget::class)
+            ->whereIn('reference_id', $budgets->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('reference_id');
+        $budgets = $budgets
+            ->reject(fn (Budget $budget) => BudgetAdviceRules::isStale(
+                is_array($adviceInputs->get($budget->id)?->structured_input) ? $adviceInputs->get($budget->id)->structured_input : null,
+                (float) $budget->remaining_amount,
+                (float) $budget->warning_threshold,
+            ))
+            ->map(fn (Budget $budget) => $budget->makeHidden('warning_threshold'))
+            ->values();
         $auditLogs = AuditLog::where('organization_id', $organizationId)
             ->whereIn('module', ['financial_ledger', 'budgets', 'financial_reports'])
             ->whereDate('created_at', '>=', $start)

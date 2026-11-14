@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\BudgetController;
-use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\GrievanceController;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
@@ -12,6 +10,7 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
 use App\Services\TaskDelegationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,7 +18,6 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use ReflectionClassConstant;
-use ReflectionMethod;
 use Tests\TestCase;
 
 /**
@@ -544,12 +542,14 @@ class AiFallbackParityTest extends TestCase
             'allocated_amount' => 1000,
             'remaining_amount' => 1000,
             'warning_threshold' => 100,
+            'submission_status' => 'approved',
         ]);
         FinancialForecast::create([
             'organization_id' => $admin->organization_id,
-            'forecast_period' => now()->addMonth()->format('Y-m'),
+            'forecast_period' => now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'),
             'predicted_income' => 500,
             'predicted_expense' => 900,
+            'model_details' => ['engine' => 'php-fallback'],
         ]);
 
         Sanctum::actingAs($admin);
@@ -569,16 +569,16 @@ class AiFallbackParityTest extends TestCase
     }
 
     /**
-     * BudgetController::advice() always calls localBudgetAdvice() with
+     * BudgetController::advice() always calls BudgetAdviceRules::evaluate() with
      * committed_expenses hardcoded to 0 and safety_ratio hardcoded to 0.8, so
      * neither is reachable with a different value through the HTTP endpoint.
      * Pin the formula itself directly, with both at values that are NOT the
      * hardcoded defaults - these are exactly the two values GAP 4 calls out
      * as having been hardcoded into the pre-fix formula.
      */
-    public function test_budget_controller_local_budget_advice_pins_committed_expenses_and_custom_safety_ratio(): void
+    public function test_budget_advice_rules_pin_committed_expenses_and_custom_safety_ratio(): void
     {
-        $advice = $this->invokeLocalBudgetAdvice(app(BudgetController::class), [
+        $advice = BudgetAdviceRules::evaluate([
             'predicted_income' => 1000,
             'predicted_expense' => 200,
             'current_available_budget' => 2000,
@@ -597,32 +597,7 @@ class AiFallbackParityTest extends TestCase
         $this->assertSame('within_limit', $advice['allocation_status']);
     }
 
-    /**
-     * FinancialForecastController::localBudgetAdvice is the copy the spec
-     * called out as previously drifted, and (like BudgetController's) is only
-     * ever invoked through its endpoint with committed_expenses/safety_ratio
-     * hardcoded to 0/0.8. Pin it directly with different values too.
-     */
-    public function test_financial_forecast_controller_local_budget_advice_pins_committed_expenses_and_custom_safety_ratio(): void
-    {
-        $advice = $this->invokeLocalBudgetAdvice(app(FinancialForecastController::class), [
-            'predicted_income' => 1000,
-            'predicted_expense' => 200,
-            'current_available_budget' => 2000,
-            'committed_expenses' => 300,
-            'warning_threshold' => 0,
-            'safety_ratio' => 0.5,
-        ]);
-
-        $this->assertSame(2500.0, $advice['estimated_available_budget']);
-        $this->assertSame(1250.0, $advice['safe_spending_limit']);
-        $this->assertSame(1250.0, $advice['recommended_allocation']);
-        $this->assertSame(750.0, $advice['reserve_amount']);
-        $this->assertSame('stable', $advice['forecast_risk']);
-        $this->assertSame('within_limit', $advice['allocation_status']);
-    }
-
-    public function test_live_budget_engine_matches_both_php_fallbacks_for_financial_risks(): void
+    public function test_live_budget_engine_matches_the_php_advice_rules_for_financial_risks(): void
     {
         config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
         foreach ([[500, 900, 100, 0, 0, 0.8], [1000, 200, 2000, 300, 0, 0.5], [1000, 950, 500, 0, 200, 0.8], [0, 0, 1000, 0, 0, 0.8]] as $values) {
@@ -631,11 +606,9 @@ class AiFallbackParityTest extends TestCase
             if ($live === null) {
                 $this->markTestSkipped('Local HIUSA AI service is not reachable.');
             }
-            foreach ([BudgetController::class, FinancialForecastController::class] as $controller) {
-                $fallback = $this->invokeLocalBudgetAdvice(app($controller), $payload);
-                foreach (['estimated_available_budget', 'safe_spending_limit', 'recommended_allocation', 'reserve_amount', 'allocation_status', 'forecast_risk', 'overspending_risk', 'possible_deficit', 'expense_to_income_ratio'] as $field) {
-                    $this->assertEquals($live[$field], $fallback[$field], "$controller differs on $field");
-                }
+            $fallback = BudgetAdviceRules::evaluate($payload);
+            foreach (['estimated_available_budget', 'safe_spending_limit', 'recommended_allocation', 'reserve_amount', 'allocation_status', 'forecast_risk', 'overspending_risk', 'possible_deficit', 'expense_to_income_ratio', 'advice'] as $field) {
+                $this->assertEquals($live[$field], $fallback[$field], "BudgetAdviceRules differs on $field");
             }
         }
     }
@@ -647,21 +620,13 @@ class AiFallbackParityTest extends TestCase
             $this->markTestSkipped('Local HIUSA AI service is not reachable.');
         }
         $admin = $this->user('ADMIN');
-        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Live engine verification', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
-        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900]);
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Live engine verification', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900, 'model_details' => ['engine' => 'php-fallback']]);
         Sanctum::actingAs($admin);
         $this->postJson('/api/budgets/'.$budget->id.'/advice')->assertOk()
             ->assertJsonPath('engine', 'python-fastapi')->assertJsonPath('advice.recommended_allocation', 480)
             ->assertJsonPath('advice.reserve_amount', 520)->assertJsonPath('advice.forecast_risk', 'overspending');
         $this->assertSame('high', $budget->fresh()->overspending_risk);
-    }
-
-    private function invokeLocalBudgetAdvice(object $controller, array $payload): array
-    {
-        $method = new ReflectionMethod($controller, 'localBudgetAdvice');
-        $method->setAccessible(true);
-
-        return $method->invoke($controller, $payload);
     }
 
     // --- Task-area keyword matching ---------------------------------------
@@ -741,6 +706,19 @@ class AiFallbackParityTest extends TestCase
                 $this->assertSame($values[1], $phpMap[$area][$field], "PHP '{$area}.{$field}' drifted from the Python engine.");
             }
         }
+
+        foreach (['PRIMARY_POSITION_MATCH_SCORE', 'RELATED_POSITION_MATCH_SCORE', 'UNRELATED_POSITION_SCORE', 'UNKNOWN_POSITION_SCORE', 'NEUTRAL_PERFORMANCE_SCORE'] as $constant) {
+            $this->assertSame(1, preg_match('/^'.$constant.' = ([\d.]+)$/m', $python, $value), "The Python {$constant} was not found.");
+            $this->assertSame((float) $value[1], (new ReflectionClassConstant(TaskDelegationService::class, $constant))->getValue(), "PHP {$constant} drifted from the Python engine.");
+        }
+        $this->assertSame(1, preg_match('/^NEVER_ASSIGNED_RECENCY_SCORE = ([\d.]+)$/m', $python, $never));
+        $this->assertSame((float) $never[1], app(TaskDelegationService::class)->recencyScore(null), 'PHP never-assigned recency drifted from the Python engine.');
+        $this->assertSame(1, preg_match('/^DEFAULT_TASK_AREA = "(\w+)"$/m', $python, $default));
+        $this->assertSame($default[1], TaskDelegationService::DEFAULT_TASK_AREA);
+
+        $this->assertSame(1, preg_match('/"eligibility_rules": \[(.*?)\],/s', $python, $rules), 'The Python eligibility_rules list was not found.');
+        preg_match_all('/f?"([^"]+)"/', $rules[1], $ruleText);
+        $this->assertSame(array_map(fn (string $rule) => str_replace('{request.max_active_tasks}', '5', $rule), $ruleText[1]), app(TaskDelegationService::class)->eligibilityRules(5), 'PHP eligibility rules drifted from the Python engine.');
     }
 
     public function test_the_php_grievance_keyword_lists_equal_the_python_engine_lists(): void

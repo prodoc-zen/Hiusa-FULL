@@ -36,4 +36,26 @@ describe('AiInsightCard', () => {
     expect(screen.queryByText(/Formula:/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Open/i })).toHaveAttribute('href', insight.href);
   });
+
+  it('reads object-valued inputs as plain text and leaves out inputs with no value', () => {
+    const workload = {
+      ...insight,
+      why: {
+        inputs: {
+          busiest: { name: 'Ana Cruz', active_tasks: 4 },
+          freest: 'Ben Reyes, 0 active task(s)',
+          safe_spending_limit: null,
+          income_r_squared: undefined,
+        },
+      },
+    };
+    render(<MemoryRouter><AiInsightCard insight={workload} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole('button', { name: /Why am I seeing this/i }));
+
+    expect(screen.getByText(/busiest \(Ana Cruz, active tasks 4\)/)).toBeInTheDocument();
+    expect(screen.getByText(/freest \(Ben Reyes, 0 active task\(s\)\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/null|undefined/)).not.toBeInTheDocument();
+  });
 });

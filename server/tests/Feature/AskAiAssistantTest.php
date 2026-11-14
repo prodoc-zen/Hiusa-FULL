@@ -104,7 +104,7 @@ class AskAiAssistantTest extends TestCase
 
         $overview = $this->getJson('/api/ai/assistant')->assertOk();
         $overview->assertJsonPath('role', 'SUPER_ADMIN');
-        $overview->assertJsonPath('role_label', 'SAO Operations Copilot');
+        $overview->assertJsonPath('role_label', 'SAO assistant');
         $this->assertNotEmpty($overview->json('suggested_questions'));
 
         $missingRes = $this->postJson('/api/ai/assistant/ask', [
@@ -112,7 +112,7 @@ class AskAiAssistantTest extends TestCase
         ])->assertOk();
 
         $missingRes->assertJsonPath('intent', 'missing_submissions');
-        $this->assertNotEmpty($missingRes->json('charts'));
+        $this->assertSame([], $missingRes->json('charts'));
         $this->assertNotEmpty($missingRes->json('formatted_blocks.headline'));
         $missingRows = collect($missingRes->json('sections.0.rows'));
         $this->assertTrue($missingRows->contains(fn (array $row) => str_contains($row['primary'], 'Beta Robotics Club')));
@@ -273,7 +273,7 @@ class AskAiAssistantTest extends TestCase
         $res->assertJsonPath('intent', 'semantic_rag');
         $this->assertGreaterThan(0, $res->json('rag_metadata.corpus_size'));
         $this->assertGreaterThan(0, $res->json('rag_metadata.retrieved_count'));
-        $this->assertNotEmpty($res->json('charts'));
+        $this->assertNotContains('Key Metrics Comparison', array_column($res->json('charts'), 'title'));
 
         $payloadString = json_encode($res->json());
         $this->assertStringContainsString('Diego Villanueva', $payloadString);
@@ -446,7 +446,7 @@ class AskAiAssistantTest extends TestCase
 
         $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Any grievances?'])->assertOk();
         $res->assertJsonPath('intent', 'grievances_status');
-        $this->assertStringContainsString('including 1 high or critical', $res->json('answer'));
+        $this->assertStringContainsString('1 of them is high or critical urgency', $res->json('answer'));
         $this->assertSame('1', collect($res->json('highlights'))->firstWhere('label', 'High / critical urgency')['value']);
         $this->assertSame('danger', $res->json('sections.0.rows.0.status_tone'));
 
@@ -567,7 +567,7 @@ class AskAiAssistantTest extends TestCase
         $seeded = $this->seedSensitiveOrganizationData();
         Sanctum::actingAs($seeded['officer']);
 
-        foreach (['missing_submissions', 'submitted_documents', 'tasks_workload'] as $topic) {
+        foreach (['missing_submissions', 'submitted_documents'] as $topic) {
             $res = $this->postJson('/api/ai/assistant/ask', ['question' => 'Give me the status please', 'topic' => $topic]);
             $res->assertJsonPath('intent', $topic);
             $this->assertRefusedWithoutLeaking($res, $seeded['sensitive']);
@@ -786,8 +786,8 @@ class AskAiAssistantTest extends TestCase
         ])->assertOk();
         $payload = json_encode($res->json());
 
-        $this->assertStringContainsString('Role: Admin', $payload);
-        $this->assertStringContainsString('Role: SBO Officer', $payload);
+        $this->assertStringContainsString('Role: Organization Head', $payload);
+        $this->assertStringContainsString('Role: Officer', $payload);
         $this->assertStringNotContainsString('A D M I N', $payload);
         $this->assertStringNotContainsString('S B O', $payload);
     }

@@ -1,0 +1,227 @@
+import { useEffect, useId, useRef, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { Button, Field, Input, Select, Textarea } from '../ui';
+import { cancelAiAction, confirmAiAction } from '../../services/askAiService';
+import { effectiveStatus } from './actionState';
+import isSafePageHref from './safeHref';
+
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+const INPUT_CLASS = 'h-11 read-only:bg-subtle read-only:text-ink-muted-strong';
+const NOTE_CLASS = 'text-xs font-medium text-ink-muted-strong';
+const FAILURE = 'Could not complete that. Try again.';
+
+const messageList = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+
+const initialValues = (fields) => Object.fromEntries(
+  fields.map((field) => [field.name, field.type === 'checkbox' ? Boolean(field.value) : (field.value ?? '')]),
+);
+
+function submitted(fields, values) {
+  return Object.fromEntries(fields.map((field) => {
+    const value = values[field.name];
+    if (field.type === 'checkbox') return [field.name, Boolean(value)];
+    if (value === '' || value == null) return [field.name, null];
+    if (field.type === 'number' && Number.isFinite(Number(value))) return [field.name, Number(value)];
+    return [field.name, value];
+  }));
+}
+
+function useExpiry(action) {
+  const [now, setNow] = useState(() => Date.now());
+  const expiresAt = Date.parse(action.expires_at ?? '');
+  const open = action.status === 'awaiting_confirmation';
+  useEffect(() => {
+    if (!open || !Number.isFinite(expiresAt)) return undefined;
+    const wait = expiresAt - Date.now();
+    if (wait <= 0) return undefined;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(wait, MAX_TIMEOUT_MS));
+    return () => window.clearTimeout(timer);
+  }, [open, expiresAt]);
+  return now;
+}
+
+function Label({ field }) {
+  return (
+    <>
+      {field.label}
+      {field.required && <span aria-hidden="true" className="ml-0.5 text-danger-strong">*</span>}
+    </>
+  );
+}
+
+function ActionField({ field, value, error, readOnly, onChange }) {
+  const hint = field.help || undefined;
+  const label = <Label field={field} />;
+  const noteId = useId();
+
+  if (field.type === 'checkbox') {
+    const describedBy = error ? `${noteId}-error` : hint ? `${noteId}-help` : undefined;
+    return (
+      <div className="flex flex-col gap-1.5">
+        <label className="flex min-h-[42px] items-center gap-2.5 text-[13px] font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            disabled={readOnly}
+            onChange={(event) => onChange(event.target.checked)}
+            aria-required={field.required || undefined}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
+            className="h-5 w-5 shrink-0 accent-brand-700"
+          />
+          <span><Label field={field} /></span>
+        </label>
+        {hint && !error && <p id={`${noteId}-help`} className="text-xs text-ink-muted">{hint}</p>}
+        {error && <p id={`${noteId}-error`} role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>}
+      </div>
+    );
+  }
+
+  if (field.type === 'select') {
+    const options = Array.isArray(field.options) ? field.options : [];
+    return (
+      <Field label={label} hint={hint} error={error} required={field.required}>
+        <Select value={value} disabled={readOnly} onChange={(event) => onChange(event.target.value)}>
+          {field.required && (value === '' || value == null) && <option value="" disabled>Choose an option</option>}
+          {!field.required && <option value="">None</option>}
+          {options.map((option) => (
+            <option key={option.value} value={String(option.value)}>{option.label}</option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  if (field.type === 'textarea') {
+    return (
+      <Field label={label} hint={hint} error={error} required={field.required}>
+        <Textarea
+          rows={3}
+          value={value}
+          readOnly={readOnly}
+          maxLength={field.max || undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className="read-only:bg-subtle read-only:text-ink-muted-strong"
+        />
+      </Field>
+    );
+  }
+
+  const type = { datetime: 'datetime-local', date: 'date', number: 'number' }[field.type] || 'text';
+  return (
+    <Field label={label} hint={hint} error={error} required={field.required}>
+      <Input
+        type={type}
+        value={value}
+        readOnly={readOnly}
+        maxLength={type === 'text' ? field.max || undefined : undefined}
+        inputMode={type === 'number' ? 'decimal' : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        className={INPUT_CLASS}
+      />
+    </Field>
+  );
+}
+
+export default function ActionCard({ message, action, live = true, onChange }) {
+  const fields = Array.isArray(action.fields) ? action.fields : [];
+  const [values, setValues] = useState(() => initialValues(fields));
+  const [errors, setErrors] = useState(() => action.errors || {});
+  const [busy, setBusy] = useState(false);
+  const [closedNote, setClosedNote] = useState('');
+  const busyRef = useRef(false);
+  const now = useExpiry(action);
+  const status = effectiveStatus(action, now);
+
+  const run = async (request, onRefused) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErrors((current) => ({ ...current, _: undefined }));
+    try {
+      const response = await request();
+      onChange(response.data.message);
+    } catch (err) {
+      const code = err?.response?.status;
+      const data = err?.response?.data;
+      if (onRefused?.(code, data)) return;
+      if (code === 409 || code === 404) setClosedNote(data?.message || FAILURE);
+      else setErrors((current) => ({ ...current, _: [FAILURE] }));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const confirm = (event) => {
+    event.preventDefault();
+    run(() => confirmAiAction(message.id, submitted(fields, values)), (code, data) => {
+      if (code !== 422) return false;
+      const returned = data?.assistant_message;
+      setErrors(data?.errors || returned?.payload?.action?.errors || {});
+      if (returned) onChange(returned);
+      return true;
+    });
+  };
+
+  const cancel = () => run(() => cancelAiAction(message.id));
+
+  if (status === 'done') {
+    const result = action.result || {};
+    return (
+      <section aria-label={action.title} className="mt-3 flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface p-4">
+        <p className="min-w-0 flex-1 text-sm font-medium text-ink">{result.message || 'Done.'}</p>
+        {isSafePageHref(result.href) && (
+          <Button to={result.href} variant="secondary" size="sm" rightIcon={ArrowRight} className="max-sm:h-[42px]">
+            {result.action_label || 'Open'}
+          </Button>
+        )}
+      </section>
+    );
+  }
+
+  if (status === 'cancelled' || status === 'failed' || status === 'expired') {
+    const line = {
+      cancelled: 'You cancelled this request.',
+      failed: 'This request did not go through.',
+      expired: 'This request expired. Ask again to get a fresh one.',
+    }[status];
+    return <p className={`mt-3 ${NOTE_CLASS}`}>{line}</p>;
+  }
+
+  const editable = live && !closedNote;
+  const readOnly = !editable || busy;
+  const general = messageList(errors._);
+
+  return (
+    <form
+      aria-label={action.title}
+      noValidate
+      onSubmit={confirm}
+      className="mt-3 flex flex-col gap-3 rounded-card border border-line bg-surface p-4"
+    >
+      <h3 className="text-sm font-semibold text-ink">{action.title}</h3>
+      {fields.map((field) => (
+        <ActionField
+          key={field.name}
+          field={field}
+          value={values[field.name]}
+          error={messageList(errors[field.name]).join(' ') || undefined}
+          readOnly={readOnly}
+          onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
+        />
+      ))}
+      {general.length > 0 && (
+        <p role="alert" className="text-sm font-medium text-danger-strong">{general.join(' ')}</p>
+      )}
+      {closedNote && <p role="alert" className="text-sm font-medium text-ink">{closedNote}</p>}
+      {!live && !closedNote && <p className={NOTE_CLASS}>A newer request replaced this one.</p>}
+      {editable && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" loading={busy}>{action.submit_label || 'Confirm'}</Button>
+          <Button variant="secondary" onClick={cancel} disabled={busy}>Cancel</Button>
+        </div>
+      )}
+    </form>
+  );
+}

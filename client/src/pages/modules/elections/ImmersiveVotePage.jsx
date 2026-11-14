@@ -70,7 +70,7 @@ export default function ImmersiveVotePage() {
       </main>
 
       <Modal open={confirmExit} title="Leave the ballot?" description="Your current selections have not been submitted and will be lost if you leave." onClose={() => setConfirmExit(false)} closeOnBackdrop closeOnEscape maxWidth="max-w-md" footer={<><Button variant="secondary" onClick={() => setConfirmExit(false)}>Continue voting</Button><Button variant="danger" onClick={leaveVoting}>Leave voting</Button></>}>
-        <p className="text-sm text-ink-muted-strong">Only a submitted ballot is recorded. You go back to Vote, and you can start a new ballot there while voting is open.</p>
+        <p className="text-sm text-ink-muted-strong">You return to Vote, where you can start a new ballot while voting is open.</p>
       </Modal>
     </div>
   );

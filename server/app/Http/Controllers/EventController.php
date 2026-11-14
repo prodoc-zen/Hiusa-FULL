@@ -213,7 +213,7 @@ class EventController extends Controller
             $budget->approval_remarks = $approval?->remarks;
         }
 
-        $latestForecast = FinancialForecast::latestFor($events->first()->organization_id);
+        $latestForecast = FinancialForecast::currentFor($events->first()->organization_id);
 
         $eventTotals = Transaction::whereIn('event_id', $events->pluck('id'))
             ->excludingCashAdvances()
@@ -744,6 +744,10 @@ class EventController extends Controller
             'model' => ['nullable', 'string', 'max:100'],
         ]);
 
+        if ($event->status === 'cancelled') {
+            return response()->json(['message' => 'This event is cancelled, so a to-do list cannot be drafted for it.'], 422);
+        }
+
         if ($event->start_time->lte(now()->addMinutes(5))) {
             return response()->json([
                 'message' => 'Choose an event that starts at least five minutes from now so its tasks can be scheduled.',
@@ -758,6 +762,7 @@ class EventController extends Controller
 
         $conflicts = Event::where('organization_id', $event->organization_id)
             ->whereKeyNot($event->id)
+            ->where('status', '!=', 'cancelled')
             ->where('start_time', '<', $event->end_time)
             ->where('end_time', '>', $event->start_time)
             ->get(['id', 'title', 'start_time', 'end_time', 'location'])
@@ -793,7 +798,8 @@ class EventController extends Controller
             ->max('version')) + 1;
 
         $isTemplate = ! $generated;
-        $generated ??= ['data' => $this->templateWorkflow($event, $context), 'text' => '', 'model' => 'template-draft'];
+        $templateReason = 'unavailable';
+        $generated ??= ['data' => $this->templateWorkflow($event, $context, $templateReason), 'text' => '', 'model' => 'template-draft'];
 
         $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
         if ($workflow === null && ! $isTemplate) {
@@ -805,7 +811,8 @@ class EventController extends Controller
                 'model' => $generated['model'],
             ]);
             $isTemplate = true;
-            $generated = ['data' => $this->templateWorkflow($event, $context), 'text' => '', 'model' => 'template-draft'];
+            $templateReason = 'rejected';
+            $generated = ['data' => $this->templateWorkflow($event, $context, $templateReason), 'text' => '', 'model' => 'template-draft'];
             $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
         }
         if ($workflow === null) {
@@ -877,6 +884,7 @@ class EventController extends Controller
                 'plan' => $planText,
                 'workflow' => $workflow,
                 'is_template' => $isTemplate,
+                'allowed_positions' => $context['allowed_positions'],
                 'tasks' => [],
             ], 201);
         });
@@ -892,6 +900,9 @@ class EventController extends Controller
         }
         if ($aiOutput->decision_status !== 'pending') {
             return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
+        }
+        if ($event->status === 'cancelled') {
+            return response()->json(['message' => 'This event is cancelled, so its to-do list cannot be saved.'], 422);
         }
 
         $data = $request->validate([
@@ -924,22 +935,51 @@ class EventController extends Controller
 
                 return response()->json(['message' => "The due date for '{$task['title']}' must be {$guidance}."], 422);
             }
-            if (! empty($task['recommended_role']) && ! $activePositions->containsStrict($task['recommended_role'])) {
-                return response()->json(['message' => "Choose an active officer role for '{$task['title']}'."], 422);
+            if (! empty($task['recommended_role'])) {
+                $canonical = $this->delegation->canonicalPosition($task['recommended_role'], $activePositions->all());
+                if ($canonical === null) {
+                    return response()->json(['message' => "Choose an active officer role for '{$task['title']}'."], 422);
+                }
+                $data['tasks'][$position]['recommended_role'] = $canonical;
             }
         }
 
         $created = DB::transaction(function () use ($request, $event, $aiOutput, $data) {
+            // The event row is locked before any draft row, in every confirm, so two confirms of different
+            // drafts queue here instead of each holding one draft and waiting on the other's.
+            Event::whereKey($event->id)->lockForUpdate()->first();
+            $current = AiOutput::whereKey($aiOutput->id)->lockForUpdate()->first();
+            if (! $current || $current->decision_status !== 'pending') {
+                abort(409, 'This draft has already been saved or removed.');
+            }
+            if (AiOutput::where('organization_id', $event->organization_id)
+                ->where('feature_type', 'EVENT_WORKFLOW')->where('reference_type', Event::class)
+                ->where('reference_id', $event->id)->where('decision_status', 'accepted')->exists()) {
+                abort(409, 'This event already has a saved to-do list. Existing tasks will not be replaced.');
+            }
+
+            $recommendations = [];
+            foreach ($data['tasks'] as $sequence => $draft) {
+                $recommendations[$sequence] = $this->delegation->recommend($event->organization_id, $draft['title'], 'workflow', $draft['recommended_role'] ?? null);
+                if (! collect($recommendations[$sequence]['rankings'])->contains('officer_id', (int) $draft['assigned_to'])) {
+                    abort(422, "No officer is currently available for '{$draft['title']}'. Check officer status, positions, and open task limits.");
+                }
+            }
+            foreach (collect($data['tasks'])->countBy(fn (array $draft) => (int) $draft['assigned_to']) as $officerId => $newTasks) {
+                $ranking = collect($recommendations[array_key_first($recommendations)]['rankings'])->firstWhere('officer_id', $officerId);
+                if ($ranking['max_active_tasks'] < $ranking['active_tasks'] + $newTasks) {
+                    $room = max(0, $ranking['max_active_tasks'] - $ranking['active_tasks']);
+                    abort(422, "{$ranking['name']} can take {$room} more open task".($room === 1 ? '' : 's')." but was given {$newTasks}. Choose another officer for some of them.");
+                }
+            }
+
             $byKey = [];
             $tasks = [];
             $overrides = 0;
             foreach ($data['tasks'] as $sequence => $draft) {
-                $recommendation = $this->delegation->recommend($event->organization_id, $draft['title'], 'workflow', $draft['recommended_role'] ?? null);
+                $recommendation = $recommendations[$sequence];
                 $recommendedId = $recommendation['recommended_officer_id'];
                 $assignedTo = $draft['assigned_to'];
-                if ($assignedTo === null || ! collect($recommendation['rankings'])->contains('officer_id', (int) $assignedTo)) {
-                    abort(422, "No officer is currently available for '{$draft['title']}'. Check officer status, positions, and open task limits.");
-                }
                 $selected = collect($recommendation['rankings'])->firstWhere('officer_id', (int) $assignedTo);
                 $task = Task::create([
                     'event_id' => $event->id,
@@ -1089,23 +1129,24 @@ class EventController extends Controller
             min(1800, max(300, $tasks->count() * 120)),
             0.2,
         );
-        $explanations = collect($generated['data']['explanations'] ?? [])->keyBy('task_id');
-        $validIds = $facts->pluck('task_id')->sort()->values()->all();
-        $returnedIds = $explanations->keys()->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $isValid = $generated && $validIds === $returnedIds
-            && $explanations->every(function ($row, $taskId) use ($facts) {
-                $fact = $facts->firstWhere('task_id', (int) $taskId);
+        $explanations = collect($generated['data']['explanations'] ?? [])
+            ->filter(fn ($row) => is_array($row) && isset($row['task_id']))
+            ->keyBy(fn ($row) => (int) $row['task_id']);
+        $validExplanations = $explanations->filter(function ($row, $taskId) use ($facts) {
+            $fact = $facts->firstWhere('task_id', (int) $taskId);
 
-                return is_string($row['explanation'] ?? null)
-                    && trim($row['explanation']) !== ''
-                    && $fact
-                    && $this->ai->preservesNumericFacts($row['explanation'], $fact);
-            });
+            return is_string($row['explanation'] ?? null)
+                && trim($row['explanation']) !== ''
+                && $fact
+                && $this->ai->preservesNumericFacts($row['explanation'], $fact);
+        });
+        $generatedCount = 0;
 
         foreach ($tasks as $task) {
             $fact = $facts->firstWhere('task_id', $task->id);
-            $explanation = $isValid ? trim($explanations[$task->id]['explanation']) : null;
+            $explanation = $generated && $validExplanations->has($task->id) ? trim($validExplanations[$task->id]['explanation']) : null;
             if ($explanation) {
+                $generatedCount++;
                 $task->update(['ai_recommendation_note' => $explanation]);
             }
             AiOutput::create([
@@ -1131,8 +1172,8 @@ class EventController extends Controller
         }
         $this->auditAiAction($request, 'task_explanations_generated', $event, [
             'task_count' => $tasks->count(),
-            'generated_count' => $isValid ? $tasks->count() : 0,
-            'failed_count' => $isValid ? 0 : $tasks->count(),
+            'generated_count' => $generatedCount,
+            'failed_count' => $tasks->count() - $generatedCount,
         ]);
     }
 
@@ -1145,7 +1186,11 @@ class EventController extends Controller
         if ($aiOutput->decision_status !== 'pending') {
             return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
         }
-        $aiOutput->update(['decision_status' => 'discarded', 'decided_by' => $request->user()->school_id, 'decided_at' => now()]);
+        $changed = AiOutput::whereKey($aiOutput->id)->where('decision_status', 'pending')
+            ->update(['decision_status' => 'discarded', 'decided_by' => $request->user()->school_id, 'decided_at' => now()]);
+        if ($changed === 0) {
+            return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
+        }
         $this->auditAiAction($request, 'workflow_discarded', $event, ['ai_output_id' => $aiOutput->id]);
 
         return response()->json(['message' => 'Draft removed. No tasks were created.']);
@@ -1381,7 +1426,7 @@ class EventController extends Controller
      * A standard checklist used when no AI writer can answer. It only restates the event's own dates
      * and active positions, so it passes through normalizeWorkflow like a generated plan.
      */
-    private function templateWorkflow(Event $event, array $context): array
+    private function templateWorkflow(Event $event, array $context, string $reason = 'unavailable'): array
     {
         $now = now();
         $lead = $event->start_time->timestamp - $now->timestamp;
@@ -1422,7 +1467,9 @@ class EventController extends Controller
         $tasks[] = $task('wrap-up-report', 'Write the event wrap-up report', 'Record what happened, what was spent and what to do better next time.', 'post_event', 'low', $afterEnd(7), 'close-out', $roleFor(['Secretary', 'Assistant Secretary']));
 
         return [
-            'overview' => 'Template draft: the AI writer is not available right now, so this is a standard checklist built from the event dates. Review and edit every item before saving.',
+            'overview' => $reason === 'rejected'
+                ? 'Template draft: the suggested plan did not pass the checks, so this is a standard checklist built from the event dates instead.'.(trim($context['requirements']) !== '' ? ' The context you typed was not used.' : '').' Review and edit every item before saving.'
+                : 'Template draft: the AI writer is not available right now, so this is a standard checklist built from the event dates. Review and edit every item before saving.',
             'preparation_phases' => ['Before the event: confirm the plan, announce it and prepare the venue.', 'On the day: run the program and record attendance.', 'After the event: settle expenses, collect feedback and write the report.'],
             'timeline' => ['Event starts '.$event->start_time->toISOString(), 'Event ends '.$event->end_time->toISOString()],
             'resources' => ['Approvals and a confirmed venue', 'Equipment and materials the program needs', 'An attendance record'],

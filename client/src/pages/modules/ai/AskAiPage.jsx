@@ -1,507 +1,743 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { PhoneFold } from '../../../components/dashboard';
-import { Button, ErrorState, PageHeader, Skeleton, StatusBadge } from '../../../components/ui';
-import { askAiAssistant, getAiAssistantOverview } from '../../../services/askAiService';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowDown, ArrowRight, Brain, History, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button, Drawer, ErrorState, PageHeader, Skeleton } from '../../../components/ui';
+import {
+  deleteAiConversation,
+  deleteAllAiConversations,
+  getAiAssistantOverview,
+  getAiConversation,
+  listAiConversations,
+  renameAiConversation,
+  sendAiMessageFeedback,
+  streamAiChat,
+} from '../../../services/askAiService';
+import { actionOf, liveActionId } from '../../../components/ai/actionState';
+import isSafePageHref from '../../../components/ai/safeHref';
+import ChatComposer from './ChatComposer';
+import ChatMessage from './ChatMessage';
+import ConversationList from './ConversationList';
+import MemoryPanel from './MemoryPanel';
 
-const HIGHLIGHT_TONE_STYLES = {
-  danger: 'text-danger-strong',
-  warning: 'text-warning-strong',
-  success: 'text-success-strong',
-  primary: 'text-navy-800',
-  info: 'text-brand-700',
-  neutral: 'text-ink',
+const NEAR_BOTTOM_PX = 96;
+const WIDE_QUERY = '(min-width: 1280px)';
+
+const apiMessage = (err, fallback) => err?.response?.data?.message || fallback;
+
+const asList = (data, key) => {
+  const list = data?.[key] ?? data?.data ?? data;
+  return Array.isArray(list) ? list : [];
 };
 
-// The server names tones the old way; the badge knows info, not primary.
-const BADGE_TONES = { primary: 'info' };
-
-// The server writes counts as "3 item(s)". Show "3 items" or "1 item" instead.
-function plainText(value) {
-  if (typeof value !== 'string') return value;
-  return value
-    .replace(/(\d[\d,]*)((?:\s+[A-Za-z-]+){0,3}?)\s+([A-Za-z]+)\(s\)/g, (_match, count, middle, noun) => {
-      const singular = Number(count.replace(/,/g, '')) === 1;
-      return `${count}${middle} ${noun}${singular ? '' : 's'}`;
-    })
-    .replace(/\(s\)/g, 's');
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches ?? false);
+  useEffect(() => {
+    const media = window.matchMedia?.(query);
+    if (!media) return undefined;
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, [query]);
+  return matches;
 }
 
-// Server titles arrive in Title Case. Keep acronyms, lowercase the rest.
-function sentenceCase(value) {
-  if (typeof value !== 'string') return value;
-  return plainText(value)
-    .split(' ')
-    .map((word, index) => {
-      if (index === 0) return word;
-      const letters = word.replace(/[^A-Za-z]/g, '');
-      if (letters.length > 1 && letters === letters.toUpperCase()) return word;
-      if (/[a-z][A-Z]/.test(word)) return word;
-      return word.charAt(0).toLowerCase() + word.slice(1);
-    })
-    .join(' ');
+function useOnline() {
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+  return online;
 }
 
-function FormattedBriefingBlock({ answer, formattedBlocks }) {
-  const recommended = formattedBlocks?.recommended_action;
+function readEvent(first, second) {
+  if (typeof first === 'string') return [first, second || {}];
+  return [first?.event ?? first?.type ?? first?.name, first?.data ?? second ?? {}];
+}
 
-  return (
-    <div className="mt-3.5 space-y-3">
-      <p className="max-w-[75ch] text-sm leading-relaxed text-ink">
-        {plainText(answer)}
-      </p>
+function withKey(message) {
+  return { ...message, key: `m-${message.id}` };
+}
 
-      {recommended && (
-        <div className="flex flex-col justify-between gap-2 border-t border-line pt-3 sm:flex-row sm:items-center">
-          <div className="min-w-0 text-sm">
-            <span className="font-medium text-ink">
-              Recommended next step:{' '}
-            </span>
-            <span className="text-ink">{plainText(recommended.title)}</span>
-            {recommended.detail && (
-              <p className="mt-0.5 text-xs text-ink-muted-strong">{plainText(recommended.detail)}</p>
-            )}
-          </div>
-          {recommended.href && (
-            <Button to={recommended.href} variant="secondary" size="sm" className="shrink-0 self-start sm:self-center">
-              {recommended.action_label || 'Take action'}
-            </Button>
-          )}
+function failureMessage(err) {
+  if (err?.status === 429 || err?.response?.status === 429) {
+    const served = err?.serverMessage || err?.response?.data?.message;
+    if (typeof served === 'string' && served.trim()) return served.trim();
+    return 'Too many questions at once. Wait a moment, then try again.';
+  }
+  if (navigator.onLine === false) {
+    return 'You seem to be offline. Check your connection, then try again.';
+  }
+  if (err instanceof TypeError) {
+    return 'Could not reach HIUSA. Try again in a moment.';
+  }
+  return 'Could not answer that right now. Try again.';
+}
+
+function briefingTitle(title) {
+  if (!title) return 'Today';
+  if (title !== title.toUpperCase()) return title;
+  const lower = title.toLowerCase().replace(/\b(sao|sbo|hiusa)\b/g, (word) => word.toUpperCase());
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+const ACTION_EXAMPLES = {
+  SUPER_ADMIN: ['Draft an announcement about enrollment week', 'Create an event for the organizations meeting'],
+  DEPARTMENT_HEAD: ['Create an event for Friday at 3 pm', 'Draft an announcement about the general assembly'],
+  ADMIN: ['Draft an announcement about the general assembly', 'Create an event for Friday at 3 pm'],
+  SBO_OFFICER: ['Create an event for Friday at 3 pm', 'Draft an announcement about the general assembly'],
+  STUDENT: ['Create a task to bring my ID on Monday', 'Draft a message to my organization officers'],
+};
+
+function storedRole() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    return '';
+  }
+}
+
+function NewConversation({ overview, loading, error, onRetry, onAsk }) {
+  if (loading) {
+    return (
+      <div role="status" aria-label="Loading Ask AI" className="space-y-4 pt-6">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+        <Skeleton className="h-28 w-full" />
+        <div className="flex flex-wrap gap-2">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-44" />)}
         </div>
-      )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
-function EvidenceSection({ section, onSelectFollowUp }) {
-  const rows = Array.isArray(section.rows) ? section.rows : [];
-  const isStepsLayout = section.layout === 'steps';
+  if (error) {
+    return <ErrorState title="Could not load Ask AI" description={error} onRetry={onRetry} />;
+  }
+
+  const briefing = overview?.daily_briefing;
+  const priorities = Array.isArray(briefing?.priorities) ? briefing.priorities.slice(0, 4) : [];
+  const starters = Array.isArray(overview?.starter_prompts) && overview.starter_prompts.length > 0
+    ? overview.starter_prompts
+    : (overview?.suggested_questions || []);
+  const firstName = overview?.user_first_name;
+  const examples = ACTION_EXAMPLES[storedRole()];
 
   return (
-    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink">{sentenceCase(section.title)}</h3>
-        {section.description && (
-          <p className="text-xs text-ink-muted-strong">{plainText(section.description)}</p>
+    <div className="space-y-5 pt-4 sm:pt-8">
+      <div>
+        <h2 className="text-xl font-semibold text-ink sm:text-2xl">{firstName ? `Hi, ${firstName}` : 'Hi there'}</h2>
+        {overview?.scope_label && (
+          <p className="mt-1 text-sm font-medium text-ink-muted-strong">Showing records for {overview.scope_label}.</p>
         )}
       </div>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-ink-muted-strong">
-          {plainText(section.empty_message) || 'Nothing needs attention here.'}
-        </p>
-      ) : isStepsLayout ? (
-        <ol aria-label={sentenceCase(section.title)} className="divide-y divide-line-soft">
-          {rows.map((row, idx) => (
-            <li
-              key={row.id || idx}
-              className="flex flex-col gap-3 py-3 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy-800 text-xs font-semibold text-white"
-                >
-                  {row.step || idx + 1}
-                </span>
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-ink">
-                      {plainText(row.primary)}
-                    </span>
-                    {row.meta && (
-                      <span className="text-xs text-ink-muted-strong tabular-nums">
-                        {plainText(row.meta)}
-                      </span>
-                    )}
-                  </div>
-                  {row.secondary && (
-                    <p className="text-xs leading-relaxed text-ink-muted-strong">
-                      {plainText(row.secondary)}
-                    </p>
+      {briefing?.summary && (
+        <section aria-label="Today's briefing" className="rounded-card border border-line bg-surface p-4">
+          <h3 className="text-sm font-semibold text-ink">{briefingTitle(briefing.title)}</h3>
+          <p className="mt-1 text-sm leading-6 text-ink">{briefing.summary}</p>
+          {priorities.length > 0 && (
+            <ul className="mt-3 divide-y divide-line-soft border-t border-line-soft">
+              {priorities.map((row, index) => (
+                <li key={row.id || index} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0 text-sm font-medium text-ink">{row.primary}</span>
+                  {isSafePageHref(row.href) && (
+                    <Link
+                      to={row.href}
+                      className="inline-flex min-h-[42px] shrink-0 items-center gap-1 rounded-control text-sm font-semibold text-brand-700 hover:text-brand-800 sm:min-h-9"
+                    >
+                      {row.action_label || 'Open'}
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
                   )}
-                </div>
-              </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
-              <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-                {row.href && (
-                  <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
-                    {row.action_label || 'Go to page'}
-                  </Button>
-                )}
-                {row.ask_question && onSelectFollowUp && (
-                  <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
-                    Show steps
-                  </Button>
-                )}
-              </div>
-            </li>
+      {starters.length > 0 && (
+        <div role="group" aria-label="Suggested questions" className="flex flex-wrap gap-2">
+          {starters.map((item) => (
+            <button
+              key={item.id || item.label}
+              type="button"
+              onClick={() => onAsk(item.question, item.topic)}
+              className="min-h-[42px] rounded-control border border-line bg-surface px-3.5 py-2 text-left text-sm font-medium text-ink transition-colors hover:border-brand-600 hover:bg-subtle"
+            >
+              {item.label}
+            </button>
           ))}
-        </ol>
-      ) : (
-        <table className="block w-full text-left text-sm sm:table">
-          <caption className="sr-only">{sentenceCase(section.title)}</caption>
-          <thead className="hidden bg-subtle sm:table-header-group">
-            <tr className="border-b border-line text-ink-muted">
-              <th scope="col" className="px-3 py-2 text-xs font-semibold">Record</th>
-              <th scope="col" className="px-3 py-2 text-xs font-semibold">Details</th>
-              <th scope="col" className="px-3 py-2 text-xs font-semibold">Status</th>
-              <th scope="col" className="px-3 py-2 text-xs font-semibold">Count</th>
-              <th scope="col" className="px-3 py-2 text-right text-xs font-semibold">Action</th>
-            </tr>
-          </thead>
-          <tbody className="block divide-y divide-line sm:table-row-group">
-            {rows.map((row) => {
-              const cell = 'px-3 py-0 max-sm:px-0 max-sm:empty:hidden sm:table-cell sm:py-2.5';
+        </div>
+      )}
 
-              return (
-                <tr key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 py-3 hover:bg-subtle sm:table-row sm:py-0">
-                  <td data-label="Record" className={`${cell} font-medium text-ink max-sm:col-span-2 max-sm:row-start-1`}>
-                    {plainText(row.primary)}
-                  </td>
-                  <td data-label="Details" className={`${cell} text-xs text-ink-muted-strong max-sm:col-span-3 max-sm:row-start-2 sm:text-sm`}>
-                    {plainText(row.secondary) || ''}
-                  </td>
-                  <td data-label="Status" className={`${cell} max-sm:row-start-3 max-sm:self-center`}>
-                    {row.status ? (
-                      <StatusBadge tone={BADGE_TONES[row.status_tone] || row.status_tone || 'neutral'} label={plainText(row.status)} />
-                    ) : ''}
-                  </td>
-                  <td data-label="Count" className={`${cell} tabular-nums text-ink max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-3 max-sm:self-center max-sm:text-xs`}>
-                    {plainText(row.meta) || ''}
-                  </td>
-                  <td className={`${cell} max-sm:col-start-3 max-sm:row-start-1 sm:text-right`}>
-                    {row.href ? (
-                      <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11">
-                        {row.action_label || 'Open'}
-                      </Button>
-                    ) : row.ask_question && onSelectFollowUp ? (
-                      <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={() => onSelectFollowUp(row.ask_question, 'how_to_guide')}>
-                        Show steps
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {examples && (
+        <p className="text-sm font-medium text-ink-muted-strong">
+          You can also ask me to do things, such as &ldquo;{examples[0]}&rdquo; or &ldquo;{examples[1]}&rdquo;.
+        </p>
       )}
     </div>
   );
 }
 
-function ResponseTurn({ turn, onSelectFollowUp }) {
-  const highlights = Array.isArray(turn.highlights) ? turn.highlights : [];
-  const sections = Array.isArray(turn.sections) ? turn.sections : [];
-  const followUps = Array.isArray(turn.follow_ups) ? turn.follow_ups : [];
-
+function ConversationSkeleton() {
   return (
-    <article
-      aria-label={sentenceCase(turn.title) || turn.question}
-      className="rounded-card border border-line bg-surface p-4 sm:p-5"
-    >
-      <div className="border-b border-line pb-3.5">
-        <h2 className="text-base font-semibold text-ink">
-          {sentenceCase(turn.title) || 'Answer'}
-        </h2>
-        {turn.question && (
-          <p className="mt-0.5 text-xs text-ink-muted-strong">
-            Question: &ldquo;{turn.question}&rdquo;
-          </p>
-        )}
+    <div role="status" aria-label="Loading conversation" className="space-y-6 py-4">
+      <div className="flex justify-end"><Skeleton className="h-10 w-2/3" /></div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-11/12" />
+        <Skeleton className="h-4 w-2/3" />
       </div>
-
-      <FormattedBriefingBlock
-        answer={turn.answer}
-        formattedBlocks={turn.formatted_blocks}
-      />
-
-      {highlights.length > 0 && (
-        <dl className="mt-3.5 flex flex-wrap gap-x-8 gap-y-3 border-t border-line pt-3.5">
-          {highlights.map((item) => {
-            const valueColor =
-              HIGHLIGHT_TONE_STYLES[item.tone] || HIGHLIGHT_TONE_STYLES.neutral;
-            return (
-              <div key={item.label}>
-                <dt className="text-xs text-ink-muted-strong">{plainText(item.label)}</dt>
-                <dd className={`mt-0.5 text-base font-semibold tabular-nums ${valueColor}`}>
-                  {item.value}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-
-      {sections.length > 0 && (
-        <div className="mt-4 space-y-4">
-          {sections.map((section) => (
-            <EvidenceSection
-              key={section.id || section.title}
-              section={section}
-              onSelectFollowUp={onSelectFollowUp}
-            />
-          ))}
-        </div>
-      )}
-
-      {followUps.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
-          <span className="text-xs text-ink-muted-strong">Ask next:</span>
-          {followUps.map((f) => (
-            <Button
-              key={f.question}
-              variant="secondary"
-              size="sm"
-              className="max-sm:h-11"
-              onClick={() => onSelectFollowUp(f.question, f.topic)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-      )}
-    </article>
+    </div>
   );
 }
 
 export default function AskAiPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const cParam = searchParams.get('c');
+  const qParam = searchParams.get('q');
+  const topicParam = searchParams.get('topic');
+
   const [overview, setOverview] = useState(null);
-  const [loadingOverview, setLoadingOverview] = useState(true);
-  const [overviewError, setOverviewError] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState('');
 
-  const [questionInput, setQuestionInput] = useState('');
-  const [asking, setAsking] = useState(false);
-  const [askError, setAskError] = useState(null);
-  const [turns, setTurns] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState(false);
 
-  const initialQueryHandledRef = useRef(false);
-  const inputRef = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [convLoading, setConvLoading] = useState(false);
+  const [convError, setConvError] = useState(null);
+  const [notice, setNotice] = useState('');
 
-  const runQuestion = useCallback(async (questionText, topic = null) => {
-    const trimmed = (questionText || '').trim();
-    if (!trimmed) return;
+  const [streaming, setStreaming] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [announcement, setAnnouncement] = useState('');
+  const [showJump, setShowJump] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
-    setAsking(true);
-    setAskError(null);
-    try {
-      const response = await askAiAssistant({
-        question: trimmed,
-        ...(topic ? { topic } : {}),
-      });
-      const data = response.data;
-      setTurns((prev) => [data, ...prev]);
-      setQuestionInput('');
-    } catch (err) {
-      setAskError(
-        err?.response?.data?.message ||
-          'Could not answer that question right now. Try again.'
-      );
-    } finally {
-      setAsking(false);
-    }
-  }, []);
+  const wide = useMediaQuery(WIDE_QUERY);
+  const online = useOnline();
+
+  const rootRef = useRef(null);
+  const scrollerRef = useRef(null);
+  const composerRef = useRef(null);
+  const convIdRef = useRef(null);
+  const sendingRef = useRef(false);
+  const runRef = useRef(0);
+  const abortRef = useRef(null);
+  const loadRef = useRef(0);
+  const loadingRef = useRef(false);
+  const sendRef = useRef(null);
+  const prevCParamRef = useRef(cParam);
+  const atBottomRef = useRef(true);
+  const handledQueryRef = useRef('');
+  const typedIdsRef = useRef(new Set());
 
   const loadOverview = useCallback(async () => {
-    setLoadingOverview(true);
-    setOverviewError(null);
+    setOverviewLoading(true);
+    setOverviewError('');
     try {
       const response = await getAiAssistantOverview();
       setOverview(response.data);
-    } catch {
-      setOverviewError('Could not load your briefing. Try again.');
+    } catch (err) {
+      setOverviewError(apiMessage(err, 'Try again in a moment.'));
     } finally {
-      setLoadingOverview(false);
+      setOverviewLoading(false);
+    }
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    setListLoading(true);
+    setListError(false);
+    try {
+      const response = await listAiConversations();
+      setConversations(asList(response.data, 'conversations'));
+    } catch {
+      setListError(true);
+    } finally {
+      setListLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadOverview();
-  }, [loadOverview]);
+    loadConversations();
+  }, [loadOverview, loadConversations]);
+
+  const upsertConversation = useCallback((conversation) => {
+    if (!conversation?.id) return;
+    setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
+  }, []);
+
+  const updateParams = useCallback((mutate, options = { replace: true }) => {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      mutate(next);
+      return next;
+    }, options);
+  }, [setSearchParams]);
+
+  const focusComposer = useCallback(() => {
+    const active = document.activeElement;
+    const typing = active && active !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName);
+    if (!typing) composerRef.current?.focus();
+  }, []);
+
+  const cancelRun = useCallback(() => {
+    runRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    sendingRef.current = false;
+    setStreaming(false);
+  }, []);
+
+  const resetToNew = useCallback(() => {
+    cancelRun();
+    loadRef.current += 1;
+    loadingRef.current = false;
+    convIdRef.current = null;
+    setActiveId(null);
+    setMessages([]);
+    setSendError(null);
+    setConvError(null);
+    setConvLoading(false);
+    setShowJump(false);
+    atBottomRef.current = true;
+  }, [cancelRun]);
+
+  const send = useCallback(async (rawText, { topic = null, regenerate = false, source = 'link' } = {}) => {
+    if (sendingRef.current || loadingRef.current) return false;
+    const text = (rawText ?? '').trim();
+    if (!regenerate && (!text || text.length > 2000)) return false;
+
+    sendingRef.current = true;
+    const requestedId = convIdRef.current;
+    const runId = ++runRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const userKey = `u-${runId}`;
+    const answerKey = `a-${runId}`;
+    const current = () => runRef.current === runId;
+    const patchAnswer = (change) => {
+      if (current()) setMessages((list) => list.map((m) => (m.key === answerKey ? { ...m, ...change(m) } : m)));
+    };
+
+    setStreaming(true);
+    setSendError(null);
+    setNotice('');
+    atBottomRef.current = true;
+    setMessages((list) => {
+      const base = regenerate && list.at(-1)?.role === 'assistant' ? list.slice(0, -1) : list;
+      const asked = regenerate ? [] : [{ key: userKey, role: 'user', content: text }];
+      return [...base, ...asked, { key: answerKey, role: 'assistant', content: '', streaming: true, statusLabel: '', reasoningText: '' }];
+    });
+
+    let gone = false;
+    let finished = false;
+    let metaReceived = false;
+    const finish = (result) => {
+      if (!current() || !result?.message) return;
+      finished = true;
+      setMessages((list) => list.map((m) => (m.key === answerKey ? withKey(result.message) : m)));
+      upsertConversation(result.conversation);
+      setAnnouncement(`Answer ready. ${result.conversation?.preview || ''}`.trim());
+    };
+
+    const onEvent = (first, second) => {
+      if (!current()) return;
+      const [name, data] = readEvent(first, second);
+      if (name === 'meta') {
+        metaReceived = true;
+        if (data.conversation?.id) {
+          convIdRef.current = data.conversation.id;
+          setActiveId(data.conversation.id);
+          upsertConversation(data.conversation);
+          updateParams((params) => params.set('c', String(data.conversation.id)));
+        }
+        if (data.user_message) {
+          if (source === 'typed' && data.user_message.id != null) typedIdsRef.current.add(data.user_message.id);
+          setMessages((list) => list.map((m) => (m.key === userKey ? withKey(data.user_message) : m)));
+        }
+      } else if (name === 'status') {
+        patchAnswer(() => ({ statusLabel: data.label || '' }));
+      } else if (name === 'reasoning') {
+        patchAnswer((m) => ({ reasoningText: `${m.reasoningText}${data.delta || ''}` }));
+      } else if (name === 'delta') {
+        patchAnswer((m) => ({ content: `${m.content}${data.text || ''}` }));
+      } else if (name === 'replace') {
+        patchAnswer(() => ({ content: data.text || '', notice: data.notice || '' }));
+      } else if (name === 'done') {
+        finish(data);
+      }
+    };
+
+    try {
+      const result = await streamAiChat({
+        conversationId: requestedId,
+        message: regenerate ? undefined : text,
+        topic,
+        regenerate,
+        source,
+        signal: controller.signal,
+        onEvent,
+      });
+      if (!finished) finish(result);
+    } catch (err) {
+      if (!current()) return true;
+      if (err?.name === 'AbortError') {
+        patchAnswer(() => ({ streaming: false, status: 'stopped' }));
+        setAnnouncement('Answer stopped.');
+      } else if (err?.status === 404 && requestedId !== null) {
+        gone = true;
+        convIdRef.current = null;
+        setActiveId(null);
+        setConversations((list) => list.filter((item) => item.id !== requestedId));
+        updateParams((params) => params.delete('c'));
+        setMessages([]);
+      } else {
+        const throttled = err?.status === 429 || err?.response?.status === 429;
+        const restore = throttled && !metaReceived && !regenerate && source === 'typed';
+        setMessages((list) => list.flatMap((m) => {
+          if (restore && m.key === userKey) return [];
+          if (m.key !== answerKey) return [m];
+          return m.content ? [{ ...m, streaming: false, status: 'failed' }] : [];
+        }));
+        if (restore) composerRef.current?.restore(text);
+        setSendError({ message: failureMessage(err), text, topic, source, regenerate: regenerate || metaReceived });
+      }
+    } finally {
+      if (current()) {
+        sendingRef.current = false;
+        abortRef.current = null;
+        setStreaming(false);
+        focusComposer();
+      }
+    }
+    if (gone) {
+      if (!regenerate) sendRef.current(text, { topic, source });
+      setNotice('That conversation is no longer available, so this is a new one.');
+    }
+    return true;
+  }, [focusComposer, updateParams, upsertConversation]);
 
   useEffect(() => {
-    if (initialQueryHandledRef.current) return;
-    const qParam = searchParams.get('q');
-    const topicParam = searchParams.get('topic');
-    if (qParam && qParam.trim()) {
-      initialQueryHandledRef.current = true;
-      runQuestion(qParam.trim(), topicParam || null);
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, setSearchParams, runQuestion]);
+    sendRef.current = send;
+  }, [send]);
 
-  const handleFormSubmit = (event) => {
-    event.preventDefault();
-    if (asking) return;
-    if (!questionInput.trim()) {
-      inputRef.current?.focus();
+  const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  const retry = useCallback(() => {
+    if (!sendError || sendingRef.current) return;
+    const { text, topic, regenerate, source } = sendError;
+    composerRef.current?.clearIf(text);
+    if (!regenerate) {
+      setMessages((list) => (list.at(-1)?.role === 'user' ? list.slice(0, -1) : list));
+    }
+    send(text, { topic, regenerate, source });
+  }, [send, sendError]);
+
+  const regenerate = useCallback(() => {
+    const asked = messages.findLast((m) => m.role === 'user');
+    send('', { regenerate: true, source: asked && typedIdsRef.current.has(asked.id) ? 'typed' : 'link' });
+  }, [send, messages]);
+
+  const ask = useCallback((first, second) => {
+    const question = typeof first === 'object' ? first?.question : first;
+    const topic = typeof first === 'object' ? first?.topic : second;
+    if (!question) return;
+    send(question, { topic: topic || null, source: 'link' });
+  }, [send]);
+
+  const openConversation = useCallback(async (id) => {
+    cancelRun();
+    const ticket = ++loadRef.current;
+    loadingRef.current = true;
+    setConvLoading(true);
+    setConvError(null);
+    setSendError(null);
+    setNotice('');
+    setMessages([]);
+    try {
+      const response = await getAiConversation(id);
+      if (loadRef.current !== ticket) return;
+      const data = response.data?.data ?? response.data;
+      const header = data?.conversation ?? data;
+      convIdRef.current = header.id;
+      setActiveId(header.id);
+      setMessages(asList(data, 'messages').map(withKey));
+      atBottomRef.current = true;
+    } catch (err) {
+      if (loadRef.current !== ticket) return;
+      if (err?.response?.status === 404) {
+        convIdRef.current = null;
+        setActiveId(null);
+        setNotice('That conversation is no longer available, so this is a new one.');
+        updateParams((params) => params.delete('c'));
+      } else {
+        setConvError(id);
+      }
+    } finally {
+      if (loadRef.current === ticket) {
+        loadingRef.current = false;
+        setConvLoading(false);
+      }
+    }
+  }, [cancelRun, updateParams]);
+
+  useEffect(() => {
+    const previous = prevCParamRef.current;
+    prevCParamRef.current = cParam;
+    if (!cParam) {
+      const openId = convIdRef.current;
+      // While a send runs, only a Back away from the very conversation on screen resets it; a stale
+      // address update from an earlier conversation must not cancel the run.
+      if (openId !== null && (!sendingRef.current || String(openId) === previous)) resetToNew();
       return;
     }
-    runQuestion(questionInput, null);
+    if (String(convIdRef.current) === cParam) return;
+    openConversation(cParam);
+  }, [cParam, openConversation, resetToNew]);
+
+  useEffect(() => {
+    const question = (qParam || '').trim();
+    if (!question || cParam) return;
+    const signature = `${question}|${topicParam || ''}`;
+    if (handledQueryRef.current === signature) return;
+    handledQueryRef.current = signature;
+    updateParams((params) => {
+      params.delete('q');
+      params.delete('topic');
+    });
+    send(question.slice(0, 2000), { topic: topicParam || null, source: 'link' });
+  }, [qParam, topicParam, cParam, send, updateParams]);
+
+  const newChat = useCallback(() => {
+    resetToNew();
+    setNotice('');
+    updateParams((params) => params.delete('c'));
+    setHistoryOpen(false);
+    window.setTimeout(() => composerRef.current?.focus(), 0);
+  }, [resetToNew, updateParams]);
+
+  const openFromList = useCallback((id) => {
+    setHistoryOpen(false);
+    if (id === convIdRef.current) return;
+    updateParams((params) => params.set('c', String(id)), { replace: false });
+  }, [updateParams]);
+
+  const renameConversation = useCallback(async (id, title) => {
+    try {
+      await renameAiConversation(id, title);
+      setConversations((list) => list.map((item) => (item.id === id ? { ...item, title } : item)));
+      return true;
+    } catch (err) {
+      toast.error(apiMessage(err, 'Could not rename that conversation.'));
+      return false;
+    }
+  }, []);
+
+  const removeConversation = useCallback(async (id) => {
+    try {
+      await deleteAiConversation(id);
+      setConversations((list) => list.filter((item) => item.id !== id));
+      if (id === convIdRef.current) newChat();
+      return true;
+    } catch (err) {
+      toast.error(apiMessage(err, 'Could not delete that conversation.'));
+      return false;
+    }
+  }, [newChat]);
+
+  const removeAllConversations = useCallback(async () => {
+    try {
+      await deleteAllAiConversations();
+      setConversations([]);
+      newChat();
+      return true;
+    } catch (err) {
+      toast.error(apiMessage(err, 'Could not delete your conversations.'));
+      return false;
+    }
+  }, [newChat]);
+
+  const giveFeedback = useCallback(async (message, rating) => {
+    const apply = (value) => setMessages((list) => list.map((m) => (m.key === message.key ? { ...m, feedback: value } : m)));
+    const previous = message.feedback ?? null;
+    apply(rating);
+    try {
+      await sendAiMessageFeedback(message.id, rating);
+    } catch {
+      apply(previous);
+      toast.error('Could not save your feedback.');
+    }
+  }, []);
+
+  useEffect(() => {
+    const scroller = rootRef.current?.closest('main') || document.scrollingElement;
+    scrollerRef.current = scroller;
+    if (!scroller) return undefined;
+    const onScroll = () => {
+      const near = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < NEAR_BOTTOM_PX;
+      atBottomRef.current = near;
+      setShowJump(!near);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    if (scroller && atBottomRef.current) scroller.scrollTop = scroller.scrollHeight;
+  }, [messages]);
+
+  const jumpToLatest = () => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    atBottomRef.current = true;
+    scroller.scrollTop = scroller.scrollHeight;
+    setShowJump(false);
   };
 
-  if (loadingOverview) {
-    return (
-      <div className="space-y-5">
-        <PageHeader title="Ask AI" />
-        <div className="space-y-3" role="status" aria-label="Loading your briefing">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-48 w-full" />
-        </div>
-      </div>
-    );
-  }
+  const listProps = {
+    conversations,
+    activeId,
+    loading: listLoading,
+    error: listError,
+    onRetry: loadConversations,
+    onOpen: openFromList,
+    onNew: newChat,
+    onRename: renameConversation,
+    onDelete: removeConversation,
+    onDeleteAll: removeAllConversations,
+  };
 
-  if (overviewError) {
-    return (
-      <div className="space-y-5">
-        <PageHeader title="Ask AI" />
-        <ErrorState title="Could not load Ask AI" description={overviewError} onRetry={loadOverview} />
-      </div>
-    );
-  }
+  const sendFromComposer = (text) => {
+    if (sendingRef.current || loadingRef.current) return false;
+    send(text, { source: 'typed' });
+    return true;
+  };
 
-  const suggestedQuestions = Array.isArray(overview?.suggested_questions)
-    ? overview.suggested_questions
-    : [];
-  const dailyBriefing = overview?.daily_briefing;
-  const recentQueries = Array.isArray(overview?.recent_queries) ? overview.recent_queries : [];
+  const replaceMessage = useCallback((next) => {
+    setMessages((list) => list.map((m) => (m.id === next.id && m.role === 'assistant' ? { ...next, key: m.key } : m)));
+  }, []);
 
-  const defaultTurn = dailyBriefing
-    ? {
-        id: 'daily-briefing',
-        question: 'What should I do today?',
-        title: dailyBriefing.title || "Today's plan",
-        answer: dailyBriefing.summary,
-        highlights: dailyBriefing.highlights || [],
-        formatted_blocks: dailyBriefing.formatted_blocks || null,
-        sections: dailyBriefing.sections || [],
-        follow_ups: suggestedQuestions.slice(1, 4).map((q) => ({
-          topic: q.topic,
-          label: q.label,
-          question: q.question,
-        })),
-      }
-    : null;
-
-  const suggestedQuestionList = (
-    <>
-      <div className="mb-2 mt-2 text-xs text-ink-muted-strong sm:mt-0">
-        Suggested questions
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {suggestedQuestions.map((item) => (
-          <Button
-            key={item.id}
-            variant="secondary"
-            size="sm"
-            disabled={asking}
-            onClick={() => runQuestion(item.question, item.topic)}
-            className="h-auto min-h-9 text-left max-sm:min-h-11"
-          >
-            {item.label}
-          </Button>
-        ))}
-      </div>
-    </>
-  );
-  const answerShowing = turns.length > 0 || Boolean(defaultTurn);
+  const liveActionMessageId = liveActionId(messages);
+  const lastIndex = messages.length - 1;
+  const isNew = messages.length === 0 && !convLoading && !convError;
 
   return (
-    <div className="space-y-5">
+    <div ref={rootRef} className="flex min-h-[calc(100dvh-9rem)] flex-col">
       <PageHeader
         title="Ask AI"
-        description={overview?.scope_label ? `Showing records for ${overview.scope_label}.` : undefined}
-        actions={turns.length > 0 ? (
-          <Button variant="secondary" onClick={() => setTurns([])}>
-            Back to today&apos;s plan
-          </Button>
-        ) : undefined}
+        actions={(
+          <>
+            {!wide && <Button variant="secondary" leftIcon={Plus} onClick={newChat}>New chat</Button>}
+            {!wide && <Button variant="secondary" leftIcon={History} onClick={() => setHistoryOpen(true)}>History</Button>}
+            <Button variant="secondary" leftIcon={Brain} onClick={() => setMemoryOpen(true)}>Memory</Button>
+          </>
+        )}
       />
 
-      <section aria-label="Ask AI prompt bar">
-        <form onSubmit={handleFormSubmit} className="flex gap-2">
-          <label htmlFor="ask-ai-question-input" className="sr-only">
-            Ask a question about your tasks, submissions, or organization records
-          </label>
-          <input
-            id="ask-ai-question-input"
-            type="text"
-            value={questionInput}
-            onChange={(e) => setQuestionInput(e.target.value)}
-            ref={inputRef}
-            placeholder="Ask a question"
-            disabled={asking}
-            className="h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-base text-ink placeholder:text-ink-soft focus:border-brand-600 sm:h-10 sm:text-sm"
-          />
-          <Button type="submit" loading={asking} className="shrink-0 max-sm:h-11">
-            Ask AI
-          </Button>
-        </form>
+      <div className="flex min-h-0 flex-1 gap-8">
+        <section aria-label="Conversation" className="flex min-w-0 flex-1 flex-col">
+          <div className="mx-auto w-full max-w-[760px] flex-1 py-4">
+            {notice && <p role="status" className="mb-3 text-xs font-medium text-ink-muted-strong">{notice}</p>}
 
-        {askError && (
-          <p role="alert" className="mt-2.5 text-sm font-medium text-danger-strong">
-            {askError}
-          </p>
-        )}
+            {convLoading && <ConversationSkeleton />}
+            {convError && (
+              <ErrorState
+                title="Could not open that conversation"
+                onRetry={() => openConversation(convError)}
+              />
+            )}
+            {isNew && (
+              <NewConversation
+                overview={overview}
+                loading={overviewLoading}
+                error={overviewError}
+                onRetry={loadOverview}
+                onAsk={ask}
+              />
+            )}
 
-        {suggestedQuestions.length > 0 && (answerShowing ? (
-          <div className="mt-2 sm:mt-4">
-            <PhoneFold label="Show suggested questions" hideLabel="Hide suggested questions" className="px-0!">
-              {suggestedQuestionList}
-            </PhoneFold>
+            {messages.length > 0 && (
+              <div role="log" aria-label="Conversation" aria-live="off" className="space-y-6">
+                {messages.map((message, index) => (
+                  <ChatMessage
+                    key={message.key}
+                    message={message}
+                    isLast={index === lastIndex}
+                    busy={streaming}
+                    onRegenerate={activeId && !streaming ? regenerate : undefined}
+                    onFeedback={giveFeedback}
+                    onAsk={ask}
+                    actionLive={!actionOf(message) || message.id === liveActionMessageId}
+                    onActionChange={replaceMessage}
+                  />
+                ))}
+              </div>
+            )}
+
+            {sendError && (
+              <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-card border border-danger/30 bg-danger-tint px-3.5 py-2.5">
+                <p className="min-w-0 flex-1 text-sm font-medium text-danger-strong">{sendError.message}</p>
+                <Button variant="secondary" size="sm" onClick={retry} className="max-sm:h-[42px]">Try again</Button>
+              </div>
+            )}
+            <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
           </div>
-        ) : <div className="mt-4">{suggestedQuestionList}</div>)}
-      </section>
 
-      <div className="space-y-4">
-        {turns.map((turn, idx) => (
-          <ResponseTurn
-            key={`${turn.id || 'turn'}-${idx}`}
-            turn={turn}
-            onSelectFollowUp={(q, topic) => runQuestion(q, topic)}
-          />
-        ))}
+          <div className="sticky bottom-0 -mx-3 -mb-3 bg-page px-3 pb-3 pt-2 sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6">
+            <div className="relative mx-auto w-full max-w-[760px]">
+              {showJump && messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={jumpToLatest}
+                  className="absolute -top-12 left-1/2 inline-flex min-h-[42px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-sm font-semibold text-ink shadow-card hover:bg-subtle sm:min-h-9"
+                >
+                  <ArrowDown size={14} aria-hidden="true" />
+                  Jump to latest
+                </button>
+              )}
+              <ChatComposer
+                ref={composerRef}
+                streaming={streaming}
+                offline={!online}
+                blockedReason={convLoading ? 'Opening your conversation. You can send once it has loaded.' : ''}
+                onSend={sendFromComposer}
+                onStop={stop}
+              />
+            </div>
+          </div>
+        </section>
 
-        {defaultTurn && (
-          <ResponseTurn
-            turn={defaultTurn}
-            onSelectFollowUp={(q, topic) => runQuestion(q, topic)}
-          />
+        {wide && (
+          <aside aria-label="History" className="sticky top-0 max-h-[calc(100dvh-10rem)] w-72 shrink-0 self-start overflow-y-auto py-4">
+            <ConversationList {...listProps} />
+          </aside>
         )}
       </div>
 
-      {recentQueries.length > 0 && (
-        <section
-          aria-label="Recent questions"
-          className="rounded-card border border-line bg-surface p-4 sm:p-5"
-        >
-          <h2 className="mb-3 text-sm font-semibold text-ink">Recent questions</h2>
-          <div className="divide-y divide-line">
-            {recentQueries.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col justify-between gap-2 py-2.5 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">{item.question}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted-strong">{plainText(item.answer)}</p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => runQuestion(item.question, null)}
-                  className="shrink-0 self-start max-sm:h-11 sm:self-center"
-                >
-                  Ask again
-                </Button>
-              </div>
-            ))}
-          </div>
-        </section>
+      {!wide && (
+        <Drawer open={historyOpen} onClose={() => setHistoryOpen(false)} title="History" width="max-w-sm">
+          <ConversationList {...listProps} />
+        </Drawer>
       )}
+      <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} />
     </div>
   );
 }

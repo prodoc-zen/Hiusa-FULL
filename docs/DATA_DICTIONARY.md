@@ -1,6 +1,6 @@
 # Data dictionary
 
-Generated from the staging database schema on 2026-10-13 (MySQL 8, 65 tables, 745 columns); the Elections group and the Officer transition group were updated by hand on 2026-11-13 from the migrations of the full election process (files named 2026_11_13_1000NN). Grouped by module. `?` after a type means the column can be empty. PK is the primary key, UQ is unique, FK points to the table it references.
+Generated from the staging database schema on 2026-10-13 (MySQL 8, 65 tables, 745 columns); the Elections group and the Officer transition group were updated by hand on 2026-11-13 from the migrations of the full election process (files named 2026_11_13_1000NN), and on 2026-11-14 the AI and audit group (ai_conversations, ai_messages, ai_memories) and four grievances columns from migrations 2026_11_14_000001 and 2026_11_14_000002. Grouped by module. `?` after a type means the column can be empty. PK is the primary key, UQ is unique, FK points to the table it references.
 
 ## Identity and access
 
@@ -1202,6 +1202,10 @@ Complaints filed by students.
 | classification_confidence | double | yes |  |  |  |
 | classification_reasoning | text | yes |  |  |  |
 | classification_engine | varchar(20) | yes |  |  |  |
+| machine_urgency | varchar(20) | yes |  |  |  |
+| machine_category | varchar(100) | yes |  |  |  |
+| classification_corrected_by | int unsigned | yes |  |  |  |
+| classification_corrected_at | datetime | yes |  |  |  |
 | status | varchar(20) | no |  |  | `submitted` |
 | remarks | text | yes |  |  |  |
 | resolved_at | datetime | yes |  |  |  |
@@ -1269,6 +1273,51 @@ Stored AI outputs with versions.
 | decided_by | int unsigned | yes | FK | users.school_id |  |
 | decided_at | timestamp | yes |  |  |  |
 | created_at | timestamp | no |  |  | `CURRENT_TIMESTAMP` |
+
+### ai_conversations
+
+Ask AI chat threads, one per user conversation.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| user_id | int unsigned | no | FK | users.school_id |  |
+| organization_id | bigint unsigned | yes | FK | organizations.id |  |
+| role | varchar(30) | no |  |  |  |
+| title | varchar(160) | no |  |  |  |
+| last_message_at | timestamp | yes |  |  |  |
+| created_at | timestamp | yes |  |  |  |
+| updated_at | timestamp | yes |  |  |  |
+
+### ai_messages
+
+Messages in an Ask AI conversation.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| conversation_id | bigint unsigned | no | FK | ai_conversations.id |  |
+| role | varchar(12) | no |  |  |  |
+| content | longtext | no |  |  |  |
+| payload | json | yes |  |  |  |
+| status | varchar(12) | no |  |  | `completed` |
+| feedback | varchar(4) | yes |  |  |  |
+| ai_output_id | bigint unsigned | yes | FK | ai_outputs.id |  |
+| created_at | timestamp | no |  |  | `CURRENT_TIMESTAMP` |
+
+### ai_memories
+
+Short facts Ask AI remembers for a user.
+
+| Column | Type | Null | Key | References | Default |
+|---|---|---|---|---|---|
+| id | bigint unsigned | no | PK |  |  |
+| user_id | int unsigned | no | FK | users.school_id |  |
+| organization_id | bigint unsigned | yes | FK | organizations.id |  |
+| role | varchar(30) | no |  |  |  |
+| content | varchar(300) | no |  |  |  |
+| created_at | timestamp | yes |  |  |  |
+| updated_at | timestamp | yes |  |  |  |
 
 ### audit_logs
 

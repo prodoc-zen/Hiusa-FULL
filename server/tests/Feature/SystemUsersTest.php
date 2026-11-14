@@ -416,6 +416,7 @@ class SystemUsersTest extends TestCase
             'organization_applicant_grants.user_school_id', 'organization_applicant_grants.granted_by',
             'tasks.assigned_to', 'announcements.created_by',
             'ai_outputs.requested_by', 'ai_outputs.decided_by',
+            'ai_conversations.user_id', 'ai_memories.user_id',
             // Moved to the deleting SAO by transferInstitutionalRecords() before the delete.
             'compliance_requirement_types.created_by', 'clearance_periods.created_by',
         ];
@@ -647,6 +648,8 @@ class SystemUsersTest extends TestCase
             'announcements.created_by' => fn ($id) => DB::table('announcements')->insert(['title' => 'Own notice', 'body' => 'Body', 'created_by' => $id, ...$stamps]),
             'ai_outputs.requested_by' => fn ($id) => DB::table('ai_outputs')->insert(['feature_type' => 'task_recommendation', 'output_text' => 'Text', 'requested_by' => $id]),
             'ai_outputs.decided_by' => fn ($id) => DB::table('ai_outputs')->insert(['feature_type' => 'task_recommendation', 'output_text' => 'Text', 'decided_by' => $id]),
+            'ai_conversations.user_id' => fn ($id) => DB::table('ai_conversations')->insert(['user_id' => $id, 'role' => 'STUDENT', 'title' => 'A question', ...$stamps]),
+            'ai_memories.user_id' => fn ($id) => DB::table('ai_memories')->insert(['user_id' => $id, 'role' => 'STUDENT', 'content' => 'Keep it short', ...$stamps]),
             'compliance_requirement_types.created_by' => fn ($id) => DB::table('compliance_requirement_types')->insert(['academic_year' => '2026-2027', 'name' => 'Charter', 'deadline_at' => now()->addMonth(), 'created_by' => $id, ...$stamps]),
             'clearance_periods.created_by' => fn ($id) => DB::table('clearance_periods')->insert(['academic_year' => '2026-2027', 'title' => 'Graduation Clearance', 'required_roles' => json_encode(['sao']), 'created_by' => $id, ...$stamps]),
         ];

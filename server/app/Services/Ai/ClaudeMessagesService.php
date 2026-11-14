@@ -13,6 +13,11 @@ use Anthropic\Core\Exceptions\RateLimitException;
 use Anthropic\Messages\JSONOutputFormat;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\OutputConfig;
+use Anthropic\Messages\RawContentBlockDeltaEvent;
+use Anthropic\Messages\RawMessageDeltaEvent;
+use Anthropic\Messages\RawMessageStartEvent;
+use Anthropic\Messages\TextDelta;
+use Anthropic\Messages\ThinkingDelta;
 use App\Contracts\TextGenerator;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use GuzzleHttp\Client as GuzzleClient;
@@ -35,7 +40,23 @@ class ClaudeMessagesService implements TextGenerator
     // The budgets callers pass were sized for another model; Claude spends more tokens per word.
     private const TOKEN_HEADROOM = 1.5;
 
+    // Adaptive thinking draws on max_tokens before the answer starts.
+    private const THINKING_HEADROOM = 2048;
+
     private ?string $lastStopReason = null;
+
+    private ?float $timeBudget = null;
+
+    private bool $unreachable = false;
+
+    // True while the call ran under a shared deadline shorter than its own timeout.
+    private bool $budgeted = false;
+
+    // Longest a streaming connection may sit silent. Anthropic sends pings, so a healthy stream is never idle this long.
+    private const STREAM_IDLE_SECONDS = 15;
+
+    // A silent stream tells the caller so this often, with an event of type 'tick' and an empty delta.
+    private const TICK_SECONDS = 4;
 
     /**
      * @param  ClientInterface|null  $transporter  PSR-18 client. Tests pass a faked one; production builds Guzzle.
@@ -47,6 +68,21 @@ class ClaudeMessagesService implements TextGenerator
     public function lastStopReason(): ?string
     {
         return $this->lastStopReason;
+    }
+
+    /** Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. */
+    public function withTimeBudget(?float $seconds): void
+    {
+        $this->timeBudget = $seconds;
+    }
+
+    /**
+     * True when the most recent call could not connect, or timed out while running with its full timeout, so the chain
+     * can rest this provider briefly. A timeout under a shortened shared deadline says nothing about the provider.
+     */
+    public function lastCallUnreachable(): bool
+    {
+        return $this->unreachable;
     }
 
     public function generate(
@@ -116,9 +152,119 @@ class ClaudeMessagesService implements TextGenerator
         ];
     }
 
+    /**
+     * Streams a conversation turn. Adaptive thinking spends output tokens before the first word, so the cap
+     * carries extra room for it. An exception thrown by $onEvent (the caller aborting) is rethrown untouched.
+     */
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        $this->lastStopReason = null;
+        $this->unreachable = false;
+        $apiKey = trim((string) config('services.anthropic.key'));
+
+        if ($apiKey === '' || $messages === []) {
+            return null;
+        }
+
+        $started = microtime(true);
+        $seconds = $this->chatSeconds();
+        if ($this->timeBudget !== null) {
+            $seconds = max(1, min($seconds, (int) ceil($this->timeBudget)));
+        }
+        $this->budgeted = $seconds < $this->chatSeconds();
+        $text = '';
+        $reasoning = '';
+        $model = $this->model();
+        $responseId = null;
+        $stopReason = null;
+        $callbackError = null;
+
+        $lastEmit = $started;
+        $emit = function (string $type, string $delta) use ($onEvent, &$callbackError, &$lastEmit): void {
+            if ($onEvent === null) {
+                return;
+            }
+            $lastEmit = microtime(true);
+            try {
+                $onEvent($type, $delta);
+            } catch (\Throwable $exception) {
+                $callbackError = $exception;
+
+                throw $exception;
+            }
+        };
+
+        try {
+            $stream = $this->client($apiKey, $seconds, $started + $seconds, function () use ($emit, &$lastEmit): void {
+                if (microtime(true) - $lastEmit >= self::TICK_SECONDS) {
+                    $emit('tick', '');
+                }
+            })->messages->createStream(
+                maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
+                messages: array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
+                model: $this->model(),
+                outputConfig: OutputConfig::with(effort: $this->chatEffort()),
+                system: [['type' => 'text', 'text' => $instructions, 'cacheControl' => ['type' => 'ephemeral']]],
+                thinking: ['type' => 'adaptive', 'display' => 'summarized'],
+            );
+
+            foreach ($stream as $event) {
+                if ($event instanceof RawMessageStartEvent) {
+                    $model = $event->message->model;
+                    $responseId = $event->message->id;
+                } elseif ($event instanceof RawContentBlockDeltaEvent) {
+                    if ($event->delta instanceof ThinkingDelta && $event->delta->thinking !== '') {
+                        $reasoning .= $event->delta->thinking;
+                        $emit('reasoning', $event->delta->thinking);
+                    } elseif ($event->delta instanceof TextDelta && $event->delta->text !== '') {
+                        $text .= $event->delta->text;
+                        $emit('text', $event->delta->text);
+                    }
+                } elseif ($event instanceof RawMessageDeltaEvent) {
+                    $stopReason = $event->delta->stopReason ?? $stopReason;
+                }
+            }
+        } catch (\Throwable $exception) {
+            if ($callbackError !== null) {
+                throw $callbackError;
+            }
+
+            return $this->failed($exception, $started, $exception instanceof \RuntimeException);
+        }
+
+        $this->lastStopReason = $stopReason;
+        $latencyMs = (int) round((microtime(true) - $started) * 1000);
+
+        if ($stopReason !== 'end_turn' || trim($text) === '') {
+            Log::warning('Claude did not finish a conversation answer.', [
+                'stop_reason' => $stopReason,
+                'model' => $model,
+                'response_id' => $responseId,
+                'latency_ms' => $latencyMs,
+            ]);
+
+            return null;
+        }
+
+        Log::info('Claude answered a conversation turn.', [
+            'model' => $model,
+            'response_id' => $responseId,
+            'stop_reason' => $stopReason,
+            'latency_ms' => $latencyMs,
+        ]);
+
+        return [
+            'text' => trim($text),
+            'reasoning' => trim($reasoning) === '' ? null : trim($reasoning),
+            'model' => $model,
+            'response_id' => $responseId,
+        ];
+    }
+
     private function request(string $instructions, string $input, int $maxOutputTokens, OutputConfig $outputConfig): ?Message
     {
         $this->lastStopReason = null;
+        $this->unreachable = false;
         $apiKey = trim((string) config('services.anthropic.key'));
 
         if ($apiKey === '') {
@@ -126,6 +272,7 @@ class ClaudeMessagesService implements TextGenerator
         }
 
         $started = microtime(true);
+        $this->budgeted = $this->timeBudget !== null && $this->timeBudget < $this->configuredSeconds();
 
         try {
             $message = $this->client($apiKey)->messages->create(
@@ -184,8 +331,12 @@ class ClaudeMessagesService implements TextGenerator
         return $message;
     }
 
-    private function failed(\Throwable $exception, float $started): null
+    /** $stalled: the stream went silent or ran past its deadline, which is a timeout for this purpose. */
+    private function failed(\Throwable $exception, float $started, bool $stalled = false): null
     {
+        $timedOut = $stalled || $this->timedOut($exception);
+        $this->unreachable = $timedOut ? ! $this->budgeted : $exception instanceof APIConnectionException;
+
         Log::warning('Claude is unavailable.', [
             'exception' => $exception::class,
             'status' => $exception instanceof APIException ? $exception->status : null,
@@ -196,20 +347,49 @@ class ClaudeMessagesService implements TextGenerator
         return null;
     }
 
-    private function client(string $apiKey): Client
+    private function timedOut(\Throwable $exception): bool
     {
-        $total = (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
+        for ($current = $exception; $current !== null; $current = $current->getPrevious()) {
+            if ($current instanceof APITimeoutException || str_contains($current->getMessage(), 'cURL error 28')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function client(string $apiKey, ?int $seconds = null, ?float $deadline = null, ?\Closure $beforeRead = null): Client
+    {
+        $total = (float) ($seconds ?? $this->requestSeconds());
+        $connect = min($total, (float) max(1, (int) config('services.anthropic.connect_timeout', 3)));
+        // Streaming goes through PHP's stream handler: its timeout is per read (and covers connecting), and
+        // connect_timeout is ignored there. A one-shot call is bounded by $total; a stream by the loop's deadline.
+        $idle = $seconds === null ? $total : min((float) self::STREAM_IDLE_SECONDS, $total);
         $transporter = $this->transporter ?? new GuzzleClient([
-            'timeout' => $total,
-            'connect_timeout' => (float) max(1, (int) config('services.anthropic.connect_timeout', 3)),
+            'timeout' => $idle,
+            'read_timeout' => $idle,
+            'connect_timeout' => $connect,
         ]);
 
         // maxRetries 0: Groq is the retry, and a second Claude attempt would push the page past its cap.
-        return new Client(apiKey: $apiKey, requestOptions: [
+        return new Client(apiKey: $apiKey, requestOptions: array_filter([
             'transporter' => $transporter,
+            'streamingTransporter' => $deadline === null ? null : new DeadlineTransporter($transporter, $deadline, $beforeRead),
             'timeout' => $total,
             'maxRetries' => 0,
-        ]);
+        ], fn ($option) => $option !== null));
+    }
+
+    private function configuredSeconds(): float
+    {
+        return (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
+    }
+
+    private function requestSeconds(): float
+    {
+        $configured = $this->configuredSeconds();
+
+        return $this->timeBudget === null ? $configured : max(1.0, min($configured, $this->timeBudget));
     }
 
     private function model(): string
@@ -223,6 +403,18 @@ class ClaudeMessagesService implements TextGenerator
         $effort = strtolower(trim((string) config('services.anthropic.effort', 'low')));
 
         return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'low';
+    }
+
+    private function chatEffort(): string
+    {
+        $effort = strtolower(trim((string) config('services.anthropic.chat_effort', 'medium')));
+
+        return in_array($effort, ['low', 'medium', 'high', 'xhigh', 'max'], true) ? $effort : 'medium';
+    }
+
+    private function chatSeconds(): int
+    {
+        return max(1, min(300, (int) config('services.anthropic.chat_timeout', 60) ?: 60));
     }
 
     private function textOf(Message $message): string

@@ -173,11 +173,11 @@ const EXPECTED = {
     STUDENT: null,
   },
   grievance: {
-    SUPER_ADMIN: '/dashboard/super-admin/grievances',
-    ADMIN: '/dashboard/grievances',
+    SUPER_ADMIN: '/dashboard/super-admin/grievances?record=7',
+    ADMIN: '/dashboard/grievances?record=7',
     SBO_OFFICER: null,
     DEPARTMENT_HEAD: null,
-    STUDENT: '/dashboard/my-grievances',
+    STUDENT: '/dashboard/my-grievances?record=7',
   },
   evaluation_window: {
     SUPER_ADMIN: null, ADMIN: null, SBO_OFFICER: null, DEPARTMENT_HEAD: null, STUDENT: null,

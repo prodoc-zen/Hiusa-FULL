@@ -29,9 +29,7 @@ def advise_budget(request: BudgetAdviceRequest) -> dict:
             "A deficit is projected. Pause discretionary spending, review committed costs, "
             "and secure additional income before approving new expenses."
         )
-    elif request.predicted_expense > request.predicted_income or (
-        request.warning_threshold > 0 and projected <= request.warning_threshold
-    ):
+    elif request.predicted_expense > request.predicted_income or projected <= request.warning_threshold:
         risk = "high"
         forecast_risk = "overspending"
         advice = (

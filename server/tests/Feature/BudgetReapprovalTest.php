@@ -69,7 +69,7 @@ class BudgetReapprovalTest extends TestCase
         $budget = Budget::findOrFail($this->postJson('/api/budgets', ['title' => 'Assembly', 'allocated_amount' => 1000, 'warning_threshold' => 200])->assertCreated()->json('id'));
         $this->approveAsHead($budget);
         $this->spend($budget, 'expense', 900);
-        $this->assertSame('medium', $budget->fresh()->overspending_risk);
+        $this->assertSame('high', $budget->fresh()->overspending_risk);
 
         $this->putJson("/api/budgets/{$budget->id}", ['allocated_amount' => 5000])->assertOk();
         $this->assertSame('low', $budget->fresh()->overspending_risk, 'Raising the allocation must refresh the stored risk.');

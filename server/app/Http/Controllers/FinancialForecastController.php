@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\TextGenerator;
+use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
+use App\Models\Organization;
 use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
+use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
+use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -34,19 +38,22 @@ class FinancialForecastController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        return response()->json(
-            FinancialForecast::with('generator:school_id,first_name,last_name')
-                ->whereIn('organization_id', $this->readableOrganizationIds($request))
-                ->orderBy('forecast_period', 'asc')
-                ->orderBy('id')
-                ->paginate($paging['per_page'] ?? 20)
-        );
+        $forecasts = FinancialForecast::with('generator:school_id,first_name,last_name')
+            ->whereIn('organization_id', $this->readableOrganizationIds($request))
+            ->orderBy('forecast_period', 'asc')
+            ->orderBy('id')
+            ->paginate($paging['per_page'] ?? 20);
+        $organizations = Organization::whereIn('id', $forecasts->pluck('organization_id')->unique())->get(['id', 'name', 'acronym'])->keyBy('id');
+        $forecasts->each(fn (FinancialForecast $forecast) => $forecast->setRelation('organization', $organizations->get($forecast->organization_id)));
+
+        return response()->json($forecasts);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate($this->rules());
         $data = $this->deriveForecastFields($data);
+        $data['model_details'] = $this->manualModelDetails($data);
 
         $forecast = FinancialForecast::create([
             ...$data,
@@ -85,16 +92,18 @@ class FinancialForecastController extends Controller
             ->values();
 
         $recordedMonths = $populatedMonthly->count();
+        $lastCompleteMonth = $currentMonthStart->copy()->subMonth();
         if ($recordedMonths === 0) {
             $populatedMonthly = collect([[
-                'period' => now()->format('Y-m'),
+                'period' => $lastCompleteMonth->format('Y-m'),
                 'income' => 0.0,
                 'expense' => 0.0,
             ]]);
         }
 
+        // The series ends at the last complete month, so quiet months after the last entry count as zeros.
         $firstPeriod = $this->periodStart($populatedMonthly->first()['period']);
-        $lastPeriod = $this->periodStart($populatedMonthly->last()['period']);
+        $lastPeriod = $lastCompleteMonth->copy()->startOfMonth();
         $monthlyByPeriod = $populatedMonthly->keyBy('period');
         $monthly = collect();
 
@@ -113,7 +122,7 @@ class FinancialForecastController extends Controller
             $analysis['fit_quality'] = 'insufficient_data';
             $analysis['confidence_note'] = $recordedMonths === 0
                 ? 'No transaction history is available. These zero amounts are placeholders, not a reliable forecast.'
-                : 'Only one month has transactions. This projection repeats that month and is not a reliable trend.';
+                : 'Only one month has transactions, so there is no trend to project. Treat these amounts as placeholders, not a forecast.';
         }
         $analysis['confidence_note'] = trim(($analysis['confidence_note'] ?? '').' The current unfinished month is left out of the trend.');
         $nextPeriod = $this->periodStart($analysis['forecast_period']);
@@ -126,9 +135,10 @@ class FinancialForecastController extends Controller
         // ApprovalRequest::status counted budgets stuck at pending_sao as
         // available funds. submission_status is the single source of truth for
         // whether a budget has cleared every configured stage.
-        $approvedBudgets = Budget::query()
+        $semester = AcademicSemester::active();
+        $approvedBudgets = SemesterScope::budgets(Budget::query()
             ->where('organization_id', $request->user()->organization_id)
-            ->where('submission_status', 'approved');
+            ->where('submission_status', 'approved'), $semester);
         $currentAvailableBudget = (float) (clone $approvedBudgets)->sum('remaining_amount');
         $warningThreshold = (float) (clone $approvedBudgets)->sum('warning_threshold');
         $budgetAdvicePayload = [
@@ -143,14 +153,14 @@ class FinancialForecastController extends Controller
         $adviceEngine = 'python-fastapi';
 
         if (! $this->validBudgetAdvice($advice)) {
-            $advice = $this->localBudgetAdvice($budgetAdvicePayload);
+            $advice = BudgetAdviceRules::evaluate($budgetAdvicePayload);
             $adviceEngine = 'php-fallback';
         }
 
         $advice['engine'] = $adviceEngine;
         $safeSpendingLimit = round((float) $advice['safe_spending_limit'], 2);
         $risk = (string) $advice['forecast_risk'];
-        $summary = $this->financialSummary($nextPeriod->format('F Y'), $predictedIncome, $predictedExpense, $predictedBalance, $safeSpendingLimit, $risk, $analysis['confidence_note'] ?? null, (bool) ($analysis['is_reliable'] ?? true));
+        $summary = $this->financialSummary($nextPeriod->format('F Y'), $predictedIncome, $predictedExpense, $predictedBalance, $safeSpendingLimit, $risk, $currentAvailableBudget, round((float) ($advice['estimated_available_budget'] ?? 0), 2), $analysis['confidence_note'] ?? null, (bool) ($analysis['is_reliable'] ?? true));
 
         $aiOutput = AiOutput::create([
             'organization_id' => $request->user()->organization_id,
@@ -188,6 +198,8 @@ class FinancialForecastController extends Controller
                     'sample_months' => $monthly->count(),
                     'populated_months' => $recordedMonths,
                     'current_available_budget' => round($currentAvailableBudget, 2),
+                    'estimated_available_budget' => round((float) $advice['estimated_available_budget'], 2),
+                    'academic_semester_id' => $semester?->id,
                     'warning_threshold' => round($warningThreshold, 2),
                     'engine' => $analysis['engine'],
                     'income' => $analysis['income_model'],
@@ -233,7 +245,9 @@ class FinancialForecastController extends Controller
         }
 
         $data = $request->validate($this->rules(true));
-        $forecast->update($this->deriveForecastFields($data, $forecast));
+        $data = $this->deriveForecastFields($data, $forecast);
+        $data['model_details'] = $this->manualModelDetails([...$forecast->only(['predicted_income', 'predicted_expense']), ...$data]);
+        $forecast->update($data);
 
         return response()->json($forecast->fresh()->load('generator:school_id,first_name,last_name'));
     }
@@ -256,14 +270,25 @@ class FinancialForecastController extends Controller
         $required = $partial ? ['sometimes', 'required'] : ['required'];
 
         return [
-            'forecast_period' => [...$required, 'string', 'max:100'],
+            'forecast_period' => [...$required, 'date_format:Y-m'],
             'predicted_income' => [...$required, 'numeric', 'min:0'],
             'predicted_expense' => [...$required, 'numeric', 'min:0'],
             'predicted_balance' => ['nullable', 'numeric'],
             'safe_spending_limit' => ['nullable', 'numeric', 'min:0'],
             'confidence_note' => ['nullable', 'string'],
-            'model_details' => ['nullable', 'array'],
         ];
+    }
+
+    private function manualModelDetails(array $data): array
+    {
+        $rules = BudgetAdviceRules::evaluate([
+            'predicted_income' => (float) $data['predicted_income'],
+            'predicted_expense' => (float) $data['predicted_expense'],
+            'current_available_budget' => 0,
+            'warning_threshold' => 0,
+        ]);
+
+        return ['engine' => 'manual', 'risk' => $rules['forecast_risk']];
     }
 
     private function deriveForecastFields(array $data, ?FinancialForecast $forecast = null): array
@@ -418,52 +443,6 @@ class FinancialForecastController extends Controller
         return Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfDay();
     }
 
-    private function localBudgetAdvice(array $payload): array
-    {
-        $income = (float) $payload['predicted_income'];
-        $expense = (float) $payload['predicted_expense'];
-        $currentAvailable = (float) $payload['current_available_budget'];
-        $committed = (float) ($payload['committed_expenses'] ?? 0);
-        $warningThreshold = (float) ($payload['warning_threshold'] ?? 0);
-        $safetyRatio = (float) ($payload['safety_ratio'] ?? 0.8);
-
-        $available = round($currentAvailable + $income - $expense - $committed, 2);
-        $safeLimit = round(max(0, $available) * $safetyRatio, 2);
-        $currentFunds = max(0, $currentAvailable);
-        $recommendedAllocation = round(min($currentFunds, $safeLimit), 2);
-        $reserveAmount = round(max(0, $currentFunds - $recommendedAllocation), 2);
-        $ratio = $income > 0 ? round($expense / $income, 4) : null;
-        $possibleDeficit = $available < 0;
-        $forecastRisk = $possibleDeficit
-            ? 'deficit'
-            : (($expense > $income || ($ratio !== null && $ratio >= 0.9) || ($warningThreshold > 0 && $available <= $warningThreshold)) ? 'overspending' : 'stable');
-        $overspendingRisk = $forecastRisk === 'stable' ? 'low' : ($forecastRisk === 'deficit' || $expense > $income ? 'high' : 'medium');
-
-        // Status reflects actual financial risk, not merely whether the safety reserve
-        // is being held back (holding a reserve during a stable forecast is normal).
-        $allocationStatus = $recommendedAllocation <= 0
-            ? 'no_funds'
-            : (in_array($forecastRisk, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
-
-        return [
-            'estimated_available_budget' => $available,
-            'safe_spending_limit' => $safeLimit,
-            'recommended_allocation' => $recommendedAllocation,
-            'reserve_amount' => $reserveAmount,
-            'allocation_status' => $allocationStatus,
-            'overspending_risk' => $overspendingRisk,
-            'forecast_risk' => $forecastRisk,
-            'possible_deficit' => $possibleDeficit,
-            'expense_to_income_ratio' => $ratio,
-            'advice' => $possibleDeficit
-                ? 'A deficit is projected. Pause discretionary spending, review committed costs, and secure additional income before approving new expenses.'
-                : ($forecastRisk === 'overspending'
-                    ? 'Spending risk is elevated. Keep new commitments below the safe spending limit and reduce nonessential expenses.'
-                    : 'The projection is stable. Keep new spending within the safe spending limit while preserving the safety reserve.'),
-            'rules_applied' => ['Laravel deterministic fallback'],
-        ];
-    }
-
     private function validBudgetAdvice(?array $advice): bool
     {
         return is_array($advice)
@@ -471,23 +450,24 @@ class FinancialForecastController extends Controller
             && in_array($advice['forecast_risk'] ?? null, ['stable', 'overspending', 'deficit'], true);
     }
 
-    private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk, ?string $reliabilityNote = null, bool $isReliable = true): array
+    private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk, float $currentFunds, float $estimatedAvailable, ?string $reliabilityNote = null, bool $isReliable = true): array
     {
-        $facts = compact('period', 'income', 'expense', 'balance', 'safeLimit', 'risk');
+        $facts = compact('period', 'income', 'expense', 'balance', 'safeLimit', 'risk', 'currentFunds', 'estimatedAvailable');
         if (! $isReliable && $reliabilityNote) {
             // The warning is part of what the model is shown, so the numbers in it are allowed in the answer.
             $facts['reliability_warning'] = $reliabilityNote;
         }
+        $fundsSentence = ' With PHP '.number_format($currentFunds, 2).' in approved budgets, the estimated available budget is PHP '.number_format($estimatedAvailable, 2).'.';
         $fallback = $risk === 'deficit'
-            ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
-            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
+            ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds.{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
+            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', and expected expenses are PHP '.number_format($expense, 2).".{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.';
         if (! $isReliable && $reliabilityNote) {
             $fallback .= " {$reliabilityNote}";
         }
 
         $generated = $this->ai->generate(
             AiInstructions::forecastSummary(),
-            "Period: {$period}\nExpected income: PHP ".number_format($income, 2)."\nExpected expenses: PHP ".number_format($expense, 2)."\nBalance: PHP ".number_format($balance, 2)."\nSafe spending limit: PHP ".number_format($safeLimit, 2)."\nRisk: {$risk}".(! $isReliable && $reliabilityNote ? "\nReliability warning: {$reliabilityNote}" : ''),
+            "Period: {$period}\nExpected income: PHP ".number_format($income, 2)."\nExpected expenses: PHP ".number_format($expense, 2)."\nBalance: PHP ".number_format($balance, 2)."\nApproved budgets on hand: PHP ".number_format($currentFunds, 2)."\nEstimated available budget (approved budgets plus forecast balance): PHP ".number_format($estimatedAvailable, 2)."\nSafe spending limit: PHP ".number_format($safeLimit, 2)."\nRisk: {$risk}".(! $isReliable && $reliabilityNote ? "\nReliability warning: {$reliabilityNote}" : ''),
             220,
             0.2,
         );

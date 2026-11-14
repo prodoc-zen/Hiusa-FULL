@@ -25,6 +25,9 @@ class HowToGuideLibrary
         'guide', 'process', 'procedure', 'walk', 'through', 'show', 'teach', 'tell', 'please', 'need',
         'want', 'way', 'there', 'this', 'that', 'by', 'from', 'into', 'as', 'about', 'tutorial',
         'instruction', 'instructions', 'hiusa', 'system', 'page', 'here', 'go', 'get', 'some', 'any',
+        'wanna', 'gonna', 'like', 'let', 'lets', 'help', 'pls', 'kindly', 'hey', 'hello', 'hi', 'ok', 'okay', 'bro', 'sir', 'up',
+        'gusto', 'nais', 'ko', 'kong', 'mag', 'ng', 'na', 'po', 'ba', 'pwede', 'puwede', 'paano', 'namin', 'naming',
+        'ako', 'akong', 'kami', 'kaming', 'mo', 'para', 'sa', 'ang', 'mga', 'paki', 'kailangan', 'naman', 'lang',
     ];
 
     public const ROLE_NAMES = [
@@ -88,7 +91,8 @@ class HowToGuideLibrary
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Invite a Department Head (Dean) with a link',
                 'question' => 'How do I invite a dean?',
-                'summary' => 'The list of colleges is fixed. Each college has one Department Head (Dean), who gets an invitation link and fills in their own name, email and password.',
+                'action' => 'invite a Department Head (Dean)',
+                'summary' => 'Each college has one Department Head (Dean), who gets an invitation link and fills in their own name, email and password.',
                 'keywords' => ['college', 'dean', 'department head', 'assign dean', 'invite dean', 'invitation', 'invite department head', 'magic link', 'onboarding link'],
                 'checks' => [],
                 'minutes' => 2,
@@ -98,7 +102,25 @@ class HowToGuideLibrary
                     ['title' => 'Create the link', 'detail' => 'You can type an email to send the link to. It is optional. You do not type the dean\'s name, school ID or password.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Invite Department Head'],
                     ['title' => 'Copy and send it', 'detail' => 'Copy the link and send it to the dean by chat or SMS. The dean opens it and makes their own account.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Link ready'],
                 ],
-                'tips' => ['The link works once and expires in 48 hours. Make a new link if it expires.', 'Archive a college instead of removing it. Colleges cannot be added or deleted.'],
+                'tips' => ['The link works once and expires in 48 hours. Make a new link if it expires.', 'Colleges start from a seeded list. You can add a college, delete one that has no organizations or people, or archive one that does.'],
+            ],
+            [
+                'id' => 'sao-manage-colleges',
+                'category' => 'Academic setup',
+                'roles' => ['SUPER_ADMIN'],
+                'title' => 'Add, archive or delete a college',
+                'question' => 'How do I add or delete a college?',
+                'summary' => 'Colleges start from a seeded list. The SAO can add a college, delete one that is empty, or archive one that has organizations or people.',
+                'keywords' => ['add college', 'new college', 'create college', 'delete college', 'remove college', 'archive college', 'restore college', 'college list', 'colleges'],
+                'checks' => [],
+                'minutes' => 2,
+                'steps' => [
+                    ['title' => 'Open Colleges', 'detail' => 'In the sidebar, open Governance → Colleges.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Governance → Colleges'],
+                    ['title' => 'Add a college', 'detail' => 'Click "Add college", enter its name and code, and save. The college gets its own home organization.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → Add college'],
+                    ['title' => 'Delete an empty college', 'detail' => 'Open the menu on a college that has no organizations or people and choose Delete college. This cannot be undone.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → college menu'],
+                    ['title' => 'Archive or restore a college', 'detail' => 'For a college that has organizations or people, choose Archive college instead. Its profiles cannot sign in until you restore it.', 'path' => '/dashboard/super-admin/colleges', 'where' => 'Colleges → college menu'],
+                ],
+                'tips' => ['A college with organizations or people cannot be deleted. Archive it.', 'Invite its Department Head with the invitation link once the college exists.'],
             ],
             [
                 'id' => 'advance-planning-periods',
@@ -125,6 +147,8 @@ class HowToGuideLibrary
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Create an organization directly as SAO',
                 'question' => 'How do I create an organization as SAO?',
+                'action' => 'create an organization directly',
+                'otherwise' => 'A student who wants to start an organization applies for it once the Department Head of their college allows them to, and the Department Head and the SAO then review the application.',
                 'summary' => 'The SAO can create university-wide (unified) organizations directly, without going through an application.',
                 'keywords' => ['create organization', 'add organization', 'new organization', 'unified organization', 'university-wide', 'student government', 'make an org', 'new org', 'create org'],
                 'checks' => ['active_semester'],
@@ -145,7 +169,7 @@ class HowToGuideLibrary
                 'question' => 'How do I approve an organization registration?',
                 'summary' => 'Applications the Dean endorsed wait for final SAO approval.',
                 'keywords' => ['approve organization', 'approve registration', 'pending registration', 'review registration', 'organization application', 'endorsed application', 'return registration', 'reject organization', 'accredit'],
-                'checks' => [],
+                'checks' => ['applications_waiting'],
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Registrations and organizations', 'detail' => 'In the sidebar, open Governance → Registrations and organizations. The Pending review tab opens first.', 'path' => '/dashboard/super-admin/organizations?status=pending', 'where' => 'Governance → Registrations and organizations'],
@@ -196,6 +220,7 @@ class HowToGuideLibrary
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Give final approval to budgets, events, and financial reports',
                 'question' => 'How do I give final approval to requests?',
+                'action' => 'give final approval to budgets, events and financial reports',
                 'summary' => 'Requests that the Department Head has signed come to SAO for the final decision.',
                 'keywords' => ['final approval', 'approve budget', 'approve event', 'approve financial report', 'organization approvals', 'sign-off', 'approval queue'],
                 'checks' => [],
@@ -211,10 +236,10 @@ class HowToGuideLibrary
                 'id' => 'sao-venues',
                 'category' => 'Venues',
                 'roles' => ['SUPER_ADMIN'],
-                'title' => 'Add campus venues and approve venue bookings',
+                'title' => 'Add campus venues and approve venue requests',
                 'question' => 'How do I manage venues and approve bookings?',
                 'summary' => 'SAO keeps the list of campus venues and approves booking requests. Overlapping approved bookings are blocked.',
-                'keywords' => ['venue', 'venues', 'room', 'auditorium', 'gym', 'hall', 'booking', 'reserve', 'approve booking', 'new venue'],
+                'keywords' => ['venue', 'venues', 'room', 'auditorium', 'gym', 'hall', 'approve booking', 'approve venue', 'new venue'],
                 'checks' => [],
                 'minutes' => 2,
                 'steps' => [
@@ -259,11 +284,67 @@ class HowToGuideLibrary
                 'tips' => [],
             ],
             [
+                'id' => 'sao-add-staff',
+                'category' => 'Governance',
+                'roles' => ['SUPER_ADMIN'],
+                'title' => 'Add SAO staff with a link',
+                'action' => 'add SAO staff',
+                'question' => 'How do I add SAO staff?',
+                'summary' => 'The people who help run the SAO get an invitation link. They type their own name, school ID, email and password, so you never set up their account for them.',
+                'keywords' => ['sao staff', 'add staff', 'invite staff', 'staff invitation', 'new staff', 'sao assistant', 'invite sao', 'staff account'],
+                'checks' => [],
+                'minutes' => 2,
+                'steps' => [
+                    ['title' => 'Open University users', 'detail' => 'In the sidebar, click University users.', 'path' => '/dashboard/super-admin/users', 'where' => 'University users'],
+                    ['title' => 'Click "Add SAO staff"', 'detail' => 'You can type an email to tie the link to that address. It is optional.', 'path' => '/dashboard/super-admin/users', 'where' => 'University users'],
+                    ['title' => 'Copy and send the link', 'detail' => 'The link works once and expires in 48 hours. The person opens it and makes their own account. Links that are still waiting are listed in the same window, where you can send one again or cancel it.', 'path' => '/dashboard/super-admin/users', 'where' => 'Add SAO staff'],
+                ],
+                'tips' => ['Make a new link if the first one expires.'],
+            ],
+            [
+                'id' => 'reset-member-password',
+                'category' => 'Members',
+                'roles' => ['SUPER_ADMIN', 'ADMIN'],
+                'title' => 'Reset a member\'s password',
+                'action' => 'reset a member\'s password',
+                'question' => 'How do I reset someone\'s password?',
+                'summary' => 'You create a one-time link that lets the person choose a new password. You never see or set their password yourself.',
+                'keywords' => ['reset password', 'forgot password', 'locked out', 'new password', 'password link', 'reset link', 'recover account', 'cannot log in', 'cant login'],
+                'checks' => [],
+                'minutes' => 2,
+                'steps' => [
+                    ['title' => 'Open the people list', 'detail' => ['SUPER_ADMIN' => 'In the sidebar, click University users and find the person.', 'ADMIN' => 'In the sidebar, open Members → People and find the person.'], 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/users', 'ADMIN' => '/dashboard/admin/users'], 'where' => 'People'],
+                    ['title' => 'Choose Reset password', 'detail' => ['SUPER_ADMIN' => 'Open the menu on their row, choose Reset password and confirm Create reset link.', 'ADMIN' => 'Open the member and click Reset password.'], 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/users', 'ADMIN' => '/dashboard/admin/users'], 'where' => 'People'],
+                    ['title' => 'Hand over the link', 'detail' => 'The link is shown to you once. Copy it and send it to the person. It is emailed only when email is turned on.', 'path' => null, 'where' => 'Reset link ready'],
+                ],
+                'tips' => ['The link works once and expires, so make a new one if it is not used in time.'],
+            ],
+            [
+                'id' => 'upload-student-records',
+                'category' => 'Members',
+                'roles' => ['SUPER_ADMIN', 'DEPARTMENT_HEAD'],
+                'title' => 'Upload student records',
+                'action' => 'upload student records',
+                'question' => 'How do I upload student records?',
+                'summary' => 'Students are matched against these school records when they sign up, and office staff are picked from them. You load them from a CSV file, and nothing is saved until you have checked it.',
+                'keywords' => ['student records', 'school records', 'upload records', 'import students', 'csv', 'import records', 'student list', 'enrollment list', 'edp records', 'upload students'],
+                'checks' => [],
+                'minutes' => 4,
+                'steps' => [
+                    ['title' => 'Open the student records', 'detail' => ['SUPER_ADMIN' => 'In the sidebar, open Governance → Student records.', 'DEPARTMENT_HEAD' => 'In the sidebar, click People and stay on the Students tab.'], 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/student-records', 'DEPARTMENT_HEAD' => '/dashboard/department-head/people'], 'where' => 'Student records'],
+                    ['title' => 'Choose the CSV file', 'detail' => ['SUPER_ADMIN' => 'Use the upload card. Download a blank file first if you need the columns.', 'DEPARTMENT_HEAD' => 'Click Upload student records, then choose the file. Download a blank file first if you need the columns.'], 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/student-records', 'DEPARTMENT_HEAD' => '/dashboard/department-head/people'], 'where' => 'Upload school records'],
+                    ['title' => 'Click "Check file"', 'detail' => 'HIUSA reads the whole file and tells you how many records are new, how many will be updated and how many need fixing. Rows that need fixing are skipped.', 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/student-records', 'DEPARTMENT_HEAD' => '/dashboard/department-head/people'], 'where' => 'Upload school records'],
+                    ['title' => 'Save the records', 'detail' => 'Click the Save button that shows how many records will be saved. Fix the skipped rows in the file and upload it again if you need them.', 'path' => ['SUPER_ADMIN' => '/dashboard/super-admin/student-records', 'DEPARTMENT_HEAD' => '/dashboard/department-head/people'], 'where' => 'Upload school records'],
+                ],
+                'tips' => ['A student whose school ID and birth date match a record can then create their own account. Birth dates are only used for that check and are never shown.'],
+            ],
+            [
                 'id' => 'sao-announcement',
                 'category' => 'Announcements',
                 'roles' => ['SUPER_ADMIN'],
                 'title' => 'Post a university-wide announcement',
                 'question' => 'How do I post a university announcement?',
+                'action' => 'post a university announcement',
                 'summary' => 'University announcements reach every role in every organization.',
                 'keywords' => ['announcement', 'announce', 'post', 'bulletin', 'broadcast', 'news', 'university announcement'],
                 'checks' => [],
@@ -287,7 +368,7 @@ class HowToGuideLibrary
                 'question' => 'How do I endorse an organization application?',
                 'summary' => 'A student you allowed to apply sends the application to you first. You review the files, then endorse it to SAO or return it.',
                 'keywords' => ['endorse', 'endorsement', 'organization application', 'application', 'applicant', 'review application'],
-                'checks' => [],
+                'checks' => ['applications_waiting'],
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Organization applications', 'detail' => 'In the sidebar, click Organization applications.', 'path' => '/dashboard/organization-applications', 'where' => 'Organization applications'],
@@ -300,11 +381,13 @@ class HowToGuideLibrary
                 'id' => 'dean-allow-applicant',
                 'category' => 'Organizations',
                 'roles' => ['DEPARTMENT_HEAD'],
-                'title' => 'Allow a student to apply for an organization',
+                'title' => 'Start or register a new organization for your college',
                 'question' => 'How do I start a new organization for my college?',
+                'action' => 'start a new organization',
+                'doing' => 'Yes, you can start a new organization for your college, and it begins with you. On the Organizations page you choose a student of your college with Allow a student to apply, and that student fills in the application from their own account. The application then comes back to you: you endorse it to the SAO or return it with your notes. The SAO makes the final decision, and when the SAO approves it the student becomes the organization\'s Admin.',
                 'summary' => 'You pick a student of your college. They then see Apply for an organization and send the application to you.',
-                'keywords' => ['register organization', 'create organization', 'new organization', 'add organization', 'college organization', 'allow student to apply', 'make an org', 'new org', 'create org'],
-                'checks' => ['active_semester'],
+                'keywords' => ['register organization', 'create organization', 'new organization', 'add organization', 'college organization', 'allow student to apply', 'make an org', 'new org', 'create org', 'start an organization', 'start a club', 'new club', 'sign up an organization'],
+                'checks' => ['active_semester', 'college_organizations', 'applicant_grants', 'applications_waiting'],
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Organizations', 'detail' => 'In the sidebar, click Organizations.', 'path' => '/dashboard/department-head/organizations', 'where' => 'Organizations'],
@@ -319,6 +402,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Oversee student organizations via GHL-style sub-accounts',
                 'question' => 'How do I oversee organizations as sub-accounts?',
+                'action' => 'look inside a student organization of your college',
                 'summary' => 'Deans can switch context into any student organization under their college from the top navigation bar without logging out.',
                 'keywords' => ['sub-account', 'subaccount', 'ghl', 'oversee org', 'switch organization', 'switch org', 'context switch', 'dean oversight', 'master view'],
                 'checks' => [],
@@ -337,6 +421,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Name the organization head of an organization in your college',
                 'question' => 'How do I give an organization its head?',
+                'action' => 'name the head of an organization in your college',
                 'summary' => 'You name the Organization head (usually the President) of each student organization in your college. The person must already have an account.',
                 'keywords' => ['organization head', 'give access', 'president', 'add admin', 'administrator', 'awaiting administrator', 'org admin', 'assign president', 'name head'],
                 'checks' => [],
@@ -373,6 +458,8 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Approve budgets, events, and reports for your college',
                 'question' => 'How do I approve requests from my college organizations?',
+                'action' => 'approve budgets, events and reports',
+                'done_by' => ['DEPARTMENT_HEAD', 'SUPER_ADMIN'],
                 'summary' => 'Budgets, events, elections, and financial reports from your college need your sign-off before they reach SAO.',
                 'keywords' => ['approve', 'approval', 'endorse budget', 'approve event', 'approve budget', 'financial report', 'sign off', 'pending request'],
                 'checks' => [],
@@ -407,6 +494,7 @@ class HowToGuideLibrary
                 'roles' => ['DEPARTMENT_HEAD'],
                 'title' => 'Post a college announcement',
                 'question' => 'How do I post a college announcement?',
+                'action' => 'post a college announcement',
                 'summary' => 'College announcements reach every organization and member in your college.',
                 'keywords' => ['announcement', 'announce', 'post', 'bulletin', 'college announcement'],
                 'checks' => [],
@@ -461,6 +549,7 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN', 'SBO_OFFICER'],
                 'title' => 'Add members and officers, and enroll fingerprints',
                 'question' => 'How do I add members or officers?',
+                'action' => 'add members or officers',
                 'summary' => 'Give students in your college access to your organization as members or SBO Officers. Enroll their fingerprints for event check-in.',
                 'keywords' => ['add member', 'add user', 'new user', 'member', 'members', 'officer', 'add officer', 'student account', 'fingerprint', 'biometric', 'enroll'],
                 'checks' => [],
@@ -478,6 +567,7 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN'],
                 'title' => 'Request a budget',
                 'question' => 'How do I create or request a budget?',
+                'action' => 'request a budget',
                 'summary' => 'Budgets are requested through Approvals. The Department Head approves them, then SAO gives final approval before you spend.',
                 'keywords' => ['budget', 'budgets', 'allocation', 'request budget', 'new budget', 'fund', 'funding', 'allocate'],
                 'checks' => ['active_semester'],
@@ -547,6 +637,9 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN'],
                 'title' => 'Create an event and submit its requirements',
                 'question' => 'How do I create an event?',
+                'action' => 'create an event',
+                'open_path' => '/dashboard/events/manage-events?new=1',
+                'open_label' => 'Open the new event form',
                 'summary' => 'Create the event, attach the required files, and send it for approval. Then book a venue and run check-in on the day.',
                 'keywords' => ['event', 'events', 'new event', 'create event', 'activity', 'seminar', 'program', 'event proposal', 'event requirements', 'event plan'],
                 'checks' => ['active_semester'],
@@ -565,6 +658,7 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN', 'SBO_OFFICER'],
                 'title' => 'Book a campus venue',
                 'question' => 'How do I book a venue?',
+                'action' => 'book a campus venue',
                 'summary' => 'Request a campus venue for your activity. SAO approves the booking.',
                 'keywords' => ['venue', 'book venue', 'booking', 'reserve', 'room', 'auditorium', 'gym', 'hall', 'request venue'],
                 'checks' => ['active_semester'],
@@ -599,8 +693,11 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN'],
                 'title' => 'Create a task and let AI recommend who should do it',
                 'question' => 'How do I create and assign a task?',
+                'action' => 'create a task',
+                'open_path' => '/dashboard/tasks/task-board?new=1',
+                'open_label' => 'Open the new task form',
                 'summary' => 'Create tasks for officers. The AI recommends an assignee based on position and current workload.',
-                'keywords' => ['task', 'tasks', 'assign', 'assignment', 'delegate', 'delegation', 'to-do', 'deadline', 'workload', 'recommend assignee'],
+                'keywords' => ['task', 'tasks', 'assign', 'assignment', 'delegate', 'delegation', 'to-do', 'deadline', 'workload', 'recommend assignee', 'create task', 'new task', 'assign task', 'task for officer', 'give task'],
                 'checks' => ['active_semester'],
                 'minutes' => 2,
                 'steps' => [
@@ -651,8 +748,9 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN'],
                 'title' => 'Set up and run an election',
                 'question' => 'How do I set up an election?',
+                'action' => 'set up and run an election',
                 'summary' => 'Create the election, add positions, party lists, and candidates, open voting, then finalize the results.',
-                'keywords' => ['election', 'elections', 'vote', 'voting', 'ballot', 'candidate', 'candidates', 'partylist', 'party list', 'position', 'finalize'],
+                'keywords' => ['election', 'elections', 'vote', 'voting', 'ballot', 'candidate', 'candidates', 'partylist', 'party list', 'position', 'finalize', 'open election', 'start election', 'create election', 'run election', 'set up election', 'hold election'],
                 'checks' => ['active_semester'],
                 'minutes' => 5,
                 'steps' => [
@@ -703,14 +801,17 @@ class HowToGuideLibrary
                 'roles' => ['ADMIN', 'SBO_OFFICER'],
                 'title' => 'Post an organization announcement',
                 'question' => 'How do I post an announcement?',
-                'summary' => 'Share news with your members. It shows on their announcement feed.',
+                'action' => 'post an announcement',
+                'open_path' => '/dashboard/announcements/create-announcement',
+                'open_label' => 'Open the new announcement form',
+                'summary' => 'Share news with your members. Once it is published, it shows on their announcement feed.',
                 'keywords' => ['announcement', 'announce', 'post', 'bulletin', 'news', 'publish', 'pin'],
                 'checks' => [],
                 'minutes' => 2,
                 'steps' => [
                     ['title' => 'Open Announcements', 'detail' => 'In the sidebar, open Updates → Announcements.', 'path' => '/dashboard/announcements/manage-announcements', 'where' => 'Updates → Announcements'],
                     ['title' => 'Click "New announcement"', 'detail' => 'Add a title, body, category, and audience. Pin it or mark it important if needed.', 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
-                    ['title' => 'Publish now or schedule it', 'detail' => 'Published announcements appear on members\' feeds right away.', 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
+                    ['title' => 'Publish it or send it for approval', 'detail' => ['ADMIN' => 'Publish now or schedule it. Published announcements appear on members\' feeds right away.', 'SBO_OFFICER' => 'Submit it for approval. Your Admin approves it before it appears on members\' feeds.'], 'path' => '/dashboard/announcements/create-announcement', 'where' => 'New announcement'],
                 ],
                 'tips' => [],
             ],
@@ -793,6 +894,7 @@ class HowToGuideLibrary
                 'roles' => ['STUDENT'],
                 'title' => 'File a grievance',
                 'question' => 'How do I file a grievance?',
+                'action' => 'file a grievance',
                 'summary' => 'Report a concern to your organization or straight to SAO. You can file it anonymously.',
                 'keywords' => ['grievance', 'complaint', 'concern', 'report', 'anonymous', 'file grievance', 'issue'],
                 'checks' => [],
@@ -811,7 +913,7 @@ class HowToGuideLibrary
                 'title' => 'Check your fees, invoices, and receipts',
                 'question' => 'How do I check what fees I owe?',
                 'summary' => 'Your statement of account shows open invoices, payments, and your remaining balance.',
-                'keywords' => ['fee', 'fees', 'invoice', 'balance', 'owe', 'statement of account', 'receipt', 'receipts', 'payment', 'unpaid'],
+                'keywords' => ['fee', 'fees', 'invoice', 'balance', 'owe', 'statement of account', 'receipt', 'receipts', 'payment', 'unpaid', 'pay fees', 'pay invoice', 'pay balance', 'settle balance', 'settle fees'],
                 'checks' => [],
                 'minutes' => 1,
                 'steps' => [
@@ -827,16 +929,18 @@ class HowToGuideLibrary
                 'roles' => ['STUDENT'],
                 'title' => 'Apply to register a new organization',
                 'question' => 'How can I apply to register a new organization?',
+                'action' => 'start a new organization',
+                'doing' => 'Yes, you can ask to start a new organization, and you do it on the Apply for an organization page. Your Department Head chooses which students of the college may apply, and once you are chosen you fill in the application and attach each required file yourself. The Department Head endorses it to the SAO, the SAO makes the final decision, and when it is approved you become the organization\'s Admin.',
                 'summary' => 'Your Department Head has to allow you to apply first. Then you apply from your own account. The Dean endorses the application and SAO approves it.',
-                'keywords' => ['register organization', 'apply', 'application', 'found', 'founder', 'start an organization', 'new club', 'register a club', 'track application', 'create org', 'new org'],
-                'checks' => ['active_semester'],
+                'keywords' => ['register organization', 'apply', 'application', 'found', 'founder', 'start an organization', 'new club', 'register a club', 'track application', 'create org', 'new org', 'sign up', 'sign up an organization', 'make an org'],
+                'checks' => ['active_semester', 'own_application'],
                 'minutes' => 5,
                 'steps' => [
                     ['title' => 'Open Apply for an organization', 'detail' => 'It shows in your menu once your Department Head allows you to apply.', 'path' => '/dashboard/student/apply-organization', 'where' => 'Apply for an organization'],
                     ['title' => 'Fill in the application', 'detail' => 'Enter the organization name, acronym, your position and attach each required file.', 'path' => '/dashboard/student/apply-organization', 'where' => 'Apply for an organization'],
                     ['title' => 'Follow it', 'detail' => 'The same page shows where the application is and what to fix if it is returned. After SAO approves it, you become the organization\'s Admin.', 'path' => '/dashboard/student/apply-organization', 'where' => 'Apply for an organization'],
                 ],
-                'tips' => ['Without the Department Head\'s permission the page stays empty. Ask them to use Allow a student to apply.'],
+                'tips' => ['Your Department Head chooses who may apply. The page has nothing to fill in until you are chosen.'],
             ],
 
             // ---------------------------------------------------------------
@@ -901,10 +1005,11 @@ class HowToGuideLibrary
      *
      * @return array{best: ?array, accessible: bool, related: array<int, array>, total: int, categories: int, top_confidence: int}
      */
-    public function search(string $question, string $role): array
+    public function search(string $question, string $role, bool $strict = false): array
     {
         $guides = $this->all();
         $total = count($guides);
+        $resolve = fn (array $guide) => $this->forViewer($guide, $role);
         $categories = count(array_unique(array_column($guides, 'category')));
 
         $queryTokens = $this->tokens($question);
@@ -922,7 +1027,7 @@ class HowToGuideLibrary
                 'title' => $this->tokens($guide['title']),
                 'keywords' => $this->tokens(implode(' ', $guide['keywords'])),
                 'body' => $this->tokens($guide['summary'].' '.implode(' ', array_map(
-                    fn (array $s) => $s['title'].' '.$s['detail'],
+                    fn (array $s) => $s['title'].' '.(is_array($s['detail']) ? implode(' ', $s['detail']) : $s['detail']),
                     $guide['steps']
                 ))),
             ];
@@ -935,12 +1040,16 @@ class HowToGuideLibrary
         $scored = [];
         foreach ($guides as $i => $guide) {
             $score = 0.0;
+            $core = 0;
             foreach (array_unique($queryTokens) as $tok) {
                 $df = $docFreq[$tok] ?? 0;
                 if ($df === 0) {
                     continue;
                 }
                 $idf = log(1 + ($total / $df));
+                if (in_array($tok, $docTokens[$i]['title'], true) || in_array($tok, $docTokens[$i]['keywords'], true)) {
+                    $core++;
+                }
                 if (in_array($tok, $docTokens[$i]['title'], true)) {
                     $score += 3.0 * $idf;
                 }
@@ -952,8 +1061,14 @@ class HowToGuideLibrary
                 }
             }
 
+            $phrasesMatched = [];
             foreach ($guide['keywords'] as $phrase) {
-                if (str_contains($phrase, ' ') && str_contains($questionLower, Str::lower($phrase))) {
+                if (! str_contains($phrase, ' ')) {
+                    continue;
+                }
+                $sequence = implode(' ', $this->tokens($phrase));
+                if (! isset($phrasesMatched[$sequence]) && (str_contains($questionLower, Str::lower($phrase)) || $this->containsSequence($queryTokens, $this->tokens($phrase)))) {
+                    $phrasesMatched[$sequence] = true;
                     $score += 4.0;
                 }
             }
@@ -967,8 +1082,15 @@ class HowToGuideLibrary
             }
 
             if ($score > 0) {
-                $scored[] = ['guide' => $guide, 'score' => $score, 'accessible' => $isAccessible];
+                $scored[] = ['guide' => $guide, 'score' => $score, 'accessible' => $isAccessible, 'core' => $core];
             }
+        }
+
+        // A request is only matched to a guide that shares the verb and the thing, so "change the sidebar color" does not land on
+        // the change-password guide because of one word.
+        if ($strict) {
+            $needed = min(2, count(array_unique($queryTokens)));
+            $scored = array_values(array_filter($scored, fn (array $s) => $s['core'] >= $needed));
         }
 
         usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
@@ -987,9 +1109,9 @@ class HowToGuideLibrary
         ));
 
         return [
-            'best' => $top['guide'],
+            'best' => $resolve($top['guide']),
             'accessible' => $top['accessible'],
-            'related' => array_slice($related, 0, 3),
+            'related' => array_map($resolve, array_slice($related, 0, 3)),
             'total' => $total,
             'categories' => $categories,
             'top_confidence' => max(35, min(99, (int) round(min(1.0, $top['score'] / 14) * 100))),
@@ -1001,10 +1123,24 @@ class HowToGuideLibrary
      */
     public function forRole(string $role): array
     {
-        return array_values(array_filter(
-            $this->all(),
-            fn (array $guide) => in_array($role, $guide['roles'], true)
+        return array_values(array_map(
+            fn (array $guide) => $this->forViewer($guide, $role),
+            array_filter($this->all(), fn (array $guide) => in_array($role, $guide['roles'], true))
         ));
+    }
+
+    /** A step whose detail differs by role is given to the asking role as plain text. */
+    private function forViewer(array $guide, string $role): array
+    {
+        $guide['steps'] = array_map(function (array $step) use ($role): array {
+            if (is_array($step['detail'])) {
+                $step['detail'] = $step['detail'][$role] ?? (string) reset($step['detail']);
+            }
+
+            return $step;
+        }, $guide['steps']);
+
+        return $guide;
     }
 
     public function stepPath(array $step, string $role): ?string
@@ -1016,6 +1152,29 @@ class HowToGuideLibrary
 
         return $path;
     }
+
+    /**
+     * The pages that can open a step, best first. The dean's office staff sign in with the Admin profile, which cannot
+     * open the Department Head compliance and announcement pages, so those steps fall back to the nearest page it can open.
+     *
+     * @return array<int, string>
+     */
+    public function stepPaths(array $step, string $role): array
+    {
+        $path = $this->stepPath($step, $role);
+        if ($path === null) {
+            return [];
+        }
+
+        $fallback = $role === 'DEPARTMENT_HEAD' ? (self::OFFICE_STAFF_FALLBACKS[$path] ?? null) : null;
+
+        return $fallback === null ? [$path] : [$path, $fallback];
+    }
+
+    private const OFFICE_STAFF_FALLBACKS = [
+        '/dashboard/department-head/compliance' => '/dashboard/department-head/documents',
+        '/dashboard/department-head/announcements' => '/dashboard/announcements/view-announcements',
+    ];
 
     /**
      * @return array<int, string>
@@ -1042,27 +1201,59 @@ class HowToGuideLibrary
     {
         $aliases = [
             'org' => 'organization', 'orgs' => 'organization', 'club' => 'organization', 'clubs' => 'organization',
+            'organisation' => 'organization', 'organisations' => 'organization',
             'sy' => 'year', 'ay' => 'year', 'term' => 'semester', 'terms' => 'semester', 'sem' => 'semester',
             'dean' => 'department', 'merch' => 'merchandise', 'pw' => 'password', 'login' => 'password',
-            'make' => 'create', 'add' => 'create', 'new' => 'create', 'setup' => 'set', 'register' => 'register',
+            'make' => 'create', 'add' => 'create', 'new' => 'create', 'set' => 'create', 'setup' => 'create',
+            'establish' => 'create', 'register' => 'register',
             'reserve' => 'book', 'reservation' => 'book', 'complaint' => 'grievance', 'complaints' => 'grievance',
             'expenses' => 'expense', 'buy' => 'order', 'purchase' => 'order', 'officers' => 'officer',
         ];
-        if (isset($aliases[$word])) {
-            return $aliases[$word];
-        }
 
+        $base = $word;
         if (strlen($word) > 5 && str_ends_with($word, 'ies')) {
-            return substr($word, 0, -3).'y';
+            $base = substr($word, 0, -3).'y';
+        } elseif (strlen($word) > 4 && str_ends_with($word, 's') && ! str_ends_with($word, 'ss')) {
+            $base = substr($word, 0, -1);
         }
-        if (strlen($word) > 5 && str_ends_with($word, 'ing')) {
-            return substr($word, 0, -3);
-        }
-        if (strlen($word) > 4 && str_ends_with($word, 's') && ! str_ends_with($word, 'ss')) {
-            return substr($word, 0, -1);
+        if (strlen($base) > 5 && str_ends_with($base, 'ing')) {
+            $base = $this->undouble(substr($base, 0, -3));
+        } elseif (strlen($base) > 4 && str_ends_with($base, 'ed')) {
+            $base = $this->undouble(substr($base, 0, -2));
         }
 
-        return $word;
+        foreach ([$word, $base, $base.'e'] as $candidate) {
+            if (isset($aliases[$candidate])) {
+                $base = $aliases[$candidate];
+                break;
+            }
+        }
+
+        // A trailing "e" is dropped so that create, creating and created share one stem.
+        return strlen($base) > 4 && str_ends_with($base, 'e') ? substr($base, 0, -1) : $base;
+    }
+
+    private function undouble(string $stem): string
+    {
+        return preg_match('/([^aeioulsz])\1$/', $stem) === 1 ? substr($stem, 0, -1) : $stem;
+    }
+
+    /** @param array<int, string> $haystack @param array<int, string> $needle */
+    private function containsSequence(array $haystack, array $needle): bool
+    {
+        $original = $haystack;
+        $haystack = array_values(array_filter($haystack, fn (string $token, int $i) => $i === 0 || $token !== $original[$i - 1], ARRAY_FILTER_USE_BOTH));
+        $length = count($needle);
+        if ($length < 2) {
+            return false;
+        }
+        for ($i = 0; $i + $length <= count($haystack); $i++) {
+            if (array_slice($haystack, $i, $length) === $needle) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function trigramSimilarity(string $a, string $b): float

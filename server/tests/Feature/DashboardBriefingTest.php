@@ -488,7 +488,7 @@ class DashboardBriefingTest extends TestCase
         $this->assertNull($overdue['href'], '/dashboard/tasks/assigned-tasks is SBO_OFFICER-only and must never be handed to a STUDENT.');
     }
 
-    public function test_officer_task_workload_insight_href_is_null_since_task_board_is_admin_only(): void
+    public function test_officer_gets_no_task_workload_insight_since_only_the_admin_can_assign_tasks(): void
     {
         config(['services.hiusa_ai.task_max_active_tasks' => 5]);
         $organization = Organization::factory()->create();
@@ -502,10 +502,8 @@ class DashboardBriefingTest extends TestCase
 
         Sanctum::actingAs($officer);
         $response = $this->getJson('/api/dashboard/briefing')->assertOk();
-        $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
 
-        $this->assertNotNull($workload);
-        $this->assertNull($workload['href'], '/dashboard/tasks/task-board is ADMIN-only and must never be handed to an SBO_OFFICER.');
+        $this->assertNull(collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance'));
     }
 
     public function test_task_workload_insight_uses_a_bounded_number_of_queries_regardless_of_officer_count(): void
@@ -822,22 +820,22 @@ class DashboardBriefingTest extends TestCase
         }
     }
 
-    public function test_forecast_insight_handles_free_text_and_month_periods(): void
+    public function test_forecast_insight_skips_free_text_periods_and_names_the_current_month(): void
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
         Sanctum::actingAs($admin);
 
-        // Seeded and older forecasts use a quarter label rather than "Y-m".
-        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => 'Q4 2024 (Oct-Dec)']);
+        // Seeded and older forecasts use a quarter label rather than "Y-m", and never speak for this month.
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => 'Q4 2024 (Oct-Dec)', 'model_details' => ['engine' => 'python-fastapi']]);
         $quarter = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
-        $this->assertStringContainsString('Q4 2024 (Oct-Dec)', $quarter['title']);
+        $this->assertNull($quarter);
 
-        // A newer generated forecast is "Y-m" and wins as the latest.
         $this->travel(1)->minutes();
-        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => '2026-11']);
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => $thisMonth->format('Y-m'), 'model_details' => ['engine' => 'python-fastapi']]);
         $month = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
-        $this->assertStringContainsString('November 2026', $month['title']);
+        $this->assertStringContainsString($thisMonth->format('F Y'), $month['title']);
     }
 
     public function test_finance_pillar_counts_only_approved_budgets_and_explains_income(): void
@@ -889,13 +887,14 @@ class DashboardBriefingTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $risky = ['organization_id' => $organization->id, 'title' => 'Draft Budget', 'overspending_risk' => 'high', 'advisory_note' => 'Watch this.', 'advice_generated_at' => now()];
         $draft = Budget::factory()->create([...$risky, 'submission_status' => 'pending_department_head']);
+        DB::table('ai_outputs')->insert([
+            'organization_id' => $organization->id, 'feature_type' => 'BUDGET_EXPLANATION', 'reference_type' => Budget::class, 'reference_id' => $draft->id,
+            'prompt_text' => 'x', 'output_text' => '', 'status' => 'completed', 'created_at' => now(),
+            'structured_input' => json_encode(['current_available_budget' => (float) ($draft->remaining_amount ?? $draft->allocated_amount), 'warning_threshold' => (float) $draft->warning_threshold]),
+        ]);
 
         Sanctum::actingAs($admin);
         $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
-        $this->app['auth']->forgetGuards();
-        Sanctum::actingAs($director);
-        $this->assertSame([], collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory')->all());
-
         $draft->update(['submission_status' => 'approved']);
 
         $this->app['auth']->forgetGuards();
@@ -903,7 +902,7 @@ class DashboardBriefingTest extends TestCase
         $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs($director);
-        $this->assertCount(1, collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->where('engine', 'budget_advisory'));
+        $this->assertSame([], $this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'), 'The SAO briefing carries no insights.');
     }
 
     public function test_admin_is_told_about_events_that_ended_but_were_never_closed(): void

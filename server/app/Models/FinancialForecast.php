@@ -38,4 +38,17 @@ class FinancialForecast extends Model
     {
         return static::where('organization_id', $organizationId)->orderByDesc('updated_at')->orderByDesc('id')->first();
     }
+
+    /** The generated forecast for this month or next; a manual row, an older month or free text never drives advice or a suggestion. */
+    public static function currentFor(int $organizationId): ?self
+    {
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+
+        return static::where('organization_id', $organizationId)
+            ->whereIn('forecast_period', [$thisMonth->format('Y-m'), $thisMonth->copy()->addMonth()->format('Y-m')])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (self $forecast) => in_array($forecast->model_details['engine'] ?? null, ['python-fastapi', 'php-fallback'], true));
+    }
 }

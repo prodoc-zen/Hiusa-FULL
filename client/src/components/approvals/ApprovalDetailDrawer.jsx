@@ -379,7 +379,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
       <ConfirmModal
         open={confirmingFinal}
         title="Reject election for good"
-        message="This rejects the election for good. It cannot be resubmitted. To let the Admin fix it, ask for changes instead."
+        message="The election cannot be resubmitted. To let the Admin fix it, ask for changes instead."
         confirmText="Reject for good"
         busy={deciding}
         onCancel={() => setConfirmingFinal(false)}

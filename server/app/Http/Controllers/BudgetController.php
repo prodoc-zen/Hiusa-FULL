@@ -11,6 +11,7 @@ use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Services\Ai\AiInstructions;
+use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
@@ -57,8 +58,6 @@ class BudgetController extends Controller
             'warning_threshold' => ['required', 'numeric', 'min:0', 'lte:allocated_amount'],
             'event_id' => ['nullable', 'exists:events,id'],
             'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
-            'advisory_note' => ['nullable', 'string'],
-            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
         if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
@@ -69,6 +68,7 @@ class BudgetController extends Controller
             $budget = Budget::create([
                 ...$data,
                 'remaining_amount' => $data['allocated_amount'],
+                'overspending_risk' => Budget::overspendingRiskFor((float) $data['allocated_amount'], (float) $data['warning_threshold']),
                 'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
                 'organization_id' => $request->user()->organization_id,
             ]);
@@ -106,8 +106,6 @@ class BudgetController extends Controller
             'warning_threshold' => ['sometimes', 'required', 'numeric', 'min:0'],
             'event_id' => ['nullable', 'exists:events,id'],
             'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
-            'advisory_note' => ['nullable', 'string'],
-            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
         if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
@@ -222,28 +220,46 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
-        $forecast = FinancialForecast::latestFor($request->user()->organization_id);
+        if ($budget->submission_status !== 'approved') {
+            return response()->json(['message' => 'Advice is available once the budget is approved.'], 409);
+        }
+
+        $forecast = FinancialForecast::currentFor($budget->organization_id);
+        $share = $forecast ? $this->allocationShare($budget) : 0.0;
+        $forecastStatus = ! $forecast ? 'missing' : ($share > 0 ? 'used' : 'not_applied');
         $payload = [
-            'predicted_income' => (float) ($forecast?->predicted_income ?? 0),
-            'predicted_expense' => (float) ($forecast?->predicted_expense ?? 0),
-            'current_available_budget' => (float) ($budget->remaining_amount ?? $budget->allocated_amount),
+            'predicted_income' => round((float) ($forecast?->predicted_income ?? 0) * $share, 2),
+            'predicted_expense' => round((float) ($forecast?->predicted_expense ?? 0) * $share, 2),
+            'current_available_budget' => $budget->recomputedRemaining(),
             'committed_expenses' => 0,
             'warning_threshold' => (float) $budget->warning_threshold,
             'safety_ratio' => 0.8,
+        ];
+        $inputs = [
+            ...$payload,
+            'forecast_status' => $forecastStatus,
+            'forecast_period' => $forecast?->forecast_period,
+            'budget_share' => round($share, 4),
         ];
         $engine = 'python-fastapi';
         $advice = $this->completeAllocationMetrics($this->aiService->budgetAdvice($payload), $payload);
 
         if (! $this->validAdvice($advice)) {
-            $advice = $this->localBudgetAdvice($payload);
+            $advice = BudgetAdviceRules::evaluate($payload);
             $engine = 'php-fallback';
         }
+        if ($forecastStatus === 'missing') {
+            $advice['advice'] = 'No current forecast was available, so this advice uses the budget balance only. '.$advice['advice'];
+        } elseif ($forecastStatus === 'not_applied') {
+            $advice['advice'] = 'This budget is outside the current semester, so the advice uses its balance only. '.$advice['advice'];
+        }
+        $advice['inputs'] = $inputs;
 
         $xaiFacts = [
             'budget' => $budget->title,
             'event_or_project' => $budget->event?->title,
             // The forecast and balance the rules used, so the explanation can name the figures behind the risk.
-            'inputs' => $payload,
+            'inputs' => $inputs,
             'computed_advice' => $advice,
         ];
         $xai = $this->ai->generate(
@@ -282,7 +298,7 @@ class BudgetController extends Controller
             'output_text' => $xai ? $advice['advice'] : '',
             'model_name' => $advice['xai_model'],
             'context_version' => 'budget-advice-v2',
-            'structured_input' => $payload,
+            'structured_input' => $inputs,
             'structured_output' => ['engine' => $engine, 'computed_advice' => $advice],
             'status' => $xai ? 'completed' : 'failed',
             'error_message' => $xai ? null : 'The AI explanation was unavailable; deterministic budget advice was still calculated.',
@@ -307,9 +323,30 @@ class BudgetController extends Controller
         return response()->json([
             'budget' => $freshBudget,
             'forecast_id' => $forecast?->id,
+            'forecast_period' => $forecast?->forecast_period,
+            'forecast_status' => $forecastStatus,
             'engine' => $engine,
             'advice' => $advice,
         ]);
+    }
+
+    /** The organization forecast covers every approved budget, so a single budget carries only its share of it. */
+    private function allocationShare(Budget $budget): float
+    {
+        $allocated = (float) $budget->allocated_amount;
+        if ($allocated <= 0) {
+            return 0.0;
+        }
+
+        $semester = AcademicSemester::active();
+        if (! SemesterScope::budgets(Budget::whereKey($budget->id), $semester)->exists()) {
+            return 0.0;
+        }
+
+        $approved = (float) SemesterScope::budgets(Budget::where('organization_id', $budget->organization_id)
+            ->where('submission_status', 'approved'), $semester)->sum('allocated_amount');
+
+        return $allocated / max($approved, $allocated);
     }
 
     private function eventBelongsToOrganization(Request $request, mixed $eventId): bool
@@ -371,6 +408,9 @@ class BudgetController extends Controller
                     'advice' => $structured['computed_advice'],
                 ]
                 : null;
+            $input = is_array($output?->structured_input) ? $output->structured_input : [];
+            $budget->advice_stale = $budget->advice_generated_at !== null
+                && BudgetAdviceRules::isStale($input, (float) ($budget->remaining_amount ?? $budget->allocated_amount), (float) $budget->warning_threshold);
         }
     }
 
@@ -450,53 +490,6 @@ class BudgetController extends Controller
             : (in_array($advice['forecast_risk'] ?? null, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
 
         return $advice;
-    }
-
-    private function localBudgetAdvice(array $payload): array
-    {
-        $available = round(
-            $payload['current_available_budget']
-            + $payload['predicted_income']
-            - $payload['predicted_expense']
-            - $payload['committed_expenses'],
-            2
-        );
-        $ratio = $payload['predicted_income'] > 0
-            ? round($payload['predicted_expense'] / $payload['predicted_income'], 4)
-            : null;
-        $possibleDeficit = $available < 0;
-        $highRisk = $payload['predicted_expense'] > $payload['predicted_income']
-            || ($payload['warning_threshold'] > 0 && $available <= $payload['warning_threshold']);
-        $mediumRisk = $ratio !== null && $ratio >= 0.9;
-        $forecastRisk = $possibleDeficit ? 'deficit' : ($highRisk || $mediumRisk ? 'overspending' : 'stable');
-        $overspendingRisk = $possibleDeficit || $highRisk ? 'high' : ($mediumRisk ? 'medium' : 'low');
-        $safeSpendingLimit = round(max(0, $available) * $payload['safety_ratio'], 2);
-        $currentFunds = max(0, $payload['current_available_budget']);
-        $recommendedAllocation = round(min($currentFunds, $safeSpendingLimit), 2);
-
-        // Status reflects actual financial risk, not merely whether the safety reserve
-        // is being held back (holding a reserve during a stable forecast is normal).
-        $allocationStatus = $recommendedAllocation <= 0
-            ? 'no_funds'
-            : (in_array($forecastRisk, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
-
-        return [
-            'estimated_available_budget' => $available,
-            'safe_spending_limit' => $safeSpendingLimit,
-            'recommended_allocation' => $recommendedAllocation,
-            'reserve_amount' => round(max(0, $currentFunds - $recommendedAllocation), 2),
-            'allocation_status' => $allocationStatus,
-            'overspending_risk' => $overspendingRisk,
-            'forecast_risk' => $forecastRisk,
-            'possible_deficit' => $possibleDeficit,
-            'expense_to_income_ratio' => $ratio,
-            'advice' => $possibleDeficit
-                ? 'A deficit is projected. Pause discretionary spending, review committed costs, and secure additional income before approving new expenses.'
-                : ($forecastRisk === 'overspending'
-                    ? 'Spending risk is elevated. Keep new commitments below the safe spending limit and reduce nonessential expenses.'
-                    : 'The projection is stable. Keep new spending within the safe spending limit while preserving the safety reserve.'),
-            'rules_applied' => ['Laravel deterministic fallback'],
-        ];
     }
 
     private function auditableValues(Budget $budget): array
