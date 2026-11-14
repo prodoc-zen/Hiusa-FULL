@@ -291,13 +291,14 @@ class SystemUsersController extends Controller
         }
 
         $conflict = DB::transaction(function () use ($data, $request, $user) {
+            $activeSaoIds = User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->orderBy('school_id')->lockForUpdate()->pluck('school_id');
             $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
             $before = $locked->getRawOriginal('account_status');
             if ($before === $data['account_status']) {
                 return response()->json(['message' => 'This account is already '.($before === 'active' ? 'active' : 'disabled').'.'], 422);
             }
             if ($data['account_status'] === 'disabled' && $locked->getRawOriginal('role') === 'SUPER_ADMIN') {
-                if (! User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->whereKeyNot($locked->school_id)->exists()) {
+                if ($activeSaoIds->reject(fn ($schoolId) => (int) $schoolId === (int) $locked->school_id)->isEmpty()) {
                     return response()->json(['message' => 'The last active SAO account cannot be deactivated.'], 409);
                 }
             }
