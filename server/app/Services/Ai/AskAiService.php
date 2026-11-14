@@ -21,6 +21,7 @@ use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\VenueBooking;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
@@ -98,7 +99,6 @@ class AskAiService
         'missing_submissions' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
         'submitted_documents' => ['the compliance files that organizations send to the SAO', 'I can show which signatures are still missing on your own clearance.', 'clearances_status'],
         'organizations_without_admin' => ['the list of organizations that still need an organization head', 'I can show what you need to do today instead.', 'daily_priorities'],
-        'grievances_status' => ['the grievance queue that the SAO reads', 'If you have a concern of your own, you can file it on the My grievances page.', 'daily_priorities'],
     ];
 
     private const STUDENT_INTENTS = [
@@ -108,6 +108,7 @@ class AskAiService
         'events_attendance',
         'clearances_status',
         'elections_status',
+        'grievances_status',
         'semantic_rag',
         'how_to_guide',
     ];
@@ -120,6 +121,7 @@ class AskAiService
         private readonly TextGenerator $ai,
         private readonly HowToGuideLibrary $guides,
         private readonly AskAiRoleIntents $roleIntents,
+        private readonly AskAiActions $actions,
     ) {}
 
     public function overview(User $user): array
@@ -217,11 +219,13 @@ class AskAiService
                 $lines[] = '- **'.$label.'**: '.$description;
             }
         }
+        $forms = array_map('lcfirst', $this->actions->titlesFor($user));
         $answer = 'I can read the records your account can already open and put them in plain words. As '.$this->roleName($user->role).' for '.$this->scopeLabel($user).", you can ask me things like:\n\n"
             .implode("\n", $lines)
             ."\n\nI can also take you to where things get done. Say what you want to do, for example \"".(self::REQUEST_EXAMPLES[$user->role] ?? 'I want to create an event')."\", and I will tell you whether you are ready and open the right page. Here is what I can help you start:\n\n"
             .implode("\n", $this->capabilityGuideLines($user->role))
-            ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I only read: I never approve, assign or publish anything for you.";
+            .($forms === [] ? '' : "\n\nIn the chat I can also fill in the form for you, for these: ".implode(', ', $forms).'. Nothing is saved until you check the form and confirm it.')
+            ."\n\nI can also explain how HIUSA works step by step, help you draft a message or an agenda, and remember things you ask me to keep in mind (say \"remember that ...\"). I never approve, assign or publish anything for you.";
 
         return $this->enrichWithFormattedBlocksAndCharts([
             'title' => 'What I can help with',
@@ -328,7 +332,7 @@ class AskAiService
         }
 
         if ($this->asksOwnBalance($q, $role)) {
-            return 'how_to_guide';
+            return in_array($role, ['ADMIN', 'SBO_OFFICER'], true) ? 'own_balance' : 'how_to_guide';
         }
 
         // "I wanna create an org", "book a venue", "can you post an announcement": someone saying what they want to do
@@ -369,11 +373,7 @@ class AskAiService
 
     private function asksOwnBalance(string $q, string $role): bool
     {
-        if ($role === 'STUDENT') {
-            return preg_match('~\bbudgets?\b~', $q) === 1 && preg_match('~\b(?:fees?|owe|balance|invoices?|dues)\b~', $q) !== 1;
-        }
-
-        return preg_match(self::OWN_BALANCE, $q) === 1;
+        return $role !== 'STUDENT' && preg_match(self::OWN_BALANCE, $q) === 1;
     }
 
     private function answer(User $user, string $question, string $intent, bool $allowModel, bool $callModel = true): array
@@ -398,13 +398,15 @@ class AskAiService
                 'pending_approvals' => $this->buildPendingApprovals($user, $organizationIds),
                 'organizations_without_admin' => $this->buildOrganizationsWithoutAdmin($user, $organizationIds),
                 'tasks_workload' => $this->buildTasksWorkload($user, $organizationIds),
-                'finance_health' => $this->buildFinanceHealth($user, $organizationIds),
+                'finance_health' => $this->withBudgetNote($user, $question, $this->buildFinanceHealth($user, $organizationIds)),
+                'own_balance' => $this->buildFinanceHealth($user, $organizationIds, true),
                 'merchandise_orders' => $this->buildMerchandiseOrders($user),
                 'events_attendance' => $this->buildEventsAttendance($user, $organizationIds),
                 'clearances_status' => $this->buildClearancesStatus($user, $organizationIds),
                 'elections_status' => $this->buildElectionsStatus($user, $organizationIds),
                 'grievances_status' => $this->buildGrievancesStatus($user),
-                'applications_queue', 'my_submissions', 'ai_tools', 'fee_usage' => $this->roleIntents->build($user, $intent, $question),
+                'applications_queue' => $this->withWaitingRequests($user, $organizationIds, $this->roleIntents->build($user, $intent, $question)),
+                'my_submissions', 'ai_tools', 'fee_usage' => $this->roleIntents->build($user, $intent, $question),
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
@@ -582,7 +584,7 @@ class AskAiService
         $first = null;
         $href = null;
         foreach ($guide['steps'] as $step) {
-            $href = $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role));
+            $href = $this->linkTo($user, ...$this->guides->stepPaths($step, $role));
             if ($href !== null) {
                 $first = $step;
                 break;
@@ -595,7 +597,7 @@ class AskAiService
 
         $segments = explode('→', (string) ($first['where'] ?? $first['title']));
         $page = trim((string) end($segments));
-        $form = isset($guide['open_path']) ? $this->routeAccess->hrefFor($role, $guide['open_path']) : null;
+        $form = isset($guide['open_path']) ? $this->linkTo($user, $guide['open_path']) : null;
         $label = $form !== null ? (string) ($guide['open_label'] ?? $first['title']) : (string) $first['title'];
 
         return [
@@ -654,10 +656,10 @@ class AskAiService
             }
         }
         if ($stands !== []) {
-            $answer .= ' From your records: '.implode(' ', $stands);
+            $answer .= "\n\nFrom your records: ".implode(' ', $stands);
         }
         if ($start !== null) {
-            $answer .= ' The "'.$start['label'].'" button below takes you there, and the steps are listed under it.';
+            $answer .= "\n\nThe \"".$start['label'].'" button below takes you there, and the steps are listed under it.';
         }
 
         $payload['title'] = $guide['title'];
@@ -670,10 +672,13 @@ class AskAiService
     private function buildHowToWhoCan(User $user, array $guide, array $related): array
     {
         $role = $user->role;
-        $doers = array_map(fn (string $r) => self::ROLE_DOERS[$r] ?? $r, $guide['roles']);
+        $doers = array_map(fn (string $r) => self::ROLE_DOERS[$r] ?? $r, $guide['done_by'] ?? $guide['roles']);
         $nearest = $this->howToNearest($user, $guide, $related);
 
         $answer = sprintf('%s cannot %s in HIUSA; that is done by %s.', self::ROLE_SELF[$role] ?? 'Your role', $this->howToAction($guide), $this->joinPhrases($doers));
+        if (! empty($guide['otherwise'])) {
+            $answer .= ' '.$guide['otherwise'];
+        }
         if ($nearest !== null) {
             $answer .= ' The nearest thing you can do is '.$nearest['phrase'].', and the button below opens it.';
         }
@@ -692,11 +697,11 @@ class AskAiService
         }
 
         return [
-            'title' => $guide['title'],
+            'title' => ucfirst($this->howToAction($guide)),
             'answer' => $answer,
             'highlights' => [
                 ['label' => 'Your access', 'value' => 'Other role', 'tone' => 'warning'],
-                ['label' => 'Done by', 'value' => implode(', ', array_map(fn (string $r) => HowToGuideLibrary::ROLE_NAMES[$r] ?? $r, $guide['roles'])), 'tone' => 'info'],
+                ['label' => 'Done by', 'value' => implode(', ', array_map(fn (string $r) => HowToGuideLibrary::ROLE_NAMES[$r] ?? $r, $guide['done_by'] ?? $guide['roles'])), 'tone' => 'info'],
             ],
             'sections' => $nearest === null ? [] : [[
                 'id' => 'how-to-nearest',
@@ -741,13 +746,13 @@ class AskAiService
         }
 
         foreach (self::NEAREST_PAGES[$guide['category']] ?? [] as [$path, $label, $phrase]) {
-            $href = $this->routeAccess->hrefFor($role, $path);
+            $href = $this->linkTo($user, $path);
             if ($href !== null) {
                 return $row($label, $phrase, $href);
             }
         }
 
-        $home = $this->routeAccess->hrefFor($role, self::ROLE_HOME[$role] ?? null);
+        $home = $this->linkTo($user, ...array_filter([self::ROLE_HOME[$role] ?? null, self::ROLE_HOME[(string) $user->profileRole()] ?? null]));
 
         return $home === null ? null : $row('Open my dashboard', 'start from your dashboard, where your own work is gathered', $home);
     }
@@ -798,7 +803,7 @@ class AskAiService
             }
             $waiting = $query->count();
             $rows[] = $waiting > 0
-                ? $row('applications', $this->plural($waiting, 'application').' '.$this->be($waiting).' waiting for your decision', null, 'Waiting', 'warning', $this->routeAccess->hrefFor($role, '/dashboard/organization-applications'), 'Open applications')
+                ? $row('applications', $this->plural($waiting, 'application').' '.$this->be($waiting).' waiting for your decision', null, 'Waiting', 'warning', $this->linkTo($user, '/dashboard/organization-applications'), 'Open applications')
                 : $row('applications', 'No application is waiting for your decision', null, 'Clear', 'success');
         }
 
@@ -943,7 +948,7 @@ class AskAiService
         $stepRows = [];
         $paths = [];
         foreach ($steps as $index => $step) {
-            $href = $accessible ? $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role)) : null;
+            $href = $accessible ? $this->linkTo($user, ...$this->guides->stepPaths($step, $role)) : null;
             if ($href !== null) {
                 $paths[strtok($href, '?')] = true;
             }
@@ -1084,7 +1089,7 @@ class AskAiService
                     'status' => 'Action needed',
                     'status_tone' => 'warning',
                     'meta' => null,
-                    'href' => $this->routeAccess->hrefFor($user->role, '/dashboard/super-admin/academic-years'),
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/academic-years'),
                     'action_label' => 'Open academic years',
                 ];
             }
@@ -1108,10 +1113,10 @@ class AskAiService
         $role = $user->role;
         $guides = $this->guides->forRole($role);
 
-        $rows = array_map(function (array $g) use ($role) {
+        $rows = array_map(function (array $g) use ($user, $role) {
             $firstPath = null;
             foreach ($g['steps'] as $step) {
-                $firstPath = $this->routeAccess->hrefFor($role, $this->guides->stepPath($step, $role));
+                $firstPath = $this->linkTo($user, ...$this->guides->stepPaths($step, $role));
                 if ($firstPath !== null) {
                     break;
                 }
@@ -1195,6 +1200,21 @@ class AskAiService
         return $orders->where('orders.status', 'pending')->where('orders.officer_review_status', 'pending')
             ->where(fn ($ready) => $ready->whereNotNull('orders.payment_proof_url')
                 ->orWhereNull('orders.payment_method')->orWhere('orders.payment_method', '!=', 'gcash'));
+    }
+
+    /** An empty applications queue still names the approval requests that wait, so the two answers never contradict each other. */
+    private function withWaitingRequests(User $user, Collection $organizationIds, array $payload): array
+    {
+        if (($payload['highlights'][0]['value'] ?? null) !== '0') {
+            return $payload;
+        }
+
+        $waiting = $this->awaitingApprovalsQuery($user, $organizationIds)->count();
+        if ($waiting > 0) {
+            $payload['answer'] .= sprintf(' Separately, %s %s waiting for your decision. Ask "What is waiting for my approval?" to see %s.', $this->plural($waiting, 'approval request'), $this->be($waiting), $waiting === 1 ? 'it' : 'them');
+        }
+
+        return $payload;
     }
 
     private function openGrievancesQuery(): Builder
@@ -2342,6 +2362,7 @@ class AskAiService
 
         $extraSection = [];
         $pendingRegCount = 0;
+        $pendingBookingCount = 0;
         if ($role === 'SUPER_ADMIN') {
             $pendingRegs = DB::table('organizations')
                 ->where('organization_type', 'STUDENT_ORGANIZATION')
@@ -2366,17 +2387,38 @@ class AskAiService
                     'action_label' => 'Review',
                 ])->all(),
             ];
+
+            $pendingBookings = VenueBooking::where('status', 'pending')->with(['venue:id,name', 'organization:id,name,acronym']);
+            $pendingBookingCount = (clone $pendingBookings)->count();
+            $extraSection[] = [
+                'id' => 'pending-venue-bookings',
+                'title' => 'Venue Bookings Waiting for the SAO',
+                'description' => $this->showingFirst($pendingBookingCount, 'oldest first'),
+                'empty_message' => 'No venue bookings are waiting for confirmation.',
+                'rows' => $pendingBookings->orderBy('created_at')->orderBy('id')->limit(self::ROW_LIMIT)->get()->map(fn (VenueBooking $booking) => [
+                    'id' => 'venue-'.$booking->id,
+                    'primary' => ($booking->venue?->name ?? $booking->off_campus_location ?? 'Venue').' · '.($booking->organization?->acronym ?: ($booking->organization?->name ?? 'Organization')),
+                    'secondary' => 'Venue booking · '.$booking->start_time?->format('M j, Y g:i A'),
+                    'status' => 'Waiting for SAO',
+                    'status_tone' => 'warning',
+                    'meta' => $booking->created_at ? $booking->created_at->diffForHumans() : 'Pending',
+                    'href' => $this->linkTo($user, '/dashboard/super-admin/venues'),
+                    'action_label' => 'Review',
+                ])->all(),
+            ];
         }
 
         $requestsPhrase = $totalPendingApprovals.' approval '.Str::plural('request', $totalPendingApprovals);
         $answer = $role === 'SUPER_ADMIN'
             ? sprintf(
-                '%s %s waiting for your review, and %d student %s %s waiting for a registration decision.',
+                '%s %s waiting for your review, %d student %s %s waiting for a registration decision, and %s %s waiting for your confirmation.',
                 $requestsPhrase,
-                $totalPendingApprovals === 1 ? 'is' : 'are',
+                $this->be($totalPendingApprovals),
                 $pendingRegCount,
                 Str::plural('organization', $pendingRegCount),
-                $pendingRegCount === 1 ? 'is' : 'are'
+                $this->be($pendingRegCount),
+                $this->plural($pendingBookingCount, 'venue booking'),
+                $this->be($pendingBookingCount)
             )
             : sprintf('%s %s waiting for your review.', $requestsPhrase, $totalPendingApprovals === 1 ? 'is' : 'are');
 
@@ -2387,7 +2429,10 @@ class AskAiService
                 ['label' => 'Pending approvals', 'value' => (string) $totalPendingApprovals, 'tone' => $totalPendingApprovals > 0 ? 'warning' : 'success'],
                 ...(
                     $role === 'SUPER_ADMIN'
-                        ? [['label' => 'Pending registrations', 'value' => (string) $pendingRegCount, 'tone' => $pendingRegCount > 0 ? 'warning' : 'neutral']]
+                        ? [
+                            ['label' => 'Pending registrations', 'value' => (string) $pendingRegCount, 'tone' => $pendingRegCount > 0 ? 'warning' : 'neutral'],
+                            ['label' => 'Pending venue bookings', 'value' => (string) $pendingBookingCount, 'tone' => $pendingBookingCount > 0 ? 'warning' : 'neutral'],
+                        ]
                         : []
                 ),
             ],
@@ -2556,15 +2601,17 @@ class AskAiService
             ];
         })->all();
 
+        $tasksAnswer = sprintf(
+            '%d %s overdue, and %d %s still pending or in progress.',
+            $overdueCount,
+            $overdueCount === 1 ? 'task is' : 'tasks are',
+            $openCount,
+            $openCount === 1 ? 'task is' : 'tasks are'
+        );
+
         return [
             'title' => 'Tasks & Officer Workload',
-            'answer' => sprintf(
-                '%d %s overdue, and %d %s still pending or in progress.',
-                $overdueCount,
-                $overdueCount === 1 ? 'task is' : 'tasks are',
-                $openCount,
-                $openCount === 1 ? 'task is' : 'tasks are'
-            ),
+            'answer' => $role === 'SBO_OFFICER' ? 'Of the tasks assigned to you, '.$tasksAnswer : $tasksAnswer,
             'highlights' => [
                 ['label' => 'Overdue tasks', 'value' => (string) $overdueCount, 'tone' => $overdueCount > 0 ? 'danger' : 'success'],
                 ['label' => 'Open tasks', 'value' => (string) $openCount, 'tone' => 'primary'],
@@ -2589,11 +2636,22 @@ class AskAiService
     // Intent 7: Finance Health, Budgets & Student Balances
     // -------------------------------------------------------------------------
 
-    private function buildFinanceHealth(User $user, Collection $organizationIds): array
+    /** A student who asks about a budget is told budgets are not theirs to see, before the fees that are. */
+    private function withBudgetNote(User $user, string $question, array $payload): array
+    {
+        if ($user->role === 'STUDENT' && preg_match('~\bbudgets?\b~', Str::lower($question)) === 1) {
+            $payload['answer'] = 'Organization budgets are not shown to students. '.$payload['answer'];
+        }
+
+        return $payload;
+    }
+
+    /** With $ownAccount an Admin or an officer reads what they owe as a member, the way a student does. */
+    private function buildFinanceHealth(User $user, Collection $organizationIds, bool $ownAccount = false): array
     {
         $role = $user->role;
 
-        if ($role === 'STUDENT') {
+        if ($role === 'STUDENT' || $ownAccount) {
             $orgId = (int) $user->organization_id;
             $row = $this->balances->rows(collect([$user]), $orgId)->first();
             $owed = (float) ($row['total_debt'] ?? 0);
@@ -2691,7 +2749,7 @@ class AskAiService
                 $unpaidInvoicesCount,
                 Str::plural('invoice', $unpaidInvoicesCount),
                 $unpaidInvoicesCount === 1 ? 'is' : 'are'
-            ),
+            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : ''),
             'highlights' => [
                 ['label' => 'Approved allocated', 'value' => '₱'.number_format($allocated, 2), 'tone' => 'primary'],
                 ['label' => 'Remaining budget', 'value' => '₱'.number_format($remaining, 2), 'tone' => 'success'],
@@ -3266,11 +3324,24 @@ class AskAiService
 
     private function buildGrievancesStatus(User $user): array
     {
-        if ($user->role !== 'SUPER_ADMIN') {
-            return $this->buildDailyPriorities($user, $this->scopedStudentOrganizationIds($user));
+        if ($user->role === 'STUDENT') {
+            return $this->buildOwnGrievances($user);
         }
 
-        $grievanceQuery = $this->openGrievancesQuery();
+        if (! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+            return [
+                'title' => 'Student Grievances',
+                'answer' => 'Grievances are read by the organization head and the SAO, so there is no grievance queue on your account.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
+                ],
+            ];
+        }
+
+        $isSao = $user->role === 'SUPER_ADMIN';
+        $grievanceQuery = $this->openGrievancesQuery()->when(! $isSao, fn ($rows) => $rows->where('organization_id', $user->organization_id));
         $openCount = (clone $grievanceQuery)->count();
         $urgentCount = (clone $grievanceQuery)->whereRaw('LOWER(urgency) in (?, ?)', ['high', 'critical'])->count();
         $openGrievances = $grievanceQuery
@@ -3279,16 +3350,16 @@ class AskAiService
             ->limit(self::ROW_LIMIT)
             ->get(['id', 'title', 'category', 'urgency', 'status', 'created_at']);
 
-        $href = $this->linkTo($user, '/dashboard/super-admin/grievances');
+        $href = $this->linkTo($user, $isSao ? '/dashboard/super-admin/grievances' : '/dashboard/grievances');
 
         return [
-            'title' => 'Student Grievance Queue (SAO)',
+            'title' => $isSao ? 'Student Grievance Queue (SAO)' : 'Grievances Addressed to Your Organization',
             'answer' => sprintf(
                 '%d %s unresolved, and %d of them %s high or critical urgency.',
                 $openCount,
                 $openCount === 1 ? 'grievance is' : 'grievances are',
                 $urgentCount,
-                $urgentCount === 1 ? 'is' : 'are'
+                $this->be($urgentCount)
             ),
             'highlights' => [
                 ['label' => 'Unresolved grievances', 'value' => (string) $openCount, 'tone' => $openCount > 0 ? 'warning' : 'success'],
@@ -3296,7 +3367,7 @@ class AskAiService
             ],
             'sections' => [
                 [
-                    'id' => 'sao-grievances-list',
+                    'id' => $isSao ? 'sao-grievances-list' : 'org-grievances-list',
                     'title' => 'Open Student Grievances',
                     'description' => 'Most urgent first. Student names are not shown here.'.($openCount > self::ROW_LIMIT ? ' Showing the first '.self::ROW_LIMIT." of {$openCount}." : ''),
                     'empty_message' => 'No unresolved student grievances in the queue.',
@@ -3314,6 +3385,48 @@ class AskAiService
             ],
             'follow_ups' => [
                 ['topic' => 'daily_priorities', 'label' => 'Back to today’s priorities', 'question' => 'What should I do today?'],
+            ],
+        ];
+    }
+
+    /** A student's own grievances: the same list the My grievances page opens, with status only. */
+    private function buildOwnGrievances(User $user): array
+    {
+        $own = DB::table('grievances')->whereNull('deleted_at')->where('submitted_by', $user->school_id);
+        $filed = (clone $own)->count();
+        $open = (clone $own)->whereNotIn('status', ['resolved', 'dismissed'])->count();
+        $grievances = $own->orderByDesc('created_at')->orderByDesc('id')->limit(self::ROW_LIMIT)->get(['id', 'title', 'category', 'status', 'created_at']);
+        $href = $this->linkTo($user, '/dashboard/my-grievances');
+
+        return [
+            'title' => 'Your Grievances',
+            'answer' => $filed === 0
+                ? 'You have not filed a grievance. If you have a concern, you can file it on the My grievances page.'
+                : sprintf('You have filed %s, and %s still open.', $this->plural($filed, 'grievance'), $open === 0 ? 'none is' : $open.' '.($open === 1 ? 'is' : 'are')),
+            'highlights' => [
+                ['label' => 'Filed by you', 'value' => (string) $filed, 'tone' => 'neutral'],
+                ['label' => 'Still open', 'value' => (string) $open, 'tone' => $open > 0 ? 'warning' : 'success'],
+            ],
+            'sections' => [
+                [
+                    'id' => 'own-grievances-list',
+                    'title' => 'Your Grievances',
+                    'description' => $this->showingFirst($filed, 'newest first'),
+                    'empty_message' => 'You have not filed a grievance.',
+                    'rows' => $grievances->map(fn ($g) => [
+                        'id' => 'grv-'.$g->id,
+                        'primary' => $g->title ?: ('Grievance #'.$g->id),
+                        'secondary' => 'Category: '.Str::headline($g->category ?: 'General').' · Filed '.Carbon::parse($g->created_at)->format('M j, Y'),
+                        'status' => Str::headline($g->status),
+                        'status_tone' => in_array($g->status, ['resolved', 'dismissed'], true) ? 'success' : 'warning',
+                        'meta' => null,
+                        'href' => $href,
+                        'action_label' => 'Open',
+                    ])->all(),
+                ],
+            ],
+            'follow_ups' => [
+                ['topic' => 'daily_priorities', 'label' => 'What do I need to do today?', 'question' => 'What do I need to do today?'],
             ],
         ];
     }
