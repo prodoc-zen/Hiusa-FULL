@@ -23,6 +23,56 @@ Upload limits must match what the forms promise: each PDF may be up to 10 MB and
 
 Restart `hiusa-ai` when Python application files change. Handle dependency or schema changes separately; back up the database before applying migrations. Preserve production environment files and generated uploads.
 
+## Ask AI chat streams
+
+`POST /api/ai/assistant/chat` answers as a stream that can stay open for up to 75 seconds (60 seconds for the first provider plus a 15 second margin for the second), and each open stream holds one PHP-FPM worker until the answer ends. The defaults stop it two ways: Nginx closes a FastCGI connection that sends nothing for 60 seconds, and the packaged pool of 5 workers lets five people waiting on answers starve sign-in, payments and voting. The app sends a `: keep-alive` comment line after every 3 quiet seconds, so the read timeout below is a safety margin and not a requirement for a healthy answer. Back up each file first, then apply all four changes together. These settings have not been run against the live server from this repository, so confirm each one there.
+
+1. Nginx, in `/etc/nginx/sites-available/hiusa`. Add a read and send timeout to the existing `location = /index.php` block, next to `fastcgi_pass`:
+
+```nginx
+        fastcgi_read_timeout 120s;
+        fastcgi_send_timeout 120s;
+```
+
+2. Nginx, same file. Switch buffering off for the stream route only, so each event reaches the browser as it is written. Add these two blocks next to the `/api/` location (the exact-match location wins over `/api/`, and the named location replaces `@laravel` for this route only):
+
+```nginx
+    location = /api/ai/assistant/chat {
+        client_max_body_size 16k;
+        try_files $uri @laravel_stream;
+    }
+    location @laravel_stream {
+        root /var/www/hiusa/server/public;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /var/www/hiusa/server/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_buffering off;
+        fastcgi_read_timeout 120s;
+        fastcgi_send_timeout 120s;
+        gzip off;
+    }
+```
+
+The app also sends `X-Accel-Buffering: no` with the stream, which already turns buffering off for that response; the blocks above make it independent of the header.
+
+3. PHP-FPM, in the pool file that carries the AI settings (`/etc/php/8.3/fpm/pool.d/www.conf` unless the native overrides use another pool file). The pool ends any request that runs longer than 120 seconds, which is above the 75 second answer ceiling plus the 12 second Groq call:
+
+```ini
+request_terminate_timeout = 120s
+pm = dynamic
+pm.max_children = 20
+pm.start_servers = 4
+pm.min_spare_servers = 2
+pm.max_spare_servers = 6
+```
+
+Twenty is a starting value for a small instance, not a measured one. Each worker uses roughly 60 to 100 MB, so check `free -m` and `ps -o rss= -C php-fpm8.3` first and lower `pm.max_children` if twenty workers would not fit in memory. One person can hold only one open answer at a time (the app takes a per-person lock), so the number of simultaneous streams is the number of people asking at the same moment; keep `pm.max_children` well above that plus normal traffic.
+
+4. PHP, in `/etc/php/8.3/fpm/conf.d/20-hiusa.ini`: `max_execution_time=120`, so the PHP time limit does not end a stream before the pool does.
+
+Then run `sudo nginx -t`, `sudo systemctl reload nginx` and `sudo systemctl reload php8.3-fpm`. Check that the stream reaches the browser in pieces and not all at the end (`curl -N` with a signed-in token and `Accept: text/event-stream` shows events as they arrive), and watch `/var/log/php8.3-fpm.log` for `server reached pm.max_children` after release. A warning there means the pool is too small.
+
 ## Browser caching after deployment
 
 The HTTPS server block in `/etc/nginx/sites-available/hiusa` must revalidate the SPA entry document. Keep the existing one-year expiry for fingerprinted `/assets/` files, and add this exact-match location alongside the SPA fallback:

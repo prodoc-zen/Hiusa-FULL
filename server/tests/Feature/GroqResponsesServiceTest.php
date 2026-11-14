@@ -126,6 +126,27 @@ class GroqResponsesServiceTest extends TestCase
             && $request['text']['format']['schema'] === $schema);
     }
 
+    public function test_an_incomplete_structured_response_is_a_failure_even_when_its_text_parses(): void
+    {
+        config()->set('services.groq', [
+            'key' => 'test-groq-key',
+            'url' => 'https://api.groq.com/openai/v1/responses',
+            'model' => 'openai/gpt-oss-20b',
+            'timeout' => 25,
+        ]);
+        Http::fake(['api.groq.com/*' => Http::response([
+            'id' => 'resp_cut_off_json',
+            'model' => 'openai/gpt-oss-20b',
+            'status' => 'incomplete',
+            'incomplete_details' => ['reason' => 'max_output_tokens'],
+            'output_text' => '{"overview":"Looks whole but the plan was cut off"}',
+        ])]);
+
+        $schema = ['type' => 'object', 'additionalProperties' => false, 'required' => ['overview'], 'properties' => ['overview' => ['type' => 'string']]];
+
+        $this->assertNull(app(GroqResponsesService::class)->generateStructured('Use supplied facts.', ['event' => 'Assembly'], 'event_plan', $schema));
+    }
+
     public function test_numeric_fact_guard_rejects_invented_figures(): void
     {
         $service = app(GroqResponsesService::class);
