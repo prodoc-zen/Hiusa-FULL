@@ -155,7 +155,7 @@ class AskAiActions
                 $this->field('title', 'Title', 'text', true, 255, null, null, ['parse' => 'title']),
                 $this->field('description', 'Description', 'textarea', false, 5000),
                 $this->field('deadline', 'Due date', 'date', true, null, 'Today or later.'),
-                $this->field('assigned_to', 'Assign to', 'select', true, null, 'Only officers who can take more work are accepted.', fn (User $user): array => $this->eligibleOfficers($user)),
+                $this->field('assigned_to', 'Assign to', 'select', true, null, 'Only officers who can take more work are accepted.', fn (User $user, string $message, array $values): array => $this->eligibleOfficers($user, (string) ($values['title'] ?? $message))),
             ],
             'route' => ['POST', '/api/tasks'],
             'body' => fn (array $v): array => [
@@ -339,24 +339,25 @@ class AskAiActions
     // Option loaders, each scoped to what the person may see
     // -------------------------------------------------------------------------
 
-    /** @return array<int, array{value: string, label: string}> */
-    private function eligibleOfficers(User $user): array
+    /**
+     * The officers the task route will accept, in the delegation ranking, the recommended one marked. They come from the
+     * same delegation result the form's recommendation uses, so an officer at the task limit is not offered.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function eligibleOfficers(User $user, string $title): array
     {
         if ($user->organization_id === null) {
             return [];
         }
 
-        $delegation = app(TaskDelegationService::class);
-        $positions = $delegation->activePositionTitles($user->organization_id);
+        $result = app(TaskDelegationService::class)->recommend($user->organization_id, mb_substr($title, 0, 255));
 
-        return $delegation->officerPool($user->organization_id)
-            ->filter(fn (User $officer) => $delegation->accountIsActive($officer)
-                && trim((string) $officer->position_title) !== ''
-                && $delegation->canonicalPosition($officer->position_title, $positions) !== null)
-            ->map(fn (User $officer) => [
-                'value' => (string) $officer->school_id,
-                'label' => trim("{$officer->first_name} {$officer->last_name}").', '.trim((string) $officer->position_title),
-                'aliases' => [trim("{$officer->first_name} {$officer->last_name}")],
+        return collect($result['rankings'])
+            ->map(fn (array $ranking) => [
+                'value' => (string) $ranking['officer_id'],
+                'label' => trim($ranking['name']).', '.trim((string) $ranking['position_title']).($ranking['officer_id'] === $result['recommended_officer_id'] ? ' (recommended)' : ''),
+                'aliases' => [trim($ranking['name'])],
             ])
             ->values()
             ->all();
