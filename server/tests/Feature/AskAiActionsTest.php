@@ -118,6 +118,33 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, Event::count());
     }
 
+    public function test_a_statement_that_asks_for_information_is_answered_not_turned_into_a_card(): void
+    {
+        $actions = app(AskAiActions::class);
+        $cases = [
+            ['ADMIN', 'List the events we plan to host next month'],
+            ['ADMIN', 'Summarize the budgets we still need to submit'],
+            ['STUDENT', 'My friend wants to file a complaint, what should she do'],
+            ['ADMIN', 'create an event for the seminar?'],
+            ['ADMIN', 'tell me which tasks I should create this week'],
+        ];
+
+        foreach ($cases as [$role, $text]) {
+            $this->assertNull($actions->recognise(new User(['role' => $role]), $text), $text);
+        }
+    }
+
+    public function test_a_title_that_contains_a_question_word_is_still_a_request(): void
+    {
+        $actions = app(AskAiActions::class);
+        $admin = new User(['role' => 'ADMIN']);
+
+        $this->assertSame('create_event', $actions->recognise($admin, 'create an event called Talent Show'));
+        $this->assertSame('create_event', $actions->recognise($admin, 'make an event "How to Study" on friday'));
+        $this->assertSame('create_task', $actions->recognise($admin, 'please assign a task to the treasurer'));
+        $this->assertSame('allow_applicant', $actions->recognise(new User(['role' => 'DEPARTMENT_HEAD']), 'let maria apply for a new organization'));
+    }
+
     public function test_everyday_phrasing_is_recognised_for_each_role(): void
     {
         $actions = app(AskAiActions::class);
