@@ -64,6 +64,7 @@ describe('OrgSpacePage as SAO oversight', () => {
     expect(within(table).getByText('President')).toBeInTheDocument();
     expect(within(table).getByText('Admin')).toBeInTheDocument();
     expect(screen.queryByTestId('org-access')).not.toBeInTheDocument();
+    expect(screen.getByText("Active members only. The organization's Admin gives and removes access.")).toBeInTheDocument();
   });
 
   it('has a transactions tab that loads the ledger of this organization', async () => {
