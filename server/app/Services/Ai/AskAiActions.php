@@ -44,6 +44,12 @@ class AskAiActions
 
     private const QUESTION_PAIRS = ['can i', 'may i', 'do i', 'should i', 'am i', 'is it', 'is there', 'are there', 'does it', 'will it'];
 
+    private const QUESTION_WORDS = ['what', 'which', 'how', 'list', 'show', 'summarize', 'summarise', 'tell'];
+
+    private const POLITE_STARTS = ['please', 'pls', 'plz', 'kindly', 'hey', 'can', 'could', 'would', 'you', 'u', 'i', 'want', 'wanna', 'need', 'like', 'to'];
+
+    private const NOUN_REACH = 3;
+
     private const QUESTION_PHRASES = ['how to', 'how do', 'how can', 'how would', 'how should', 'steps to'];
 
     private const BOUNDARY = '(?=\s+(?:on|at|by|due|starting|starts|from|until|tomorrow|today|tonight|next|this|with|for)\b|\s+(?:(?:of|worth)\s+)?(?:₱|php\b)|[.,;!?]|$)';
@@ -453,7 +459,7 @@ class AskAiActions
     public function recognise(User $user, string $message): ?string
     {
         $tokens = $this->tokens($message);
-        if ($tokens === [] || $this->isQuestion($tokens)) {
+        if ($tokens === [] || $this->isQuestion($message)) {
             return null;
         }
 
@@ -472,9 +478,12 @@ class AskAiActions
 
             $distance = PHP_INT_MAX;
             foreach ($verbs as [$verbStart, $verbEnd]) {
-                foreach ($nouns as [$nounStart, $nounEnd]) {
-                    $gap = $nounStart > $verbEnd ? $nounStart - $verbEnd : ($verbStart - $nounEnd) + 3;
-                    $distance = min($distance, $gap);
+                $opens = array_diff(array_slice($tokens, 0, $verbStart), self::POLITE_STARTS) === [];
+                foreach ($nouns as [$nounStart]) {
+                    $gap = $nounStart - $verbEnd;
+                    if ($gap > 0 && ($opens || $gap <= self::NOUN_REACH + 1)) {
+                        $distance = min($distance, $gap);
+                    }
                 }
             }
 
@@ -496,8 +505,31 @@ class AskAiActions
         return array_values(array_filter(explode(' ', $clean), fn (string $token) => $token !== ''));
     }
 
-    private function isQuestion(array $tokens): bool
+    /** What the person called or quoted is a name, not part of the request, so a title such as "How to Study" does not make it a question. */
+    private function withoutNames(string $message): string
     {
+        $head = preg_split('/\b(?:called|named|titled|entitled)\b/iu', $message, 2)[0] ?? $message;
+        $kept = '';
+        foreach (explode('"', str_replace(['“', '”'], '"', $head)) as $index => $part) {
+            if ($index % 2 === 0) {
+                $kept .= $part.' ';
+            }
+        }
+
+        return $kept;
+    }
+
+    private function isQuestion(string $message): bool
+    {
+        $tokens = $this->tokens($this->withoutNames($message));
+        if ($tokens === []) {
+            return false;
+        }
+
+        if (str_ends_with(rtrim($message), '?') || array_intersect(self::QUESTION_WORDS, $tokens) !== []) {
+            return true;
+        }
+
         if (in_array($tokens[0], self::QUESTION_STARTS, true)) {
             return true;
         }
