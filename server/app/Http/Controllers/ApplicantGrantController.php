@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
@@ -31,7 +33,10 @@ class ApplicantGrantController extends Controller
             ->limit(200)
             ->get();
 
-        return response()->json(['data' => $grants->map(fn (OrganizationApplicantGrant $grant) => $this->present($grant))->values()]);
+        return response()->json([
+            'data' => $grants->map(fn (OrganizationApplicantGrant $grant) => $this->present($grant))->values(),
+            'applications_open' => $this->applicationsOpen(),
+        ]);
     }
 
     public function store(Request $request)
@@ -107,6 +112,15 @@ class ApplicantGrantController extends Controller
         }
 
         return User::whereKey($schoolId)->where('account_status', 'active')->first();
+    }
+
+    /** Students apply in the active semester, and only once the SAO has published its organization requirements. */
+    private function applicationsOpen(): bool
+    {
+        $semester = AcademicSemester::active();
+
+        return $semester !== null
+            && ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('is_active', true)->where('category', 'organization')->exists();
     }
 
     private function college(User $user): College
