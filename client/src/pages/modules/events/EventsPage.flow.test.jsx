@@ -625,6 +625,7 @@ describe('student registration path', () => {
     useViewer('STUDENT', { ...FIXTURES.approved });
     renderPage('/dashboard/events/activity-calendar?view=list');
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Filter' }));
     const status = await screen.findByLabelText('Status');
     expect(Array.from(status.options).map((option) => option.textContent)).toEqual(['All statuses', 'Approved', 'Ongoing', 'Completed']);
   });

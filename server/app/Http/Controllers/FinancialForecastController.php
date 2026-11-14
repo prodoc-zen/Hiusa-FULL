@@ -460,7 +460,7 @@ class FinancialForecastController extends Controller
         $fundsSentence = ' With PHP '.number_format($currentFunds, 2).' in approved budgets, the estimated available budget is PHP '.number_format($estimatedAvailable, 2).'.';
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds.{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
-            : "The {$period} forecast is ".($risk === 'overspending' ? 'that spending may outrun income' : $risk).". Expected income is PHP ".number_format($income, 2).', and expected expenses are PHP '.number_format($expense, 2).".{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.';
+            : "The {$period} forecast is ".($risk === 'overspending' ? 'that spending may outrun income' : $risk).'. Expected income is PHP '.number_format($income, 2).', and expected expenses are PHP '.number_format($expense, 2).".{$fundsSentence} The safe spending limit is PHP ".number_format($safeLimit, 2).'.';
         if (! $isReliable && $reliabilityNote) {
             $fallback .= " {$reliabilityNote}";
         }

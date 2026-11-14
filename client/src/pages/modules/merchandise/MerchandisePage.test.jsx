@@ -1046,7 +1046,7 @@ describe("MerchandisePage order stages for the buyer", () => {
   });
 
   it("offers GCash proof once, as a secondary button, on a freshly reserved cash order", async () => {
-    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "gcash/qr.png" } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
     localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
     const placed = buyerOrder({ id: 42 });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
