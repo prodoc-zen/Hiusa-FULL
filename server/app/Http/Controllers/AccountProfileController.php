@@ -307,10 +307,38 @@ class AccountProfileController extends Controller
                 'record_id' => $profile->id, 'old_values' => $before, 'new_values' => $profile->only(['role', 'position_title', 'modules']),
                 'ip_address' => $request->ip(), 'created_at' => now(),
             ]);
+            if ($before['role'] === 'STUDENT' && in_array($data['role'], ['SBO_OFFICER', 'ADMIN'], true)) {
+                $this->keepStudentWorkspace($request, $actor, $profile, $organization);
+            }
 
             return $profile;
         });
 
         return response()->json($profile->only(['id', 'organization_id', 'role', 'position_title', 'modules', 'account_status']));
+    }
+
+    /**
+     * Promoting a member rewrites their profile, so a person who had only that profile would lose the student side
+     * of their account. They get the college-home student profile sign-up gives everyone, when the college is known.
+     */
+    private function keepStudentWorkspace(Request $request, User $actor, AccountProfile $promoted, Organization $organization): void
+    {
+        $person = $promoted->user;
+        $hasStudentProfile = $person->accountProfiles()->where('role', 'STUDENT')->where('account_status', 'active')->whereKeyNot($promoted->id)->exists();
+        $home = $organization->college_id
+            ? Organization::where('organization_type', 'COLLEGE')->where('college_id', $organization->college_id)->where('is_active', true)->first()
+            : null;
+        if ($hasStudentProfile || ! $home || $home->id === $organization->id || $person->accountProfiles()->where('organization_id', $home->id)->exists()) {
+            return;
+        }
+
+        $student = $person->accountProfiles()->create(['organization_id' => $home->id, 'role' => 'STUDENT', 'account_status' => 'active', 'position_title' => null]);
+        AuditLog::create([
+            'organization_id' => $home->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+            'module' => 'users', 'action' => 'student_profile_restored', 'record_type' => AccountProfile::class,
+            'record_id' => $student->id, 'new_values' => ['user_school_id' => $person->school_id, 'role' => 'STUDENT', 'organization_id' => $home->id],
+            'description' => 'Kept a student workspace for a member promoted in '.$organization->name.'.',
+            'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
     }
 }
