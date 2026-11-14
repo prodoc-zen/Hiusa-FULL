@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import PaginationControls from '../PaginationControls';
@@ -11,9 +11,44 @@ import GiveAccessModal from './GiveAccessModal';
 import { ACCESS_LEVELS, grantableLevels, modulesLabel } from './orgAccess';
 
 const PER_PAGE = 20;
+// The server refuses a dean who removes the last profile of an account (AccountProfileDeletionService), so the button says so up front.
+const DEAN_LAST_PROFILE_REASON = 'Ask the SAO to remove the account';
+
+// Removing a person's last profile deletes the whole account, so the button says so.
+// The dean's reason is one line above the list (see OrgAccessPanel), and every blocked button points at it by reasonId.
+const isDeanAtLastProfile = (row, actorRole) => actorRole === 'DEPARTMENT_HEAD' && !(row.profiles_count > 1);
+
+function PersonActions({ row, actorRole, reasonId, onChange, onRemove }) {
+  const name = `${row.first_name} ${row.last_name}`;
+  const isLastProfile = !(row.profiles_count > 1);
+  const organizationName = row.organization?.name || 'this organization';
+  const blocked = Boolean(row.deletion_block_reason);
+  const deanAtLastProfile = isDeanAtLastProfile(row, actorRole);
+  const removalBlocked = blocked || deanAtLastProfile;
+  const removalReason = row.deletion_block_reason || (deanAtLastProfile ? DEAN_LAST_PROFILE_REASON : null);
+
+  return (
+    <div className="flex justify-end gap-2">
+      <Button variant="secondary" size="sm" disabled={blocked} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${name}`} onClick={onChange}>Change</Button>
+      <Button
+        variant={isLastProfile ? 'danger' : 'secondary'}
+        size="sm"
+        className="max-w-48 [&>span]:min-w-0 [&>span]:max-w-full"
+        disabled={removalBlocked}
+        title={removalReason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
+        aria-describedby={deanAtLastProfile ? reasonId : undefined}
+        aria-label={isLastProfile ? `Delete account for ${name}` : `Remove ${name} from ${organizationName}`}
+        onClick={onRemove}
+      >
+        <span className="truncate">{isLastProfile ? 'Delete account' : `Remove from ${organizationName}`}</span>
+      </Button>
+    </div>
+  );
+}
 
 export default function OrgAccessPanel({ organizationId, actorRole }) {
   const canGrant = grantableLevels(actorRole).length > 0;
+  const reasonId = useId();
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: PER_PAGE });
   const [page, setPage] = useState(1);
@@ -86,18 +121,17 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
     {
       key: 'role',
       header: 'Access',
-      render: (row) => <StatusBadge label={ACCESS_LEVELS[row.role]?.label || row.role} tone={ACCESS_LEVELS[row.role]?.tone || 'neutral'} />,
+      render: (row) => <StatusBadge className="h-auto! min-h-6 max-w-full whitespace-normal! py-0.5" label={ACCESS_LEVELS[row.role]?.label || row.role} tone={ACCESS_LEVELS[row.role]?.tone || 'neutral'} />,
     },
     { key: 'modules', header: 'Can open', render: (row) => <span className="text-xs font-normal text-ink-muted">{modulesLabel(row)}</span> },
   ];
 
   const actions = canGrant ? (row) => (
-    <div className="flex justify-end gap-2">
-      <Button variant="secondary" size="sm" disabled={Boolean(row.deletion_block_reason)} title={row.deletion_block_reason || undefined} aria-label={`Change access for ${row.first_name} ${row.last_name}`} onClick={() => setEditing(row)}>Change</Button>
-      <Button variant="secondary" size="sm" disabled={Boolean(row.deletion_block_reason)} title={row.deletion_block_reason || undefined} aria-label={`Remove ${row.first_name} ${row.last_name}`} onClick={() => { setRemoveError(''); setRemoving(row); }}>Remove</Button>
-    </div>
+    <PersonActions row={row} actorRole={actorRole} reasonId={reasonId} onChange={() => setEditing(row)} onRemove={() => { setRemoveError(''); setRemoving(row); }} />
   ) : undefined;
 
+  const showDeanReason = canGrant && rows.some((row) => isDeanAtLastProfile(row, actorRole));
+  const removingLastProfile = Boolean(removing) && !(removing.profiles_count > 1);
   const filtersActive = Boolean(term);
   const emptyState = filtersActive ? undefined : (
     <EmptyState
@@ -119,6 +153,7 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
           <Input type="search" className="pl-9" aria-label="Search people with access" placeholder="Search by name or email" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
         {notice && <p role="status" className="text-sm font-medium text-success-strong">{notice}</p>}
+        {showDeanReason && <p id={reasonId} className="text-[13px] font-normal text-ink-muted">{DEAN_LAST_PROFILE_REASON}</p>}
         <DataTable
           caption="People with access to this organization"
           columns={columns}
@@ -155,12 +190,12 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
       )}
       <ConfirmModal
         open={Boolean(removing)}
-        title="Remove access"
+        title={removingLastProfile ? 'Delete account' : 'Remove access'}
         message={removing && removing.profiles_count > 1
           ? 'They lose access to this organization only. Their account and other access stay as they are.'
           : 'This is the only profile on their account, so removing it deletes the account.'}
         recordName={removing ? `${removing.first_name} ${removing.last_name}` : ''}
-        confirmText="Remove access"
+        confirmText={removingLastProfile ? 'Delete account' : 'Remove access'}
         variant="danger"
         busy={busy}
         error={removeError}

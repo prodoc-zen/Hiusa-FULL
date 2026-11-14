@@ -92,6 +92,30 @@ describe('ProtectedRoute password change guard', () => {
   });
 });
 
+function Landed() {
+  const { state, pathname } = useLocation();
+  return <output data-testid="landed">{pathname}|{JSON.stringify(state)}</output>;
+}
+
+describe('ProtectedRoute wrong-role redirect', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('still sends the person to their own dashboard and remembers which page and roles were refused', () => {
+    signIn({ role: 'STUDENT' });
+    render(
+      <MemoryRouter initialEntries={['/dashboard/admin/users?tab=people']}>
+        <Routes>
+          <Route path="/dashboard/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><p>Admin users</p></ProtectedRoute>} />
+          <Route path="/dashboard/student" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText('Admin users')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/student|{"accessDenied":{"path":"/dashboard/admin/users?tab=people","allowedRoles":["ADMIN"]}}');
+  });
+});
+
 function Where() {
   return <p>{`at ${useLocation().pathname}`}</p>;
 }
@@ -124,6 +148,22 @@ describe('ProtectedRoute office staff guard', () => {
     signIn(officeStaff);
     renderGuarded(path);
     expect(screen.getByText('at /dashboard/admin')).toBeInTheDocument();
+  });
+
+  it('tells the home page which page was refused, with no role that could open it, so no Switch is offered', () => {
+    signIn(officeStaff);
+    render(
+      <MemoryRouter initialEntries={['/dashboard/finance/financial-ledger?x=1']}>
+        <Routes>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard/finance/financial-ledger" element={<p>Ledger</p>} />
+          </Route>
+          <Route path="/dashboard/admin" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Ledger')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/finance/financial-ledger?x=1","allowedRoles":[]}}');
   });
 
   it('lets office staff open every page their menu offers, and the account page', () => {
