@@ -2,8 +2,8 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\AccountProfile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\DB;
  * dashboard insights. This class never recomputes or triggers those engines
  * (budget advisory, OLS financial forecast) - it only reads what they
  * already persisted, plus two small self-contained formulas (task workload
- * balance and election turnout pace, reusing the same ratio
- * ElectionController::voters already computes). Wording is always advisory
+ * balance and election turnout pace, reusing the voter roll
+ * ElectionBallotController::voters counts). Wording is always advisory
  * ("may", "consider"); nothing here writes to the database.
  */
 class DashboardInsightEngine
@@ -45,41 +45,6 @@ class DashboardInsightEngine
         }
 
         return $insights;
-    }
-
-    /**
-     * The single university-wide insight SUPER_ADMIN sees: how many
-     * organizations currently carry a high-risk budget. Kept to one bounded
-     * aggregate query so it never scales with total record volume.
-     *
-     * @param  Collection<int, int>  $organizationIds
-     * @return array<int, array<string, mixed>>
-     */
-    public function forUniversity(Collection $organizationIds, string $role = 'SUPER_ADMIN'): array
-    {
-        $highRiskOrgs = DB::table('budgets')
-            ->whereIn('organization_id', $organizationIds)
-            ->where('submission_status', 'approved')
-            ->where('overspending_risk', 'high')
-            ->distinct()
-            ->count('organization_id');
-
-        if ($highRiskOrgs === 0) {
-            return [];
-        }
-
-        return [[
-            'engine' => 'budget_advisory',
-            'title' => "{$highRiskOrgs} organization(s) show high budget risk",
-            'body' => 'These organizations have at least one budget flagged high risk by the budget-advisory engine and may need a closer look before their next approval.',
-            'why' => [
-                'method' => 'Deterministic budget-advisory engine (BudgetController::advice), aggregated across organizations',
-                'inputs' => ['organizations_at_high_risk' => $highRiskOrgs],
-                'formula' => 'Counts distinct organizations with at least one approved budget where overspending_risk = high.',
-            ],
-            'generated_at' => now()->toIso8601String(),
-            'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organizations' : '/dashboard/finance/budget-allocation'),
-        ]];
     }
 
     private function budgetRisk(int $organizationId, string $role): ?array
@@ -144,24 +109,57 @@ class DashboardInsightEngine
         $details = json_decode((string) $forecast->model_details, true) ?? [];
         $risk = $details['risk'] ?? 'stable';
         $period = $this->periodLabel((string) $forecast->forecast_period);
+        $title = match ($risk) {
+            'overspending' => "Spending may outpace income in {$period}",
+            'deficit' => "A shortfall is possible in {$period}",
+            default => "Spending looks on track for {$period}",
+        };
+        $inputs = [
+            'months_of_records' => isset($details['sample_months']) ? (int) $details['sample_months'] : null,
+            'how_far_to_trust_it' => $this->forecastReliability($details),
+        ];
 
         return [
             'engine' => 'financial_forecast',
-            'title' => "Financial forecast for {$period}: {$risk}",
-            'body' => (string) ($forecast->confidence_note ?? "The {$period} forecast is {$risk}."),
+            'title' => $title,
+            'body' => (string) ($forecast->confidence_note ?? "The {$period} forecast shows no sign of overspending."),
             'why' => [
                 'method' => 'Ordinary least squares trend fit over monthly income and expense history (FinancialForecastController::generate)',
-                'inputs' => [
-                    'sample_months' => $details['sample_months'] ?? null,
-                    'fit_quality' => $details['fit_quality'] ?? null,
-                    'income_r_squared' => $details['income']['r_squared'] ?? null,
-                    'expense_r_squared' => $details['expense']['r_squared'] ?? null,
-                ],
+                'inputs' => array_filter($inputs, fn ($value) => $value !== null),
                 'formula' => 'Each series is fit as y = intercept + slope * month_index by ordinary least squares; the next month is projected from that line and clamped at zero.',
             ],
             'generated_at' => Carbon::parse($forecast->updated_at)->toIso8601String(),
             'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/financial-insights'),
         ];
+    }
+
+    /** The same plain sentences the Finance forecast page shows for a forecast's reliability. */
+    private function forecastReliability(array $details): ?string
+    {
+        $months = isset($details['sample_months']) ? (int) $details['sample_months'] : null;
+        $r2 = collect([$details['income']['r_squared'] ?? null, $details['expense']['r_squared'] ?? null])
+            ->filter(fn ($value) => is_numeric($value))
+            ->map(fn ($value) => (float) $value);
+        $lowSample = $months !== null && $months < 3;
+        $weakFit = $r2->isNotEmpty() && $r2->avg() < 0.5;
+
+        $reliable = is_bool($details['is_reliable'] ?? null) ? $details['is_reliable'] : ! ($lowSample || $weakFit);
+        if ($reliable) {
+            return 'Good enough to plan with.';
+        }
+
+        $monthsText = $months === 1 ? '1 month' : "{$months} months";
+        if ($lowSample && $weakFit) {
+            return "Based on only {$monthsText} of records, and they follow no clear trend. Treat this projection as directional only.";
+        }
+        if ($lowSample) {
+            return "Based on only {$monthsText} of records. Record more months to improve it.";
+        }
+        if ($weakFit) {
+            return 'The monthly records follow no clear trend. Treat this projection as directional only.';
+        }
+
+        return 'Treat this projection as directional only.';
     }
 
     /**
@@ -229,31 +227,33 @@ class DashboardInsightEngine
                 'active_tasks' => $active,
                 'workload_score' => round(100 * (1 - min($active, $maxActive) / $maxActive), 2),
             ];
-        })->filter(fn ($workload) => $workload['active_tasks'] < $maxActive)->values();
+        });
 
-        if ($workloads->count() < 2) {
+        $busiest = $workloads->sortByDesc('active_tasks')->first();
+        $freest = $workloads->filter(fn ($workload) => $workload['active_tasks'] < $maxActive)->sortBy('active_tasks')->first();
+
+        if (! $freest || $freest['officer_id'] === $busiest['officer_id']) {
             return null;
         }
 
-        $sorted = $workloads->sortBy('workload_score')->values();
-        $busiest = $sorted->first();
-        $freest = $sorted->last();
         $gap = (float) $freest['workload_score'] - (float) $busiest['workload_score'];
 
         if ($gap < 40) {
             return null;
         }
 
+        $overLimit = $busiest['active_tasks'] >= $maxActive;
+
         return [
             'engine' => 'task_workload_balance',
             'title' => 'Task workload is unbalanced among officers',
-            'body' => "{$busiest['name']} is carrying {$busiest['active_tasks']} active task(s) while {$freest['name']} has {$freest['active_tasks']}. Consider assigning the next task to a less loaded officer.",
+            'body' => "{$busiest['name']} is carrying {$busiest['active_tasks']} active task(s)".($overLimit ? " (the limit is {$maxActive})" : '')." while {$freest['name']} has {$freest['active_tasks']}. Consider assigning the next task to a less loaded officer.",
             'why' => [
                 'method' => 'Grouped active-task count per eligible officer (DashboardInsightEngine::taskWorkloadBalance)',
                 'inputs' => [
                     'max_active_tasks' => $maxActive,
-                    'busiest' => ['name' => $busiest['name'], 'active_tasks' => $busiest['active_tasks'], 'workload_score' => $busiest['workload_score']],
-                    'freest' => ['name' => $freest['name'], 'active_tasks' => $freest['active_tasks'], 'workload_score' => $freest['workload_score']],
+                    'busiest' => ['name' => $busiest['name'], 'active_tasks' => $busiest['active_tasks']],
+                    'freest' => ['name' => $freest['name'], 'active_tasks' => $freest['active_tasks']],
                 ],
                 'formula' => 'workload_score = 100 * (1 - active_tasks / max_active_tasks); flagged once the gap between the busiest and freest eligible officer reaches 40+ points.',
             ],
@@ -288,12 +288,13 @@ class DashboardInsightEngine
             return null;
         }
 
-        $eligibleTotal = DB::table('users')
-            ->where('organization_id', $organizationId)
-            ->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
-            ->count();
-        $votedCount = DB::table('election_ballots')->where('election_id', $election->id)->where('round', 1)->count();
+        // The Manage Voters roll (ElectionBallotController::voters): voting members on the roll at finalization, plus anyone who already voted.
+        $voterIds = DB::table('election_ballots')->where('election_id', $election->id)->where('round', 1)->pluck('voter_id');
+        $onRoll = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $organizationId)->select('account_profiles.id');
+        $voters = AccountProfile::where('account_profiles.organization_id', $organizationId)
+            ->where(fn ($profiles) => $profiles->whereIn('account_profiles.id', $onRoll)->orWhereIn('account_profiles.user_school_id', $voterIds));
+        $eligibleTotal = (clone $voters)->count();
+        $votedCount = (clone $voters)->whereIn('account_profiles.user_school_id', $voterIds)->count();
         $turnoutPercent = $eligibleTotal > 0 ? ($votedCount / $eligibleTotal) * 100 : 0;
 
         if ($turnoutPercent >= $elapsedPercent - 15) {

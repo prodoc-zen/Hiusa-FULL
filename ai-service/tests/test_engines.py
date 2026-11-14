@@ -151,6 +151,13 @@ def test_infer_task_area_uses_word_boundaries_not_bare_substrings() -> None:
     assert infer_task_area("Coordinate the fundraising drive for new members") == "finance"
 
 
+def test_infer_task_area_uses_a_chosen_category_over_title_keywords() -> None:
+    assert infer_task_area("Print the attendance report", "logistics") == "logistics"
+    assert infer_task_area("Budget poster", "Publicity") == "publicity"
+    assert infer_task_area("Budget poster", "workflow") == "finance"
+    assert infer_task_area("Budget poster", None) == "finance"
+
+
 def test_infer_task_area_stem_prefixes_still_match_inflected_forms() -> None:
     assert infer_task_area("Prepare the financial liquidation report") == "finance"
     assert infer_task_area("Update the promotional materials for the fair") == "publicity"

@@ -147,9 +147,9 @@ const DESTINATIONS = {
     SBO_OFFICER: '/dashboard/venues',
   }, role),
 
-  grievance: (role) => pick({
-    SUPER_ADMIN: '/dashboard/super-admin/grievances',
-    ADMIN: '/dashboard/grievances',
+  grievance: (role, id) => pick({
+    SUPER_ADMIN: record('/dashboard/super-admin/grievances', id),
+    ADMIN: record('/dashboard/grievances', id),
     STUDENT: '/dashboard/my-grievances',
   }, role),
 };

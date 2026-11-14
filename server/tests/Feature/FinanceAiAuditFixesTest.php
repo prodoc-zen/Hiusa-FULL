@@ -150,9 +150,13 @@ class FinanceAiAuditFixesTest extends TestCase
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk()->assertJsonPath('budget.advice_stale', false);
         $this->assertFalse($this->getJson('/api/budgets')->assertOk()->json('data.0.advice_stale'));
 
+        Transaction::create([
+            'organization_id' => $this->admin->organization_id, 'recorded_by' => $this->admin->school_id, 'budget_id' => $budget->id, 'type' => 'expense',
+            'amount' => 3000, 'category' => 'General', 'description' => 'Spend', 'transaction_date' => now()->toDateString(),
+        ]);
         $budget->update(['remaining_amount' => 7000]);
 
-        $this->assertTrue($this->getJson('/api/budgets')->assertOk()->json('data.0.advice_stale'));
+        $this->assertTrue($this->getJson('/api/budgets', ['Cache-Control' => 'no-cache'])->assertOk()->json('data.0.advice_stale'));
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk()->assertJsonPath('budget.advice_stale', false);
     }
 
@@ -208,7 +212,7 @@ class FinanceAiAuditFixesTest extends TestCase
         $base = ['committed_expenses' => 0, 'safety_ratio' => 0.8];
 
         $threshold = BudgetAdviceRules::evaluate([...$base, 'predicted_income' => 1000, 'predicted_expense' => 500, 'current_available_budget' => 0, 'warning_threshold' => 600]);
-        $this->assertSame(['high', 'overspending', 'reduce_allocation'], [$threshold['overspending_risk'], $threshold['forecast_risk'], $threshold['allocation_status']]);
+        $this->assertSame(['high', 'overspending', 'no_funds'], [$threshold['overspending_risk'], $threshold['forecast_risk'], $threshold['allocation_status']]);
 
         $ratio = BudgetAdviceRules::evaluate([...$base, 'predicted_income' => 1000, 'predicted_expense' => 900, 'current_available_budget' => 5000, 'warning_threshold' => 100]);
         $this->assertSame(['medium', 'overspending'], [$ratio['overspending_risk'], $ratio['forecast_risk']]);

@@ -9,13 +9,20 @@ function humanizeKey(key) {
 
 function formatInputValue(value) {
   if (typeof value === 'number') return value.toLocaleString('en-PH');
+  if (Array.isArray(value)) return value.map(formatInputValue).join(', ');
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, part]) => part !== null && part !== undefined)
+      .map(([key, part]) => (key === 'name' ? String(part) : `${humanizeKey(key).toLowerCase()} ${formatInputValue(part)}`))
+      .join(', ');
+  }
   return String(value);
 }
 
 function whyItems(why) {
   if (!why) return [];
   const items = [];
-  const inputEntries = Object.entries(why.inputs || {});
+  const inputEntries = Object.entries(why.inputs || {}).filter(([, value]) => value !== null && value !== undefined && value !== '');
   if (inputEntries.length > 0) {
     items.push(`Based on ${inputEntries.map(([key, value]) => `${humanizeKey(key).toLowerCase()} (${formatInputValue(value)})`).join(', ')}.`);
   }

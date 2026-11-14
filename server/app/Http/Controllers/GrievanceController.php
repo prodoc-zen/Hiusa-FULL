@@ -39,13 +39,16 @@ class GrievanceController extends Controller
         'nakaw*', 'ninakaw*', 'nagnakaw*', 'nanakaw*', 'kawat', 'gikawat', 'gikawatan',
     ];
 
-    private const MEDIUM_KEYWORDS = ['broken', 'delay', 'missing', 'complaint', 'unfair', 'issue', 'problem'];
+    private const MEDIUM_KEYWORDS = ['broken', 'delay*', 'missing', 'complaint*', 'unfair', 'issue*', 'problem*'];
+
+    /** An urgency keyword does not count when one of these comes within two words before it in the same clause. */
+    private const NEGATORS = ['not', 'no', 'hindi', 'dili', 'walang'];
 
     private const CATEGORY_KEYWORDS = [
         'Safety & Security' => [...self::CRITICAL_KEYWORDS, 'security', 'unsafe', 'guard', 'theft'],
-        'Financial Integrity' => ['money', 'fund', 'fraud*', 'receipt', 'budget', 'embezzl*', 'payment', 'steal*', 'stole*', 'brib*'],
-        'Facilities & Maintenance' => ['broken', 'facility', 'dirty', 'aircon', 'chair', 'room', 'venue'],
-        'Academic / Faculty' => ['grades', 'teacher', 'professor', 'exam', 'class', 'schedule'],
+        'Financial Integrity' => ['money', 'fund', 'funds', 'funding', 'fraud*', 'receipt*', 'budget*', 'embezzl*', 'payment*', 'steal*', 'stole*', 'brib*', 'theft'],
+        'Facilities & Maintenance' => ['broken', 'facilit*', 'dirty', 'aircon', 'chair', 'chairs', 'room', 'rooms', 'venue', 'venues'],
+        'Academic / Faculty' => ['grade*', 'teacher*', 'professor*', 'exam', 'exams', 'class', 'classes', 'schedul*'],
     ];
 
     public function __construct(
@@ -315,31 +318,24 @@ class GrievanceController extends Controller
     {
         $text = mb_strtolower($title.' '.$description);
 
-        if ($this->anyMatches($text, self::CRITICAL_KEYWORDS)) {
-            $urgency = 'Critical';
-            $confidence = 0.95;
-        } elseif ($this->anyMatches($text, self::HIGH_KEYWORDS)) {
-            $urgency = 'High';
-            $confidence = 0.85;
-        } elseif ($this->anyMatches($text, self::MEDIUM_KEYWORDS)) {
-            $urgency = 'Medium';
-            $confidence = 0.75;
-        } else {
-            $urgency = 'Low';
-            $confidence = 0.5;
+        $urgency = 'Low';
+        $confidence = 0.5;
+        $urgencyWords = [];
+        foreach ([['Critical', self::CRITICAL_KEYWORDS, 0.95], ['High', self::HIGH_KEYWORDS, 0.85], ['Medium', self::MEDIUM_KEYWORDS, 0.75]] as [$level, $keywords, $score]) {
+            $urgencyWords = $this->words($text, $keywords);
+            if ($urgencyWords !== []) {
+                $urgency = $level;
+                $confidence = $score;
+                break;
+            }
         }
 
         $category = 'General';
-        $maxMatches = 0;
+        $categoryWords = [];
         foreach (self::CATEGORY_KEYWORDS as $candidate => $keywords) {
-            $matches = 0;
-            foreach ($keywords as $keyword) {
-                if ($this->matches($text, $keyword)) {
-                    $matches++;
-                }
-            }
-            if ($matches > $maxMatches) {
-                $maxMatches = $matches;
+            $words = $this->words($text, $keywords);
+            if (count($words) > count($categoryWords)) {
+                $categoryWords = $words;
                 $category = $candidate;
             }
         }
@@ -348,27 +344,72 @@ class GrievanceController extends Controller
             'urgency' => $urgency,
             'category' => $category,
             'confidence_score' => $confidence,
-            'reasoning' => "Determined {$urgency} urgency and the '{$category}' category from keyword analysis.",
+            'reasoning' => $this->reasoning($urgency, $urgencyWords, $category, $categoryWords),
         ];
     }
 
-    private function anyMatches(string $text, array $keywords): bool
+    private function reasoning(string $urgency, array $urgencyWords, string $category, array $categoryWords): string
     {
+        if ($urgencyWords === [] && $categoryWords === []) {
+            return "No urgent or category words were found, so it is {$urgency} and {$category} until a reviewer looks at it.";
+        }
+        $first = $urgencyWords !== []
+            ? "Marked {$urgency} because the text mentions ".$this->quoted($urgencyWords)
+            : "No urgent words were found, so it is {$urgency}";
+        $second = $categoryWords !== []
+            ? "filed under {$category} because it mentions ".$this->quoted($categoryWords)
+            : "no category words were found, so it is filed under {$category}";
+
+        return "{$first}; {$second}.";
+    }
+
+    private function quoted(array $words): string
+    {
+        $items = array_map(fn (string $word) => '"'.$word.'"', array_slice($words, 0, 5));
+        $last = array_pop($items);
+
+        return $items === [] ? $last : implode(', ', $items).' and '.$last;
+    }
+
+    /** @return list<string> the words in the text that the keywords matched, in keyword order, without repeats */
+    private function words(string $text, array $keywords): array
+    {
+        $words = [];
         foreach ($keywords as $keyword) {
-            if ($this->matches($text, $keyword)) {
-                return true;
+            $word = $this->found($text, $keyword);
+            if ($word !== null && ! in_array($word, $words, true)) {
+                $words[] = $word;
             }
         }
 
-        return false;
+        return $words;
     }
 
-    private function matches(string $text, string $keyword): bool
+    private function found(string $text, string $keyword): ?string
     {
-        if (str_ends_with($keyword, '*')) {
-            return preg_match('/\b'.preg_quote(substr($keyword, 0, -1), '/').'/u', $text) === 1;
+        $pattern = str_ends_with($keyword, '*')
+            ? '/\b'.preg_quote(substr($keyword, 0, -1), '/').'\w*/u'
+            : '/\b'.preg_quote($keyword, '/').'\b/u';
+        preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE);
+        foreach ($matches[0] as [$word, $offset]) {
+            if (! $this->isUrgencyKeyword($keyword) || ! $this->negated($text, $offset)) {
+                return $word;
+            }
         }
 
-        return preg_match('/\b'.preg_quote($keyword, '/').'\b/u', $text) === 1;
+        return null;
+    }
+
+    private function isUrgencyKeyword(string $keyword): bool
+    {
+        return in_array($keyword, [...self::CRITICAL_KEYWORDS, ...self::HIGH_KEYWORDS, ...self::MEDIUM_KEYWORDS], true);
+    }
+
+    private function negated(string $text, int $offset): bool
+    {
+        $clause = preg_split('/[.!?;,:\n]/u', substr($text, 0, $offset));
+        preg_match_all("/[\\w']+/u", end($clause), $words);
+
+        return array_intersect(array_slice($words[0], -2), self::NEGATORS) !== [];
     }
 }

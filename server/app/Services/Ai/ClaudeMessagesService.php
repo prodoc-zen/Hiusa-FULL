@@ -45,6 +45,10 @@ class ClaudeMessagesService implements TextGenerator
 
     private ?string $lastStopReason = null;
 
+    private ?float $timeBudget = null;
+
+    private bool $unreachable = false;
+
     /**
      * @param  ClientInterface|null  $transporter  PSR-18 client. Tests pass a faked one; production builds Guzzle.
      *                                             The SDK enforces no timeout of its own, the transport must.
@@ -55,6 +59,18 @@ class ClaudeMessagesService implements TextGenerator
     public function lastStopReason(): ?string
     {
         return $this->lastStopReason;
+    }
+
+    /** Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. */
+    public function withTimeBudget(?float $seconds): void
+    {
+        $this->timeBudget = $seconds;
+    }
+
+    /** True when the most recent call timed out or could not connect, so the chain can rest this provider briefly. */
+    public function lastCallUnreachable(): bool
+    {
+        return $this->unreachable;
     }
 
     public function generate(
@@ -131,6 +147,7 @@ class ClaudeMessagesService implements TextGenerator
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
     {
         $this->lastStopReason = null;
+        $this->unreachable = false;
         $apiKey = trim((string) config('services.anthropic.key'));
 
         if ($apiKey === '' || $messages === []) {
@@ -224,6 +241,7 @@ class ClaudeMessagesService implements TextGenerator
     private function request(string $instructions, string $input, int $maxOutputTokens, OutputConfig $outputConfig): ?Message
     {
         $this->lastStopReason = null;
+        $this->unreachable = false;
         $apiKey = trim((string) config('services.anthropic.key'));
 
         if ($apiKey === '') {
@@ -291,6 +309,8 @@ class ClaudeMessagesService implements TextGenerator
 
     private function failed(\Throwable $exception, float $started): null
     {
+        $this->unreachable = $exception instanceof APITimeoutException || $exception instanceof APIConnectionException;
+
         Log::warning('Claude is unavailable.', [
             'exception' => $exception::class,
             'status' => $exception instanceof APIException ? $exception->status : null,
@@ -303,10 +323,10 @@ class ClaudeMessagesService implements TextGenerator
 
     private function client(string $apiKey, ?int $seconds = null): Client
     {
-        $total = (float) ($seconds ?? max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS)));
+        $total = (float) ($seconds ?? $this->requestSeconds());
         $transporter = $this->transporter ?? new GuzzleClient([
             'timeout' => $total,
-            'connect_timeout' => (float) max(1, (int) config('services.anthropic.connect_timeout', 3)),
+            'connect_timeout' => min($total, (float) max(1, (int) config('services.anthropic.connect_timeout', 3))),
         ]);
 
         // maxRetries 0: Groq is the retry, and a second Claude attempt would push the page past its cap.
@@ -315,6 +335,13 @@ class ClaudeMessagesService implements TextGenerator
             'timeout' => $total,
             'maxRetries' => 0,
         ]);
+    }
+
+    private function requestSeconds(): float
+    {
+        $configured = max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
+
+        return $this->timeBudget === null ? (float) $configured : max(1.0, min((float) $configured, $this->timeBudget));
     }
 
     private function model(): string

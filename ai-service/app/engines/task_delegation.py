@@ -81,6 +81,10 @@ _TIER_PHRASE = {
 
 
 def infer_task_area(task_title: str, task_type: str | None = None) -> str:
+    chosen = (task_type or "").strip().lower()
+    if chosen in POSITION_RELEVANCE_MAP:
+        return chosen
+
     haystack = f"{task_title} {task_type or ''}".lower()
 
     for area, spec in POSITION_RELEVANCE_MAP.items():
