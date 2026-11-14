@@ -339,6 +339,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::patch('/merchandise/{id}/stock', [MerchandiseController::class, 'adjustStock'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/merchandise/{id}/audit-logs', [MerchandiseController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN']);
     Route::get('/merchandise/gcash-settings', [GcashSettingsController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
+    Route::get('/merchandise/gcash-settings/qr', [GcashSettingsController::class, 'image'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
     Route::post('/merchandise/gcash-settings', [GcashSettingsController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Order Routes
