@@ -25,6 +25,15 @@ describe('workspaceTitle', () => {
     expect(workspaceTitle({ role: 'SUPER_ADMIN' })).toBe('HIUSA · SAO');
   });
 
+  it('drops the organization when it only repeats the role word', () => {
+    expect(workspaceTitle({ role: 'SUPER_ADMIN', organization: { name: 'Student Affairs Office', acronym: 'SAO' } })).toBe('HIUSA · SAO');
+  });
+
+  it('calls an admin of the college home office staff', () => {
+    expect(workspaceTitle({ role: 'ADMIN', organization: { name: 'College of Arts', acronym: 'CAS', organization_type: 'COLLEGE' } })).toBe('HIUSA · Office staff · CAS');
+    expect(workspaceTitle({ role: 'ADMIN', organization: { name: 'Arts Guild', organization_type: 'STUDENT_ORGANIZATION' } })).toBe('HIUSA · Admin · Arts Guild');
+  });
+
   it('is plain HIUSA when nobody is signed in', () => {
     expect(workspaceTitle(null)).toBe('HIUSA');
   });

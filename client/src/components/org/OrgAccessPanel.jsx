@@ -11,6 +11,8 @@ import GiveAccessModal from './GiveAccessModal';
 import { ACCESS_LEVELS, grantableLevels, modulesLabel } from './orgAccess';
 
 const PER_PAGE = 20;
+// The server refuses a dean who removes the last profile of an account (AccountProfileDeletionService), so the button says so up front.
+const DEAN_LAST_PROFILE_REASON = 'Ask the SAO to remove the account';
 
 export default function OrgAccessPanel({ organizationId, actorRole }) {
   const canGrant = grantableLevels(actorRole).length > 0;
@@ -97,6 +99,10 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
     const isLastProfile = !(row.profiles_count > 1);
     const organizationName = row.organization?.name || 'this organization';
     const blocked = Boolean(row.deletion_block_reason);
+    const deanAtLastProfile = isLastProfile && actorRole === 'DEPARTMENT_HEAD';
+    const removalBlocked = blocked || deanAtLastProfile;
+    const removalReason = row.deletion_block_reason || (deanAtLastProfile ? DEAN_LAST_PROFILE_REASON : null);
+    const reasonId = `remove-reason-${row.id}`;
 
     return (
       <div className="flex justify-end gap-2">
@@ -105,17 +111,20 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
           variant={isLastProfile ? 'danger' : 'secondary'}
           size="sm"
           className="max-w-48"
-          disabled={blocked}
-          title={row.deletion_block_reason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
+          disabled={removalBlocked}
+          title={removalReason || (isLastProfile ? undefined : `Remove from ${organizationName}`)}
+          aria-describedby={deanAtLastProfile ? reasonId : undefined}
           aria-label={isLastProfile ? `Delete account for ${name}` : `Remove ${name} from ${organizationName}`}
           onClick={() => { setRemoveError(''); setRemoving(row); }}
         >
           <span className="truncate">{isLastProfile ? 'Delete account' : `Remove from ${organizationName}`}</span>
         </Button>
+        {deanAtLastProfile && <span id={reasonId} className="sr-only">{DEAN_LAST_PROFILE_REASON}</span>}
       </div>
     );
   } : undefined;
 
+  const removingLastProfile = Boolean(removing) && !(removing.profiles_count > 1);
   const filtersActive = Boolean(term);
   const emptyState = filtersActive ? undefined : (
     <EmptyState
@@ -173,12 +182,12 @@ export default function OrgAccessPanel({ organizationId, actorRole }) {
       )}
       <ConfirmModal
         open={Boolean(removing)}
-        title="Remove access"
+        title={removingLastProfile ? 'Delete account' : 'Remove access'}
         message={removing && removing.profiles_count > 1
           ? 'They lose access to this organization only. Their account and other access stay as they are.'
           : 'This is the only profile on their account, so removing it deletes the account.'}
         recordName={removing ? `${removing.first_name} ${removing.last_name}` : ''}
-        confirmText="Remove access"
+        confirmText={removingLastProfile ? 'Delete account' : 'Remove access'}
         variant="danger"
         busy={busy}
         error={removeError}

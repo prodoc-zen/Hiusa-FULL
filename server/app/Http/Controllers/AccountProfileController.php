@@ -8,8 +8,10 @@ use App\Models\College;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\SboPosition;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
+use App\Support\AdviserPosition;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -320,10 +322,18 @@ class AccountProfileController extends Controller
     /**
      * Promoting a member rewrites their profile, so a person who had only that profile would lose the student side
      * of their account. They get the college-home student profile sign-up gives everyone, when the college is known.
+     * Only a student the way sign-up proves it, and never a person who holds an adviser title: a faculty adviser invited
+     * as a member is not a student.
      */
     private function keepStudentWorkspace(Request $request, User $actor, AccountProfile $promoted, Organization $organization): void
     {
         $person = $promoted->user;
+        $isStudent = $person->getRawOriginal('role') === 'STUDENT' || StudentRegistryEntry::students()->where('school_id', $person->school_id)->exists();
+        $holdsAdviserTitle = $person->accountProfiles()->where('account_status', 'active')->get(['position_title'])->contains(fn ($held) => AdviserPosition::is($held->position_title));
+        if (! $isStudent || $holdsAdviserTitle) {
+            return;
+        }
+
         $hasStudentProfile = $person->accountProfiles()->where('role', 'STUDENT')->where('account_status', 'active')->whereKeyNot($promoted->id)->exists();
         $home = $organization->college_id
             ? Organization::where('organization_type', 'COLLEGE')->where('college_id', $organization->college_id)->where('is_active', true)->first()

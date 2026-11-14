@@ -7,8 +7,9 @@ function Probe() {
   return null;
 }
 
-const officer = { role: 'SBO_OFFICER', active_profile_id: 2 };
-const student = { role: 'STUDENT', active_profile_id: 1 };
+const officer = { role: 'SBO_OFFICER', organization_id: 2 };
+const student = { role: 'STUDENT', organization_id: 1 };
+const member = { role: 'STUDENT', organization_id: 2 };
 
 // The browser fires `storage` only in the other tabs, with the value that tab just wrote.
 function otherTabWrites(key, value) {
@@ -39,6 +40,14 @@ describe('useProfileSync', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
+  it('reloads when another tab switched to a profile with the same role in another organization', () => {
+    localStorage.setItem('user', JSON.stringify(student));
+    render(<Probe />);
+    otherTabWrites('user', member);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it('reloads when another tab signed in as someone else or signed out', () => {
     const { unmount } = render(<Probe />);
     otherTabWrites('auth_token', 'token-2');
@@ -51,7 +60,7 @@ describe('useProfileSync', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves the tab alone when the stored user was rewritten with the same active profile', () => {
+  it('leaves the tab alone when the stored user was rewritten with the same workspace', () => {
     render(<Probe />);
     otherTabWrites('user', { ...officer, first_name: 'Maria' });
 
