@@ -348,7 +348,6 @@ function FingerprintScanPanel({ eventId, onRecorded, users = [], department = ''
     <Modal
       open={Boolean(pendingConfirmation)}
       title={`Confirm fingerprint ${confirmationAction.toLowerCase()}`}
-      description="Verify the matched Student before changing the attendance register."
       onClose={busy ? undefined : rejectCandidate}
       closeOnBackdrop={false}
       closeOnEscape={!busy}
@@ -1912,7 +1911,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           <p className="mt-0.5 font-semibold text-ink">Risk: {capitalize(selectedEvent.financial_summary.risk)}</p>
                           {selectedEvent.financial_summary.latest_forecast ? (
                             <p className="mt-0.5 text-xs text-ink-muted">{selectedEvent.financial_summary.latest_forecast.forecast_period}: projected income {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_income)}, expense {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_expense)}, balance {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_balance)}</p>
-                          ) : <p className="mt-0.5 text-xs text-ink-muted">No OLS forecast has been generated yet.</p>}
+                          ) : <p className="mt-0.5 text-xs text-ink-muted">No forecast has been generated yet.</p>}
                         </div>
                       </div>
                     )}

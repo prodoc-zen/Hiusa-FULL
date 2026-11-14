@@ -733,7 +733,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       {activeTab === 'ai' && !canManageTasks && (
         <EmptyState
           title="Your Admin assigns tasks"
-          description="The Admin picks an officer when a task is created. Your own tasks are on My tasks."
+          description="Your own tasks are on My tasks."
           action={<Button variant="secondary" onClick={() => navigate('/dashboard/tasks/assigned-tasks')}>Go to my tasks</Button>}
         />
       )}

@@ -561,7 +561,7 @@ export default function SaoVenuesPage() {
             <ul className="mt-2 space-y-1 text-sm font-medium text-warning-strong">
               {conflicts.items.map((slot) => <li key={slot.id}>{statusStyle(slot.status).label}: {slot.reserved_by ? `${slot.reserved_by}, ` : ''}{formatRange(slot.start_time, slot.end_time)}</li>)}
             </ul>
-            <p className="mt-2 text-xs font-medium text-warning-strong">The server rejects this approval if it overlaps another approved booking. Back to back bookings do not overlap.</p>
+            <p className="mt-2 text-xs font-medium text-warning-strong">Approval is blocked if this overlaps another approved booking. Back to back bookings do not overlap.</p>
           </div>
         ) : (
           <p className="text-sm font-medium text-ink-muted">No overlapping bookings for this venue and time.</p>

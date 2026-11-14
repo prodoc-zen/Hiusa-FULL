@@ -82,7 +82,7 @@ describe('ElectionResultsPage', () => {
     }]);
 
     render(<ElectionResultsPage />);
-    expect(await screen.findByText(/Results appear when the election closes/)).toBeInTheDocument();
+    expect(await screen.findByText(/Only turnout shows until the election closes/)).toBeInTheDocument();
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Votes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Share' })).not.toBeInTheDocument();

@@ -33,6 +33,18 @@ class AiConversation extends Model
                 : $scope->where('organization_id', $user->organization_id));
     }
 
+    /** Adds message_count and the last assistant message's text (as preview_source) for list and detail headers. */
+    public function scopeWithSummary(Builder $query): Builder
+    {
+        return $query
+            ->withCount('messages')
+            ->addSelect(['preview_source' => AiMessage::select('content')
+                ->whereColumn('conversation_id', 'ai_conversations.id')
+                ->where('role', 'assistant')
+                ->orderByDesc('id')
+                ->limit(1)]);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id', 'school_id');

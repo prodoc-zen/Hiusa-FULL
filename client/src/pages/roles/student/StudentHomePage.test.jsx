@@ -205,7 +205,7 @@ describe('StudentHomePage', () => {
       } });
       render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
 
-      expect(await screen.findByText(/shows your current semester only/)).toBeInTheDocument();
+      expect(await screen.findByText(/This semester is read only/)).toBeInTheDocument();
       expect(screen.queryByText('Vote now')).not.toBeInTheDocument();
       expect(screen.queryByText('Voting is open')).not.toBeInTheDocument();
       expect(screen.queryByText('Add contact number')).not.toBeInTheDocument();

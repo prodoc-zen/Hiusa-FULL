@@ -200,7 +200,7 @@ function ClosedSemesterHome() {
     <div className="w-full space-y-4">
       <section aria-labelledby="student-closed-title" className="rounded-card border border-line bg-surface p-4 sm:p-5">
         <h2 id="student-closed-title" className="text-base font-semibold text-ink">You are viewing a closed semester</h2>
-        <p className="mt-1 max-w-prose text-sm text-ink-muted-strong">This dashboard shows your current semester only. Use Back to current semester above to see what needs you now, or read what happened in the closed semester, read only.</p>
+        <p className="mt-1 max-w-prose text-sm text-ink-muted-strong">This semester is read only. Use Back to current semester above to see what needs you now.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button to="/dashboard/events/activity-calendar" variant="secondary">Activity calendar</Button>
           <Button to="/dashboard/elections/election-results" variant="secondary">Election results</Button>

@@ -132,12 +132,7 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
   const isStream = contentType.includes('text/event-stream');
 
   if (!response.ok) {
-    let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
+    const data = await response.json().catch(() => null);
     throw streamError(data?.message, response.status, data);
   }
 

@@ -380,7 +380,6 @@ function ElectionFormFields({ form, setForm, editing = false, errors = {} }) {
       {showPositions && (
         <fieldset className="border-t border-line pt-4">
           <legend className="text-[13px] font-medium text-ink">Ballot positions</legend>
-          <p className="mt-0.5 text-xs text-ink-muted">Add every position voters will see.</p>
           <div className="mt-3 space-y-2">
             {form.positions.map((position, index) => (filing ? (
               <FilingPositionRow

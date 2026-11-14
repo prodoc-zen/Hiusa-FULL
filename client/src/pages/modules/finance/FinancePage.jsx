@@ -1297,7 +1297,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <EmptyState
                   icon={Wallet}
                   title="No transactions recorded yet"
-                  description="The ledger is where the organization's income and expenses are kept. Verified collections, cash advances, paid student charges and merchandise orders post here by themselves. Choose Record transaction above for anything else."
+                  description="Verified collections, cash advances, paid student charges and merchandise orders post here by themselves. Choose Record transaction above for anything else."
                 />
               ) : (
                 <EmptyState
@@ -1884,7 +1884,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       <Drawer
         open={Boolean(selectedReceipt)}
         title={selectedReceipt ? receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}` : 'Receipt details'}
-        description="Saved payment record from your personal transaction history."
         onClose={() => setSelectedReceipt(null)}
         width="max-w-3xl"
         footer={selectedReceipt ? (

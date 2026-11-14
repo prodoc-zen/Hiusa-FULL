@@ -19,7 +19,7 @@ export default function BookingSchedulePreview({ booking }) {
   if (!booking.venue_id) return <p className="text-sm text-ink-muted">Off-campus location: {booking.off_campus_location}. No campus venue calendar applies.</p>;
   return <section aria-label="Requested venue schedule" className="space-y-3">
     <h3 className="text-sm font-semibold text-ink">{booking.venue?.name || 'Venue'} schedule</h3>
-    <p className="text-xs text-ink-muted">Requested: {new Date(booking.start_time).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} to {new Date(booking.end_time).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}. Compare this with the reservations below.</p>
+    <p className="text-xs text-ink-muted">Requested: {new Date(booking.start_time).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} to {new Date(booking.end_time).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.</p>
     {state.loading ? <p role="status" className="text-sm text-ink-muted">Loading venue schedule…</p> : state.error ? <p role="alert" className="text-sm text-red-700">{state.error} <button type="button" className="font-semibold underline" onClick={() => { setState({ loading: true, slots: [], error: '' }); setAttempt((v) => v + 1); }}>Retry</button></p> : <VenueAvailabilityTimeline from={day(booking.start_time)} to={day(booking.end_time)} slots={state.slots} />}
   </section>;
 }

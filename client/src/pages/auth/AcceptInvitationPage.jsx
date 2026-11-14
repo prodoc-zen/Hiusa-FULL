@@ -229,7 +229,7 @@ export default function AcceptInvitationPage() {
               {signedInAsRecord ? (
                 <>
                   <ErrorSummary items={formError ? [{ message: formError }] : []} attempt={submits} />
-                  <p className="text-sm text-ink-muted">You already have an account, so nothing new to set up. Accepting adds this role to it.</p>
+                  <p className="text-sm text-ink-muted">Accepting adds this role to your account.</p>
                   <Button onClick={handleClaim} loading={submitting} className="w-full">Accept invitation</Button>
                 </>
               ) : (

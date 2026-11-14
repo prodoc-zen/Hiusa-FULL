@@ -193,7 +193,7 @@ export default function SaoGrievancesPage() {
               kind="first-run"
               icon={MessageSquareWarning}
               title="No grievances to review"
-              description="Grievances from students appear here, most urgent first."
+              description="Grievances from students appear here."
             />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}
