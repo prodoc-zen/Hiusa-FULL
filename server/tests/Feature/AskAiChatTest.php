@@ -10,6 +10,7 @@ use App\Models\AiOutput;
 use App\Models\Budget;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Ai\AskAiActions;
 use App\Services\Ai\AskAiChatService;
 use App\Services\Ai\AskAiService;
 use App\Services\Dashboard\ClientRouteAccess;
@@ -850,7 +851,7 @@ class AskAiChatTest extends TestCase
     {
         Sanctum::actingAs($this->admin());
         $this->fake(["Model text that must not be shown.\n", 'More.']);
-        $this->app->bind(AskAiChatService::class, fn () => new class(app(AskAiService::class), app(TextGenerator::class), app(ClientRouteAccess::class)) extends AskAiChatService
+        $this->app->bind(AskAiChatService::class, fn () => new class(app(AskAiService::class), app(TextGenerator::class), app(ClientRouteAccess::class), app(AskAiActions::class)) extends AskAiChatService
         {
             protected function answerSeconds(): int
             {

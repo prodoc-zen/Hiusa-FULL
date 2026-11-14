@@ -663,7 +663,8 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
   await page.screenshot({ path: shot('A13-admin-budgets.png'), fullPage: true });
 
   const taskTitle = `E2E throwaway task ${stamp}`;
-  const taskResponse = await request.post(`${apiUrl}/tasks`, { headers: bearer(admin.token), data: { title: taskTitle, deadline: '2026-11-30', status: 'pending', assigned_to: 900005, task_kind: 'standalone', category: 'documentation', priority: 'low' } });
+  const deadline = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const taskResponse = await request.post(`${apiUrl}/tasks`, { headers: bearer(admin.token), data: { title: taskTitle, deadline, status: 'pending', assigned_to: 900005, task_kind: 'standalone', category: 'documentation', priority: 'low' } });
   console.log('THROWAWAY TASK create ->', taskResponse.status(), (await taskResponse.text()).slice(0, 160));
   expect([200, 201]).toContain(taskResponse.status());
   await goto(page, '/dashboard/tasks/task-board');

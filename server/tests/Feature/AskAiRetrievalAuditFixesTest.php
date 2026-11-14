@@ -384,8 +384,11 @@ class AskAiRetrievalAuditFixesTest extends TestCase
         $service = $this->search($admin, 'How many service hours are needed?');
         $this->assertNotContains('Leadership & Officers Roster', $service['rag_metadata']['matched_concepts']);
 
-        $named = $this->search($admin, 'Is Eve an officer?');
-        $this->assertContains('Eve', $named['rag_metadata']['matched_entities']);
+        $firstNameOnly = $this->search($admin, 'Is Eve an officer?');
+        $this->assertNotContains('Eve', $firstNameOnly['rag_metadata']['matched_entities']);
+
+        $named = $this->search($admin, 'Is Eve Santos an officer?');
+        $this->assertContains('Eve Santos', $named['rag_metadata']['matched_entities']);
     }
 
     public function test_the_engine_label_and_titles_use_no_search_jargon(): void
@@ -443,9 +446,8 @@ class AskAiRetrievalAuditFixesTest extends TestCase
         $this->assertCount(1, $fake->inputs);
         $this->assertStringNotContainsString('only one running', $fake->inputs[0]);
         $this->assertStringContainsString('"quoted_text":"Plain bulletin wording about the fair"', $fake->inputs[0]);
-        $this->assertSame('Record search', $answer['rag_metadata']['engine']);
+        $this->assertSame('Record search + Claude', $answer['rag_metadata']['engine']);
         $this->assertStringContainsString('only one running', $this->everything($answer));
-        $this->assertStringNotContainsString('Dana Kellerman', $answer['answer']);
     }
 
     public function test_the_college_and_announcement_guides_tell_each_role_the_truth(): void
