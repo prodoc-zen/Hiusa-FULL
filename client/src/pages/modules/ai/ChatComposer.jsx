@@ -28,7 +28,11 @@ export default function ChatComposer({ ref, streaming, offline, blockedReason = 
   const id = useId();
   const narrow = useNarrow();
 
-  useImperativeHandle(ref, () => ({ focus: () => textareaRef.current?.focus() }), []);
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+    restore: (value) => setText((current) => (current.trim() ? current : value)),
+    clearIf: (value) => setText((current) => (current.trim() === value.trim() ? '' : current)),
+  }), []);
 
   useEffect(() => {
     const el = textareaRef.current;

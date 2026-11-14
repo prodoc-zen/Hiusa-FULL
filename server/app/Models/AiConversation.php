@@ -34,7 +34,7 @@ class AiConversation extends Model
                 : $scope->where('organization_id', $user->organization_id));
     }
 
-    /** Adds message_count and the last assistant message's text (as preview_source) for list and detail headers. */
+    /** Adds message_count, the last assistant message's text (as preview_source) and its intent (as preview_intent) for list and detail headers. */
     public function scopeWithSummary(Builder $query): Builder
     {
         return $query
@@ -45,7 +45,7 @@ class AiConversation extends Model
                     ->where('role', 'assistant')
                     ->orderByDesc('id')
                     ->limit(1),
-                'preview_payload' => AiMessage::select('payload')
+                'preview_intent' => AiMessage::select('payload->intent')
                     ->whereColumn('conversation_id', 'ai_conversations.id')
                     ->where('role', 'assistant')
                     ->orderByDesc('id')
@@ -66,6 +66,14 @@ class AiConversation extends Model
                 ->select('ai_output_id')
                 ->whereIn('conversation_id', $ids)
                 ->whereNotNull('ai_output_id'))->delete();
+            // Answers replaced by a regenerate lose their message but keep their row; deleting the conversation takes them too.
+            foreach (array_chunk((clone $conversations)->pluck('ai_conversations.id')->all(), 500) as $chunk) {
+                AiOutput::query()
+                    ->where('feature_type', 'ASK_AI_ASSISTANT')
+                    ->where('decision_status', 'superseded')
+                    ->whereIn('structured_input->conversation_id', $chunk)
+                    ->delete();
+            }
             AiMessage::query()->whereIn('conversation_id', $ids)->delete();
             $conversations->delete();
         });

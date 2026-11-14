@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Field, Input, Select, Textarea } from '../ui';
 import { cancelAiAction, confirmAiAction } from '../../services/askAiService';
@@ -52,8 +52,10 @@ function Label({ field }) {
 function ActionField({ field, value, error, readOnly, onChange }) {
   const hint = field.help || undefined;
   const label = <Label field={field} />;
+  const noteId = useId();
 
   if (field.type === 'checkbox') {
+    const describedBy = error ? `${noteId}-error` : hint ? `${noteId}-help` : undefined;
     return (
       <div className="flex flex-col gap-1.5">
         <label className="flex min-h-[42px] items-center gap-2.5 text-[13px] font-medium text-ink">
@@ -64,12 +66,13 @@ function ActionField({ field, value, error, readOnly, onChange }) {
             onChange={(event) => onChange(event.target.checked)}
             aria-required={field.required || undefined}
             aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
             className="h-5 w-5 shrink-0 accent-brand-700"
           />
           <span><Label field={field} /></span>
         </label>
-        {hint && !error && <p className="text-xs text-ink-muted">{hint}</p>}
-        {error && <p role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>}
+        {hint && !error && <p id={`${noteId}-help`} className="text-xs text-ink-muted">{hint}</p>}
+        {error && <p id={`${noteId}-error`} role="alert" className="text-xs font-semibold text-danger-strong">{error}</p>}
       </div>
     );
   }
@@ -79,6 +82,7 @@ function ActionField({ field, value, error, readOnly, onChange }) {
     return (
       <Field label={label} hint={hint} error={error} required={field.required}>
         <Select value={value} disabled={readOnly} onChange={(event) => onChange(event.target.value)}>
+          {field.required && (value === '' || value == null) && <option value="" disabled>Choose an option</option>}
           {!field.required && <option value="">None</option>}
           {options.map((option) => (
             <option key={option.value} value={String(option.value)}>{option.label}</option>

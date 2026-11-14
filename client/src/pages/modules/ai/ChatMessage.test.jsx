@@ -160,3 +160,20 @@ describe('ChatMessage with an action', () => {
     expect(screen.queryByText('Here is the event I can create.')).not.toBeInTheDocument();
   });
 });
+
+describe('ChatMessage with a null payload', () => {
+  it('renders the fixed text, Copy and feedback without reading payload fields', () => {
+    renderMessage(answer({ content: 'You can no longer see this answer.', payload: null, status: 'completed' }));
+    expect(screen.getByRole('article', { name: 'Answer' })).toHaveTextContent('You can no longer see this answer.');
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Helpful' })).toBeInTheDocument();
+    expect(screen.queryByRole('form')).not.toBeInTheDocument();
+  });
+
+  it('survives a payload that is missing altogether', () => {
+    const message = answer({ content: 'Fixed text.' });
+    delete message.payload;
+    renderMessage(message);
+    expect(screen.getByText('Fixed text.')).toBeInTheDocument();
+  });
+});

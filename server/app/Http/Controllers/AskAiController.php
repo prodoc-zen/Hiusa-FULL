@@ -7,6 +7,8 @@ use App\Models\AiMemory;
 use App\Models\AiMessage;
 use App\Services\Ai\AskAiChatService;
 use App\Services\Ai\AskAiService;
+use App\Services\Ai\FallbackTextGenerator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -18,6 +20,12 @@ use Throwable;
 
 class AskAiController extends Controller
 {
+    private const KEEP_ALIVE_SECONDS = 3;
+
+    private const CONVERSATION_PAGE = 50;
+
+    private const MESSAGE_PAGE = 100;
+
     public function __construct(
         private readonly AskAiService $askAi,
         private readonly AskAiChatService $chat,
@@ -79,7 +87,7 @@ class AskAiController extends Controller
         $topic = $validated['topic'] ?? null;
         $source = $validated['source'] ?? 'typed';
 
-        $lock = Cache::lock('ask-ai-chat:'.$user->school_id, 150);
+        $lock = Cache::lock('ask-ai-chat:'.$user->school_id, FallbackTextGenerator::chatDeadlineSeconds() + 25);
         if (! $lock->get()) {
             return response()->json(['message' => 'Wait for the current answer to finish.'], 429);
         }
@@ -94,8 +102,20 @@ class AskAiController extends Controller
 
         return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate, $source, $lock): void {
             ignore_user_abort(true);
-            $emit = function (string $event, array $data): void {
+            $lastWrite = microtime(true);
+            $emit = function (string $event, array $data) use (&$lastWrite): void {
                 $this->writeEvent($event, $data);
+                $lastWrite = microtime(true);
+            };
+            // PHP only learns that the person left when a write fails, and a proxy closes a connection that stays
+            // silent, so a quiet stream gets a comment line (which the client ignores) while the model works.
+            $gone = function () use (&$lastWrite): bool {
+                if (microtime(true) - $lastWrite >= self::KEEP_ALIVE_SECONDS) {
+                    $this->writeComment('keep-alive');
+                    $lastWrite = microtime(true);
+                }
+
+                return connection_aborted() === 1;
             };
 
             try {
@@ -106,7 +126,7 @@ class AskAiController extends Controller
                     $topic,
                     $regenerate,
                     $emit,
-                    static fn (): bool => connection_aborted() === 1,
+                    $gone,
                     $source,
                 );
 
@@ -129,9 +149,20 @@ class AskAiController extends Controller
 
     public function conversations(Request $request): JsonResponse
     {
-        $validated = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'before' => ['nullable', 'string', 'regex:/^\d{1,12}\.\d{1,12}$/'],
+        ]);
 
         $query = AiConversation::ownedBy($request->user())->withSummary();
+
+        if (! empty($validated['before'])) {
+            [$at, $id] = array_map('intval', explode('.', $validated['before']));
+            $cursor = Carbon::createFromTimestamp($at, config('app.timezone'));
+            $query->where(fn ($older) => $older
+                ->where('last_message_at', '<', $cursor)
+                ->orWhere(fn ($same) => $same->where('last_message_at', $cursor)->where('id', '<', $id)));
+        }
 
         if (! empty($validated['search'])) {
             $term = '%'.addcslashes($validated['search'], '%_\\').'%';
@@ -140,18 +171,32 @@ class AskAiController extends Controller
                 ->orWhereHas('messages', fn ($messages) => $messages->where('content', 'like', $term)));
         }
 
-        $rows = $query->orderByDesc('last_message_at')->orderByDesc('id')->limit(50)->get();
+        $rows = $query->orderByDesc('last_message_at')->orderByDesc('id')->limit(self::CONVERSATION_PAGE + 1)->get();
+        $more = $rows->count() > self::CONVERSATION_PAGE;
+        $rows = $rows->take(self::CONVERSATION_PAGE);
+        $last = $rows->last();
 
-        return response()->json(['data' => $rows->map(fn (AiConversation $row) => $this->chat->conversationRow($row, $request->user()))->all()]);
+        return response()->json([
+            'data' => $rows->map(fn (AiConversation $row) => $this->chat->conversationRow($row, $request->user()))->all(),
+            'has_more' => $more,
+            'next_before' => $more && $last?->last_message_at !== null ? $last->last_message_at->getTimestamp().'.'.$last->id : null,
+        ]);
     }
 
     public function showConversation(Request $request, int $conversation): JsonResponse
     {
+        $validated = $request->validate(['before' => ['nullable', 'integer', 'min:1']]);
         $row = AiConversation::ownedBy($request->user())->withSummary()->findOrFail($conversation);
+
+        $page = $row->messages()->reorder()
+            ->when(isset($validated['before']), fn ($messages) => $messages->where('id', '<', $validated['before']))
+            ->orderByDesc('id')->limit(self::MESSAGE_PAGE + 1)->get();
+        $more = $page->count() > self::MESSAGE_PAGE;
 
         return response()->json([
             'conversation' => $this->chat->conversationRow($row, $request->user()),
-            'messages' => $row->messages()->get()->map(fn (AiMessage $message) => $this->chat->presentMessageFor($request->user(), $message))->all(),
+            'messages' => $page->take(self::MESSAGE_PAGE)->reverse()->values()->map(fn (AiMessage $message) => $this->chat->presentMessageFor($request->user(), $message))->all(),
+            'has_more' => $more,
         ]);
     }
 
@@ -236,7 +281,17 @@ class AskAiController extends Controller
 
     private function writeEvent(string $event, array $data): void
     {
-        echo 'event: '.$event."\ndata: ".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)."\n\n";
+        $this->write('event: '.$event."\ndata: ".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)."\n\n");
+    }
+
+    private function writeComment(string $comment): void
+    {
+        $this->write(': '.$comment."\n\n");
+    }
+
+    private function write(string $chunk): void
+    {
+        echo $chunk;
 
         if (ob_get_level() > 0) {
             @ob_flush();

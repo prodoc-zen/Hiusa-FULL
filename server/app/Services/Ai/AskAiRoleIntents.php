@@ -130,7 +130,7 @@ class AskAiRoleIntents
             $this->toolFor($q) !== null => 'ai_tools',
             $this->asksFeeUsage($q) => 'fee_usage',
             $this->asksApplications($q) => 'applications_queue',
-            $this->asksSubmissions($q) => 'my_submissions',
+            $this->asksVenueBookings($q), $this->asksSubmissions($q) => 'my_submissions',
             default => null,
         };
 
@@ -170,21 +170,32 @@ class AskAiRoleIntents
         return preg_match('/\b(how (do|can|should|would|could) (i|we)|how to|steps to|walk me through)\b/', $q) === 1;
     }
 
+    // "Endorse" alone is the Department Head's word for every request that waits for them, so it only means applications
+    // when the question also says application or applicant.
     private function asksApplications(string $q): bool
     {
-        if (preg_match('/\bendors(e|es|ed|ing|ement|ements)\b/', $q) === 1) {
-            return true;
-        }
-
-        return preg_match('/\bapplications?\b/', $q) === 1
-            && preg_match('/\b(waiting|awaiting|pending|need|needs|needing|approve|approval|review|decision|decide|queue)\b/', $q) === 1;
+        return preg_match('/\b(applications?|applicants?)\b/', $q) === 1
+            && preg_match('/\b(waiting|awaiting|pending|need|needs|needing|approve|approval|review|decision|decide|queue|endorse|endorses|endorsed|endorsing|endorsement|endorsements)\b/', $q) === 1;
     }
 
+    private function asksVenueBookings(string $q): bool
+    {
+        return preg_match('/\b(bookings?|venue (requests?|reservations?)|reserved venues?)\b/', $q) === 1
+            || preg_match('/\bvenues?\b/', $q) === 1 && preg_match('/\b(approved|pending|waiting|awaiting|status|confirmed|decided|rejected|returned)\b/', $q) === 1;
+    }
+
+    // The tracker answers "where is it" about something the organization sent. A question about compliance files that are
+    // missing or late, another page's records (clearance, orders, tasks, fees) or where an event is held is not that.
     private function asksSubmissions(string $q): bool
     {
-        $thing = '(proposals?|requests?|submissions?|reports?|budgets?|events?|announcements?|elections?|bookings?)';
+        if (preg_match('/\b(missing|late|overdue|compliance|haven\'t|havent|not submitted|unsubmitted|clearances?|grievances?|orders?|tasks?|payments?|invoices?|fees?|merch\w*)\b/', $q) === 1) {
+            return false;
+        }
 
-        return preg_match("/\\bwhere (is|are|did) (my|our) (\\w+ ){0,3}{$thing}\\b/", $q) === 1
+        $thing = '(proposals?|requests?|submissions?|reports?|budgets?|events?|announcements?|elections?|bookings?)';
+        $end = '(?: (?:now|yet|currently|exactly|stuck|so far|already|right now|at the moment|that (?:we|i) (?:sent|submitted|filed)(?: \w+){0,3}|which (?:we|i) (?:sent|submitted|filed)(?: \w+){0,3}))?$';
+
+        return preg_match("/\\bwhere (is|are|did) (my|our) (\\w+ ){0,3}{$thing}{$end}/", $q) === 1
             || preg_match("/\\bwhat (happened|became) to (my|our) (\\w+ ){0,3}{$thing}\\b/", $q) === 1
             || preg_match("/\\b(is|was|has|have|did) (my|our|the) (\\w+ ){0,3}{$thing} (\\w+ ){0,3}(approved|accepted|returned|rejected|reviewed|signed|seen|decided)\\b/", $q) === 1
             || preg_match("/\\bstatus of (my|our) (\\w+ ){0,3}{$thing}\\b/", $q) === 1
@@ -202,10 +213,10 @@ class AskAiRoleIntents
     private function toolFor(string $q): ?string
     {
         $patterns = [
-            'report_summary' => '/\b(summari[sz]e|summari[sz]ing|summary of)\b.*\b(financial )?reports?\b|\bfinancial report summary\b/',
+            'report_summary' => '/^(?!.*\b(waiting|awaiting|approval|approve|pending|review)\b).*\b(summari[sz]e|summari[sz]ing|summary of)\b.*\b(financial reports?|(our|the) reports?)\b|\bfinancial report summary\b/',
             'task_delegation' => '/\bwho (should|do|can) (i|we) (assign|give|delegate)\b|\bwho to assign\b|\bassign (this|that|the|a|an) task\b|\bdelegat(e|ion|ing)\b|\bwho should (do|handle|take) (this|the) task\b/',
-            'announcement_draft' => '/\b(write|draft|compose|writing|drafting)\b.*\bannouncements?\b|\bannouncements? draft(ing)?\b/',
-            'event_planning' => '/\bplan (our|the|an|my|a) (\w+ )?(event|activity)\b|\bevent plann(er|ing)\b|\bhelp (me|us) plan\b|\bevent timeline\b/',
+            'announcement_draft' => '/^(?:(?:hi|hello|hey|ok|okay|so) )?(?:(?:please|can you|could you|would you|will you|help me|help us|i need to|i want to|i would like to|i\'d like to|let me|we need to|we want to) )*(?:write|draft|compose)\b(?: \w+){0,3} announcements?\b|\b(?:writing|drafting) (?:an |a |the |our )?announcements?\b|\bannouncements? draft(?:ing)?\b/',
+            'event_planning' => '/\bplan (our|the|an|my|a) (\w+ )?(event|activity)\b|\bevent plann(er|ing)\b|\bevent timeline\b/',
             'budget_advice' => '/\bbudget advice\b|\bspending advice\b|\bsafe[ -]spending\b|\bhow much (can|should) (i|we) spend\b|\badvice on (our |the )?budget\b/',
             'forecast' => '/\bforecast(s|ing)?\b|\bpredict(ing)? (our |the )?(finances|budget|spending|income|expenses)\b/',
         ];

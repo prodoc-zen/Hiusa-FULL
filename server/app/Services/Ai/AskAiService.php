@@ -65,7 +65,8 @@ class AskAiService
     ];
 
     // Most specific first: the first pattern that matches the lowercased question decides the intent. 'missing_requirements'
-    // is the plainer wording of missing_submissions, tried only after the task and file questions that share its words.
+    // is the plainer wording of missing_submissions, tried only after the task and file questions that share its words, and
+    // 'money_words' is finance_health's unambiguous words, tried before it so an outstanding balance is not a compliance gap.
     private const INTENT_PATTERNS = [
         'daily_priorities' => '~\b(?:what (?:should|do|can|must) (?:i|we) (?:need to )?do today|what to do today|what(?:\'s| is) on (?:my|our) (?:desk|plate|list|agenda)|daily (?:priorities|briefing|checklist)|(?:action plan|checklist|priorities) (?:for )?today|today\'s (?:priorities|action plan)|where (?:do|should) (?:i|we) start|what needs (?:me|my attention|our attention))\b~',
         'organizations_without_admin' => '~\b(?:(?:without|no|missing|lacking|lacks?|needs?|needing|awaiting|vacant)(?: \w+){0,3} (?:admins?|administrators?|org(?:anization)? heads?|(?<!department )heads?)|(?:admins?|administrators?|org(?:anization)? heads?)(?: \w+){0,3} (?:missing|needed|vacant|unfilled)|returned registrations?)\b~',
@@ -77,7 +78,8 @@ class AskAiService
         'elections_status' => '~\b(?:elections?|votes?|voted|voting|voters?|ballots?|turnout|candidates?)\b~',
         'merchandise_orders' => '~\b(?:(?<!in )orders?|merch(?:andise)?|claim(?:s|ed|ing)?|payment proofs?|verify payments?|pick-?up)\b~',
         'tasks_workload' => '~\b(?:tasks?|workloads?|assigned|assignees?|assign|delegate|delegation|to-?do)\b~',
-        'missing_requirements' => '~\b(?:missing|incomplete|lacking|outstanding|requirements?|compliance|deadlines?|accreditation)\b~',
+        'money_words' => '~\b(?:balances?|owe[ds]?|owing|unpaid|invoices?|fees?|receipts?|dues|debts?)\b~',
+        'missing_requirements' => '~\b(?:requirements?|compliance|accreditation)\b|(?=.*\b(?:files?|documents?|reports?|submi\w*|forms?|papers?)\b)\b(?:missing|incomplete|lacking|outstanding|deadlines?)\b~',
         'pending_approvals' => '~\b(?:approvals?|approve|approving|endorse\w*|pending review|waiting for (?:my |our |the )?(?:review|approval|decision)|my decision|venues?|bookings?|(?:pending|new|waiting|awaiting) registrations?|applications?)\b~',
         'finance_health' => '~\b(?:budgets?|finance|finances|financial|spent|spending|spend|fees?|invoices?|debts?|owe|owed|owes|owing|unpaid|collections?|paid|balances?|receipts?|payments?|dues|how much (?:is |do we have |do i have )?(?:left|remaining))\b~',
         'events_attendance' => '~\b(?:events?|attendance|attendees?|calendar|check[- ]?in)\b~',
@@ -171,14 +173,18 @@ class AskAiService
      */
     public function chatContext(User $user): array
     {
-        $semester = AcademicSemester::active();
+        $semester = AcademicSemester::selected();
+        $label = $semester === null ? null : trim(($semester->academicYear?->label ? 'AY '.$semester->academicYear->label.' · ' : '').$this->semesterLabel((int) $semester->number));
+        if ($semester !== null && $semester->id !== AcademicSemester::active()?->id) {
+            $label .= ' (not the current semester)';
+        }
 
         return [
             'first_name' => (string) $user->first_name,
             'role' => $this->roleName($user->role),
             'scope' => $this->scopeLabel($user),
             'today' => now()->format('l, F j, Y'),
-            'semester' => $semester === null ? null : trim(($semester->academicYear?->label ? 'AY '.$semester->academicYear->label.' · ' : '').$this->semesterLabel((int) $semester->number)),
+            'semester' => $label,
         ];
     }
 
@@ -312,15 +318,33 @@ class AskAiService
             return 'how_to_guide';
         }
 
+        if (preg_match('~\b(?:plan|organi[sz]e|schedule) (?:my|our) (?:day|week|time)\b~', $q) === 1) {
+            return 'daily_priorities';
+        }
+
         $roleIntent = $this->roleIntents->match($question, $role);
         if ($roleIntent !== null) {
             return $roleIntent;
+        }
+
+        if ($this->asksOwnBalance($q, $role)) {
+            return 'how_to_guide';
         }
 
         // "I wanna create an org", "book a venue", "can you post an announcement": someone saying what they want to do
         // is taken to the guide for it, after the role intents above have claimed their own wording.
         if ($this->isActionRequest($q)) {
             return 'how_to_guide';
+        }
+
+        // A student's own records come before the staff words they share: "outstanding balance" is their fees, not a
+        // compliance gap, and "events assigned this month" is the calendar, not the task board.
+        if ($role === 'STUDENT' && preg_match(self::INTENT_PATTERNS['semantic_rag'], $q) !== 1) {
+            foreach (self::STUDENT_FIRST as $intent) {
+                if (preg_match(self::INTENT_PATTERNS[$intent], $q) === 1) {
+                    return $intent === 'money_words' ? 'finance_health' : $intent;
+                }
+            }
         }
 
         foreach (self::INTENT_PATTERNS as $intent => $pattern) {
@@ -330,12 +354,26 @@ class AskAiService
 
             return match ($intent) {
                 'missing_requirements' => 'missing_submissions',
-                'grievances_status' => $role === 'SUPER_ADMIN' ? 'grievances_status' : 'semantic_rag',
+                'money_words' => 'finance_health',
                 default => $intent,
             };
         }
 
         return 'semantic_rag';
+    }
+
+    private const STUDENT_FIRST = ['grievances_status', 'clearances_status', 'merchandise_orders', 'elections_status', 'money_words', 'finance_health', 'events_attendance'];
+
+    // "What do I owe" asked by someone who is not a student: the answer is their own account, never the organization's budget.
+    private const OWN_BALANCE = '~\b(?:what|how much|how many)\b(?: \w+){0,3} (?:do|did|will|would) i (?:still )?owe\b|\bdo i (?:still )?owe\b|\bwhat i (?:still )?owe\b|\bmy (?:outstanding |unpaid |current )?(?:balance|dues|fees|invoices?|receipts?)\b|\b(?:am|are) i (?:cleared|fully paid|paid up)\b~';
+
+    private function asksOwnBalance(string $q, string $role): bool
+    {
+        if ($role === 'STUDENT') {
+            return preg_match('~\bbudgets?\b~', $q) === 1 && preg_match('~\b(?:fees?|owe|balance|invoices?|dues)\b~', $q) !== 1;
+        }
+
+        return preg_match(self::OWN_BALANCE, $q) === 1;
     }
 
     private function answer(User $user, string $question, string $intent, bool $allowModel, bool $callModel = true): array
@@ -440,7 +478,7 @@ class AskAiService
         'first_person' => '~^'.self::REQUEST_OPENERS.'(?:i(?: would| ?\'d)? (?:like|want|need)|i wanna|let me|let\'s|let us|we(?: would| ?\'d)? (?:like|want|need)|we wanna)(?: to)?\s+(?:also |now |just )?'.self::REQUEST_VERBS.'~',
         'polite' => '~^'.self::REQUEST_OPENERS.'(?:(?:can you|could you|would you|will you|can u|can i|could i|may i|can we|could we|please|pls|kindly|help me to|help me|i want you to)\s+)+(?:to )?'.self::REQUEST_VERBS.'~',
         'filipino' => '~^'.self::REQUEST_OPENERS.'(?:gusto|nais|kailangan|pwede|puwede|paki|tulungan)\b(?:\s+(?:ba|po|ko|kong|namin|naming|ako|akong|kami|kaming|na|ng|mo|mong))*\s+(?:mag-?\s?|pa-?)?'.self::REQUEST_VERBS.'~',
-        'imperative' => '~^'.self::REQUEST_OPENERS.'(?:(?:please|pls|just|now|then)\s+)*(?!(?:open|close)\s+(?!an?\b|the\b|my\b|our\b|new\b))'.self::REQUEST_VERBS.'(?!\s+(?:on|about|of|is|are|was|were|has|have|had|for|by|status|history|summary|count|total|details?|number|dates?|times?|results?)\b)\s+\S~',
+        'imperative' => '~^'.self::REQUEST_OPENERS.'(?:(?:please|pls|just|now|then)\s+)*(?!(?:open|close)\s+(?!an?\b|the\b|my\b|our\b|new\b)\w*s\b)'.self::REQUEST_VERBS.'(?!\s+(?:on|about|of|is|are|was|were|has|have|had|for|by|status|history|summary|count|total|details?|number|dates?|times?|results?)\b)\s+\S~',
     ];
 
     private const ROLE_SELF = [
@@ -4661,6 +4699,8 @@ class AskAiService
                 fn ($query) => $query->where('organization_id', $user->organization_id)
             )
             ->where('structured_input->role', $user->role)
+            ->whereNotIn('context_version', [AskAiChatService::CHAT_AUDIT_VERSION, AskAiChatService::ACTION_AUDIT_VERSION])
+            ->where('decision_status', '!=', 'superseded')
             ->orderByDesc('id')
             ->limit(5)
             ->get(['id', 'prompt_text', 'output_text', 'created_at', 'structured_input'])
