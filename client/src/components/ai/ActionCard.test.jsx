@@ -208,6 +208,39 @@ describe('ActionCard', () => {
     expect(screen.queryByLabelText(/^Title/)).not.toBeInTheDocument();
   });
 
+  it('shows the sentence the server closed an interrupted card with, and no second line', () => {
+    const sentence = 'I could not tell whether this went through. Check the page before trying again.';
+    renderCard({ msg: message({ status: 'failed', result: { message: sentence } }) });
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+    expect(screen.queryByText(/did not go through/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('gives the card selects the same 44px height as the inputs', () => {
+    renderCard();
+    const field = screen.getByLabelText('Assign to').parentElement.parentElement.parentElement;
+    expect(field.className).toContain('[&>div>div]:min-h-11');
+  });
+
+  it('reports what the person typed so the message Copy can use it, and nothing once the card closes', () => {
+    const onValues = vi.fn();
+    const msg = message();
+    const { rerender } = render(
+      <MemoryRouter>
+        <ActionCard message={msg} action={msg.payload.action} onChange={vi.fn()} onValuesChange={onValues} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'Typed title' } });
+    expect(onValues).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Typed title', capacity: 40 }));
+    const closed = message({ status: 'cancelled' });
+    rerender(
+      <MemoryRouter>
+        <ActionCard message={closed} action={closed.payload.action} onChange={vi.fn()} onValuesChange={onValues} />
+      </MemoryRouter>,
+    );
+    expect(onValues).toHaveBeenLastCalledWith(null);
+  });
+
   it('shows a card past its expiry as expired even when it still says awaiting', () => {
     renderCard({ msg: message({ expires_at: new Date(Date.now() - 1000).toISOString() }) });
     expect(screen.getByText(/expired/)).toBeInTheDocument();
