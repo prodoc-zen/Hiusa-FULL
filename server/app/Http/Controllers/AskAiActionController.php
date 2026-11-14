@@ -21,6 +21,10 @@ class AskAiActionController extends Controller
         private readonly AskAiChatService $chat,
     ) {}
 
+    private const RUNNING_SECONDS = 120;
+
+    private const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
+
     public function confirm(Request $request, int $message): JsonResponse
     {
         $user = $request->user();
@@ -105,6 +109,16 @@ class AskAiActionController extends Controller
             $payload = $locked->payload;
             $action = $payload['action'];
 
+            if (($action['status'] ?? null) === 'confirming') {
+                $started = isset($action['confirming_at']) ? Carbon::parse($action['confirming_at']) : null;
+                if ($started === null || $started->diffInSeconds(now(), true) >= self::RUNNING_SECONDS) {
+                    $payload['action']['status'] = 'failed';
+                    $locked->update(['payload' => $payload, 'content' => self::INTERRUPTED]);
+
+                    return self::INTERRUPTED;
+                }
+            }
+
             if (($action['status'] ?? null) !== 'awaiting_confirmation') {
                 return 'This request is no longer waiting for confirmation.';
             }
@@ -117,6 +131,7 @@ class AskAiActionController extends Controller
             }
 
             $payload['action']['status'] = 'confirming';
+            $payload['action']['confirming_at'] = now()->toIso8601String();
             $locked->update(['payload' => $payload]);
 
             return $locked;

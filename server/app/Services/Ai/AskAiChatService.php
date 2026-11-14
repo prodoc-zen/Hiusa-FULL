@@ -89,6 +89,7 @@ class AskAiChatService
         if ($regenerate) {
             $this->assertRegenerable($conversation);
             $userMessage = $conversation->messages()->reorder()->where('role', 'user')->orderByDesc('id')->first();
+            $source = ($userMessage->payload['source'] ?? null) === 'typed' ? 'typed' : 'link';
             $conversation->messages()->reorder()->where('role', 'assistant')->where('id', '>', $userMessage->id)->get()
                 ->each(fn (AiMessage $replaced) => $replaced->supersede());
         } else {
@@ -103,6 +104,7 @@ class AskAiChatService
                 'conversation_id' => $conversation->id,
                 'role' => 'user',
                 'content' => (string) $text,
+                'payload' => ['source' => $source],
                 'status' => 'completed',
                 'created_at' => now(),
             ]);
@@ -162,8 +164,18 @@ class AskAiChatService
             'status' => $message->status,
             'feedback' => $message->feedback,
             'created_at' => $message->created_at?->toIso8601String(),
-            'payload' => $message->payload,
+            'payload' => $message->role === 'user' ? null : $this->withErrorsAsMap($message->payload),
         ];
+    }
+
+    /** The stored JSON turns an empty map into a list, but the action card's errors are a map from field name to messages. */
+    private function withErrorsAsMap(mixed $payload): mixed
+    {
+        if (is_array($payload) && is_array($payload['action'] ?? null) && ($payload['action']['errors'] ?? null) === []) {
+            $payload['action']['errors'] = new \stdClass;
+        }
+
+        return $payload;
     }
 
     /** An answer from an area the person's access no longer covers is shown as unavailable and never sent to the model. */
