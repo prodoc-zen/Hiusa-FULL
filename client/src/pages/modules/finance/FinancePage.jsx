@@ -413,6 +413,13 @@ function downloadBlobResponse(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
+// A new transaction starts on today's date, so the form only needs a description and an amount.
+function todayInputValue() {
+  const now = new Date();
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -591,19 +598,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
-      .then(async (first) => [first, await fetchLists()])
-      .then(([[txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes], [forecasts, reports]]) => {
+      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes]) => {
         if (ticket !== loadTicket.current) return;
+        // What the screen shows first lands as soon as it is read, so a saved budget is on the list
+        // without waiting for the slower forecast and report reads.
         if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
-        setForecasts(forecasts);
         setBudgets(budgetsList);
         setEvents(eventsList);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
-        setReports(reports);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
         setStudentDebt(debtRowFrom(debtRes));
+        const [forecasts, reports] = await fetchLists();
+        if (ticket !== loadTicket.current) return;
+        setForecasts(forecasts);
+        setReports(reports);
       })
       .catch(() => {
         if (ticket === loadTicket.current) setError('Failed to load financial data.');
@@ -1107,7 +1117,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       budget_id: tx.budget_id || '',
       event_id: tx.event_id || '',
       receipt_reference: tx.receipt_reference || '',
-    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: todayInputValue(), budget_id: '', event_id: '', receipt_reference: '' });
     setFormError(null);
     setShowForm(true);
   }
@@ -1632,7 +1642,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                             <div><dt className="text-ink-muted">Income</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-success-strong">{fmt(f.predicted_income)}</dd></div>
                             <div><dt className="text-ink-muted">Expenses</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-danger-strong">{fmt(f.predicted_expense)}</dd></div>
                             <div><dt className="text-ink-muted">Balance</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.predicted_balance)}</dd></div>
-                            {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
+                            {f.model_details?.current_available_budget != null && <div><dt className="text-ink-muted">Left in approved budgets</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.model_details.current_available_budget)}</dd></div>}
                             <div><dt className="text-ink-muted">Safe spend</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{fmt(f.safe_spending_limit)}</dd></div>
                             {f.model_details?.risk && <div><dt className="text-ink-muted">Risk</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{sentence(f.model_details.risk)}</dd></div>}
                           </dl>

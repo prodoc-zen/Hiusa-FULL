@@ -88,6 +88,8 @@ function EventStatus({ event, text }) {
 function TaskStatus({ task }) {
   const status = task.workflow_status || task.status;
   if (status === 'pending' || status === 'ready') return <span className="text-xs text-ink-muted">{capitalize(status)}</span>;
+  // A blocked task is not broken, it is waiting, so it says on what.
+  if (status === 'blocked') return <StatusBadge tone="warning" label={task.dependency?.title ? `Waiting on ${formatDisplayText(task.dependency.title)}` : 'Waiting on another task'} />;
   return <StatusBadge status={status} label={capitalize(status)} />;
 }
 
@@ -1357,6 +1359,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           {missingRequiredFiles.length > 0 && (
             <p className="text-sm text-ink-muted-strong">Attach {missingRequiredFiles.map((req) => req.name).join(', ')} to send the proposal.</p>
           )}
+          {(() => {
+            const missingField = !form.title.trim() ? 'the event title'
+              : (!form.date || !form.startTime || !form.endDate || !form.endTime) ? 'the start and end date and time'
+                : !eventPlaceChosen ? 'where the event will be held'
+                  : (form.requires_budget && !form.budget_notes.trim()) ? 'what the budget will cover' : null;
+            return missingField ? <p className="text-sm text-ink-muted-strong">{`Add ${missingField} to ${editingEventId ? 'save' : 'send the proposal'}.`}</p> : null;
+          })()}
           <div className="flex justify-end gap-3 border-t border-line pt-5">
             <Button variant="secondary" onClick={closeForm}>Cancel</Button>
             <Button type="submit" loading={formSubmitting} disabled={!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || !eventPlaceChosen || missingRequiredFiles.length > 0 || (form.requires_budget && !form.budget_notes.trim())}>
@@ -1572,7 +1581,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     </div>
                     {workflowMeta.template && <p className="mt-3 text-sm text-ink-muted-strong">This is a standard checklist built from the event dates, not a plan written for this event.{workflowMeta.contextIgnored && ' The planning context you entered was not used and is still above, so you can change it and draft again.'}</p>}
 
-                    <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <details className="mt-4 border-t border-line pt-1">
+                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-brand-700">Show the plan outline, key dates and possible problems</summary>
+                    <div className="mt-2 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
                       {[
                         ['Plan outline', workflowDraft.preparation_phases],
                         ['Key dates', workflowDraft.timeline],
@@ -1583,6 +1594,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <section key={heading}><h4 className="text-sm font-semibold text-ink">{heading}</h4>{items?.length ? <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-ink-muted-strong">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-1.5 text-xs text-ink-muted">Nothing listed.</p>}</section>
                       ))}
                     </div>
+                    </details>
 
                     <div className="mt-6 flex items-center justify-between gap-3">
                       <div><h3 className="text-base font-semibold text-ink">To-do items</h3><p className="mt-0.5 text-sm text-ink-muted">Review the order, due dates, and assigned officers.</p></div>
@@ -1603,11 +1615,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <div className="mt-4 grid gap-4 lg:grid-cols-2">
                               <Field label="Task name"><Input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} /></Field>
                               <Field label="Due date and time" hint={dueDateHint}><Input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} /></Field>
-                              <Field label="What needs to be done?" optional className="lg:col-span-2"><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></Field>
-                              <Field label="When should it happen?"><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)}><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></Field>
-                              <Field label="Importance"><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)}>{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></Field>
-                              <Field label="Best officer role" optional><HiusaSelect id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value || null)}><option value="">No preferred role</option>{[...new Set([...workflowMeta.positions, ...(task.recommended_role ? [task.recommended_role] : [])])].map((position) => <option key={position} value={position}>{formatDisplayText(position)}</option>)}</HiusaSelect></Field>
-                              <Field label="This can start after" optional><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)}><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></Field>
                               <div className="lg:col-span-2">
                                 <Field label="Assign to" required>
                                   <HiusaSelect id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)}><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</HiusaSelect>
@@ -1617,6 +1624,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                   {!task.recommendation?.rankings?.length && <p className="text-xs text-ink-muted">{task.recommendation?.reviewed ? 'No officer is eligible right now. Check that officers have an active position and are under their open task limit.' : 'Review eligible officers, then choose the final assignee.'}</p>}
                                 </div>
                               </div>
+                              <details className="lg:col-span-2">
+                              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-brand-700">More options: description, timing, importance, role and order</summary>
+                              <div className="mt-2 grid gap-4 lg:grid-cols-2">
+                              <Field label="What needs to be done?" optional className="lg:col-span-2"><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></Field>
+                              <Field label="When should it happen?"><HiusaSelect id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)}><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></HiusaSelect></Field>
+                              <Field label="Importance"><HiusaSelect id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)}>{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</HiusaSelect></Field>
+                              <Field label="Best officer role" optional><HiusaSelect id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value || null)}><option value="">No preferred role</option>{[...new Set([...workflowMeta.positions, ...(task.recommended_role ? [task.recommended_role] : [])])].map((position) => <option key={position} value={position}>{formatDisplayText(position)}</option>)}</HiusaSelect></Field>
+                              <Field label="This can start after" optional><HiusaSelect id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)}><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</HiusaSelect></Field>
+                              </div>
+                              </details>
                             </div>
 
                             {selectedOfficer && (
@@ -1633,7 +1650,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     </ol>
 
                     <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-ink-muted">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
+                      <p className="text-sm text-ink-muted">{workflowDraft.tasks.some((task) => !task.assigned_to) ? 'Choose an officer for each to-do before saving.' : `Saving will create ${workflowDraft.tasks.length} task${workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.`}</p>
                       <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button variant="secondary" className="text-danger-strong" disabled={workflowAction} onClick={() => setConfirmingDiscard(true)}>Remove draft</Button><Button disabled={workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} loading={workflowAction} onClick={confirmWorkflow}>Save and assign tasks</Button></div>
                     </div>
                   </div>

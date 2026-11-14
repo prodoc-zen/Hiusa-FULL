@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\DB;
  */
 class DashboardInsightEngine
 {
+    private const FORECAST_RELIABLE = 'Good enough to plan with.';
+
     public function __construct(private readonly ClientRouteAccess $routeAccess) {}
 
     /**
@@ -126,19 +128,21 @@ class DashboardInsightEngine
             'deficit' => "A shortfall is possible in {$period}",
             default => "Spending looks on track for {$period}",
         };
+        $reliability = $this->forecastReliability($details);
         $inputs = [
             'months_of_records' => isset($details['sample_months']) ? (int) $details['sample_months'] : null,
-            'how_far_to_trust_it' => $this->forecastReliability($details),
+            'how_far_to_trust_it' => $reliability,
         ];
 
         return [
             'engine' => 'financial_forecast',
             'title' => $title,
-            'body' => (string) ($forecast->confidence_note ?? match ($risk) {
+            // The stored confidence note speaks in statistics (R squared, month(s)), so the body is plain words only.
+            'body' => match ($risk) {
                 'overspending' => "Spending is forecast to run ahead of income in {$period}.",
                 'deficit' => "Spending is forecast to exceed income in {$period}.",
                 default => "Income is forecast to cover spending in {$period}.",
-            }),
+            }.($reliability !== null && $reliability !== self::FORECAST_RELIABLE ? " {$reliability}" : ''),
             'why' => [
                 'method' => 'Ordinary least squares trend fit over monthly income and expense history (FinancialForecastController::generate)',
                 'inputs' => array_filter($inputs, fn ($value) => $value !== null),
@@ -161,7 +165,7 @@ class DashboardInsightEngine
 
         $reliable = is_bool($details['is_reliable'] ?? null) ? $details['is_reliable'] : ! ($lowSample || $weakFit);
         if ($reliable) {
-            return 'Good enough to plan with.';
+            return self::FORECAST_RELIABLE;
         }
 
         $monthsText = $months === 1 ? '1 month' : "{$months} months";

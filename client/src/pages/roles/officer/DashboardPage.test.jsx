@@ -69,6 +69,17 @@ describe('Officer DashboardPage stat cards', () => {
     expect(screen.queryByText('Completed tasks')).not.toBeInTheDocument();
   });
 
+  it('says a task is waiting on another task instead of leaving its status blank', async () => {
+    taskMocks.getTasks.mockImplementation(({ status }) => Promise.resolve({
+      data: status === 'pending'
+        ? { data: [{ id: 9, title: 'Settle expenses', deadline: '2026-12-08', status: 'pending', workflow_status: 'blocked', dependency: { id: 4, title: 'Run the event' } }], current_page: 1, last_page: 1, per_page: 10, total: 1 }
+        : { data: [], current_page: 1, last_page: 1, per_page: 10, total: 0 },
+    }));
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    expect((await screen.findAllByText('Waiting on Run the event')).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('names the first action when nothing has been assigned yet, instead of showing zeros', async () => {
     const none = { data: { data: [], current_page: 1, last_page: 1, per_page: 10, total: 0 } };
     taskMocks.getTasks.mockResolvedValue(none);
