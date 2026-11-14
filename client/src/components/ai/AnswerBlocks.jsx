@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Button, StatusBadge } from '../ui';
+import isSafePageHref from './safeHref';
 
 const HIGHLIGHT_TONE_STYLES = {
   danger: 'text-danger-strong',
@@ -55,7 +56,7 @@ function sentenceCase(value) {
 const list = (value) => (Array.isArray(value) ? value : []);
 
 function RowActions({ row, onAsk, disabled }) {
-  if (row.href) {
+  if (isSafePageHref(row.href)) {
     return (
       <Button to={row.href} variant="secondary" size="sm" className="max-sm:h-11" disabled={disabled}>
         {row.action_label || 'Open'}
@@ -259,7 +260,7 @@ export default function AnswerBlocks({ payload, onAsk, disabled = false }) {
               <span className="mt-0.5 block text-xs text-ink-muted-strong">{plainText(recommended.detail)}</span>
             )}
           </p>
-          {recommended.href && (
+          {isSafePageHref(recommended.href) && (
             <Button to={recommended.href} variant="secondary" size="sm" className="shrink-0 self-start max-sm:h-11 sm:self-center">
               {recommended.action_label || 'Take action'}
             </Button>

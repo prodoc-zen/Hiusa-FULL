@@ -27,6 +27,11 @@ export const deleteAiMemory = (id) => api.delete(`/ai/assistant/memories/${id}`)
 
 export const deleteAllAiMemories = () => api.delete('/ai/assistant/memories');
 
+export const confirmAiAction = (messageId, fields) =>
+  api.post(`/ai/assistant/messages/${messageId}/action/confirm`, { fields });
+
+export const cancelAiAction = (messageId) => api.post(`/ai/assistant/messages/${messageId}/action/cancel`);
+
 const GENERIC_ERROR = 'Could not answer that right now. Try again.';
 
 function streamError(message, status, data) {
@@ -97,7 +102,7 @@ export function createSseParser(onEvent) {
   };
 }
 
-export async function streamAiChat({ conversationId = null, message, topic = null, regenerate = false, signal, onEvent } = {}) {
+export async function streamAiChat({ conversationId = null, message, topic = null, regenerate = false, source = 'link', signal, onEvent } = {}) {
   const headers = {
     Accept: 'text/event-stream, application/json',
     'Content-Type': 'application/json',
@@ -121,6 +126,7 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
       message: message ?? null,
       topic,
       regenerate: Boolean(regenerate),
+      source: source === 'typed' ? 'typed' : 'link',
     }),
   });
 

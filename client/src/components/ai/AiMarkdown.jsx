@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { Link } from 'react-router-dom';
+import isSafePageHref from './safeHref';
 
 const CALLOUTS = ['callout', 'callout-info', 'callout-success', 'callout-warning', 'callout-danger'];
 const BADGES = ['badge', 'badge-info', 'badge-success', 'badge-warning', 'badge-danger', 'badge-neutral'];
@@ -40,10 +41,8 @@ const REMARK_PLUGINS = [remarkGfm];
 // It stays on one line and never follows a letter or digit, so "turnout<quorum" is plain text.
 const UNFINISHED_TAG = /(?<![A-Za-z0-9])<\/?[a-zA-Z][^<>\n]*$/;
 
-const INTERNAL_LINK = /^\/dashboard(?:[/?#]|$)/;
-
 function AiLink({ href, children }) {
-  if (typeof href === 'string' && INTERNAL_LINK.test(href)) {
+  if (isSafePageHref(href)) {
     return <Link to={href}>{children}</Link>;
   }
   return <>{children}</>;
