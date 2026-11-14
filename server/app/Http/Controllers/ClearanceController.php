@@ -19,6 +19,8 @@ class ClearanceController extends Controller
 
     private const SIGNATORY_ROLES = ['organization', 'department_head', self::SAO_ROLE];
 
+    private const ROLE_LABELS = ['organization' => 'Organization', 'department_head' => 'Department Head', self::SAO_ROLE => 'SAO'];
+
     public function periodsIndex(Request $request)
     {
         $filters = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
@@ -48,38 +50,9 @@ class ClearanceController extends Controller
                 'created_by' => $request->user()->school_id,
             ]);
 
-            // clearance_signatures has one row per (period, student, role) -
-            // a student cannot owe the same required role twice, so this
-            // must resolve to exactly one organization per student. Reading
-            // only users.role/organization_id misses a student whose active
-            // STUDENT standing exists solely through an account profile
-            // (their home role is something else, e.g. an officer elsewhere)
-            // - so read every active STUDENT profile instead and, ordering
-            // by id, keep each user's earliest one, which is always their
-            // home profile (created at account creation) when they have one.
-            $studentMemberships = AccountProfile::where('role', 'STUDENT')
-                ->where('account_status', 'active')
-                ->orderBy('id')
-                ->get(['user_school_id', 'organization_id'])
-                ->unique('user_school_id');
+            $studentMemberships = $this->studentMemberships();
             $now = now();
-            $rows = [];
-            foreach ($studentMemberships as $membership) {
-                foreach ($requiredRoles as $role) {
-                    $rows[] = [
-                        'clearance_period_id' => $period->id,
-                        'student_id' => $membership->user_school_id,
-                        'organization_id' => $membership->organization_id,
-                        'required_role' => $role,
-                        'status' => 'pending',
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-            }
-            foreach (array_chunk($rows, 500) as $chunk) {
-                ClearanceSignature::insert($chunk);
-            }
+            $this->insertMissingRows($period, $studentMemberships, $requiredRoles, $now);
 
             AuditLog::create([
                 'organization_id' => null,
@@ -94,24 +67,157 @@ class ClearanceController extends Controller
                 'created_at' => $now,
             ]);
 
-            Notification::insert($studentMemberships->map(fn (AccountProfile $membership) => [
-                'organization_id' => $membership->organization_id,
-                'user_id' => $membership->user_school_id,
-                'notification_type' => 'general',
-                'title' => 'New clearance period opened',
-                'message' => "A new clearance period is open: \"{$period->title}\". Check your clearance progress.",
-                'reference_type' => 'clearance_period',
-                'reference_id' => $period->id,
-                'is_read' => false,
-                'sent_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])->all());
+            $this->notifyOpened($period, $studentMemberships, $now);
 
             return $period;
         });
 
         return response()->json($period, 201);
+    }
+
+    public function periodsUpdate(Request $request, ClearancePeriod $clearancePeriod)
+    {
+        $data = $request->validate([
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:3000'],
+            'required_roles' => ['sometimes', 'required', 'array', 'min:1', 'max:10'],
+            'required_roles.*' => ['required', Rule::in(self::SIGNATORY_ROLES)],
+            'deadline_at' => ['sometimes', 'nullable', 'date'],
+        ]);
+
+        $result = DB::transaction(function () use ($request, $clearancePeriod, $data) {
+            $period = ClearancePeriod::whereKey($clearancePeriod->id)->lockForUpdate()->firstOrFail();
+            $before = $period->only(['title', 'description', 'required_roles', 'deadline_at']);
+            $now = now();
+
+            $roles = isset($data['required_roles']) ? array_values(array_unique($data['required_roles'])) : $period->required_roles;
+            $removed = array_values(array_diff($period->required_roles, $roles));
+            $added = array_values(array_diff($roles, $period->required_roles));
+
+            // A role can only be dropped while none of its lines has ever been signed or held.
+            foreach ($removed as $role) {
+                if ($this->roleHasHistory($period, $role)) {
+                    return ['conflict' => 'The '.(self::ROLE_LABELS[$role] ?? $role).' role already has signed or held lines and cannot be removed.'];
+                }
+            }
+
+            if ($removed) {
+                ClearanceSignature::where('clearance_period_id', $period->id)->whereIn('required_role', $removed)->delete();
+            }
+            if ($added) {
+                $inPeriod = ClearanceSignature::withoutGlobalScopes()->where('clearance_period_id', $period->id)
+                    ->orderBy('id')->get(['student_id', 'organization_id'])->unique('student_id')
+                    ->map(fn (ClearanceSignature $row) => (object) ['user_school_id' => $row->student_id, 'organization_id' => $row->organization_id]);
+                $this->insertMissingRows($period, $inPeriod, $added, $now);
+            }
+
+            $period->fill(array_diff_key($data, ['required_roles' => true]));
+            $period->required_roles = $roles;
+            $period->save();
+
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'clearances',
+                'action' => 'clearance_period_updated',
+                'record_type' => ClearancePeriod::class,
+                'record_id' => $period->id,
+                'old_values' => $before,
+                'new_values' => $period->only(['title', 'description', 'required_roles', 'deadline_at']),
+                'ip_address' => $request->ip(),
+                'created_at' => $now,
+            ]);
+
+            return ['period' => $period];
+        });
+
+        if (isset($result['conflict'])) {
+            return response()->json(['message' => $result['conflict']], 409);
+        }
+
+        return response()->json($result['period']);
+    }
+
+    // There is no status column, so a period is closed once its deadline has passed and
+    // closing it now moves the deadline to this moment.
+    public function periodsClose(Request $request, ClearancePeriod $clearancePeriod)
+    {
+        $closed = DB::transaction(function () use ($request, $clearancePeriod) {
+            $period = ClearancePeriod::whereKey($clearancePeriod->id)->lockForUpdate()->firstOrFail();
+            if ($this->isClosed($period)) {
+                return false;
+            }
+
+            $before = $period->deadline_at;
+            $period->update(['deadline_at' => now()]);
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'clearances',
+                'action' => 'clearance_period_closed',
+                'record_type' => ClearancePeriod::class,
+                'record_id' => $period->id,
+                'old_values' => ['deadline_at' => $before],
+                'new_values' => ['deadline_at' => $period->deadline_at],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        if (! $closed) {
+            return response()->json(['message' => 'This clearance period is already closed.'], 409);
+        }
+
+        return response()->json(['message' => 'Clearance period closed.']);
+    }
+
+    // Gives every active student who joined after the period opened the same lines creation gives.
+    // Students already in the period are skipped, so running it again adds nothing.
+    public function periodsSync(Request $request, ClearancePeriod $clearancePeriod)
+    {
+        $count = DB::transaction(function () use ($request, $clearancePeriod) {
+            $period = ClearancePeriod::whereKey($clearancePeriod->id)->lockForUpdate()->firstOrFail();
+            if ($this->isClosed($period)) {
+                return null;
+            }
+
+            $now = now();
+            $added = $this->insertMissingRows($period, $this->studentMemberships(), $period->required_roles, $now);
+            if ($added->isNotEmpty()) {
+                $this->notifyOpened($period, $added, $now);
+                AuditLog::create([
+                    'organization_id' => null,
+                    'user_id' => $request->user()->school_id,
+                    'actor_role' => $request->user()->role,
+                    'module' => 'clearances',
+                    'action' => 'clearance_period_students_added',
+                    'record_type' => ClearancePeriod::class,
+                    'record_id' => $period->id,
+                    'new_values' => ['student_count' => $added->count()],
+                    'ip_address' => $request->ip(),
+                    'created_at' => $now,
+                ]);
+            }
+
+            return $added->count();
+        });
+
+        if ($count === null) {
+            return response()->json(['message' => 'This clearance period is closed. Move its deadline to a later date to add students.'], 409);
+        }
+
+        return response()->json([
+            'students_added' => $count,
+            'message' => match ($count) {
+                0 => 'Every active student is already in this clearance period.',
+                1 => '1 student added to this clearance period.',
+                default => "{$count} students added to this clearance period.",
+            },
+        ]);
     }
 
     public function periodsDestroy(Request $request, ClearancePeriod $clearancePeriod)
@@ -340,6 +446,89 @@ class ClearanceController extends Controller
         }
 
         return response()->json($signature);
+    }
+
+    private function isClosed(ClearancePeriod $period): bool
+    {
+        return $period->deadline_at !== null && $period->deadline_at->lte(now());
+    }
+
+    // clearance_signatures has one row per (period, student, role) -
+    // a student cannot owe the same required role twice, so this
+    // must resolve to exactly one organization per student. Reading
+    // only users.role/organization_id misses a student whose active
+    // STUDENT standing exists solely through an account profile
+    // (their home role is something else, e.g. an officer elsewhere)
+    // - so read every active STUDENT profile instead and, ordering
+    // by id, keep each user's earliest one, which is always their
+    // home profile (created at account creation) when they have one.
+    private function studentMemberships()
+    {
+        return AccountProfile::where('role', 'STUDENT')
+            ->where('account_status', 'active')
+            ->orderBy('id')
+            ->get(['user_school_id', 'organization_id'])
+            ->unique('user_school_id');
+    }
+
+    // Inserts a pending row for every (student, role) the period does not hold yet and returns
+    // the memberships that received at least one. Retired rows still hold their unique key, so
+    // they count as present.
+    private function insertMissingRows(ClearancePeriod $period, $memberships, array $roles, $now)
+    {
+        $existing = ClearanceSignature::withoutGlobalScopes()->where('clearance_period_id', $period->id)
+            ->get(['student_id', 'required_role'])
+            ->mapWithKeys(fn (ClearanceSignature $row) => [$row->student_id.'|'.$row->required_role => true]);
+
+        $rows = [];
+        $touched = [];
+        foreach ($memberships as $membership) {
+            foreach ($roles as $role) {
+                if (isset($existing[$membership->user_school_id.'|'.$role])) {
+                    continue;
+                }
+                $rows[] = [
+                    'clearance_period_id' => $period->id,
+                    'student_id' => $membership->user_school_id,
+                    'organization_id' => $membership->organization_id,
+                    'required_role' => $role,
+                    'status' => 'pending',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $touched[$membership->user_school_id] = $membership;
+            }
+        }
+        foreach (array_chunk($rows, 500) as $chunk) {
+            ClearanceSignature::insert($chunk);
+        }
+
+        return collect(array_values($touched));
+    }
+
+    private function notifyOpened(ClearancePeriod $period, $memberships, $now): void
+    {
+        Notification::insert($memberships->map(fn ($membership) => [
+            'organization_id' => $membership->organization_id,
+            'user_id' => $membership->user_school_id,
+            'notification_type' => 'general',
+            'title' => 'New clearance period opened',
+            'message' => "A new clearance period is open: \"{$period->title}\". Check your clearance progress.",
+            'reference_type' => 'clearance_period',
+            'reference_id' => $period->id,
+            'is_read' => false,
+            'sent_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
+    }
+
+    private function roleHasHistory(ClearancePeriod $period, string $role): bool
+    {
+        $lines = ClearanceSignature::withoutGlobalScopes()->where('clearance_period_id', $period->id)->where('required_role', $role);
+
+        return (clone $lines)->where(fn ($q) => $q->where('status', '!=', 'pending')->orWhereNotNull('signed_at'))->exists()
+            || AuditLog::where('record_type', ClearanceSignature::class)->whereIn('record_id', (clone $lines)->select('id'))->exists();
     }
 
     private function canSign(ClearanceSignature $signature, User $user): bool

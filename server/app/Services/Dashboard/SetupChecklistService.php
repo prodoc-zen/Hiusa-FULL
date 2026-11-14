@@ -2,6 +2,8 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\DepartmentHeadInvitation;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +18,8 @@ class SetupChecklistService
 
     public function forUser(User $user): ?array
     {
-        $steps = array_values(array_filter(match ($user->role) {
+        // Office staff take the dean's role, but the college's setup is the dean's own.
+        $steps = array_values(array_filter($user->isCollegeOfficeStaff() ? $this->officeStaffSteps($user) : match ($user->role) {
             'SUPER_ADMIN' => $this->saoSteps(),
             'ADMIN' => $this->adminSteps($user),
             'DEPARTMENT_HEAD' => $this->departmentHeadSteps($user),
@@ -49,9 +52,17 @@ class SetupChecklistService
             ->where('account_profiles.role', 'DEPARTMENT_HEAD')
             ->where('account_profiles.account_status', 'active'))->count();
         $collegeCount = $colleges->count();
+        $collegesWithRecords = (clone $colleges)->whereExists(fn ($query) => $query->selectRaw('1')->from('student_registry')
+            ->whereColumn('student_registry.college_id', 'colleges.id')
+            ->where('student_registry.record_type', StudentRegistryEntry::STUDENT))->count();
+        $currentYearId = DB::table('academic_years')->where('is_current', true)->value('id');
 
+        // The real order: the calendar, then the colleges, then the people and records that fill them, then what organizations need.
         return [
-            $this->step('academic-year', 'Set the current academic year', 'Accreditation, requirements and clearances all follow it.', DB::table('academic_years')->where('is_current', true)->exists(), '/dashboard/super-admin/academic-years'),
+            $this->step('academic-year', 'Set the current academic year', 'Accreditation, requirements and clearances all follow it.', $currentYearId !== null, '/dashboard/super-admin/academic-years'),
+            $this->step('semester', 'Add the semesters', 'Add the first and second semester with their dates.', $currentYearId !== null && DB::table('academic_semesters')->where('academic_year_id', $currentYearId)->exists(), '/dashboard/super-admin/academic-years'),
+            $this->step('semester-active', 'Activate the current semester', 'Events, tasks and reports are kept by semester, so one must be active.', DB::table('academic_semesters')->where('status', 'active')->exists(), '/dashboard/super-admin/academic-years'),
+            $this->step('colleges', 'Add the colleges', 'Each college gets its own Department Head and its own students.', $collegeCount > 0, '/dashboard/super-admin/colleges'),
             $this->step(
                 'college-heads',
                 'Every college has a Department Head',
@@ -60,13 +71,20 @@ class SetupChecklistService
                 '/dashboard/super-admin/colleges',
             ),
             $this->step(
+                'school-records',
+                'Load the school records of every college',
+                $collegeCount === 0 ? 'Add the colleges first.' : "{$collegesWithRecords} of {$collegeCount} colleges have school records.",
+                $collegeCount > 0 && $collegesWithRecords >= $collegeCount,
+                '/dashboard/super-admin/student-records',
+            ),
+            $this->step('requirements', 'Publish the accreditation requirements', 'Organizations then see what to submit and by when.', DB::table('compliance_requirement_types')->exists(), '/dashboard/super-admin/compliance'),
+            $this->step(
                 'admins',
                 'Review endorsed organization applications',
-                $organizationIds->isEmpty() ? 'Register an organization first.' : "{$withAdmin} of {$organizationIds->count()} organizations have an active administrator.",
+                $organizationIds->isEmpty() ? 'No organization has been approved yet. Applications arrive once a Department Head endorses them.' : "{$withAdmin} of {$organizationIds->count()} organizations have an active administrator.",
                 $organizationIds->isNotEmpty() && $withAdmin >= $organizationIds->count(),
                 '/dashboard/organization-applications',
             ),
-            $this->step('requirements', 'Publish the accreditation requirements', 'Organizations then see what to submit and by when.', DB::table('compliance_requirement_types')->exists(), '/dashboard/super-admin/compliance'),
             $this->step('venues', 'List the venues organizations can book', 'Bookings are checked against each other for conflicts.', DB::table('venues')->exists(), '/dashboard/super-admin/venues'),
             $this->step(
                 'announcement',
@@ -102,7 +120,15 @@ class SetupChecklistService
         $awaitingEndorsement = (clone $applications)->where('status', 'pending_dean')->count();
         $reviewed = (clone $applications)->where(fn ($query) => $query->where('endorsed_by', $user->school_id)->orWhere('reviewed_by', $user->school_id))->exists();
 
+        $records = DB::table('student_registry')->where('college_id', $collegeId)->where('record_type', StudentRegistryEntry::STUDENT)->exists();
+        $staff = DB::table('account_profiles')->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->where('account_profiles.organization_id', $user->organization_id)->where('account_profiles.role', 'ADMIN')
+            ->where('account_profiles.account_status', 'active')->where('users.account_status', 'active')->exists()
+            || DepartmentHeadInvitation::where('college_id', $collegeId)->where('role', 'ADMIN')->pending()->exists();
+
         return [
+            $this->step('student-records', 'Load your college student records', 'Without them no student of your college can sign up.', $collegeId !== null && $records, '/dashboard/department-head/people'),
+            $this->step('office-staff', 'Add your office staff', 'They review applications and approvals with you. Each gets a link to set up an account.', $collegeId !== null && $staff, '/dashboard/department-head/people'),
             $this->step(
                 'endorse',
                 'Review organization applications',
@@ -118,6 +144,30 @@ class SetupChecklistService
                 'Events, budgets and reports from your organizations wait for your decision.',
                 DB::table('approval_requests')->where('reviewed_by', $user->school_id)->exists(),
                 '/dashboard/department-head/approvals',
+            ),
+        ];
+    }
+
+    /**
+     * Office staff stand in for the dean, but the setup of the college (records, staff) is the dean's own.
+     * Theirs is a contact number and the applications waiting for the college.
+     */
+    private function officeStaffSteps(User $user): array
+    {
+        $applications = DB::table('organization_applications')->where('college_id', $user->organization?->college_id);
+        $awaiting = (clone $applications)->where('status', 'pending_dean')->count();
+        $reviewed = (clone $applications)->where(fn ($query) => $query->where('endorsed_by', $user->school_id)->orWhere('reviewed_by', $user->school_id))->exists();
+
+        return [
+            $this->step('contact', 'Add your contact number', 'The dean and students can reach you about applications.', filled($user->contact_number), '/dashboard/profile'),
+            $this->step(
+                'endorse',
+                'Review organization applications',
+                $awaiting > 0
+                    ? "{$awaiting} application".($awaiting === 1 ? '' : 's').' awaiting your review before SAO.'
+                    : 'Applications show here once a student the dean allowed to apply sends one.',
+                $reviewed,
+                '/dashboard/organization-applications',
             ),
         ];
     }

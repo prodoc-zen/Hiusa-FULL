@@ -8,6 +8,7 @@ use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use App\Services\Edp\HttpStudentRegistry;
 use App\Services\Edp\StudentRegistry;
+use App\Services\Edp\StudentSignup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -80,11 +81,21 @@ class StudentRegistrationTest extends TestCase
         $this->assertSame($this->home->id, $user->organization_id);
     }
 
+    private const MISMATCH = "We couldn't match that school ID and birth date with the school records. Check both. If they are right, your record may be missing or have a typing mistake. Show your school ID at your Department Head's office or the Student Affairs Office, and they can add or correct it.";
+
+    public function test_the_mismatch_message_says_what_to_check_and_who_fixes_the_record_without_saying_which_part_is_wrong(): void
+    {
+        $this->assertStringContainsString('Check both.', StudentSignup::MISMATCH);
+        $this->assertStringContainsString("Department Head's office or the Student Affairs Office", StudentSignup::MISMATCH);
+        $this->assertStringNotContainsString('birth date is wrong', StudentSignup::MISMATCH);
+        $this->assertStringNotContainsString('not found', StudentSignup::MISMATCH);
+    }
+
     public function test_a_wrong_birth_date_is_refused_with_the_generic_message(): void
     {
         $this->postJson('/api/register', $this->payload(['birth_date' => '2007-03-15']))
             ->assertUnprocessable()
-            ->assertJsonPath('errors.school_id.0', "We couldn't match that school ID and birth date with the school records.");
+            ->assertJsonPath('errors.school_id.0', self::MISMATCH);
 
         $this->assertDatabaseMissing('users', ['school_id' => 2600101]);
         $this->assertNull($this->record->fresh()->claimed_at);
@@ -94,7 +105,7 @@ class StudentRegistrationTest extends TestCase
     {
         $this->postJson('/api/register', $this->payload(['school_id' => 2699999]))
             ->assertUnprocessable()
-            ->assertJsonPath('errors.school_id.0', "We couldn't match that school ID and birth date with the school records.");
+            ->assertJsonPath('errors.school_id.0', self::MISMATCH);
     }
 
     public function test_a_record_cannot_be_claimed_twice(): void
@@ -139,7 +150,7 @@ class StudentRegistrationTest extends TestCase
     {
         $this->postJson('/api/register/lookup', ['school_id' => 2600101, 'birth_date' => '2000-01-01'])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.school_id.0', "We couldn't match that school ID and birth date with the school records.");
+            ->assertJsonPath('errors.school_id.0', self::MISMATCH);
 
         $this->postJson('/api/register', $this->payload())->assertCreated();
         $this->postJson('/api/register/lookup', ['school_id' => 2600101, 'birth_date' => '2007-03-14'])

@@ -274,6 +274,17 @@ class FinancialAccountabilityTest extends TestCase
             ->assertJsonCount(1, 'data')->assertJsonPath('total', 1)->assertJsonPath('data.0.student.school_id', $students->first()->school_id);
     }
 
+    public function test_student_financial_accounts_can_be_paged_five_at_a_time_for_a_phone(): void
+    {
+        $admin = $this->user('ADMIN');
+        User::factory()->count(12)->create(['role' => 'STUDENT', 'organization_id' => $admin->organization_id, 'account_status' => 'active']);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/student-debts?per_page=5&page=3')->assertOk()
+            ->assertJsonCount(2, 'data')->assertJsonPath('total', 12)->assertJsonPath('per_page', 5)->assertJsonPath('current_page', 3);
+        $this->getJson('/api/student-debts?per_page=7')->assertUnprocessable();
+    }
+
     public function test_only_admin_can_update_the_organization_gcash_qr_code(): void
     {
         Storage::fake('local');

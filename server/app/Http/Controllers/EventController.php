@@ -30,6 +30,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -469,6 +470,7 @@ class EventController extends Controller
         }
 
         $oldImageUrl = $event->image_url;
+        $auditedBefore = $this->auditedFields($event);
         $removeImage = (bool) ($data['remove_image'] ?? false);
         unset($data['image'], $data['remove_image']);
         if ($request->hasFile('image')) {
@@ -477,8 +479,9 @@ class EventController extends Controller
             $data['image_url'] = null;
         }
 
-        DB::transaction(function () use ($event, $data, $request) {
+        DB::transaction(function () use ($event, $data, $request, $auditedBefore) {
             $event->update($data);
+            $this->auditEventChange($request, $event, 'event_updated', $auditedBefore);
             if (($data['status'] ?? null) === 'cancelled') {
                 $this->venueRelease->release($event, $request);
             }
@@ -489,6 +492,40 @@ class EventController extends Controller
         $this->resubmitIfRejected($event);
 
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
+    }
+
+    /** The fields an audit row keeps about an event, so the SAO can tell what it was without reading the whole record. */
+    private function auditedFields(Event $event): array
+    {
+        return array_map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value,
+            $event->only(['title', 'description', 'start_time', 'end_time', 'location', 'requires_budget', 'status']));
+    }
+
+    /** Records only the audited fields that differ after the save, and nothing when a save changed none of them. */
+    private function auditEventChange(Request $request, Event $event, string $action, array $before): void
+    {
+        $after = $this->auditedFields($event);
+        $changed = array_keys(array_filter($after, fn ($value, $field) => $value !== $before[$field], ARRAY_FILTER_USE_BOTH));
+        if ($changed) {
+            $this->auditEvent($request, $event, $action, Arr::only($before, $changed), Arr::only($after, $changed));
+        }
+    }
+
+    private function auditEvent(Request $request, Event $event, string $action, ?array $old, ?array $new): void
+    {
+        AuditLog::create([
+            'organization_id' => $event->organization_id,
+            'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role,
+            'module' => 'events',
+            'action' => $action,
+            'record_type' => Event::class,
+            'record_id' => $event->id,
+            'old_values' => $old,
+            'new_values' => $new,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
     }
 
     private function resubmitIfRejected(Event $event): void
@@ -604,7 +641,7 @@ class EventController extends Controller
         $requirementPaths = [];
         // The check runs on the locked row. A booking, file or attendance record takes a shared lock on its
         // event through the foreign key, so it either lands before the check and blocks the delete, or waits for it.
-        $blocked = DB::transaction(function () use ($event, &$requirementPaths) {
+        $blocked = DB::transaction(function () use ($event, $request, &$requirementPaths) {
             $locked = Event::whereKey($event->id)->lockForUpdate()->first();
             if (! $locked) {
                 return self::EVENT_GONE;
@@ -619,6 +656,7 @@ class EventController extends Controller
                 ->where('entity_id', $locked->id)
                 ->delete();
             $locked->delete();
+            $this->auditEvent($request, $locked, 'event_deleted', $this->auditedFields($locked), null);
 
             return null;
         });
@@ -719,8 +757,10 @@ class EventController extends Controller
             return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
         }
 
-        DB::transaction(function () use ($event, $data, $request) {
+        $auditedBefore = $this->auditedFields($event);
+        DB::transaction(function () use ($event, $data, $request, $auditedBefore) {
             $event->update($data);
+            $this->auditEventChange($request, $event, 'event_status_changed', $auditedBefore);
             if ($data['status'] === 'cancelled') {
                 $this->venueRelease->release($event, $request);
             }

@@ -49,6 +49,8 @@ export const TRANSITION_ACTION_LABEL = {
   under_review: 'Move to under review',
   resolved: 'Resolve',
   dismissed: 'Dismiss',
+  // Not a status of its own: reopening sends under_review with the reason, for the SAO only.
+  reopen: 'Reopen grievance',
 };
 
 export function addressedToLabel(grievance) {

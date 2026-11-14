@@ -18,6 +18,15 @@ describe('buildReviewAreas', () => {
     ]);
   });
 
+  it('puts the applications the Department Heads endorsed first, ahead of registrations', () => {
+    const areas = buildReviewAreas([item('registrations_pending', { count: 1 }), item('applications_pending', { count: 2 })]);
+
+    expect(areas.map((area) => [area.key, area.count, area.action])).toEqual([
+      ['applications', 2, 'Review applications'], ['registrations', 1, 'Review registrations'],
+    ]);
+    expect(reviewHeadline(areas)).toBe('3 items need your attention: 2 applications, 1 registration.');
+  });
+
   it('splits approval items by the tab their link opens and counts one record each', () => {
     const areas = buildReviewAreas([
       item('approval', { href: '/dashboard/super-admin/compliance?tab=financial' }),

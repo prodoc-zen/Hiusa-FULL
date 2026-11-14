@@ -54,10 +54,69 @@ class StudentRegistryController extends Controller
 
         $showBirthDate = $request->user()->role === 'SUPER_ADMIN';
         $rows = $query->orderBy('last_name')->orderBy('first_name')->orderBy('school_id')->paginate($filters['per_page'] ?? 20);
-        $rows->getCollection()->transform(fn (StudentRegistryEntry $entry) => [
+        $rows->getCollection()->transform(fn (StudentRegistryEntry $entry) => $this->present($entry, $showBirthDate));
+
+        return response()->json([...$rows->toArray(), 'summary' => $summary]);
+    }
+
+    public function update(Request $request, StudentRegistryEntry $entry)
+    {
+        $this->authorizeEntry($request, $entry);
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:60'],
+            'last_name' => ['required', 'string', 'max:60'],
+            // Left out, the birth date stays as it is: a dean never sees it, so cannot be asked to retype it.
+            'birth_date' => ['nullable', 'date_format:Y-m-d', 'after:1920-01-01', 'before:today'],
+        ]);
+
+        $before = ['first_name' => $entry->first_name, 'last_name' => $entry->last_name];
+        $birthDateChanged = ! empty($data['birth_date']) && $entry->birth_date?->format('Y-m-d') !== $data['birth_date'];
+        $entry->update(array_filter($data, fn ($value) => $value !== null));
+
+        // The birth date proves who is signing up, so the audit row records that it changed, never the date itself.
+        AuditLog::create([
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'module' => 'student_registry', 'action' => 'updated', 'record_type' => StudentRegistryEntry::class,
+            'record_id' => $entry->id, 'old_values' => $before,
+            'new_values' => ['first_name' => $data['first_name'], 'last_name' => $data['last_name'], 'birth_date_changed' => $birthDateChanged],
+            'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
+
+        return response()->json($this->present($entry->fresh('college'), $request->user()->role === 'SUPER_ADMIN'));
+    }
+
+    public function destroy(Request $request, StudentRegistryEntry $entry)
+    {
+        $this->authorizeEntry($request, $entry);
+
+        AuditLog::create([
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'module' => 'student_registry', 'action' => 'deleted', 'record_type' => StudentRegistryEntry::class,
+            'record_id' => $entry->id,
+            'old_values' => ['school_id' => $entry->school_id, 'first_name' => $entry->first_name, 'last_name' => $entry->last_name, 'record_type' => $entry->record_type, 'college_id' => $entry->college_id],
+            'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
+        $entry->delete();
+
+        return response()->noContent();
+    }
+
+    // A dean reaches only their own college's records, and nobody changes a record that already has an account behind it.
+    private function authorizeEntry(Request $request, StudentRegistryEntry $entry): void
+    {
+        $collegeId = $this->actorCollegeId($request);
+        abort_if($collegeId && (int) $entry->college_id !== $collegeId, 404, 'Record not found.');
+        abort_if($entry->claimed_at !== null || User::whereKey($entry->school_id)->exists(), 409, 'This record is tied to an account, so it cannot be changed here.');
+    }
+
+    private function present(StudentRegistryEntry $entry, bool $showBirthDate): array
+    {
+        return [
             'id' => $entry->id,
             'school_id' => $entry->school_id,
             'name' => $entry->full_name,
+            'first_name' => $entry->first_name,
+            'last_name' => $entry->last_name,
             ...($showBirthDate ? ['birth_date' => $entry->birth_date?->format('Y-m-d')] : []),
             'record_type' => $entry->record_type,
             'position' => $entry->position,
@@ -67,9 +126,7 @@ class StudentRegistryController extends Controller
             'section' => $entry->section,
             'claimed' => $entry->claimed_at !== null,
             'claimed_at' => $entry->claimed_at?->toIso8601String(),
-        ]);
-
-        return response()->json([...$rows->toArray(), 'summary' => $summary]);
+        ];
     }
 
     public function preview(Request $request)

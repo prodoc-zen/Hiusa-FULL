@@ -17,7 +17,7 @@ function Row({ item, role, className = '' }) {
     <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 truncate text-sm font-semibold text-ink">{item.title}</p>
+          <p className="min-w-0 text-sm font-semibold text-ink">{item.title}</p>
           {/* A badge marks the exception only; normal and low items carry none. */}
           {item.severity === 'high' && <StatusBadge tone="danger" label="Urgent" className="shrink-0" />}
         </div>

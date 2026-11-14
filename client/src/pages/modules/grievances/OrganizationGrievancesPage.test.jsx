@@ -40,6 +40,7 @@ describe('OrganizationGrievancesPage', () => {
     render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
     const [rowTitle] = await screen.findAllByText('Unsafe stairwell');
     fireEvent.click(rowTitle);
+    expect(screen.queryByRole('button', { name: 'Reopen grievance' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete closed grievance' }));
     const confirm = screen.getByRole('dialog', { name: 'Delete closed grievance?' });
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete closed grievance' }));

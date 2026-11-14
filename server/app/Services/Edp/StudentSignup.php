@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class StudentSignup
 {
-    public const MISMATCH = "We couldn't match that school ID and birth date with the school records.";
+    /** One message for a missing record and a wrong birth date, so it never says which school IDs exist. It tells the student what to check and who fixes a record. */
+    public const MISMATCH = "We couldn't match that school ID and birth date with the school records. Check both. If they are right, your record may be missing or have a typing mistake. Show your school ID at your Department Head's office or the Student Affairs Office, and they can add or correct it.";
 
     private const FAILURE_LIMIT = 5;
 

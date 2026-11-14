@@ -2,12 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\College;
+use App\Models\DepartmentHeadInvitation;
 use App\Models\Organization;
 use App\Models\OrganizationApplication;
 use App\Models\SboPosition;
+use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -136,7 +140,7 @@ class SetupChecklistTest extends TestCase
         $setup = $this->checklistFor($director);
         $steps = $this->steps($setup);
 
-        $this->assertSame(['academic-year', 'college-heads', 'admins', 'requirements', 'venues', 'announcement'], array_keys($steps));
+        $this->assertSame(['academic-year', 'semester', 'semester-active', 'colleges', 'college-heads', 'school-records', 'requirements', 'admins', 'venues', 'announcement'], array_keys($steps));
         $this->assertFalse($steps['college-heads']['done']);
         $this->assertSame('Every college has a Department Head', $steps['college-heads']['label']);
         $this->assertSame('1 of 2 colleges have an active Department Head.', $steps['college-heads']['detail']);
@@ -149,6 +153,112 @@ class SetupChecklistTest extends TestCase
 
         $this->assertTrue($steps['college-heads']['done']);
         $this->assertNull($steps['college-heads']['href']);
+    }
+
+    public function test_the_sao_checklist_follows_the_real_order_and_ticks_from_the_calendar_and_the_records(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'account_status' => 'active']);
+        DB::table('colleges')->delete();
+
+        $steps = $this->steps($this->checklistFor($director));
+        $this->assertSame('/dashboard/super-admin/academic-years', $steps['academic-year']['href']);
+        $this->assertSame('/dashboard/super-admin/academic-years', $steps['semester']['href']);
+        $this->assertSame('/dashboard/super-admin/academic-years', $steps['semester-active']['href']);
+        $this->assertSame('/dashboard/super-admin/colleges', $steps['colleges']['href']);
+        $this->assertSame('/dashboard/super-admin/student-records', $steps['school-records']['href']);
+        $this->assertSame('Add the colleges first.', $steps['school-records']['detail']);
+        foreach (['academic-year', 'semester', 'semester-active', 'colleges', 'school-records'] as $key) {
+            $this->assertFalse($steps[$key]['done'], $key);
+        }
+
+        $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
+        $semester = AcademicSemester::create(['academic_year_id' => $year->id, 'number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31', 'status' => 'upcoming']);
+        $ccs = $this->makeCollege('CCS');
+        $this->makeCollege('CBE');
+        $this->app['auth']->forgetGuards();
+        $steps = $this->steps($this->checklistFor($director));
+        $this->assertSame([true, true, false, true, false], array_map(fn (string $key) => $steps[$key]['done'], ['academic-year', 'semester', 'semester-active', 'colleges', 'school-records']));
+        $this->assertSame('0 of 2 colleges have school records.', $steps['school-records']['detail']);
+
+        $semester->update(['status' => 'active']);
+        StudentRegistryEntry::create(['school_id' => 2600001, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'birth_date' => '2005-01-01', 'college_id' => $ccs->id, 'program' => 'BSIT', 'year_level' => '1st Year']);
+        $this->app['auth']->forgetGuards();
+        $steps = $this->steps($this->checklistFor($director));
+        $this->assertTrue($steps['semester-active']['done']);
+        $this->assertFalse($steps['school-records']['done'], 'One college of two is not every college.');
+        $this->assertSame('1 of 2 colleges have school records.', $steps['school-records']['detail']);
+    }
+
+    public function test_the_sao_organizations_step_no_longer_asks_for_a_registration_the_sao_cannot_make(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'account_status' => 'active']);
+
+        $steps = $this->steps($this->checklistFor($director));
+
+        $this->assertSame('No organization has been approved yet. Applications arrive once a Department Head endorses them.', $steps['admins']['detail']);
+    }
+
+    public function test_the_department_head_is_asked_for_school_records_and_office_staff_first(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $head = $this->makeCollegeHead($college, ['account_status' => 'active']);
+        $home = $head->organization;
+
+        $steps = $this->steps($this->checklistFor($head));
+        $this->assertFalse($steps['student-records']['done']);
+        $this->assertSame('/dashboard/department-head/people', $steps['student-records']['href']);
+        $this->assertFalse($steps['office-staff']['done']);
+        $this->assertSame('/dashboard/department-head/people', $steps['office-staff']['href']);
+
+        StudentRegistryEntry::create(['school_id' => 2600001, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'birth_date' => '2005-01-01', 'college_id' => $college->id, 'program' => 'BSIT', 'year_level' => '1st Year']);
+        DepartmentHeadInvitation::create(['college_id' => $college->id, 'role' => 'ADMIN', 'token_hash' => hash('sha256', 'staff'), 'invited_by' => $head->school_id, 'expires_at' => now()->addDays(3)]);
+        $this->app['auth']->forgetGuards();
+        $steps = $this->steps($this->checklistFor($head));
+        $this->assertTrue($steps['student-records']['done']);
+        $this->assertTrue($steps['office-staff']['done'], 'A staff link that is waiting to be used counts.');
+
+        DepartmentHeadInvitation::query()->delete();
+        $this->app['auth']->forgetGuards();
+        $this->assertFalse($this->steps($this->checklistFor($head))['office-staff']['done']);
+
+        User::factory()->admin()->create(['organization_id' => $home->id, 'account_status' => 'active']);
+        $this->app['auth']->forgetGuards();
+        $this->assertTrue($this->steps($this->checklistFor($head))['office-staff']['done']);
+    }
+
+    public function test_another_colleges_school_records_do_not_tick_the_deans_step(): void
+    {
+        $head = $this->makeCollegeHead($this->makeCollege('CCS'), ['account_status' => 'active']);
+        $other = $this->makeCollege('CBE');
+        StudentRegistryEntry::create(['school_id' => 2600002, 'first_name' => 'Ben', 'last_name' => 'Cruz', 'birth_date' => '2005-01-01', 'college_id' => $other->id, 'program' => 'BSIT', 'year_level' => '1st Year']);
+
+        $this->assertFalse($this->steps($this->checklistFor($head))['student-records']['done']);
+    }
+
+    public function test_college_office_staff_get_their_own_short_checklist_not_an_organization_admins(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $head = $this->makeCollegeHead($college, ['account_status' => 'active']);
+        $staff = User::factory()->admin()->create(['organization_id' => $head->organization_id, 'account_status' => 'active', 'contact_number' => null]);
+        $this->application($college, 'pending_dean');
+
+        $setup = $this->checklistFor($staff);
+        $steps = $this->steps($setup);
+
+        $this->assertSame(['contact', 'endorse'], array_keys($steps));
+        $this->assertSame('/dashboard/profile', $steps['contact']['href']);
+        $this->assertSame('/dashboard/organization-applications', $steps['endorse']['href']);
+        $this->assertSame('1 application awaiting your review before SAO.', $steps['endorse']['detail']);
+        $this->assertSame(0, $setup['completed']);
+
+        $staff->update(['contact_number' => '09171234567']);
+        DB::table('organization_applications')->update(['status' => 'pending_sao', 'endorsed_by' => $staff->school_id, 'endorsed_at' => now()]);
+        $this->app['auth']->forgetGuards();
+        $steps = $this->steps($this->checklistFor($staff));
+        $this->assertTrue($steps['contact']['done']);
+        $this->assertTrue($steps['endorse']['done']);
     }
 
     public function test_a_college_whose_head_is_deactivated_is_not_covered(): void
@@ -171,9 +281,9 @@ class SetupChecklistTest extends TestCase
         $setup = $this->checklistFor($head);
         $steps = $this->steps($setup);
 
-        $this->assertSame(['endorse', 'review'], array_keys($steps));
+        $this->assertSame(['student-records', 'office-staff', 'endorse', 'review'], array_keys($steps));
         $this->assertSame(0, $setup['completed']);
-        $this->assertSame(2, $setup['total']);
+        $this->assertSame(4, $setup['total']);
         $this->assertSame('Review organization applications', $steps['endorse']['label']);
         $this->assertSame('/dashboard/organization-applications', $steps['endorse']['href']);
         $this->assertStringContainsString('Allow a student to apply from Organizations', $steps['endorse']['detail']);

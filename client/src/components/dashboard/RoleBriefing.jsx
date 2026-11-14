@@ -39,7 +39,7 @@ function storedSchoolId() {
 const PROCESS_LED_ROLES = new Set(['ADMIN']);
 
 // On these homes the process tracker is the one progress widget: while it shows, the first-run checklist stays out.
-const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT']);
+const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT', 'DEPARTMENT_HEAD']);
 
 const ACTIONS = {
   ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],
@@ -77,6 +77,13 @@ function BriefingBody({ data, introduction }) {
     if (reviewAreas[0]?.href) actions = [{ label: reviewAreas[0].action, to: reviewAreas[0].href, icon: ClipboardCheck }];
   } else if (!setupOpen) {
     actions = ACTIONS[role] || [];
+    // A dean's one filled button goes to what waits longest on the dean: the applications to endorse
+    // (the one application itself when there is one), else the approvals queue.
+    const queue = role === 'DEPARTMENT_HEAD' ? attention.find((item) => item.type === 'applications_endorsement_pending' && item.href) : null;
+    if (queue) {
+      const count = Number(queue.count) || 1;
+      actions = [{ label: count === 1 ? 'Endorse the application' : `Endorse ${count} applications`, to: queue.href, icon: ClipboardCheck }];
+    }
   }
 
   const inboxFirst = role === 'SUPER_ADMIN' && reviewAreas.length > 0;

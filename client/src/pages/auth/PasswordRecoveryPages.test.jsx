@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import RecoverAccountPage from './RecoverAccountPage';
@@ -40,17 +40,16 @@ describe('password recovery pages', () => {
     expect(screen.getByText(/If an account matches/)).toBeInTheDocument();
   });
 
-  it('says before submitting what happens with email on and with email off', () => {
+  it('says before submitting, in two short sentences, what happens next', () => {
     render(
       <MemoryRouter initialEntries={['/recover-account']}>
         <Routes><Route path="/recover-account" element={<RecoverAccountPage />} /></Routes>
       </MemoryRouter>,
     );
 
-    const intro = screen.getByText(/When email is turned on/);
-    expect(intro).toHaveTextContent(/When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link\./);
-    expect(intro).toHaveTextContent(/SAO staff ask another SAO account holder\./);
-    expect(intro).not.toHaveTextContent(/^Enter the email or school ID you sign in with\. We send/);
+    const intro = screen.getByText(/Enter the email or school ID you sign in with\./);
+    expect(intro).toHaveTextContent('Enter the email or school ID you sign in with. We email you a reset link, or tell you who can give you one.');
+    expect(screen.queryByText(/When email is turned on/)).not.toBeInTheDocument();
   });
 
   it('tells the person to ask for a reset, without claiming an email was sent, when mail is off', async () => {
@@ -68,7 +67,14 @@ describe('password recovery pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request reset' }));
 
     expect(await screen.findByRole('heading', { name: 'Ask for a reset' })).toBeInTheDocument();
-    expect(screen.getByText(/Nothing was sent to anyone\. Ask your organization Admin or the SAO for a one-time link/)).toHaveTextContent(/SAO staff ask another SAO account holder\./);
+    expect(screen.getByText(/Nothing was sent to anyone\. Someone else has to give you a one-time link to choose a new password\./)).toBeInTheDocument();
+    const who = screen.getByRole('list', { name: 'Who can reset your password' });
+    expect(within(who).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Students and officers: your organization Admin, or the SAO.',
+      'Organization Admins, office staff and Department Heads: the SAO.',
+      'SAO staff: another SAO account holder.',
+      'The only SAO account: whoever looks after the server runs the reset command in the deployment guide (hiusa:reset-sao-password).',
+    ]);
     expect(screen.queryByText(/we sent/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send another email' })).not.toBeInTheDocument();
   });
