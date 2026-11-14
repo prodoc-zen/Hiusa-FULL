@@ -10,7 +10,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
-import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
+import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
@@ -162,6 +162,13 @@ export default function VenueBookingPage() {
     if (linkedEvent) openRequestForm(linkedEvent);
     else notify.error('That event is not available for a venue booking.');
   }, [eventParam, eventsLoaded, events, venues.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Only a warning: a booking for setup or rehearsal may fall just outside the event, but a different month is usually a slip.
+  const linkedEvent = requestForm.event_id ? events.find((item) => String(item.id) === String(requestForm.event_id)) : null;
+  const bookingDay = String(requestForm.start_time || '').slice(0, 10);
+  const linkedEventOutOfDates = linkedEvent && bookingDay && linkedEvent.start_time && linkedEvent.end_time
+    && (bookingDay < isoToLocalDateTimeInput(linkedEvent.start_time).slice(0, 10) || bookingDay > isoToLocalDateTimeInput(linkedEvent.end_time).slice(0, 10))
+    ? linkedEvent : null;
 
   const openBooking = recordId ? bookings.items.find((booking) => String(booking.id) === recordId) ?? null : null;
 
@@ -364,6 +371,7 @@ export default function VenueBookingPage() {
               {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{formatDisplayText(eventItem.title)}</option>)}
             </Select>
           </Field>
+          {linkedEventOutOfDates && <p className="-mt-2 text-xs font-medium text-warning-strong">This day is outside the dates of {formatDisplayText(linkedEventOutOfDates.title)}, which runs {formatDateTime(linkedEventOutOfDates.start_time)} to {formatDateTime(linkedEventOutOfDates.end_time)}. Check the day before you send it.</p>}
           {requestError && <p role="alert" className="text-sm font-medium text-danger-strong">{requestError}</p>}
         </form>
       </Drawer>

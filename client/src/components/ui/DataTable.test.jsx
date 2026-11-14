@@ -154,6 +154,13 @@ describe('DataTable', () => {
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
   });
 
+  it('keeps a card label at the top of a value that wraps onto several lines', () => {
+    render(<DataTable columns={COLUMNS} rows={ROWS} />);
+    const pair = document.querySelector('[data-view="cards"] dl > div');
+    expect(pair.className).toContain('items-start');
+    expect(pair.className).not.toContain('items-center');
+  });
+
   it('shows a table-shaped, non-shimmering skeleton while loading', () => {
     render(<DataTable columns={COLUMNS} rows={ROWS} loading />);
     const skeleton = screen.getByRole('status', { name: 'Loading table' });

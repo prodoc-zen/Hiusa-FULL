@@ -267,7 +267,7 @@ export default function CreateAnnouncementPage() {
         <div className="sticky bottom-0 z-10 -mx-1 border-t border-line bg-page px-1 py-3 lg:static lg:col-start-2 lg:row-start-2 lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
           <p className="mb-2 hidden text-xs text-ink-muted lg:block">{forApproval ? 'The Admin approves it before members see it.' : 'A saved draft does not notify members.'}</p>
           {error && <p role="alert" className="mb-2 text-sm font-medium text-danger-strong">{error}</p>}
-          <div className="flex gap-2 lg:flex-col [&>*]:flex-1">
+          <div className="flex gap-2 lg:flex-col max-lg:[&>*]:flex-1">
             <Button disabled={submitting || Boolean(imageError)} onClick={() => askConfirm(true)}>
               {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish now'}
             </Button>

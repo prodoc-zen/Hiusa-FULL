@@ -133,6 +133,17 @@ describe('CreateAnnouncementPage', () => {
     expect(screen.getByRole('button', { name: 'Publish now' })).toBeInTheDocument();
   });
 
+  it('stacks Publish now and Save draft without letting flex-1 collapse them below their 40px height', () => {
+    signInAs('ADMIN');
+    render(<MemoryRouter initialEntries={['/dashboard/announcements/create-announcement']}><CreateAnnouncementPage /></MemoryRouter>);
+
+    const row = screen.getByRole('button', { name: 'Publish now' }).parentElement;
+    expect(row.className).toContain('lg:flex-col');
+    expect(row.className).toContain('max-lg:[&>*]:flex-1');
+    expect(row.className).not.toMatch(/(^|\s)\[&>\*\]:flex-1/);
+    expect(screen.getByRole('button', { name: 'Publish now' }).className).toContain('h-10');
+  });
+
   it('tells an Officer the announcement goes to the Admin for approval before members see it', async () => {
     signInAs('SBO_OFFICER');
     const dialog = await fillAndStart('Submit for approval');
