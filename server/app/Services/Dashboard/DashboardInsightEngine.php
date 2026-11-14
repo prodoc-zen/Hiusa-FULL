@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Models\AccountProfile;
 use App\Models\Budget;
+use App\Models\FinancialForecast;
 use App\Services\BudgetAdviceRules;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -111,17 +112,13 @@ class DashboardInsightEngine
 
     private function forecastTrend(int $organizationId, string $role): ?array
     {
-        $forecast = DB::table('financial_forecasts')
-            ->where('organization_id', $organizationId)
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->first();
+        $forecast = FinancialForecast::currentFor($organizationId);
 
         if (! $forecast) {
             return null;
         }
 
-        $details = json_decode((string) $forecast->model_details, true) ?? [];
+        $details = $forecast->model_details ?? [];
         $risk = $details['risk'] ?? 'stable';
         $period = $this->periodLabel((string) $forecast->forecast_period);
         $title = match ($risk) {

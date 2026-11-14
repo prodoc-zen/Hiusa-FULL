@@ -92,11 +92,35 @@ describe('SaoGrievancesPage', () => {
     expect(screen.getByRole('button', { name: /critical.*2/is })).toBeInTheDocument();
   });
 
-  it('counts only open Critical grievances in the Critical tile', async () => {
-    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
-    await screen.findByText('No grievances to review');
+  it('counts open Critical grievances with a status filter the API accepts', async () => {
+    // GrievanceController validates status through FilterValues: one value or a JSON list, a comma list is a 422.
+    const apiAccepts = (status) => {
+      if (status === undefined || typeof status !== 'string') return true;
+      if (!status.startsWith('[')) return !status.includes(',');
+      const decoded = JSON.parse(status);
+      return Array.isArray(decoded) && decoded.every((value) => ['submitted', 'under_review', 'resolved', 'dismissed'].includes(value));
+    };
+    mocks.getGrievances.mockImplementation((params) => (apiAccepts(params?.status)
+      ? Promise.resolve(envelope([], params?.urgency === 'Critical' ? 4 : 2))
+      : Promise.reject(new Error('422'))));
 
-    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: 'submitted,under_review', per_page: 1 });
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: /Critical.*4/is })).toBeInTheDocument();
+    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: '["submitted","under_review"]', per_page: 1 });
+  });
+
+  it('shows a tile as unavailable, not as 0, when its count request fails', async () => {
+    mocks.getGrievances.mockImplementation((params) => (params?.urgency === 'Critical' && params?.per_page === 1
+      ? Promise.reject(new Error('422'))
+      : Promise.resolve(envelope([], 3))));
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: /Submitted.*3/is })).toBeInTheDocument();
+    const critical = screen.getByRole('button', { name: /^Critical/ });
+    expect(within(critical).getByText('–')).toBeInTheDocument();
+    expect(within(critical).queryByText('0')).toBeNull();
   });
 
   it('refreshes the tiles after a status change', async () => {
@@ -137,7 +161,7 @@ describe('SaoGrievancesPage', () => {
     await waitFor(() => expect(mocks.updateGrievanceClassification).toHaveBeenCalledWith(1, { urgency: 'Low', category: 'General' }));
     expect(await screen.findByText(/Machine rating: Critical urgency, Safety & Security/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Why the machine rated it this way' })).toBeInTheDocument();
-    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: 'submitted,under_review', per_page: 1 });
+    expect(mocks.getGrievances).toHaveBeenCalledWith({ urgency: 'Critical', status: '["submitted","under_review"]', per_page: 1 });
   });
   it('asks for page one once when a filter changes on a later page', async () => {
     mocks.getGrievances.mockImplementation((params) => Promise.resolve({ data: { data: params?.per_page === 50 ? [CRITICAL] : [], current_page: params?.page || 1, last_page: 3, per_page: 50, total: 120 } }));

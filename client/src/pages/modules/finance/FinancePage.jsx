@@ -1,5 +1,5 @@
 import { filterLabel, matchesFilter } from '../../../utils/filterValues';
-import { peso as fmt } from '../../../lib/format';
+import { manilaDate, peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor from '../../../components/RichText';
@@ -104,11 +104,6 @@ function groupForecastsByOrganization(forecasts) {
     groups.get(key).forecasts.push(forecast);
   });
   return [...groups.values()];
-}
-
-function dayLabel(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // A forecast built from no ledger months has nothing to report: its zero balance and zero safe spend are
@@ -1521,7 +1516,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {adviceStale && (
                       <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
                         <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-                        The advice from {dayLabel(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
+                        The advice from {manilaDate(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
                       </p>
                     )}
                     {!adviceStale && b.recommended_allocation != null && (
@@ -1529,7 +1524,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
                       </p>
                     )}
-                    {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {dayLabel(b.advice_generated_at)}</p>}
+                    {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {manilaDate(b.advice_generated_at)}</p>}
                     {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
                     {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
                       <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">

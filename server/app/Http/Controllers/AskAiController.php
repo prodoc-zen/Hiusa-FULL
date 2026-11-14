@@ -94,9 +94,7 @@ class AskAiController extends Controller
 
         return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate, $source, $lock): void {
             ignore_user_abort(true);
-            $began = false;
-            $emit = function (string $event, array $data) use (&$began): void {
-                $began = true;
+            $emit = function (string $event, array $data): void {
                 $this->writeEvent($event, $data);
             };
 

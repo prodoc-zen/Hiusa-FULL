@@ -224,7 +224,7 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Advice is available once the budget is approved.'], 409);
         }
 
-        $forecast = $this->currentForecast($budget->organization_id);
+        $forecast = FinancialForecast::currentFor($budget->organization_id);
         $share = $forecast ? $this->allocationShare($budget) : 0.0;
         $forecastStatus = ! $forecast ? 'missing' : ($share > 0 ? 'used' : 'not_applied');
         $payload = [
@@ -328,19 +328,6 @@ class BudgetController extends Controller
             'engine' => $engine,
             'advice' => $advice,
         ]);
-    }
-
-    /** The generated forecast for this month or next; a manual row, an older month or free text never drives advice. */
-    private function currentForecast(int $organizationId): ?FinancialForecast
-    {
-        $thisMonth = now('Asia/Manila')->startOfMonth();
-
-        return FinancialForecast::where('organization_id', $organizationId)
-            ->whereIn('forecast_period', [$thisMonth->format('Y-m'), $thisMonth->copy()->addMonth()->format('Y-m')])
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get()
-            ->first(fn (FinancialForecast $forecast) => in_array($forecast->model_details['engine'] ?? null, ['python-fastapi', 'php-fallback'], true));
     }
 
     /** The organization forecast covers every approved budget, so a single budget carries only its share of it. */

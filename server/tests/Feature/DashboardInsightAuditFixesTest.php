@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AccountProfile;
 use App\Models\Election;
 use App\Models\ElectionBallot;
+use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\Grievance;
 use App\Models\Organization;
@@ -87,33 +88,69 @@ class DashboardInsightAuditFixesTest extends TestCase
 
     public function test_forecast_insight_uses_plain_words_and_leaves_out_missing_inputs(): void
     {
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        $nextMonth = $thisMonth->copy()->addMonth();
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         FinancialForecast::factory()->create([
             'organization_id' => $organization->id,
-            'forecast_period' => '2026-12',
+            'forecast_period' => $thisMonth->format('Y-m'),
             'confidence_note' => null,
-            'model_details' => ['risk' => 'overspending', 'sample_months' => 2, 'fit_quality' => 'insufficient_data', 'income' => ['r_squared' => 0.12], 'expense' => ['r_squared' => 0.3]],
+            'model_details' => ['engine' => 'python-fastapi', 'risk' => 'overspending', 'sample_months' => 2, 'fit_quality' => 'insufficient_data', 'income' => ['r_squared' => 0.12], 'expense' => ['r_squared' => 0.3]],
         ]);
 
         $forecast = $this->insight($admin, 'financial_forecast');
 
-        $this->assertSame('Spending may outpace income in December 2026', $forecast['title']);
+        $this->assertSame('Spending may outpace income in '.$thisMonth->format('F Y'), $forecast['title']);
         $this->assertSame(['months_of_records', 'how_far_to_trust_it'], array_keys($forecast['why']['inputs']));
         $this->assertSame(2, $forecast['why']['inputs']['months_of_records']);
         $this->assertSame('Based on only 2 months of records, and they follow no clear trend. Treat this projection as directional only.', $forecast['why']['inputs']['how_far_to_trust_it']);
-        $this->assertSame('Spending is forecast to run ahead of income in December 2026.', $forecast['body']);
+        $this->assertSame('Spending is forecast to run ahead of income in '.$thisMonth->format('F Y').'.', $forecast['body']);
 
         FinancialForecast::factory()->create([
             'organization_id' => $organization->id,
-            'forecast_period' => '2027-01',
+            'forecast_period' => $nextMonth->format('Y-m'),
             'confidence_note' => 'Plain note.',
-            'model_details' => ['risk' => 'deficit'],
+            'model_details' => ['engine' => 'php-fallback', 'risk' => 'deficit'],
         ]);
         $this->travel(1)->minutes();
         $deficit = $this->insight($admin, 'financial_forecast');
-        $this->assertSame('A shortfall is possible in January 2027', $deficit['title']);
+        $this->assertSame('A shortfall is possible in '.$nextMonth->format('F Y'), $deficit['title']);
         $this->assertSame(['how_far_to_trust_it'], array_keys($deficit['why']['inputs']));
+    }
+
+    public function test_a_forecast_for_a_past_month_or_a_manual_row_gives_no_forecast_insight(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        FinancialForecast::factory()->create([
+            'organization_id' => $organization->id,
+            'forecast_period' => $thisMonth->copy()->subMonths(2)->format('Y-m'),
+            'model_details' => ['engine' => 'python-fastapi', 'risk' => 'stable'],
+        ]);
+        FinancialForecast::factory()->create([
+            'organization_id' => $organization->id,
+            'forecast_period' => $thisMonth->format('Y-m'),
+            'model_details' => ['risk' => 'stable'],
+        ]);
+
+        $this->assertNull($this->insight($admin, 'financial_forecast'));
+    }
+
+    public function test_the_event_financial_summary_ignores_a_forecast_for_a_past_month(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $event = Event::factory()->create(['organization_id' => $organization->id, 'status' => 'approved']);
+        FinancialForecast::factory()->create([
+            'organization_id' => $organization->id,
+            'forecast_period' => now('Asia/Manila')->startOfMonth()->subMonths(2)->format('Y-m'),
+            'model_details' => ['engine' => 'python-fastapi', 'risk' => 'stable'],
+        ]);
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/events/{$event->id}")->assertOk()->assertJsonPath('financial_summary.latest_forecast', null);
     }
 
     public function test_turnout_insight_counts_the_same_voter_roll_as_manage_voters(): void
