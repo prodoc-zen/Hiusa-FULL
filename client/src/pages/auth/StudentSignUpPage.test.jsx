@@ -98,16 +98,22 @@ describe('StudentSignUpPage', () => {
     expect(screen.getAllByText('Enter your birth date.')).toHaveLength(2);
   });
 
-  it('shows the server message beside the school ID when the record does not match', async () => {
+  it('shows the record mismatch once, under the school ID, and keeps what was typed', async () => {
     authMocks.lookupStudentRecord.mockRejectedValue(apiError(422, { school_id: [MISMATCH] }));
     renderPage();
     fillForm({ birthDate: '2000-01-01' });
 
     submit();
 
-    expect(await within(await summary()).findByText(MISMATCH)).toBeInTheDocument();
-    expect(screen.getAllByText(MISMATCH)).toHaveLength(2);
+    const message = await screen.findByText(MISMATCH);
+    expect(screen.getAllByText(MISMATCH)).toHaveLength(1);
+    expect(message).toHaveAttribute('role', 'alert');
+    expect(message.closest('a')).toBeNull();
+    expect(message).not.toHaveClass('underline');
+    expect(screen.queryByRole('group', { name: 'There is a problem' })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/School ID/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/School ID/)).toHaveFocus();
+    expect(screen.getByLabelText(/School ID/)).toHaveValue('2600101');
     expect(screen.getByLabelText(/Birth date/)).toHaveValue('2000-01-01');
     expect(authMocks.register).not.toHaveBeenCalled();
   });
@@ -172,14 +178,14 @@ describe('StudentSignUpPage', () => {
     expect(screen.getByLabelText(/School ID/)).toHaveValue('2600101');
   });
 
-  it('flags the school ID if the record was claimed meanwhile', async () => {
+  it('flags the school ID once if the record was claimed meanwhile', async () => {
     authMocks.register.mockRejectedValue(apiError(422, { school_id: [CLAIMED] }));
     renderPage();
     fillForm();
 
     submit();
 
-    await waitFor(() => expect(screen.getAllByText(CLAIMED)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(CLAIMED)).toHaveLength(1));
     expect(screen.getByLabelText(/School ID/)).toHaveAttribute('aria-invalid', 'true');
   });
 });

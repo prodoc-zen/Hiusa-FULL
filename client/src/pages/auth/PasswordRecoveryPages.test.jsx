@@ -40,17 +40,16 @@ describe('password recovery pages', () => {
     expect(screen.getByText(/If an account matches/)).toBeInTheDocument();
   });
 
-  it('says before submitting what happens with email on and with email off', () => {
+  it('says before submitting, in two short sentences, what happens next', () => {
     render(
       <MemoryRouter initialEntries={['/recover-account']}>
         <Routes><Route path="/recover-account" element={<RecoverAccountPage />} /></Routes>
       </MemoryRouter>,
     );
 
-    const intro = screen.getByText(/When email is turned on/);
-    expect(intro).toHaveTextContent(/When it is off, this page says so and you ask your organization Admin or the SAO for a one-time link\./);
-    expect(intro).toHaveTextContent(/SAO staff ask another SAO account holder\./);
-    expect(intro).not.toHaveTextContent(/^Enter the email or school ID you sign in with\. We send/);
+    const intro = screen.getByText(/Enter the email or school ID you sign in with\./);
+    expect(intro).toHaveTextContent('Enter the email or school ID you sign in with. We email you a reset link, or tell you who can give you one.');
+    expect(screen.queryByText(/When email is turned on/)).not.toBeInTheDocument();
   });
 
   it('tells the person to ask for a reset, without claiming an email was sent, when mail is off', async () => {

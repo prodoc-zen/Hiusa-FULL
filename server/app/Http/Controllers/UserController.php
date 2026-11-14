@@ -652,12 +652,29 @@ class UserController extends Controller
             ->header('Cache-Control', 'no-store');
     }
 
-    /** A disabled person is told who can switch the account back on: the organization Admin for students and officers, the SAO for everyone else. */
+    /**
+     * A disabled person is told who can switch the account back on. The audit trail says who switched it off: the SAO (system users) or the organization Admin (users).
+     * A student or officer with no such row (switched off some other way) gets wording that is true in both cases. Everyone else is the SAO's to manage.
+     */
     private function inactiveAccountMessage(User $user): string
     {
-        return in_array($user->getRawOriginal('role'), ['STUDENT', 'SBO_OFFICER'], true)
-            ? 'This account is not active. Ask your organization Admin to switch it back on.'
-            : 'This account is not active. Ask the Student Affairs Office (SAO) to switch it back on.';
+        $sao = 'This account is not active. Ask the Student Affairs Office to switch it back on.';
+        if (! in_array($user->getRawOriginal('role'), ['STUDENT', 'SBO_OFFICER'], true)) {
+            return $sao;
+        }
+
+        $deactivatedBy = AuditLog::where('record_type', User::class)
+            ->where('record_id', $user->school_id)
+            ->where(fn ($rows) => $rows->where(fn ($row) => $row->where('module', 'system_users')->where('action', 'user_deactivated'))
+                ->orWhere(fn ($row) => $row->where('module', 'users')->where('action', 'deactivated')))
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->value('module');
+
+        return match ($deactivatedBy) {
+            'system_users' => $sao,
+            'users' => 'This account is not active. Ask your organization Admin to switch it back on.',
+            default => 'This account is switched off. Ask the Student Affairs Office or your organization Admin to switch it back on.',
+        };
     }
 
     public function disable(Request $request, $id)

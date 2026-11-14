@@ -322,13 +322,57 @@ class SystemUserAccountControlTest extends TestCase
         $this->assertSame('one@example.test', $student->fresh()->email);
     }
 
-    public function test_a_disabled_student_or_officer_is_told_to_ask_their_organization_admin(): void
+    public function test_a_student_the_sao_switched_off_is_told_to_ask_the_sao(): void
+    {
+        $sao = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $student = User::factory()->student()->create(['password_hash' => 'password123', 'account_status' => 'active']);
+
+        Sanctum::actingAs($sao);
+        $this->patchJson('/api/system/users/'.$student->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+
+        $this->postJson('/api/login', ['organization_id' => $student->organization_id, 'school_id' => $student->school_id, 'password' => 'password123'])
+            ->assertForbidden()->assertJsonPath('account_status', 'disabled')
+            ->assertJsonPath('message', 'This account is not active. Ask the Student Affairs Office to switch it back on.');
+    }
+
+    public function test_a_student_their_organization_admin_switched_off_is_told_to_ask_the_admin(): void
+    {
+        $admin = User::factory()->admin()->create(['account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $admin->organization_id, 'password_hash' => 'password123', 'account_status' => 'active']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/users/'.$student->school_id.'/disable')->assertOk();
+
+        $this->postJson('/api/login', ['organization_id' => $student->organization_id, 'school_id' => $student->school_id, 'password' => 'password123'])
+            ->assertForbidden()->assertJsonPath('account_status', 'disabled')
+            ->assertJsonPath('message', 'This account is not active. Ask your organization Admin to switch it back on.');
+    }
+
+    public function test_the_latest_switch_off_decides_who_is_named(): void
+    {
+        $sao = User::factory()->superAdmin()->create(['account_status' => 'active']);
+        $admin = User::factory()->admin()->create(['account_status' => 'active']);
+        $student = User::factory()->student()->create(['organization_id' => $admin->organization_id, 'password_hash' => 'password123', 'account_status' => 'active']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/users/'.$student->school_id.'/disable')->assertOk();
+        $this->travel(1)->minutes();
+        Sanctum::actingAs($sao);
+        $this->patchJson('/api/system/users/'.$student->school_id.'/status', ['account_status' => 'active'])->assertOk();
+        $this->patchJson('/api/system/users/'.$student->school_id.'/status', ['account_status' => 'disabled'])->assertOk();
+
+        $this->postJson('/api/login', ['organization_id' => $student->organization_id, 'school_id' => $student->school_id, 'password' => 'password123'])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This account is not active. Ask the Student Affairs Office to switch it back on.');
+    }
+
+    public function test_a_student_or_officer_switched_off_with_no_record_gets_wording_true_for_both(): void
     {
         foreach (['student', 'officer'] as $state) {
             $user = User::factory()->{$state}()->create(['password_hash' => 'password123', 'account_status' => 'disabled']);
             $this->postJson('/api/login', ['organization_id' => $user->organization_id, 'school_id' => $user->school_id, 'password' => 'password123'])
                 ->assertForbidden()->assertJsonPath('account_status', 'disabled')
-                ->assertJsonPath('message', 'This account is not active. Ask your organization Admin to switch it back on.');
+                ->assertJsonPath('message', 'This account is switched off. Ask the Student Affairs Office or your organization Admin to switch it back on.');
         }
     }
 
@@ -342,7 +386,7 @@ class SystemUserAccountControlTest extends TestCase
         foreach ($users as $user) {
             $this->postJson('/api/login', ['organization_id' => $user->organization_id, 'school_id' => $user->school_id, 'password' => 'password123'])
                 ->assertForbidden()->assertJsonPath('account_status', 'disabled')
-                ->assertJsonPath('message', 'This account is not active. Ask the Student Affairs Office (SAO) to switch it back on.');
+                ->assertJsonPath('message', 'This account is not active. Ask the Student Affairs Office to switch it back on.');
         }
     }
 }
