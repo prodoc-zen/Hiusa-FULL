@@ -19,7 +19,9 @@ use Tests\TestCase;
 /**
  * A student's account lives in the college and each organization they belong to is a student profile of its own.
  * Whichever profile is current decides what the student pages read: the organization profile reads that
- * organization, the college profile reads the college home. A profile the student does not hold reads nothing.
+ * organization, the college profile reads the college home and every organization of that college the student
+ * belongs to, so a plain member sees the shop and the announcements without switching. A profile the student does not
+ * hold reads nothing.
  */
 class ProfileScopeTest extends TestCase
 {
@@ -112,8 +114,8 @@ class ProfileScopeTest extends TestCase
         $this->asProfile($this->psitsProfile)->getJson('/api/announcements?published_only=1')->assertOk()
             ->assertJsonPath('data.0.title', 'From PSITS')->assertJsonCount(1, 'data');
 
-        $this->asProfile($this->collegeProfile)->getJson('/api/announcements?published_only=1')->assertOk()
-            ->assertJsonPath('data.0.title', 'From the college')->assertJsonCount(1, 'data');
+        $college = $this->asProfile($this->collegeProfile)->getJson('/api/announcements?published_only=1')->assertOk();
+        $this->assertEqualsCanonicalizing(['From the college', 'From PSITS'], collect($college->json('data'))->pluck('title')->all());
     }
 
     public function test_the_store_follows_the_current_profile(): void
@@ -124,8 +126,8 @@ class ProfileScopeTest extends TestCase
         $this->asProfile($this->psitsProfile)->getJson('/api/merchandise')->assertOk()
             ->assertJsonPath('data.0.name', 'PSITS shirt')->assertJsonCount(1, 'data');
 
-        $this->asProfile($this->collegeProfile)->getJson('/api/merchandise')->assertOk()
-            ->assertJsonPath('data.0.name', 'College lanyard')->assertJsonCount(1, 'data');
+        $college = $this->asProfile($this->collegeProfile)->getJson('/api/merchandise')->assertOk();
+        $this->assertEqualsCanonicalizing(['College lanyard', 'PSITS shirt'], collect($college->json('data'))->pluck('name')->all());
     }
 
     public function test_orders_and_payments_follow_the_current_profile(): void
@@ -146,7 +148,7 @@ class ProfileScopeTest extends TestCase
         $this->assertSame(['PSITS fee'], collect($this->getJson('/api/invoices')->assertOk()->json())->pluck('description')->all());
 
         $orders = $this->asProfile($this->collegeProfile)->getJson('/api/orders')->assertOk();
-        $this->assertSame([$collegeOrder->id], collect($orders->json('data'))->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([$collegeOrder->id, $psitsOrder->id], collect($orders->json('data'))->pluck('id')->all());
         $this->assertSame([$this->home->name.' fee'], collect($this->getJson('/api/invoices')->assertOk()->json())->pluck('description')->all());
     }
 
@@ -154,8 +156,12 @@ class ProfileScopeTest extends TestCase
     {
         $psitsItem = Merchandise::factory()->create(['organization_id' => $this->psits->id]);
         $psitsOrder = Order::factory()->create(['organization_id' => $this->psits->id, 'student_id' => $this->student->school_id, 'merchandise_id' => $psitsItem->id, 'processed_by' => null, 'approved_by' => null]);
+        $elsewhereItem = Merchandise::factory()->create(['organization_id' => $this->elsewhere->id]);
+        $elsewhereOrder = Order::factory()->create(['organization_id' => $this->elsewhere->id, 'student_id' => $this->student->school_id, 'merchandise_id' => $elsewhereItem->id, 'processed_by' => null, 'approved_by' => null]);
 
-        $this->asProfile($this->collegeProfile)->getJson("/api/orders/{$psitsOrder->id}")->assertNotFound();
+        // An organization the student holds no profile in stays closed from either profile.
+        $this->asProfile($this->collegeProfile)->getJson("/api/orders/{$elsewhereOrder->id}")->assertNotFound();
+        $this->asProfile($this->psitsProfile)->getJson("/api/orders/{$elsewhereOrder->id}")->assertNotFound();
         $this->asProfile($this->psitsProfile)->getJson("/api/orders/{$psitsOrder->id}")->assertOk();
     }
 

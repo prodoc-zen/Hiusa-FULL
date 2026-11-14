@@ -34,7 +34,7 @@ class OrderController extends Controller
 
         $filters = $this->validateOrderFilters($request);
 
-        $query = $this->orderRowQuery()->where('organization_id', $user->organization_id);
+        $query = $this->orderRowQuery()->whereIn('organization_id', $this->buyerOrganizationIds($user));
 
         $personalView = ! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $request->boolean('mine');
 
@@ -63,7 +63,7 @@ class OrderController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $query = $this->orderRowQuery()->where('organization_id', $user->organization_id);
+        $query = $this->orderRowQuery()->whereIn('organization_id', $this->buyerOrganizationIds($user));
 
         if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)) {
             $query->where('student_id', $user->id);
@@ -77,6 +77,12 @@ class OrderController extends Controller
         $this->hideUnreleasedClaimToken($order);
 
         return response()->json($order);
+    }
+
+    /** Organizations whose orders this account reads and acts on: a student's memberships, anyone else's own organization. */
+    private function buyerOrganizationIds(User $user): array
+    {
+        return $user->role === 'STUDENT' ? $user->memberOrganizationIds() : [(int) $user->organization_id];
     }
 
     /** The relations every order row carries, so the list and the single order share one shape. */
@@ -402,6 +408,10 @@ class OrderController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
+        // A product is ordered in the organization that sells it: a student's college profile reaches every club they are a member of.
+        $organizationId = (int) (Merchandise::whereIn('organization_id', $this->buyerOrganizationIds($user))
+            ->whereKey((int) $request->input('merchandise_id'))->value('organization_id') ?: $user->organization_id);
         $data = $request->validate([
             'merchandise_id' => ['required', 'exists:merchandise,id'],
             'quantity' => ['required', 'integer', 'min:1'],
@@ -412,13 +422,17 @@ class OrderController extends Controller
                 'string',
                 'regex:/^\d{13}$/',
                 Rule::unique('orders', 'payment_reference')->where(
-                    fn ($query) => $query->where('organization_id', $request->user()->organization_id)
+                    fn ($query) => $query->where('organization_id', $organizationId)
                 ),
             ],
             'payment_proof' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
-        if (($data['payment_method'] ?? null) === 'gcash' && ! $this->organizationHasGcashQr($request->user()->organization_id)) {
+        if (($data['payment_method'] ?? null) === 'gcash' && $organizationId !== (int) $user->organization_id) {
+            return response()->json(['message' => 'GCash is paid through the organization that sells this product. Reserve with cash, or sign in to that organization to pay with GCash.'], 422);
+        }
+
+        if (($data['payment_method'] ?? null) === 'gcash' && ! $this->organizationHasGcashQr($organizationId)) {
             return response()->json(['message' => 'GCash payment is unavailable until an administrator uploads the official QR code.'], 422);
         }
 
@@ -429,8 +443,8 @@ class OrderController extends Controller
 
         unset($data['payment_proof']);
 
-        return DB::transaction(function () use ($data, $request) {
-            $item = Merchandise::where('organization_id', $request->user()->organization_id)
+        return DB::transaction(function () use ($data, $request, $organizationId) {
+            $item = Merchandise::where('organization_id', $organizationId)
                 ->lockForUpdate()
                 ->find($data['merchandise_id']);
 
@@ -490,14 +504,14 @@ class OrderController extends Controller
                     'payment_method' => $data['payment_method'] ?? null,
                     'payment_reference' => $data['payment_reference'] ?? null,
                     'payment_reference_key' => ! empty($data['payment_reference'])
-                        ? $this->paymentReferenceKey($request->user()->organization_id, $data['payment_reference'])
+                        ? $this->paymentReferenceKey($organizationId, $data['payment_reference'])
                         : null,
                     'payment_proof_url' => $paymentProofUrl,
                     'officer_review_status' => 'pending',
                     'admin_review_status' => 'pending',
                     'status' => 'pending',
                     'claim_token' => strtoupper(Str::random(16)),
-                    'organization_id' => $request->user()->organization_id,
+                    'organization_id' => $organizationId,
                 ]);
 
                 $this->fulfillmentService->holdStock($order, $item, $variant);
@@ -538,7 +552,7 @@ class OrderController extends Controller
 
         try {
             $order = DB::transaction(function () use ($request, $id, $data, $paymentProofUrl, &$oldPaymentProofUrl) {
-                $order = Order::where('organization_id', $request->user()->organization_id)
+                $order = Order::whereIn('organization_id', $this->buyerOrganizationIds($request->user()))
                     ->lockForUpdate()
                     ->find($id);
 
@@ -548,6 +562,10 @@ class OrderController extends Controller
 
                 if ($order->student_id !== $request->user()->id) {
                     return null;
+                }
+
+                if ((int) $order->organization_id !== (int) $request->user()->organization_id) {
+                    abort(422, 'GCash is paid through the organization that sells this product. Sign in to that organization to submit the payment proof.');
                 }
 
                 if ($order->status !== 'pending' || $order->officer_review_status !== 'pending') {
@@ -592,7 +610,7 @@ class OrderController extends Controller
 
         try {
             $order = DB::transaction(function () use ($request, $id, $data) {
-                $order = Order::where('organization_id', $request->user()->organization_id)
+                $order = Order::whereIn('organization_id', $this->buyerOrganizationIds($request->user()))
                     ->whereKey($id)
                     ->lockForUpdate()
                     ->first();
@@ -807,7 +825,7 @@ class OrderController extends Controller
 
     public function paymentProof(Request $request, $id)
     {
-        $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
+        $order = Order::whereIn('organization_id', $this->buyerOrganizationIds($request->user()))->find($id);
         if (! $order) {
             return response()->json(['message' => 'Order not found.'], 404);
         }

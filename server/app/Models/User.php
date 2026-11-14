@@ -363,6 +363,43 @@ class User extends Authenticatable
     }
 
     /**
+     * Organizations whose shop and announcements a student reads from the profile they are signed in to. A club profile
+     * reads that club only. The college profile is the member's own account, so it reads the college home and every
+     * organization of that college where they hold an active student profile: "Give access" as Member adds exactly that
+     * profile and leaves the account on the college. Archived organizations and other colleges' clubs are never listed.
+     *
+     * @return array<int, int>
+     */
+    public function memberOrganizationIds(): array
+    {
+        $current = $this->organization ?? Organization::find($this->organization_id);
+        if (! $current || $current->organization_type !== 'COLLEGE' || ! $current->college_id) {
+            return [(int) $this->organization_id];
+        }
+
+        $clubIds = AccountProfile::where('account_profiles.user_school_id', $this->school_id)
+            ->where('account_profiles.account_status', 'active')
+            ->where('account_profiles.role', 'STUDENT')
+            ->with('organization.catalogCollege')
+            ->get()
+            ->filter(fn (AccountProfile $profile) => $profile->organization?->isWritable()
+                && (int) $profile->organization->college_id === (int) $current->college_id)
+            ->pluck('organization_id');
+
+        return $clubIds->push($current->id)->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * The organizations whose announcements and shop this account reads: a student's memberships, anyone else's own scope.
+     *
+     * @return array<int, int>
+     */
+    public function contentOrganizationIds(): array
+    {
+        return $this->role === 'STUDENT' ? $this->memberOrganizationIds() : $this->scopedOrganizationIds();
+    }
+
+    /**
      * Organizations whose elections this person reads: a student reads the ones the current profile votes in, anyone
      * else reads their own scope.
      *

@@ -183,7 +183,7 @@ class AnnouncementController extends Controller
             'managed' => ['nullable', 'boolean'],
         ]);
 
-        $readableOrgIds = $this->readableOrganizationIds($request);
+        $readableOrgIds = $user->role === 'STUDENT' ? $user->memberOrganizationIds() : $this->readableOrganizationIds($request);
         $query = Announcement::with([
             'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
@@ -366,7 +366,7 @@ class AnnouncementController extends Controller
     private function visibleAnnouncement(User $user, $id): ?Announcement
     {
         return Announcement::where(function ($scope) use ($user) {
-            $scope->whereIn('organization_id', $user->scopedOrganizationIds())
+            $scope->whereIn('organization_id', $user->contentOrganizationIds())
                 ->orWhere(fn ($global) => $global->whereIn('announcement_source', ['SAO', 'COMPLIANCE'])->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
         })
             ->where('is_published', true)

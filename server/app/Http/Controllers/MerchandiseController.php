@@ -47,8 +47,10 @@ class MerchandiseController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = Merchandise::with('variants')->withCount('orders')
-            ->where('organization_id', $request->user()->organization_id)
+        // A student reads the shop of every organization they are a member of, not only the one the account is signed in to.
+        $user = $request->user();
+        $query = Merchandise::with(['variants', 'organization:id,name,acronym'])->withCount('orders')
+            ->whereIn('organization_id', $user->role === 'STUDENT' ? $user->memberOrganizationIds() : [$user->organization_id])
             ->orderBy('name', 'asc')
             ->orderBy('id');
 
