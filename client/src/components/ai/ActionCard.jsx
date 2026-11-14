@@ -7,6 +7,8 @@ import isSafePageHref from './safeHref';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const INPUT_CLASS = 'h-11 read-only:bg-subtle read-only:text-ink-muted-strong';
+// The shared Select is 40px; this lifts only the card's selects to the 44px of INPUT_CLASS.
+const SELECT_FIELD_CLASS = '[&>div>div]:min-h-11';
 const NOTE_CLASS = 'text-xs font-medium text-ink-muted-strong';
 const FAILURE = 'Could not complete that. Try again.';
 const THROTTLED = 'Too many requests. Wait a moment, then try again.';
@@ -81,7 +83,7 @@ function ActionField({ field, value, error, readOnly, onChange }) {
   if (field.type === 'select') {
     const options = Array.isArray(field.options) ? field.options : [];
     return (
-      <Field label={label} hint={hint} error={error} required={field.required}>
+      <Field label={label} hint={hint} error={error} required={field.required} className={SELECT_FIELD_CLASS}>
         <Select value={value} disabled={readOnly} onChange={(event) => onChange(event.target.value)}>
           {field.required && (value === '' || value == null) && <option value="" disabled>Choose an option</option>}
           {!field.required && <option value="">None</option>}
@@ -149,7 +151,7 @@ function CopyDetails({ getText }) {
   );
 }
 
-export default function ActionCard({ message, action, live = true, onChange, onAskAgain, askAgainDisabled = false }) {
+export default function ActionCard({ message, action, live = true, onChange, onValuesChange, onAskAgain, askAgainDisabled = false }) {
   const fields = Array.isArray(action.fields) ? action.fields : [];
   const [values, setValues] = useState(() => initialValues(fields));
   const [errors, setErrors] = useState(() => action.errors || {});
@@ -158,6 +160,12 @@ export default function ActionCard({ message, action, live = true, onChange, onA
   const busyRef = useRef(false);
   const now = useExpiry(action);
   const status = effectiveStatus(action, now);
+  const showsForm = !['done', 'cancelled', 'failed'].includes(status);
+
+  // The message Copy reads these, so it copies what the person edited, and falls back to the stored values once the form is gone.
+  useEffect(() => {
+    onValuesChange?.(showsForm ? values : null);
+  }, [onValuesChange, showsForm, values]);
 
   const run = async (request, onRefused) => {
     if (busyRef.current) return;
@@ -210,7 +218,7 @@ export default function ActionCard({ message, action, live = true, onChange, onA
   if (status === 'cancelled' || status === 'failed') {
     const line = {
       cancelled: 'You cancelled this request.',
-      failed: 'This request did not go through.',
+      failed: action.result?.message || 'This request did not go through.',
     }[status];
     return <p className={`mt-3 ${NOTE_CLASS}`}>{line}</p>;
   }

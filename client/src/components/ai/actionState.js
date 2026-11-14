@@ -33,8 +33,8 @@ export function actionDetailsText(action, values) {
   return lines.join('\n');
 }
 
-export function actionCopyText(message) {
+export function actionCopyText(message, values) {
   const action = actionOf(message);
   if (!action) return message.content || '';
-  return [message.content, actionDetailsText(action)].filter(Boolean).join('\n');
+  return [message.content, actionDetailsText(action, values || undefined)].filter(Boolean).join('\n');
 }

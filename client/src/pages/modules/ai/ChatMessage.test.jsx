@@ -154,6 +154,25 @@ describe('ChatMessage with an action', () => {
     );
   });
 
+  it('copies what the person edited in the card, not the stored values', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    renderMessage(proposal());
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: 'Edited Assembly' } });
+    fireEvent.click(screen.getByLabelText('Open to everyone'));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await screen.findByRole('button', { name: 'Copied' });
+    expect(writeText).toHaveBeenCalledWith(
+      'Here is the event I can create.\nCreate an event\nTitle: Edited Assembly\nAssign to: Ana Cruz\nOpen to everyone: No',
+    );
+  });
+
+  it('shows the interrupted sentence once when the server closes a card with it', () => {
+    const sentence = 'I could not tell whether this went through. Check the page before trying again.';
+    renderMessage({ ...proposal('failed', { result: { message: sentence } }), content: sentence });
+    expect(screen.getAllByText(sentence)).toHaveLength(1);
+  });
+
   it('shows the result once, in the card, when done', () => {
     renderMessage(proposal('done', { result: { message: 'Event created.', href: '/dashboard/events/3', action_label: 'Open event' } }));
     expect(screen.getAllByText('Event created.')).toHaveLength(1);

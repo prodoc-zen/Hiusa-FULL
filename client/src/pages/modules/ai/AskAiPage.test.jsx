@@ -432,7 +432,7 @@ describe('AskAiPage', () => {
     renderPage('/dashboard/ask-ai?c=99');
     expect(await screen.findByText(/no longer available/)).toBeInTheDocument();
     await ready();
-    expect(screen.getByTestId('location')).toHaveTextContent(/^\/dashboard\/ask-ai$/);
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/dashboard\/ask-ai$/));
   });
 
   it('shows a retry when a conversation fails to load', async () => {
