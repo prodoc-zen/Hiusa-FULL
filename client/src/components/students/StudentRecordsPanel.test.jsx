@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentRecordsPanel from './StudentRecordsPanel';
 
@@ -6,12 +6,17 @@ const mocks = vi.hoisted(() => ({
   getStudentRegistry: vi.fn(),
   previewStudentRegistry: vi.fn(),
   applyStudentRegistry: vi.fn(),
+  updateStudentRegistryEntry: vi.fn(),
+  deleteStudentRegistryEntry: vi.fn(),
 }));
 
+const notifyMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+
 vi.mock('../../services/studentRegistryService', () => mocks);
+vi.mock('../../lib/notify', () => ({ default: notifyMocks }));
 
 const entry = (overrides) => ({
-  id: 1, school_id: 2600101, name: 'Hannah Reyes', college: { id: 1, name: 'College of Computer Studies', code: 'CCS' },
+  id: 1, school_id: 2600101, name: 'Hannah Reyes', first_name: 'Hannah', last_name: 'Reyes', college: { id: 1, name: 'College of Computer Studies', code: 'CCS' },
   program: 'BS Information Technology', year_level: '1st Year', section: 'A', claimed: false, claimed_at: null, ...overrides,
 });
 
@@ -132,6 +137,99 @@ describe('StudentRecordsPanel', () => {
 
     expect((await screen.findAllByText('Department Secretary')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Line 2, ID 7100101').length).toBeGreaterThan(0);
+  });
+
+  it('offers Edit and Remove only on records with no account behind them', async () => {
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    expect(screen.getAllByRole('button', { name: 'Edit Hannah Reyes' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Remove Hannah Reyes' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Edit Ben Tan' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Ben Tan' })).not.toBeInTheDocument();
+  });
+
+  it('removes a record only after the person confirms, then reloads the list', async () => {
+    mocks.deleteStudentRegistryEntry.mockResolvedValue(undefined);
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Hannah Reyes' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this record?' });
+    expect(within(dialog).getByText(/Hannah Reyes/)).toBeInTheDocument();
+    expect(mocks.deleteStudentRegistryEntry).not.toHaveBeenCalled();
+
+    mocks.getStudentRegistry.mockClear();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove record' }));
+
+    await waitFor(() => expect(mocks.deleteStudentRegistryEntry).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenCalled());
+    expect(notifyMocks.success).toHaveBeenCalledWith('Record removed.');
+    expect(screen.queryByRole('dialog', { name: 'Remove this record?' })).not.toBeInTheDocument();
+  });
+
+  it('shows the reason when the server refuses a removal and keeps the record', async () => {
+    mocks.deleteStudentRegistryEntry.mockRejectedValue({ response: { status: 409, data: { message: 'This record is tied to an account, so it cannot be changed here.' } } });
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Hannah Reyes' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Remove this record?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove record' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This record is tied to an account, so it cannot be changed here.');
+    expect(notifyMocks.success).not.toHaveBeenCalled();
+  });
+
+  it('corrects a name and birth date from a filled form and reloads the list', async () => {
+    mocks.updateStudentRegistryEntry.mockResolvedValue({});
+    mocks.getStudentRegistry.mockResolvedValue(list([entry({ birth_date: '2007-01-02' })]));
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Hannah Reyes' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Correct this record' });
+    expect(within(dialog).getByLabelText('First name')).toHaveValue('Hannah');
+    expect(within(dialog).getByLabelText('Birth date')).toHaveValue('2007-01-02');
+    expect(within(dialog).getByRole('button', { name: 'Save changes' })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText('Last name'), { target: { value: 'Reyes-Lim' } });
+    fireEvent.change(within(dialog).getByLabelText('Birth date'), { target: { value: '2007-03-04' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mocks.updateStudentRegistryEntry).toHaveBeenCalledWith(1, { first_name: 'Hannah', last_name: 'Reyes-Lim', birth_date: '2007-03-04' }));
+    expect(notifyMocks.success).toHaveBeenCalledWith('Record corrected.');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Correct this record' })).not.toBeInTheDocument());
+  });
+
+  it('lets a dean fix a name without retyping a birth date they cannot see', async () => {
+    mocks.updateStudentRegistryEntry.mockResolvedValue({});
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Hannah Reyes' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Correct this record' });
+    expect(within(dialog).getByLabelText('Birth date')).toHaveValue('');
+    expect(within(dialog).getByText('Leave blank to keep the birth date on record.')).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('First name'), { target: { value: 'Hanna' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mocks.updateStudentRegistryEntry).toHaveBeenCalledWith(1, { first_name: 'Hanna', last_name: 'Reyes' }));
+  });
+
+  it('shows why a correction failed and keeps the form open', async () => {
+    mocks.getStudentRegistry.mockResolvedValue(list([entry({ birth_date: '2007-01-02' })]));
+    mocks.updateStudentRegistryEntry.mockRejectedValue({ response: { status: 422, data: { message: 'x', errors: { birth_date: ['The birth date field must be a date before today.'] } } } });
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Hannah Reyes' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Correct this record' });
+    fireEvent.change(within(dialog).getByLabelText('Birth date'), { target: { value: '2999-01-01' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('before today');
+    expect(within(dialog).getByLabelText('Birth date')).toHaveValue('2999-01-01');
   });
 
   it('shows a loading state first', () => {
