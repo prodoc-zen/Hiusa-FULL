@@ -45,4 +45,26 @@ class AiInstructionsTest extends TestCase
             $this->assertStringContainsString($rule, $text);
         }
     }
+
+    public function test_the_chat_brief_names_every_fact_key_every_component_and_keeps_the_money_rules(): void
+    {
+        $text = AiInstructions::askAiChat();
+
+        foreach (['user_first_name', 'role', 'scope', 'today', 'semester', 'memories', 'deterministic_answer', 'highlights', 'sections', 'records', 'guide_steps'] as $key) {
+            $this->assertStringContainsString($key, $text);
+        }
+        foreach (['callout callout-warning', 'badge badge-success', 'stat-grid', 'stat-value', 'stat-label', '<details><summary>', '<progress value='] as $component) {
+            $this->assertStringContainsString($component, $text);
+        }
+        $this->assertStringContainsString('PHP 12,500.00', $text);
+        $this->assertStringContainsString('Never use $', $text);
+        $this->assertStringContainsString('180 words', $text);
+        $this->assertStringContainsString('[date]', $text);
+        $this->assertStringContainsString('decline in one sentence', $text);
+        $this->assertStringContainsString('[Open compliance](/dashboard/compliance)', $text);
+        $this->assertStringNotContainsString('plain text', strtolower($text));
+        $this->assertStringNotContainsString("\u{2014}", $text);
+        $this->assertStringNotContainsString("\u{2013}", $text);
+        $this->assertNotSame(AiInstructions::askAi(), $text);
+    }
 }

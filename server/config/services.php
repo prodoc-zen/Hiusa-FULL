@@ -68,6 +68,9 @@ return [
         // Seconds for the whole call. The SDK enforces no timeout itself, so the HTTP transport carries it.
         'timeout' => env('ANTHROPIC_TIMEOUT', 12),
         'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
+        // Ask AI conversations stream and think, so they get their own effort and a longer total timeout.
+        'chat_effort' => env('ANTHROPIC_CHAT_EFFORT', 'medium'),
+        'chat_timeout' => env('ANTHROPIC_CHAT_TIMEOUT', 60),
     ],
 
     'ai' => [

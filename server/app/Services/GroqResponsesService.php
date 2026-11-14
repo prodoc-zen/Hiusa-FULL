@@ -66,6 +66,48 @@ class GroqResponsesService implements TextGenerator
     }
 
     /**
+     * Multi-turn answer through the Responses API: the turns are the input array and the whole text arrives as one event.
+     *
+     * @return array{text: string, reasoning: ?string, model: string, response_id: ?string}|null
+     */
+    public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        if ($messages === []) {
+            return null;
+        }
+
+        $payload = $this->request([
+            'model' => (string) config('services.groq.model'),
+            'instructions' => $instructions,
+            'input' => array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
+            'reasoning' => ['effort' => $this->reasoningEffort()],
+            'max_output_tokens' => $maxOutputTokens,
+        ]);
+
+        if ($payload === null || data_get($payload, 'status') === 'incomplete') {
+            return null;
+        }
+
+        $text = $this->extractOutputText($payload);
+        if ($text === '') {
+            Log::warning('Groq Responses API returned no output text.', ['response_id' => data_get($payload, 'id')]);
+
+            return null;
+        }
+
+        if ($onEvent !== null) {
+            $onEvent('text', $text);
+        }
+
+        return [
+            'text' => $text,
+            'reasoning' => null,
+            'model' => (string) (data_get($payload, 'model') ?: config('services.groq.model')),
+            'response_id' => data_get($payload, 'id'),
+        ];
+    }
+
+    /**
      * Generate a JSON object constrained by a Groq Responses API JSON schema.
      *
      * @return array{data: array, text: string, model: string, response_id: ?string}|null
