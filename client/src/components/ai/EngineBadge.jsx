@@ -3,7 +3,7 @@ import { Cpu, Server } from 'lucide-react';
 const ENGINE_LABELS = {
   'python-fastapi': 'Python AI service',
   'ai-service': 'Python AI service',
-  'php-fallback': 'Local fallback engine',
+  'php-fallback': 'Built-in rules',
 };
 
 export default function EngineBadge({ engine, className = '' }) {
