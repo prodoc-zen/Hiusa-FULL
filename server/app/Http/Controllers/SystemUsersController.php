@@ -23,6 +23,7 @@ use RuntimeException;
 class SystemUsersController extends Controller
 {
     private const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
+
     private const DEPARTMENT_HEAD_ELSEWHERE = 'A Department Head is managed from Colleges, under Manage Department Head.';
 
     /**
