@@ -353,8 +353,9 @@ class ClearanceController extends Controller
             ->with(['clearancePeriod:id,academic_year,title,deadline_at'])
             ->get()
             ->groupBy('clearance_period_id');
+        $archived = ClearancePeriod::inArchivedYear()->whereIn('id', $signatures->keys())->pluck('id')->flip();
 
-        $result = $signatures->map(function ($rows) {
+        $result = $signatures->map(function ($rows) use ($archived) {
             $period = $rows->first()->clearancePeriod;
 
             return [
@@ -362,6 +363,7 @@ class ClearanceController extends Controller
                 'academic_year' => $period->academic_year,
                 'title' => $period->title,
                 'deadline_at' => $period->deadline_at,
+                'archived' => $archived->has($period->id),
                 'is_complete' => $rows->every(fn (ClearanceSignature $row) => $row->status === 'cleared'),
                 'signatures' => $rows->map(fn (ClearanceSignature $row) => [
                     'id' => $row->id,

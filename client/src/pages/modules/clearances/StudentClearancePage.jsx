@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardCheck, PauseCircle, CircleDashed, Wallet } from 'lucide-react';
-import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard } from '../../../components/ui';
+import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
 import { getMyClearances } from '../../../services/clearanceService';
 import { getStudentDebts } from '../../../services/financeService';
 import { debtRowFrom, owedSentence } from '../finance/accountDebt';
@@ -53,10 +53,12 @@ export default function StudentClearancePage() {
         setOwed(owedSentence(debtRowFrom(debts), peso));
         const list = Array.isArray(res.data) ? res.data : [];
         setPeriods(list);
-        // "Current" is the most recent period still incomplete; if every
-        // period is complete, fall back to the most recently opened one.
+        // "Current" is the most recent live period still incomplete; an archived year's lines never count,
+        // or a re-added year label would land the student on the old year's pending lines. If every live
+        // period is complete, fall back to the most recently opened one, then to an archived one.
         const sorted = [...list].sort((a, b) => b.clearance_period_id - a.clearance_period_id);
-        const current = sorted.find((entry) => !entry.is_complete) || sorted[0];
+        const live = sorted.filter((entry) => !entry.archived);
+        const current = live.find((entry) => !entry.is_complete) || live[0] || sorted[0];
         setSelectedId(current ? String(current.clearance_period_id) : '');
       })
       .catch(() => setError('Failed to load your clearance.'))
@@ -101,12 +103,15 @@ export default function StudentClearancePage() {
       )}
 
       {showing && periods.length > 1 && (
-        <div className="sm:w-80">
-          <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
-              <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{periodLabel(entry, 'parens')}</option>
-            ))}
-          </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="sm:w-80">
+            <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+              {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
+                <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{periodLabel(entry, 'parens')}{entry.archived ? ' (Archived)' : ''}</option>
+              ))}
+            </Select>
+          </div>
+          {showing.archived && <StatusBadge tone="neutral" label="Archived" />}
         </div>
       )}
 
