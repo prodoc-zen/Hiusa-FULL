@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -214,6 +215,27 @@ class ProfileScopeTest extends TestCase
         $strangerProfile = AccountProfile::where('user_school_id', $stranger->school_id)->firstOrFail();
 
         $this->asProfile($this->collegeProfile)->postJson("/api/user/profiles/{$strangerProfile->id}/switch")->assertNotFound();
+    }
+
+    public function test_membership_is_read_once_per_user_and_again_after_the_profile_changes(): void
+    {
+        $user = User::findOrFail($this->student->school_id);
+        $user->activateProfile($this->collegeProfile);
+
+        DB::enableQueryLog();
+        $first = $user->memberOrganizationIds();
+        $second = $user->memberOrganizationIds();
+        $user->inStudentOrganization();
+        $membershipQueries = collect(DB::getQueryLog())->filter(fn (array $query) => str_contains($query['query'], 'account_profiles'));
+        DB::disableQueryLog();
+
+        $this->assertEqualsCanonicalizing([$this->home->id, $this->psits->id], $first);
+        $this->assertSame($first, $second);
+        $this->assertCount(1, $membershipQueries);
+
+        $user->activateProfile($this->psitsProfile);
+
+        $this->assertSame([$this->psits->id], $user->memberOrganizationIds());
     }
 
     public function test_an_inactive_profile_reads_nothing(): void

@@ -8,6 +8,7 @@ use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\EventFileReview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -166,6 +167,24 @@ class EventFileReviewTest extends TestCase
         $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
     }
 
+    public function test_approving_is_refused_while_a_file_has_no_accepted_mark_and_passes_once_every_file_is_accepted(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $permitId = $this->fileId($eventId, $this->permit);
+        $proposalId = $this->fileId($eventId, $this->proposal);
+
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $permitId, 'status' => 'ok'],
+        ])->assertUnprocessable()->assertJsonFragment(['message' => EventFileReview::MARK_FIRST_MESSAGE]);
+        $this->assertSame('pending', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
+
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $permitId, 'status' => 'ok'],
+            ['id' => $proposalId, 'status' => 'ok'],
+        ])->assertOk();
+        $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
+    }
+
     public function test_a_needs_changes_mark_needs_a_note(): void
     {
         $eventId = $this->eventWithFiles();
@@ -235,7 +254,9 @@ class EventFileReviewTest extends TestCase
         $this->assertDatabaseMissing('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId]);
         $this->assertSame('pending', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
 
-        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved')->assertOk();
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $this->fileId($eventId, $this->permit), 'status' => 'ok'],
+        ])->assertOk();
         $this->assertSame('pending', $this->row($eventId, 'SUPER_ADMIN')->status);
     }
 
@@ -327,7 +348,9 @@ class EventFileReviewTest extends TestCase
 
         $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $permitId)->assertOk();
         $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'dean', 'status' => 'ok', 'note' => null]);
-        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved')->assertOk();
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $this->fileId($eventId, $this->proposal), 'status' => 'ok'],
+        ])->assertOk();
         $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
     }
 

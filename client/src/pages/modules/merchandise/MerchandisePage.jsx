@@ -1929,6 +1929,11 @@ export default function MerchandisePage({ initialTab }) {
   const soldElsewhere = (organizationId) => organizationId != null && currentOrgId != null && Number(organizationId) !== currentOrgId;
   const cartSoldElsewhere = cart.map((row) => row.item?.organization).find((organization) => soldElsewhere(organization?.id));
   const gcashUnavailable = gcashSettings !== null && !gcashReady;
+  // A GCash pick made before a club's product joined the cart would otherwise sit on a now-disabled option.
+  const cartBlocksGcash = Boolean(cartSoldElsewhere);
+  useEffect(() => {
+    if (cartBlocksGcash) setCheckoutPayment((current) => (current.method === "cash" ? current : { ...current, method: "cash" }));
+  }, [cartBlocksGcash]);
 
 
 

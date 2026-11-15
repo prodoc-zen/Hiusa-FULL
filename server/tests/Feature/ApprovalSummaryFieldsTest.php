@@ -8,6 +8,7 @@ use App\Models\Budget;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\EventRequirement;
+use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\Task;
@@ -94,7 +95,11 @@ class ApprovalSummaryFieldsTest extends TestCase
     {
         $row = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', $role)->firstOrFail();
         Sanctum::actingAs($reviewer);
-        $this->patchJson('/api/approval-requests/'.$row->id, array_filter(['status' => $status, 'remarks' => $status === 'rejected' ? 'No.' : null]))->assertOk();
+        // Approving an event needs every file Accepted at the step, so the helper accepts whatever files the event holds.
+        $files = $status === 'approved'
+            ? EventRequirementFile::where('event_id', $eventId)->pluck('id')->map(fn ($id) => ['id' => $id, 'status' => 'ok'])->all()
+            : [];
+        $this->patchJson('/api/approval-requests/'.$row->id, array_filter(['status' => $status, 'remarks' => $status === 'rejected' ? 'No.' : null, 'files' => $files]))->assertOk();
     }
 
     private function approval(string $type, int $entityId, array $overrides = []): ApprovalRequest

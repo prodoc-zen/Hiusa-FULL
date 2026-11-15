@@ -29,6 +29,11 @@ class User extends Authenticatable
 
     private ?AccountProfile $activeAccountProfile = null;
 
+    /** Read once per model instance and dropped when the active profile changes; see activateProfile(). */
+    private $usableMemberships = null;
+
+    private ?array $memberOrganizationIdsCache = null;
+
     /** True on an instance listed among others, which never carries the signed-in only fields. */
     private bool $listedAmongOthers = false;
 
@@ -188,7 +193,7 @@ class User extends Authenticatable
     /** The student organization profiles this person can work in: active, in an active club whose college is not archived. */
     private function usableStudentOrganizationMemberships()
     {
-        return AccountProfile::studentOrganizationMemberships($this->school_id)
+        return $this->usableMemberships ??= AccountProfile::studentOrganizationMemberships($this->school_id)
             ->with('organization')
             ->get()
             ->filter(fn (AccountProfile $profile) => $profile->isUsable());
@@ -280,6 +285,8 @@ class User extends Authenticatable
     public function activateProfile(AccountProfile $profile, bool $signedInRequest = false): void
     {
         $this->activeAccountProfile = $profile;
+        $this->usableMemberships = null;
+        $this->memberOrganizationIdsCache = null;
         $profile->organization?->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS);
         $this->setRelation('organization', $profile->organization?->withoutRelations()->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS));
         $this->authorizesAsDean = $signedInRequest && $this->isCollegeOfficeStaff();
@@ -401,6 +408,11 @@ class User extends Authenticatable
      * @return array<int, int>
      */
     public function memberOrganizationIds(): array
+    {
+        return $this->memberOrganizationIdsCache ??= $this->resolveMemberOrganizationIds();
+    }
+
+    private function resolveMemberOrganizationIds(): array
     {
         $current = $this->organization ?? Organization::find($this->organization_id);
         if (! $current || $current->organization_type !== 'COLLEGE') {

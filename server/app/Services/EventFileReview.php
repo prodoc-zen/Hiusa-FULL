@@ -56,7 +56,8 @@ class EventFileReview
 
     /**
      * Saves the marks sent with a decision. Approving is refused while any file of the event still
-     * says Needs changes at this step, whether the mark arrived now or on an earlier return.
+     * says Needs changes at this step, whether the mark arrived now or on an earlier return, and while any
+     * file has no Accepted mark at this step.
      *
      * @param  array<int, array{id: int, status: string, note?: ?string}>  $marks
      */
@@ -83,6 +84,13 @@ class EventFileReview
         if ($decision === 'approved' && EventRequirementFileReview::where('stage', $stage)
             ->where('status', 'needs_changes')
             ->whereIn('event_requirement_file_id', EventRequirementFile::where('event_id', $approval->entity_id)->select('id'))
+            ->exists()) {
+            throw new DomainException(self::MARK_FIRST_MESSAGE);
+        }
+
+        // A file nobody marked is not Accepted either, so approving waits until every file has an ok mark at this step.
+        if ($decision === 'approved' && EventRequirementFile::where('event_id', $approval->entity_id)
+            ->whereDoesntHave('reviews', fn ($reviews) => $reviews->where('stage', $stage)->where('status', 'ok'))
             ->exists()) {
             throw new DomainException(self::MARK_FIRST_MESSAGE);
         }

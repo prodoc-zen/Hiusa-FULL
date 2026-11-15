@@ -755,6 +755,37 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(option).toHaveTextContent("GCash - switch to your CCS Coders Guild profile to pay online");
   });
 
+  it("puts the payment method back to Cash when a club's product that disables GCash joins the cart", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT", organization_id: 1 }));
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: "/merchandise/gcash-settings/qr" } });
+    const ownShirt = { ...products[0], organization: { id: 1, name: "Own Org" } };
+    const clubCap = { ...products[0], id: 3, name: "Club Cap", organization: { id: 8, name: "CCS Coders Guild" } };
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [ownShirt, clubCap], current_page: 1, last_page: 1 } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: ownShirt, quantity: 1 }]));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/dashboard/merchandise/order-merchandise", state: { openCartAt: 1, openCheckout: true } }]}>
+        <MerchandisePage initialTab="order" />
+      </MemoryRouter>,
+    );
+
+    let dialog = await screen.findByRole("dialog", { name: "Confirm merchandise reservation" });
+    await waitFor(() => expect(dialog.querySelector('option[value="gcash"]')).not.toBeDisabled());
+    fireEvent.change(dialog.querySelector("select"), { target: { value: "gcash" } });
+    expect(dialog.querySelector("select").value).toBe("gcash");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue shopping" }));
+    await screen.findByText("Club Cap");
+    fireEvent.click(screen.getAllByRole("button", { name: "View product details" })[1]);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add to cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View cart" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review and continue" }));
+
+    dialog = await screen.findByRole("dialog", { name: "Confirm merchandise reservation" });
+    expect(dialog.querySelector('option[value="gcash"]')).toBeDisabled();
+    expect(dialog.querySelector("select").value).toBe("cash");
+  });
+
   it("says so on the shop when GCash is not set up and not when it is", async () => {
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });

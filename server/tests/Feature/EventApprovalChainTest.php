@@ -85,7 +85,12 @@ class EventApprovalChainTest extends TestCase
     {
         Sanctum::actingAs($reviewer);
 
-        return $this->patchJson('/api/approval-requests/'.$approval->id, array_filter(['status' => $status, 'remarks' => $remarks]));
+        // Approving an event needs every file Accepted at the step, so the helper accepts whatever files the event holds.
+        $files = $status === 'approved' && $approval->entity_type === 'event'
+            ? EventRequirementFile::where('event_id', $approval->entity_id)->pluck('id')->map(fn ($id) => ['id' => $id, 'status' => 'ok'])->all()
+            : [];
+
+        return $this->patchJson('/api/approval-requests/'.$approval->id, array_filter(['status' => $status, 'remarks' => $remarks, 'files' => $files]));
     }
 
     private function headRow(int $eventId): ?ApprovalRequest
