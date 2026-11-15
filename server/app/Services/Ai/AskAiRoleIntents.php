@@ -123,6 +123,33 @@ class AskAiRoleIntents
                 'DEPARTMENT_HEAD' => ['/dashboard/department-head/approvals', 'The summary arrives with each financial report an organization sends you, and you review it and decide.', 'Open approvals'],
             ],
         ],
+        'review_notes' => [
+            'title' => 'Decision remarks',
+            'does' => 'When you return, reject or hold a request, the remarks box can write a first draft from what you marked and noted, and you edit it before anything is sent. It never chooses the decision for you.',
+            'owner' => 'the reviewer who makes the decision',
+            'access' => [
+                'ADMIN' => ['/dashboard/grievances', 'Open a grievance, choose Resolve or Dismiss, and ask for a draft of your remarks.', 'Open Grievances'],
+                'SBO_OFFICER' => ['/dashboard/clearances', 'When you hold a clearance line, ask for a draft of the reason.', 'Open Clearances'],
+                'DEPARTMENT_HEAD' => ['/dashboard/department-head/approvals', 'Open a request, choose Return or Reject, and ask for a draft of your remarks.', 'Open approvals'],
+            ],
+        ],
+        'report_check' => [
+            'title' => 'Financial report checks',
+            'does' => 'Before a financial report is sent, the checks read your records for missing receipts, budgets over their limit, an opening balance that does not match the last report, unverified collections and similar problems. They never stop you from sending, and the reviewer sees the same list.',
+            'owner' => "your organization's Admin",
+            'access' => [
+                'ADMIN' => ['/dashboard/finance/transaction-history', 'Open the report on the Financial reports page and read the checks under Before you send.', 'Open Financial reports'],
+                'DEPARTMENT_HEAD' => ['/dashboard/department-head/approvals', 'The same checks appear with each financial report you review, and you decide what they mean.', 'Open approvals'],
+            ],
+        ],
+        'semester_narrative' => [
+            'title' => 'Semester report drafting',
+            'does' => 'The Compliance page can draft the four sections of the Semestral Accomplishment Report from what the system recorded, and the Officer transition page can draft the remarks of each handover item. You edit the text and copy it into the official template yourself.',
+            'owner' => "your organization's Admin",
+            'access' => [
+                'ADMIN' => ['/dashboard/compliance', 'Open Compliance, choose the semester and ask for a draft, then edit what comes back.', 'Open Compliance'],
+            ],
+        ],
     ];
 
     public function __construct(
@@ -275,6 +302,9 @@ class AskAiRoleIntents
             'event_planning' => '/\bplan (our|the|an|my|a) (\w+ )?(event|activity)\b|\bevent plann(er|ing)\b|\bevent timeline\b/',
             'budget_advice' => '/\bbudget advice\b|\bspending advice\b|\bsafe[ -]spending\b|\bhow much (can|should) (i|we) spend\b|\badvice on (our |the )?budget\b/',
             'forecast' => '/\bforecast(s|ing)?\b|\bpredict(ing)? (our |the )?(finances|budget|spending|income|expenses)\b/',
+            'report_check' => '/\bbefore (we |i )?(send|submit)(ting)? (the |our |my )?(financial )?report\b|\b(report|financial report) checks?\b|\bcheck (the |our |my )?(financial )?report (before|for)\b/',
+            'semester_narrative' => '/\b(draft|write|prepare)\b.*\b(semest\w+ (accomplishment )?(report|narrative)|accomplishment report|handover (notes?|remarks))\b/',
+            'review_notes' => '/\b(draft|write)\b.*\b(remarks|reason for (returning|rejecting|holding)|return reason|rejection reason)\b/',
         ];
 
         foreach ($patterns as $tool => $pattern) {

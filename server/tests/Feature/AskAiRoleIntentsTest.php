@@ -113,6 +113,9 @@ class AskAiRoleIntentsTest extends TestCase
             ['plan our event', 'SBO_OFFICER', 'ai_tools'],
             ['Help me write an announcement', 'SBO_OFFICER', 'ai_tools'],
             ['Summarize our financial report', 'DEPARTMENT_HEAD', 'ai_tools'],
+            ['Check our report before we send it', 'ADMIN', 'ai_tools'],
+            ['Help me draft the semester accomplishment report', 'ADMIN', 'ai_tools'],
+            ['Write the remarks for returning this request', 'DEPARTMENT_HEAD', 'ai_tools'],
             ['Where do my membership fees go?', 'STUDENT', 'fee_usage'],
             ["How is our org's money spent?", 'STUDENT', 'fee_usage'],
             ['Where does the money go?', 'STUDENT', 'fee_usage'],
@@ -395,6 +398,33 @@ class AskAiRoleIntentsTest extends TestCase
         $this->assertSame('/dashboard/finance/budget-allocation', $this->rows($this->intents->build($admin, 'ai_tools', 'how much can we spend safely'))[0]['href']);
     }
 
+    public function test_the_drafting_and_checking_tools_link_to_pages_each_role_may_open(): void
+    {
+        $org = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $officer = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $head = $this->makeCollegeHead($this->makeCollege('ENG'));
+
+        $checks = $this->intents->build($admin, 'ai_tools', 'check our report before we send it');
+        $this->assertSame('Financial report checks', $checks['title']);
+        $this->assertSame('/dashboard/finance/transaction-history', $this->rows($checks)[0]['href']);
+        $this->assertLinksOpenForRole($checks, 'ADMIN');
+
+        $narrative = $this->intents->build($admin, 'ai_tools', 'help me draft the semester accomplishment report');
+        $this->assertSame('Semester report drafting', $narrative['title']);
+        $this->assertSame('/dashboard/compliance', $this->rows($narrative)[0]['href']);
+        $this->assertLinksOpenForRole($narrative, 'ADMIN');
+
+        $remarks = $this->intents->build($head, 'ai_tools', 'write the remarks for returning this request');
+        $this->assertSame('Decision remarks', $remarks['title']);
+        $this->assertSame('/dashboard/department-head/approvals', $this->rows($remarks)[0]['href']);
+        $this->assertLinksOpenForRole($remarks, 'DEPARTMENT_HEAD');
+
+        $officerRemarks = $this->intents->build($officer, 'ai_tools', 'write the remarks for returning this request');
+        $this->assertSame('/dashboard/clearances', $this->rows($officerRemarks)[0]['href']);
+        $this->assertLinksOpenForRole($officerRemarks, 'SBO_OFFICER');
+    }
+
     public function test_ai_tools_without_a_named_tool_lists_what_the_role_can_open(): void
     {
         $org = Organization::factory()->create();
@@ -403,7 +433,7 @@ class AskAiRoleIntentsTest extends TestCase
         $payload = $this->intents->build($officer, 'ai_tools', 'what ai tools are there');
         $this->assertShape($payload);
 
-        $this->assertSame(['Financial forecast', 'Announcement drafting'], array_column($this->rows($payload), 'primary'));
+        $this->assertSame(['Financial forecast', 'Announcement drafting', 'Decision remarks'], array_column($this->rows($payload), 'primary'));
         $this->assertStringContainsString('a person decides every time', $payload['answer']);
         $this->assertStringNotContainsString('SBO_OFFICER', json_encode($payload));
         $this->assertLinksOpenForRole($payload, 'SBO_OFFICER');

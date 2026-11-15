@@ -8,4 +8,9 @@ return [
     */
     'privacy_notice_version' => '2026-11',
 
+    /*
+    | An order that nobody has paid for lapses after this many days. Read by Order::unpaidExpiryDays().
+    */
+    'orders' => ['unpaid_expiry_days' => 5],
+
 ];
