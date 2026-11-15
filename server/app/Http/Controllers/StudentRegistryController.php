@@ -59,6 +59,63 @@ class StudentRegistryController extends Controller
         return response()->json([...$rows->toArray(), 'summary' => $summary]);
     }
 
+    /**
+     * Adds one student record, with the same rules the CSV import applies to a row. A dean adds to the own college only;
+     * the SAO names the college. A school ID already in the records is refused, never updated: corrections go through update().
+     */
+    public function store(Request $request)
+    {
+        $actorCollegeId = $this->actorCollegeId($request);
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'first_name' => ['required', 'string', 'max:60'],
+            'last_name' => ['required', 'string', 'max:60'],
+            'birth_date' => ['required', 'date_format:Y-m-d', 'after:1920-01-01', 'before:today'],
+            'program' => ['required', 'string', 'max:120'],
+            'year_level' => ['required', 'string', 'max:20'],
+            'section' => ['nullable', 'string', 'max:30'],
+            'college_id' => [$actorCollegeId ? 'nullable' : 'required', 'integer', 'min:1'],
+        ]);
+
+        if ($actorCollegeId) {
+            abort_if(isset($data['college_id']) && (int) $data['college_id'] !== $actorCollegeId, 403, 'You can add records to your own college only.');
+            $collegeId = $actorCollegeId;
+        } else {
+            $collegeId = (int) $data['college_id'];
+            if (! College::whereKey($collegeId)->where('is_active', true)->exists()) {
+                throw ValidationException::withMessages(['college_id' => ['Choose an active college.']]);
+            }
+        }
+        $yearLevel = $this->yearLevel($data['year_level']);
+        if (! $yearLevel) {
+            throw ValidationException::withMessages(['year_level' => ['Year level must be 1 to 8, for example 3 or 3rd Year.']]);
+        }
+        if (StudentRegistryEntry::where('school_id', $data['school_id'])->exists()) {
+            throw ValidationException::withMessages(['school_id' => ['That school ID is already in the records.']]);
+        }
+
+        $section = trim((string) ($data['section'] ?? ''));
+        $entry = StudentRegistryEntry::create([
+            'school_id' => (int) $data['school_id'],
+            'record_type' => StudentRegistryEntry::STUDENT,
+            'first_name' => trim($data['first_name']), 'last_name' => trim($data['last_name']), 'birth_date' => $data['birth_date'],
+            'college_id' => $collegeId, 'program' => trim($data['program']), 'year_level' => $yearLevel,
+            'section' => $section !== '' ? $section : null,
+            'claimed_at' => User::whereKey((int) $data['school_id'])->exists() ? now() : null,
+        ]);
+
+        // As in update(), the audit row never carries the birth date.
+        AuditLog::create([
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'module' => 'student_registry', 'action' => 'created', 'record_type' => StudentRegistryEntry::class,
+            'record_id' => $entry->id,
+            'new_values' => ['school_id' => $entry->school_id, 'first_name' => $entry->first_name, 'last_name' => $entry->last_name, 'record_type' => $entry->record_type, 'college_id' => $entry->college_id],
+            'ip_address' => $request->ip(), 'created_at' => now(),
+        ]);
+
+        return response()->json($this->present($entry->load('college'), $request->user()->role === 'SUPER_ADMIN'), 201);
+    }
+
     public function update(Request $request, StudentRegistryEntry $entry)
     {
         $this->authorizeEntry($request, $entry);

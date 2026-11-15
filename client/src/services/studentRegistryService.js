@@ -4,6 +4,8 @@ const unwrap = (response) => response.data;
 
 export const getStudentRegistry = async (params) => unwrap(await api.get('/students/registry', { params }));
 
+export const createStudentRegistryEntry = async (data) => unwrap(await api.post('/students/registry', data));
+
 export const updateStudentRegistryEntry = async (id, data) => unwrap(await api.patch(`/students/registry/${id}`, data));
 
 export const deleteStudentRegistryEntry = async (id) => unwrap(await api.delete(`/students/registry/${id}`));

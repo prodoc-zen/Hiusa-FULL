@@ -152,6 +152,7 @@ class OfficeStaffParityTest extends TestCase
         'POST api/my/organization-applications/{application}/resubmit',
         'POST api/organization-applications/{application}/comments',
         'POST api/organization-applications/{application}/review-files',
+        'POST api/students/registry',
         'POST api/students/registry/apply',
         'POST api/students/registry/preview',
         'POST api/user/profiles/{profile}/switch',

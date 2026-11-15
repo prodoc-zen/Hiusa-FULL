@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
 use App\Models\StudentRegistryEntry;
@@ -255,5 +256,105 @@ class StudentRegistryImportTest extends TestCase
     {
         $this->getJson('/api/students/registry')->assertUnauthorized();
         $this->postJson('/api/students/registry/apply', [])->assertUnauthorized();
+        $this->postJson('/api/students/registry', [])->assertUnauthorized();
+    }
+
+    private function record(array $overrides = []): array
+    {
+        return [
+            'school_id' => 2600555, 'first_name' => ' Dina ', 'last_name' => 'Ramos', 'birth_date' => '2006-04-05',
+            'program' => 'BS IT', 'year_level' => '2', 'section' => 'B', ...$overrides,
+        ];
+    }
+
+    public function test_a_dean_adds_a_student_to_the_own_college_and_never_gets_the_birth_date_back(): void
+    {
+        $response = $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record())
+            ->assertCreated()->assertJsonPath('name', 'Dina Ramos')->assertJsonPath('year_level', '2nd Year')->assertJsonPath('college.code', 'CIT')->assertJsonPath('claimed', false);
+
+        $this->assertStringNotContainsString('2006-04-05', $response->getContent());
+        $entry = StudentRegistryEntry::where('school_id', 2600555)->firstOrFail();
+        $this->assertSame($this->cit->id, $entry->college_id);
+        $this->assertSame(StudentRegistryEntry::STUDENT, $entry->record_type);
+        $this->assertSame('2006-04-05', $entry->birth_date->format('Y-m-d'));
+        $this->assertSame('B', $entry->section);
+        $this->assertNull($entry->claimed_at);
+        $log = AuditLog::where('module', 'student_registry')->where('action', 'created')->firstOrFail();
+        $this->assertSame($this->dean->school_id, $log->user_id);
+        $this->assertStringNotContainsString('2006-04-05', json_encode($log->new_values));
+    }
+
+    public function test_a_dean_may_name_the_own_college_but_not_another_one(): void
+    {
+        $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record(['college_id' => $this->cit->id]))->assertCreated();
+
+        $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record(['school_id' => 2600556, 'college_id' => $this->cbe->id]))->assertForbidden();
+        $this->assertDatabaseMissing('student_registry', ['school_id' => 2600556]);
+    }
+
+    public function test_the_sao_adds_a_student_to_a_chosen_active_college(): void
+    {
+        $this->actingAs($this->sao)->postJson('/api/students/registry', $this->record(['college_id' => $this->cbe->id, 'section' => '']))
+            ->assertCreated()->assertJsonPath('college.code', 'CBE')->assertJsonPath('birth_date', '2006-04-05');
+        $this->assertNull(StudentRegistryEntry::where('school_id', 2600555)->value('section'));
+
+        $this->actingAs($this->sao)->postJson('/api/students/registry', $this->record(['school_id' => 2600556]))->assertUnprocessable()->assertJsonValidationErrors('college_id');
+        $this->cbe->update(['is_active' => false]);
+        $this->actingAs($this->sao)->postJson('/api/students/registry', $this->record(['school_id' => 2600557, 'college_id' => $this->cbe->id]))->assertUnprocessable()->assertJsonValidationErrors('college_id');
+    }
+
+    public function test_adding_a_school_id_already_in_the_records_is_refused_and_changes_nothing(): void
+    {
+        $this->entry(['school_id' => 2600555, 'college_id' => $this->cbe->id]);
+
+        foreach ([$this->dean, $this->sao] as $actor) {
+            $this->actingAs($actor)->postJson('/api/students/registry', $this->record(['college_id' => $actor === $this->sao ? $this->cbe->id : null]))
+                ->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That school ID is already in the records.');
+        }
+        $this->assertSame('Ana', StudentRegistryEntry::where('school_id', 2600555)->value('first_name'));
+    }
+
+    public function test_a_new_record_is_checked_like_an_import_row(): void
+    {
+        $bad = [
+            ['school_id' => 0], ['school_id' => 100000000], ['school_id' => 'abc'], ['first_name' => ''], ['last_name' => str_repeat('x', 61)],
+            ['birth_date' => '04/05/2006'], ['birth_date' => now()->addDay()->format('Y-m-d')], ['birth_date' => '1900-01-01'],
+            ['program' => ''], ['year_level' => '9'], ['year_level' => 'senior'], ['section' => str_repeat('x', 31)],
+        ];
+        foreach ($bad as $overrides) {
+            $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record($overrides))->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('student_registry', 0);
+    }
+
+    public function test_a_record_for_a_school_id_that_already_has_an_account_is_saved_as_signed_up(): void
+    {
+        $student = User::factory()->student()->create();
+
+        $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record(['school_id' => $student->school_id]))
+            ->assertCreated()->assertJsonPath('claimed', true);
+    }
+
+    public function test_a_dean_not_attached_to_a_college_cannot_add_records(): void
+    {
+        $loose = User::factory()->departmentHead()->create(['organization_id' => $this->sao->organization_id]);
+
+        $this->actingAs($loose)->postJson('/api/students/registry', $this->record())->assertForbidden();
+    }
+
+    public function test_the_deans_office_staff_add_students_to_the_dean_college_only(): void
+    {
+        $staff = User::factory()->admin()->create(['organization_id' => $this->dean->organization_id]);
+
+        $this->actingAs($staff)->postJson('/api/students/registry', $this->record())->assertCreated()->assertJsonPath('college.code', 'CIT');
+        $this->actingAs($staff)->postJson('/api/students/registry', $this->record(['school_id' => 2600556, 'college_id' => $this->cbe->id]))->assertForbidden();
+    }
+
+    public function test_students_and_an_organization_head_cannot_add_records(): void
+    {
+        foreach ([User::factory()->student()->create(), User::factory()->admin()->create()] as $actor) {
+            $this->actingAs($actor)->postJson('/api/students/registry', $this->record())->assertForbidden();
+        }
+        $this->assertDatabaseCount('student_registry', 0);
     }
 }

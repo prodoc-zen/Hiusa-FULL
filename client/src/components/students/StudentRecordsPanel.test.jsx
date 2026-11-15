@@ -6,13 +6,16 @@ const mocks = vi.hoisted(() => ({
   getStudentRegistry: vi.fn(),
   previewStudentRegistry: vi.fn(),
   applyStudentRegistry: vi.fn(),
+  createStudentRegistryEntry: vi.fn(),
   updateStudentRegistryEntry: vi.fn(),
   deleteStudentRegistryEntry: vi.fn(),
 }));
 
 const notifyMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const systemMocks = vi.hoisted(() => ({ getSystemColleges: vi.fn() }));
 
 vi.mock('../../services/studentRegistryService', () => mocks);
+vi.mock('../../services/systemAdministrationService', () => systemMocks);
 vi.mock('../../lib/notify', () => ({ default: notifyMocks }));
 
 const entry = (overrides) => ({
@@ -43,6 +46,12 @@ describe('StudentRecordsPanel', () => {
     mocks.getStudentRegistry.mockResolvedValue(list([entry(), entry({ id: 2, school_id: 2600102, name: 'Ben Tan', claimed: true })]));
     mocks.previewStudentRegistry.mockResolvedValue(previewResult);
     mocks.applyStudentRegistry.mockResolvedValue({ created: 1, updated: 0, unchanged: 0, claimed: 0, invalid: 1, duplicate: 0 });
+    mocks.createStudentRegistryEntry.mockResolvedValue(entry({ id: 3, school_id: 2600555, name: 'Dina Ramos' }));
+    systemMocks.getSystemColleges.mockResolvedValue([
+      { id: 1, name: 'College of Computer Studies', code: 'CCS', is_active: true },
+      { id: 2, name: 'College of Business', code: 'CBE', is_active: true },
+      { id: 3, name: 'College of Old Arts', code: 'COA', is_active: false },
+    ]);
   });
 
   it('shows who has signed up and who has not, with the school ID as small secondary text', async () => {
@@ -353,5 +362,99 @@ describe('StudentRecordsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check file' }));
 
     expect(await screen.findByRole('button', { name: 'Nothing to save' })).toBeDisabled();
+  });
+
+  const openAdd = () => fireEvent.click(screen.getByRole('button', { name: 'Add a student' }));
+  const fillStudent = (dialog) => {
+    const type = (label, value) => fireEvent.change(within(dialog).getByLabelText(new RegExp('^' + label)), { target: { value } });
+    type('School ID', '2600555');
+    type('First name', ' Dina ');
+    type('Last name', 'Ramos');
+    type('Birth date', '2006-04-05');
+    type('Program', 'BS IT');
+    type('Year level', '2');
+    type('Section', 'B');
+  };
+
+  it('adds one student for a dean without a college choice and reloads the list', async () => {
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    openAdd();
+    const dialog = await screen.findByRole('dialog', { name: 'Add a student' });
+    expect(within(dialog).queryByLabelText(/^College/)).not.toBeInTheDocument();
+    expect(systemMocks.getSystemColleges).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Add student' })).toBeDisabled();
+
+    fillStudent(dialog);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
+
+    await waitFor(() => expect(mocks.createStudentRegistryEntry).toHaveBeenCalledWith({
+      school_id: 2600555, first_name: 'Dina', last_name: 'Ramos', birth_date: '2006-04-05', program: 'BS IT', year_level: '2', section: 'B',
+    }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a student' })).not.toBeInTheDocument());
+    expect(notifyMocks.success).toHaveBeenCalledWith('Student added to the records.');
+    await waitFor(() => expect(mocks.getStudentRegistry).toHaveBeenCalledTimes(2));
+  });
+
+  it('asks the SAO to choose an active college and sends it', async () => {
+    render(<StudentRecordsPanel />);
+    await screen.findAllByText('Hannah Reyes');
+
+    openAdd();
+    const dialog = await screen.findByRole('dialog', { name: 'Add a student' });
+    const college = within(dialog).getByLabelText(/^College/);
+    await waitFor(() => expect(within(college).getAllByRole('option')).toHaveLength(3));
+    expect(within(college).queryByRole('option', { name: /College of Old Arts/ })).not.toBeInTheDocument();
+    fillStudent(dialog);
+    expect(within(dialog).getByRole('button', { name: 'Add student' })).toBeDisabled();
+
+    fireEvent.change(college, { target: { value: '2' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
+
+    await waitFor(() => expect(mocks.createStudentRegistryEntry).toHaveBeenCalledWith(expect.objectContaining({ school_id: 2600555, college_id: 2 })));
+  });
+
+  it('keeps the form open and names the school ID field when the ID is already in the records', async () => {
+    mocks.createStudentRegistryEntry.mockRejectedValue(Object.assign(new Error('x'), {
+      response: { status: 422, data: { errors: { school_id: ['That school ID is already in the records.'] } } },
+    }));
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    openAdd();
+    const dialog = await screen.findByRole('dialog', { name: 'Add a student' });
+    fillStudent(dialog);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
+
+    expect(await within(dialog).findByText('That school ID is already in the records.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Add a student' })).toBeInTheDocument();
+    expect(notifyMocks.success).not.toHaveBeenCalled();
+    expect(mocks.getStudentRegistry).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a plain server refusal inside the form', async () => {
+    mocks.createStudentRegistryEntry.mockRejectedValue(Object.assign(new Error('x'), { response: { status: 403, data: { message: 'You can add records to your own college only.' } } }));
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    openAdd();
+    const dialog = await screen.findByRole('dialog', { name: 'Add a student' });
+    fillStudent(dialog);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add student' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('You can add records to your own college only.');
+  });
+
+  it('does not save a school ID that is not 1 to 8 digits', async () => {
+    render(<StudentRecordsPanel collegeId={4} />);
+    await screen.findAllByText('Hannah Reyes');
+
+    openAdd();
+    const dialog = await screen.findByRole('dialog', { name: 'Add a student' });
+    fillStudent(dialog);
+    fireEvent.change(within(dialog).getByLabelText(/^School ID/), { target: { value: '12ab' } });
+
+    expect(within(dialog).getByRole('button', { name: 'Add student' })).toBeDisabled();
   });
 });

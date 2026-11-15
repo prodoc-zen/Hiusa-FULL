@@ -120,6 +120,15 @@ class StudentRegistryFixTest extends TestCase
         $this->deleteJson("/api/students/registry/{$entry->id}")->assertNoContent();
     }
 
+    public function test_a_student_or_an_officer_cannot_add_a_record(): void
+    {
+        foreach (['STUDENT', 'SBO_OFFICER'] as $role) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'organization_id' => $this->dean->organization_id]));
+            $this->postJson('/api/students/registry', ['school_id' => 2600777, 'first_name' => 'Bea', 'last_name' => 'Lim', 'birth_date' => '2007-03-04', 'program' => 'BS IT', 'year_level' => '1'])->assertForbidden();
+        }
+        $this->assertDatabaseMissing('student_registry', ['school_id' => 2600777]);
+    }
+
     public function test_the_sao_corrects_a_name_and_birth_date_and_the_audit_row_keeps_the_names(): void
     {
         $entry = $this->entry();

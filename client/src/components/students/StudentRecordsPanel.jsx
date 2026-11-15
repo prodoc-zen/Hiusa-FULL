@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GraduationCap, Upload } from 'lucide-react';
+import { GraduationCap, Upload, UserPlus } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, Select, StatusBadge } from '../ui';
 import ConfirmModal from '../ConfirmModal';
+import StudentRecordAddModal from './StudentRecordAddModal';
 import StudentRecordEditModal from './StudentRecordEditModal';
 import StudentRecordsUpload from './StudentRecordsUpload';
 import PaginationControls from '../PaginationControls';
@@ -31,6 +32,7 @@ export default function StudentRecordsPanel({ collegeId }) {
   const [recordType, setRecordType] = useState('student');
   const [page, setPage] = useState(1);
   const [uploading, setUploading] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
@@ -131,7 +133,12 @@ export default function StudentRecordsPanel({ collegeId }) {
         title={`${type.one} records`}
         description={summary.total > 0 ? `${summary.claimed} of ${summary.total} ${isEmployee ? 'have an account' : 'have signed up'}.` : 'No records loaded yet.'}
         bodyClassName="p-0"
-        actions={<Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload school records</Button>}
+        actions={(
+          <span className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student</Button>
+            <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload school records</Button>
+          </span>
+        )}
       >
         <DataTable
           caption={`${type.one} records`}
@@ -181,7 +188,7 @@ export default function StudentRecordsPanel({ collegeId }) {
               title={type.empty}
               description={isEmployee
                 ? 'Use Upload school records with a CSV that has record_type set to employee. You can then invite office staff from these records.'
-                : 'Use Upload school records to add a CSV. Students whose school ID and birth date match a record can then create their own account.'}
+                : 'Use Add a student for one student, or Upload school records for a CSV. Students whose school ID and birth date match a record can then create their own account.'}
             />
           )}
           pagination={<PaginationControls currentPage={page} totalItems={meta.total} pageSize={PAGE_SIZE} onPageChange={setPage} label={type.label.toLowerCase()} />}
@@ -200,6 +207,13 @@ export default function StudentRecordsPanel({ collegeId }) {
         <StudentRecordsUpload collegeId={collegeId} onSaved={() => { setPage(1); load(); }} />
       </Drawer>
 
+      {adding && (
+        <StudentRecordAddModal
+          collegeId={collegeId}
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); notify.success('Student added to the records.'); setPage(1); load(); }}
+        />
+      )}
       {editing && (
         <StudentRecordEditModal
           record={editing}
