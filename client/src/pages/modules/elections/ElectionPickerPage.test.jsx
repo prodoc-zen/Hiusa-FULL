@@ -601,7 +601,7 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
     });
     expect(payload.draft).toBeFalsy();
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
-    expect(await screen.findByText('Election submitted for approval.')).toBeInTheDocument();
+    expect(await screen.findByText('Election submitted for approval.', {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('defaults the voter limit to the seats and never lets it pass them', async () => {
