@@ -10,19 +10,17 @@ const financeMocks = vi.hoisted(() => ({
   explainReportChecks: vi.fn(),
   ignoreReportCheck: vi.fn(),
 }));
-const draftMocks = vi.hoisted(() => ({ recordAiOutcome: vi.fn() }));
 const approvalMocks = vi.hoisted(() => ({
   getApprovalRequests: vi.fn(),
   reviewApprovalRequest: vi.fn(),
 }));
 const systemMocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn() }));
-const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordAiOutcome: vi.fn(), recordDraftOutcome: vi.fn() }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 vi.mock('../../../services/financeService', () => financeMocks);
 vi.mock('../../../services/approvalService', () => approvalMocks);
-vi.mock('../../../services/aiDraftService', () => draftMocks);
 vi.mock('../../../services/systemAdministrationService', () => systemMocks);
 vi.mock('../../../services/aiDraftService', () => aiMocks);
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
@@ -53,7 +51,7 @@ describe('FinancialReportsTab', () => {
     approvalMocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 31, entity_id: 8, entity_type: 'financial_report' }] } });
     approvalMocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
     financeMocks.getReportChecks.mockResolvedValue({ data: { findings: [{ key: 'missing_receipt:11', code: 'missing_receipt', severity: 'medium', message: 'The expense of PHP 90.00 for Supplies on Sep 2, 2026 has no receipt reference.', ignored: null }] } });
-    draftMocks.recordAiOutcome.mockResolvedValue({});
+    aiMocks.recordAiOutcome.mockResolvedValue({});
   });
 
   it('states what the tab is for and never calls the reports received', async () => {
@@ -121,7 +119,7 @@ describe('FinancialReportsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
 
-    await waitFor(() => expect(draftMocks.recordAiOutcome).toHaveBeenCalledWith(61, 'summary'));
+    await waitFor(() => expect(aiMocks.recordAiOutcome).toHaveBeenCalledWith(61, 'summary'));
   });
 
   it('labels each signatory role the way the report form does and shows the name as typed', async () => {
@@ -204,7 +202,7 @@ describe('FinancialReportsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
 
     await waitFor(() => expect(screen.getByLabelText('Reason for returning')).toHaveValue('The totals do not match the ledger.'));
-    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'financial_report', record_id: 8, decision: 'returned', marks: [], reviewer_notes: '' });
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'financial_report', record_id: 31, decision: 'returned', marks: [], reviewer_notes: '' });
     expect(screen.getByText('Built-in rules')).toBeInTheDocument();
     expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
 
@@ -215,6 +213,26 @@ describe('FinancialReportsTab', () => {
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'rejected', remarks: 'The totals do not match.' }));
     await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(60, 'The totals do not match.'));
+  });
+
+  it('carries the checks into the drafter as the reviewer notes when the reviewer uses them in the remarks', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please add the missing receipt.', engine: 'claude', ai_output_id: 62 } });
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+    await viewReportFromMenu();
+    fireEvent.click(await screen.findByRole('button', { name: 'Use these in my remarks' }));
+
+    expect(await screen.findByRole('button', { name: 'Return report' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({
+      flow: 'financial_report',
+      record_id: 31,
+      decision: 'returned',
+      marks: [],
+      reviewer_notes: 'The expense of PHP 90.00 for Supplies on Sep 2, 2026 has no receipt reference.',
+    }));
+    expect(screen.getByLabelText('Reason for returning')).toHaveValue('Please add the missing receipt.');
   });
 
   it('asks before it rewords a reason already typed for a report', async () => {

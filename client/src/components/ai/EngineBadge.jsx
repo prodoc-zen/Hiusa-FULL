@@ -4,6 +4,9 @@ const ENGINE_LABELS = {
   'python-fastapi': 'Python AI service',
   'ai-service': 'Python AI service',
   'php-fallback': 'Built-in rules',
+  template: 'Built-in rules',
+  claude: 'Claude',
+  groq: 'Groq',
 };
 
 export default function EngineBadge({ engine, className = '' }) {

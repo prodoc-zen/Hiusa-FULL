@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\ChangesSinceReturn;
 use App\Services\ElectionApplicationService;
+use App\Services\Finance\FinancialReportChecks;
 use App\Support\NotFound;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -48,6 +49,7 @@ class ReviewNoteContext
         private readonly ChangesSinceReturn $changes,
         private readonly ApprovalEntityLabel $labels,
         private readonly ElectionApplicationService $electionApplications,
+        private readonly FinancialReportChecks $reportChecks,
     ) {}
 
     /**
@@ -83,6 +85,9 @@ class ReviewNoteContext
         if ($unmarked !== []) {
             $facts['unmarked_requirements'] = $unmarked;
         }
+        if (($record['findings'] ?? []) !== []) {
+            $facts['findings'] = $record['findings'];
+        }
         if (filled($currentText)) {
             $facts['current_text'] = trim($currentText);
         }
@@ -117,6 +122,7 @@ class ReviewNoteContext
 
         $dates = '';
         $known = [];
+        $findings = [];
         if ($approval->entity_type === 'event') {
             $event = Event::where('organization_id', $approval->organization_id)->find($approval->entity_id);
             $dates = $this->range($event?->start_time, $event?->end_time);
@@ -127,6 +133,8 @@ class ReviewNoteContext
         } elseif ($approval->entity_type === 'financial_report') {
             $report = FinancialReport::where('organization_id', $approval->organization_id)->find($approval->entity_id);
             $dates = $this->range($report?->period_start, $report?->period_end);
+            // What the system already found in the ledger, in the same plain sentences the reviewer reads on the panel.
+            $findings = $report ? array_map(fn (array $finding) => FinancialReportChecks::describe($finding), $this->reportChecks->forReport($report)) : [];
         }
 
         return [
@@ -135,6 +143,7 @@ class ReviewNoteContext
             'prior_remarks' => (string) ($returns->last()?->new_values['remarks'] ?? ''),
             'changes' => $this->changeLines($this->changes->forApprovals(collect([$approval]))[$approval->id] ?? []),
             'known' => $known,
+            'findings' => $findings,
         ];
     }
 

@@ -24,7 +24,8 @@ class ReviewNoteDrafter
     /**
      * $facts is the case schema without its id and expect: flow, decision, subject {organization, title, dates},
      * round, marks [{requirement, description, mark, note}], reviewer_notes, prior_remarks, changes_since_return,
-     * and optionally current_text (the reviewer's own wording to improve) and unmarked_requirements.
+     * and optionally current_text (the reviewer's own wording to improve), unmarked_requirements and findings
+     * (the plain sentences of the checks the system ran on a financial report).
      *
      * rejection says why the model's text was not used: null when it was, 'none' when the model was never asked.
      *
@@ -93,6 +94,13 @@ class ReviewNoteDrafter
         $allowed = array_map(fn (array $mark) => mb_strtolower($mark['requirement']), $facts['marks']);
         $allowed[] = mb_strtolower($facts['subject']['title']);
         $allowed[] = mb_strtolower($facts['subject']['organization']);
+        // A finding quotes the budget or event it is about, so the text may quote the same name.
+        foreach ($facts['findings'] as $finding) {
+            preg_match_all('/"([^"]{1,300})"/u', $finding, $names);
+            foreach ($names[1] as $name) {
+                $allowed[] = mb_strtolower(trim($name));
+            }
+        }
 
         preg_match_all('/["\x{201C}\x{201D}]([^"\x{201C}\x{201D}]{1,1200})["\x{201C}\x{201D}]/u', $text, $quoted);
         foreach ($quoted[1] as $span) {
@@ -162,6 +170,9 @@ class ReviewNoteDrafter
         $block = ['flow' => $facts['flow'], 'decision' => $facts['decision'], 'subject' => $facts['subject'], 'round' => $facts['round'],
             'marks' => $facts['marks'], 'reviewer_notes' => $facts['reviewer_notes'], 'prior_remarks' => $facts['prior_remarks'],
             'changes_since_return' => $facts['changes_since_return']];
+        if ($facts['findings'] !== []) {
+            $block['findings'] = $facts['findings'];
+        }
         if ($facts['current_text'] !== '') {
             $block['current_text'] = $facts['current_text'];
         }
@@ -238,6 +249,7 @@ class ReviewNoteDrafter
             'changes_since_return' => $list($facts['changes_since_return'] ?? null, 30, 200),
             'current_text' => $text($facts['current_text'] ?? null, 4000),
             'unmarked_requirements' => $list($facts['unmarked_requirements'] ?? null, 50, 300),
+            'findings' => $list($facts['findings'] ?? null, 30, 400),
         ];
     }
 }

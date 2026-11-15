@@ -15,7 +15,8 @@ const SEVERITY = {
 // The checks a report is read against before it is sent. They run on the organization's records, name what is
 // wrong and block nothing. The Admin may put them in order with a written explanation, or set one aside with a
 // reason that is kept in the audit log. onExplained hands the explanation up so the screen can report what became of it.
-export default function ReportChecksPanel({ reportId, canIgnore = false, heading = 'Before you send', onExplained }) {
+// onUse is given only to a reviewer: it hands up the sentences of the checks not set aside, to use in their remarks.
+export default function ReportChecksPanel({ reportId, canIgnore = false, heading = 'Before you send', onExplained, onUse }) {
   const [findings, setFindings] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [explanation, setExplanation] = useState(null);
@@ -101,7 +102,8 @@ export default function ReportChecksPanel({ reportId, canIgnore = false, heading
       return (left === -1 ? order.length : left) - (right === -1 ? order.length : right);
     })
     : findings;
-  const open = findings.filter((finding) => !finding.ignored).length;
+  const openFindings = findings.filter((finding) => !finding.ignored);
+  const open = openFindings.length;
 
   return (
     <section aria-label={heading} className="border-t border-line pt-4">
@@ -135,6 +137,9 @@ export default function ReportChecksPanel({ reportId, canIgnore = false, heading
         </div>
       )}
       {explainError && <p role="status" className="mt-2 text-sm font-medium text-danger-strong">{explainError}</p>}
+      {onUse && open > 0 && (
+        <button type="button" onClick={() => onUse(openFindings.map((finding) => finding.message))} className="mt-2 min-h-8 text-xs font-semibold text-brand-700 underline underline-offset-2 pointer-coarse:min-h-[42px]">Use these in my remarks</button>
+      )}
 
       {findings.length > 0 && (
         <ul className="mt-3 divide-y divide-line border-y border-line">

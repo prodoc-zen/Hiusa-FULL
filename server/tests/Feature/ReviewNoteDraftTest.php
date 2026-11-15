@@ -17,6 +17,7 @@ use App\Models\Grievance;
 use App\Models\Organization;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -237,6 +238,26 @@ class ReviewNoteDraftTest extends TestCase
         $this->assertStringContainsString('October 1, 2026 to October 31, 2026', $fake->sent());
         $this->draft($this->head, ['flow' => 'approval'] + $body)->assertOk();
         $this->draft($this->head, ['flow' => 'event'] + $body)->assertNotFound();
+    }
+
+    public function test_the_checks_found_on_a_financial_report_reach_the_model_as_findings(): void
+    {
+        $fake = $this->model('Please add the missing receipt for the Supplies expense and send the report again.');
+        $report = FinancialReport::create([
+            'organization_id' => $this->organization->id, 'report_type' => 'monthly', 'title' => 'October Report', 'period_start' => '2026-10-01', 'period_end' => '2026-10-31',
+            'signatories' => [], 'submission_status' => 'pending_department_head', 'generated_by' => $this->admin->school_id, 'generated_at' => now(), 'submitted_at' => now(),
+        ]);
+        Transaction::create(['organization_id' => $this->organization->id, 'recorded_by' => $this->admin->school_id, 'type' => 'expense', 'amount' => 80, 'category' => 'Supplies', 'description' => 'Paper', 'transaction_date' => '2026-10-05 09:00:00']);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $this->organization->id, 'entity_type' => 'financial_report', 'entity_id' => $report->id,
+            'requested_by' => $this->admin->school_id, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'pending', 'requested_at' => now(),
+        ]);
+
+        $this->draft($this->head, ['flow' => 'financial_report', 'record_id' => $approval->id, 'decision' => 'returned', 'marks' => [], 'reviewer_notes' => 'Please check the receipts'])
+            ->assertOk()->assertJsonPath('engine', 'claude');
+
+        $this->assertStringContainsString('"findings"', $fake->sent());
+        $this->assertStringContainsString('has no receipt reference', $fake->sent());
     }
 
     public function test_a_compliance_submission_is_drafted_for_the_sao_only_and_never_names_the_file(): void

@@ -52,6 +52,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
   const [reviewAction, setReviewAction] = useState(null);
   const [rejectionRemarks, setRejectionRemarks] = useState('');
   const [draftId, setDraftId] = useState(null);
+  const [findingNotes, setFindingNotes] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const explained = useRef(null);
@@ -89,6 +90,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
 
   async function openReport(report) {
     explained.current = null;
+    setFindingNotes('');
     try {
       setDetail((await getFinancialReport(report.id)).data);
     } catch (error) {
@@ -110,6 +112,12 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
     }
   }
 
+  // The reviewer's own decision stays theirs: this only opens the return reason with the checks ready for the drafter.
+  function useChecksInRemarks(lines) {
+    setFindingNotes(lines.join(' ').slice(0, 2000));
+    setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report });
+  }
+
   async function submitReview() {
     if (!reviewAction) return;
     setReviewing(true);
@@ -122,6 +130,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
       setReviewAction(null);
       setRejectionRemarks('');
       setDraftId(null);
+      setFindingNotes('');
       setDetail(null);
       if (explained.current) recordAiOutcome(explained.current.aiOutputId, explained.current.text).catch(() => {});
       explained.current = null;
@@ -219,7 +228,12 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
       >
         {detail && <div className="space-y-4">
           <p className="text-sm text-ink-muted-strong">{detail.report.summary_text}</p>
-          <ReportChecksPanel reportId={detail.report.id} heading="Checks on this report" onExplained={(value) => { explained.current = value; }} />
+          <ReportChecksPanel
+            reportId={detail.report.id}
+            heading="Checks on this report"
+            onExplained={(value) => { explained.current = value; }}
+            onUse={detailApproval ? useChecksInRemarks : undefined}
+          />
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-ink">Required signatories</h3>
             {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm text-ink-muted-strong">{signatoryLabel(role)}: <span className="font-medium text-ink">{formatDisplayText(name)}</span></p>)}
@@ -248,12 +262,12 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         open={reviewAction?.status === 'rejected'}
         title="Return financial report"
         description="The organization sees your reason."
-        onClose={reviewing ? undefined : () => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); }}
+        onClose={reviewing ? undefined : () => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); setFindingNotes(''); }}
         closeOnBackdrop={!reviewing}
         closeOnEscape={!reviewing}
         maxWidth="max-w-md"
         footer={<>
-          <Button variant="secondary" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); }}>Cancel</Button>
+          <Button variant="secondary" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); setFindingNotes(''); }}>Cancel</Button>
           <Button variant="danger" loading={reviewing} disabled={!rejectionRemarks.trim()} onClick={submitReview}>Return report</Button>
         </>}
       >
@@ -264,7 +278,8 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
           {reviewAction?.status === 'rejected' && (
             <DraftNoteButton
               flow="financial_report"
-              recordId={reviewAction.report.id}
+              recordId={reviewAction.approval.id}
+              reviewerNotes={findingNotes}
               decision="returned"
               value={rejectionRemarks}
               onDraft={({ text, aiOutputId }) => { setRejectionRemarks(text); setDraftId(aiOutputId); }}

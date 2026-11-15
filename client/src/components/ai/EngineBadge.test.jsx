@@ -10,6 +10,14 @@ describe('EngineBadge', () => {
     expect(screen.queryByText(/fallback/i)).not.toBeInTheDocument();
   });
 
+  it('names the engines that write drafts', () => {
+    render(<><EngineBadge engine="claude" /><EngineBadge engine="groq" /><EngineBadge engine="template" /></>);
+
+    expect(screen.getByText('Claude')).toBeInTheDocument();
+    expect(screen.getByText('Groq')).toBeInTheDocument();
+    expect(screen.getByText('Built-in rules')).toBeInTheDocument();
+  });
+
   it('shows nothing when no engine was reported', () => {
     const { container } = render(<EngineBadge engine={null} />);
 
