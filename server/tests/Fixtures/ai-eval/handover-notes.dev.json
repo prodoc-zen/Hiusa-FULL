@@ -1,0 +1,654 @@
+{
+  "feature": "handover-notes",
+  "author_note": "Held-out dev set for handover-notes (F4), one case per category (finance, events, tasks, organization, election, compliance). Each case carries a full term digest with deliberate distractors from other categories, so a correct category note uses only its own slice of the digest and open_items. Organizations follow the seeded HIUSA colleges plus a few invented ones; people are clearly invented placeholders (Ana Sample, Ben Demo, and so on). Amounts in must_mention are written grouped with commas and no currency sign (for example \"3,500\"); a runner should compare them ignoring the PHP sign, thousands separators and trailing \".00\". must_mention entries are case-insensitive substrings; a long requirement name may be matched by its leading words where the entry is given short. must_not_mention entries are case-insensitive substrings of facts that belong to other categories and must not appear in this category's note. Dates are ISO as supplied in the digest.",
+  "cases": [
+    {
+      "id": "hn-d01",
+      "category": "finance",
+      "digest": {
+        "organization": "Philippine Society of Information Technology Students - College of Computer Studies",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Tech Summit 2026",
+            "date": "2026-09-19",
+            "status": "completed",
+            "attendance": 214,
+            "budget_allocated": 30000,
+            "budget_used": 27850
+          },
+          {
+            "title": "Intramurals Coding Booth",
+            "date": "2026-10-08",
+            "status": "completed",
+            "attendance": 96,
+            "budget_allocated": 6000,
+            "budget_used": 5400
+          },
+          {
+            "title": "Hackathon Warmup Night",
+            "date": "2026-11-12",
+            "status": "completed",
+            "attendance": 58,
+            "budget_allocated": null,
+            "budget_used": null
+          }
+        ],
+        "tasks": {
+          "completed": 11,
+          "overdue": 1,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "PSITS Officer Election 2027-2028",
+            "voters": 380,
+            "ballots": 251
+          }
+        ],
+        "merchandise": {
+          "orders": 52,
+          "claimed": 44
+        },
+        "announcements": {
+          "posted": 9
+        },
+        "finance": {
+          "income": 61400,
+          "expense": 46250,
+          "closing_balance": 18240.5
+        },
+        "upcoming_events": [
+          {
+            "title": "Christmas Party",
+            "date": "2026-12-18"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Ana Sample",
+            "position": "President"
+          },
+          {
+            "name": "Ben Demo",
+            "position": "Treasurer"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Submit liquidation for the Tech Summit cash advance",
+            "owner": "Ben Demo",
+            "deadline": "2026-12-05"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "cash_advance",
+            "amount": 3500,
+            "note": "Tech Summit food and sound system, released 2026-09-10, not yet repaid"
+          },
+          {
+            "kind": "collection",
+            "amount": 1200,
+            "note": "Org fee collected by section reps, not yet remitted to the treasurer"
+          },
+          {
+            "kind": "invoice",
+            "amount": 2850,
+            "note": "Tarpaulin and ID printing, supplier still unpaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Christmas Party",
+            "date": "2026-12-18"
+          }
+        ],
+        "election_state": "finalized",
+        "missing_compliance": [
+          "Action Plan"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "3,500",
+          "1,200",
+          "2,850",
+          "Tech Summit"
+        ],
+        "must_not_mention": [
+          "PSITS Officer Election",
+          "Christmas Party",
+          "Action Plan",
+          "Hackathon Warmup Night"
+        ]
+      }
+    },
+    {
+      "id": "hn-d02",
+      "category": "events",
+      "digest": {
+        "organization": "Junior Philippine Institute of Accountants - College of Business Education",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Accounting Week Opening",
+            "date": "2026-08-26",
+            "status": "completed",
+            "attendance": 180,
+            "budget_allocated": 12000,
+            "budget_used": 11200
+          },
+          {
+            "title": "Tax Quiz Bee",
+            "date": "2026-09-30",
+            "status": "cancelled",
+            "attendance": null,
+            "budget_allocated": null,
+            "budget_used": null
+          },
+          {
+            "title": "Financial Literacy Seminar",
+            "date": "2026-10-21",
+            "status": "completed",
+            "attendance": 140,
+            "budget_allocated": 8000,
+            "budget_used": 7300
+          }
+        ],
+        "tasks": {
+          "completed": 8,
+          "overdue": 0,
+          "open": 4
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 0,
+          "claimed": 0
+        },
+        "announcements": {
+          "posted": 6
+        },
+        "finance": {
+          "income": 20500,
+          "expense": 18500,
+          "closing_balance": 2000
+        },
+        "upcoming_events": [
+          {
+            "title": "Accounting Week Closing Night",
+            "date": "2027-01-22"
+          },
+          {
+            "title": "General Assembly",
+            "date": "2027-01-15"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Cai Tester",
+            "position": "President"
+          },
+          {
+            "name": "Dino Mock",
+            "position": "Vice President"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Book the Function Hall for the general assembly",
+            "owner": "Dino Mock",
+            "deadline": "2026-12-10"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "invoice",
+            "amount": 4600,
+            "note": "Sound system rental for the seminar, unpaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "General Assembly",
+            "date": "2027-01-15"
+          },
+          {
+            "title": "Accounting Week Closing Night",
+            "date": "2027-01-22"
+          }
+        ],
+        "election_state": "none",
+        "missing_compliance": [
+          "Evaluation (Summarization and Eval Result from URO)"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "General Assembly",
+          "2027-01-15",
+          "Accounting Week Closing Night",
+          "2027-01-22"
+        ],
+        "must_not_mention": [
+          "4,600",
+          "Evaluation (Summarization",
+          "election"
+        ]
+      }
+    },
+    {
+      "id": "hn-d03",
+      "category": "tasks",
+      "digest": {
+        "organization": "Future Educators Society - College of Teacher Education",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Teachers Day Program",
+            "date": "2026-10-05",
+            "status": "completed",
+            "attendance": 120,
+            "budget_allocated": 9000,
+            "budget_used": 8700
+          }
+        ],
+        "tasks": {
+          "completed": 14,
+          "overdue": 3,
+          "open": 3
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 20,
+          "claimed": 20
+        },
+        "announcements": {
+          "posted": 12
+        },
+        "finance": {
+          "income": 9000,
+          "expense": 8700,
+          "closing_balance": 300
+        },
+        "upcoming_events": [
+          {
+            "title": "Literacy Outreach in Barangay Guadalupe",
+            "date": "2026-12-12"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Ella Placeholder",
+            "position": "President"
+          },
+          {
+            "name": "Fe Example",
+            "position": "Secretary"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Update official member roster for 2026-2027",
+            "owner": "Fe Example",
+            "deadline": "2026-11-20"
+          },
+          {
+            "title": "Send thank-you letters to the outreach partners",
+            "owner": "Ella Placeholder",
+            "deadline": "2026-11-30"
+          },
+          {
+            "title": "Inventory of org supplies in the cabinet",
+            "owner": "Gio Fictional",
+            "deadline": "2026-12-01"
+          }
+        ],
+        "unsettled": [],
+        "scheduled_events": [
+          {
+            "title": "Literacy Outreach in Barangay Guadalupe",
+            "date": "2026-12-12"
+          }
+        ],
+        "election_state": "closed",
+        "missing_compliance": [
+          "Planning Stage"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Update official member roster",
+          "Fe Example",
+          "Send thank-you letters",
+          "Ella Placeholder",
+          "Inventory of org supplies",
+          "Gio Fictional",
+          "2026-11-20"
+        ],
+        "must_not_mention": [
+          "Teachers Day Program",
+          "Planning Stage",
+          "Literacy Outreach"
+        ]
+      }
+    },
+    {
+      "id": "hn-d04",
+      "category": "organization",
+      "digest": {
+        "organization": "Nursing Student Council - College of Health Sciences",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Blood Letting Drive",
+            "date": "2026-09-24",
+            "status": "completed",
+            "attendance": 165,
+            "budget_allocated": 5000,
+            "budget_used": 4100
+          },
+          {
+            "title": "Nursing Pinning Rehearsal",
+            "date": "2026-11-03",
+            "status": "completed",
+            "attendance": 72,
+            "budget_allocated": null,
+            "budget_used": null
+          }
+        ],
+        "tasks": {
+          "completed": 9,
+          "overdue": 1,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "NSC Officer Election 2026",
+            "voters": 295,
+            "ballots": 240
+          }
+        ],
+        "merchandise": {
+          "orders": 38,
+          "claimed": 30
+        },
+        "announcements": {
+          "posted": 15
+        },
+        "finance": {
+          "income": 15000,
+          "expense": 11800,
+          "closing_balance": 7450
+        },
+        "upcoming_events": [
+          {
+            "title": "Capping Ceremony",
+            "date": "2027-02-06"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Hana Dummy",
+            "position": "President"
+          },
+          {
+            "name": "Ian Trial",
+            "position": "Vice President"
+          },
+          {
+            "name": "Joy Specimen",
+            "position": "Secretary"
+          },
+          {
+            "name": "Ben Demo",
+            "position": "Treasurer"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Renew the org adviser endorsement letter",
+            "owner": "Joy Specimen",
+            "deadline": "2026-12-15"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "collection",
+            "amount": 900,
+            "note": "Shirt payments, not yet remitted"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Capping Ceremony",
+            "date": "2027-02-06"
+          }
+        ],
+        "election_state": "finalized",
+        "missing_compliance": [
+          "Sem Report Cover"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Nursing Student Council",
+          "Hana Dummy",
+          "Ian Trial",
+          "Joy Specimen"
+        ],
+        "must_not_mention": [
+          "900",
+          "Capping Ceremony",
+          "Sem Report Cover",
+          "NSC Officer Election"
+        ]
+      }
+    },
+    {
+      "id": "hn-d05",
+      "category": "election",
+      "digest": {
+        "organization": "Engineering Innovators Guild - College of Engineering",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Robotics Demo Day",
+            "date": "2026-10-17",
+            "status": "completed",
+            "attendance": 110,
+            "budget_allocated": 15000,
+            "budget_used": 14200
+          }
+        ],
+        "tasks": {
+          "completed": 7,
+          "overdue": 2,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "EIG Executive Board Election 2026",
+            "voters": 310,
+            "ballots": 198
+          }
+        ],
+        "merchandise": {
+          "orders": 10,
+          "claimed": 6
+        },
+        "announcements": {
+          "posted": 7
+        },
+        "finance": {
+          "income": 22000,
+          "expense": 14200,
+          "closing_balance": 9800
+        },
+        "upcoming_events": [
+          {
+            "title": "Engineering Week",
+            "date": "2027-02-15"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Cai Tester",
+            "position": "President"
+          },
+          {
+            "name": "Dino Mock",
+            "position": "Auditor"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Print the certificates for the winners",
+            "owner": "Dino Mock",
+            "deadline": "2026-12-02"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "cash_advance",
+            "amount": 2000,
+            "note": "Robotics Demo Day materials, released, not repaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Engineering Week",
+            "date": "2027-02-15"
+          }
+        ],
+        "election_state": "closed",
+        "missing_compliance": [
+          "Action Plan"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "EIG Executive Board Election 2026",
+          "closed",
+          "198",
+          "310"
+        ],
+        "must_not_mention": [
+          "2,000",
+          "Robotics Demo Day",
+          "Engineering Week",
+          "Action Plan"
+        ]
+      }
+    },
+    {
+      "id": "hn-d06",
+      "category": "compliance",
+      "digest": {
+        "organization": "Philippine Society of Information Technology Students - College of Computer Studies",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Tech Summit 2026",
+            "date": "2026-09-19",
+            "status": "completed",
+            "attendance": 214,
+            "budget_allocated": 30000,
+            "budget_used": 27850
+          }
+        ],
+        "tasks": {
+          "completed": 11,
+          "overdue": 1,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "PSITS Officer Election 2027-2028",
+            "voters": 380,
+            "ballots": 251
+          }
+        ],
+        "merchandise": {
+          "orders": 52,
+          "claimed": 44
+        },
+        "announcements": {
+          "posted": 9
+        },
+        "finance": {
+          "income": 61400,
+          "expense": 46250,
+          "closing_balance": 18240.5
+        },
+        "upcoming_events": [
+          {
+            "title": "Christmas Party",
+            "date": "2026-12-18"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Ana Sample",
+            "position": "President"
+          },
+          {
+            "name": "Ben Demo",
+            "position": "Treasurer"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Collect signed accomplishment forms from committee heads",
+            "owner": "Ana Sample",
+            "deadline": "2026-12-08"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "cash_advance",
+            "amount": 3500,
+            "note": "Tech Summit, not repaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Christmas Party",
+            "date": "2026-12-18"
+          }
+        ],
+        "election_state": "finalized",
+        "missing_compliance": [
+          "Action Plan",
+          "Evaluation (Summarization and Eval Result from URO)",
+          "Semestral Projects"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Action Plan",
+          "Evaluation (Summarization and Eval Result from URO)",
+          "Semestral Projects"
+        ],
+        "must_not_mention": [
+          "3,500",
+          "18,240",
+          "Christmas Party",
+          "PSITS Officer Election"
+        ]
+      }
+    }
+  ]
+}

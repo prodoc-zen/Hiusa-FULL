@@ -1,0 +1,193 @@
+{
+  "feature": "semester-narrative",
+  "author_note": "Held-out test set, 6 cases, written blind to the drafter's prompt and code; run once at the end and report as is. Required coverage: sn-t01 has no events (empty true), sn-t02 has 12 events, sn-t03 has a cancelled event. Semantics assumed for expect: titles = every event title the digest supplies (held, approved, cancelled and upcoming), so a correct narrative may name only titles from this list; cancelled_titles = events with status cancelled, which must never be described as held, attended or completed; empty = the semester has no events at all and the narrative must say no events were recorded. Any number in the output must appear in the digest, and a null figure must be shown as a bracketed gap, not invented. Officer names are invented.",
+  "cases": [
+    {
+      "id": "sn-t01",
+      "organization": "Nursing Student Council - College of Health Sciences",
+      "semester": "1st Semester 2026-2027",
+      "events": [],
+      "tasks": { "completed": 3, "overdue": 1, "open": 2 },
+      "elections": [],
+      "merchandise": { "orders": 0, "claimed": 0 },
+      "announcements": { "posted": 2 },
+      "finance": { "income": 1500, "expense": 0, "closing_balance": 1500 },
+      "upcoming_events": [],
+      "officers": [
+        { "name": "Maria Makiling", "position": "President" }
+      ],
+      "expect": {
+        "titles": [],
+        "cancelled_titles": [],
+        "empty": true
+      }
+    },
+    {
+      "id": "sn-t02",
+      "organization": "Engineering Innovators Guild - College of Engineering",
+      "semester": "1st Semester 2026-2027",
+      "events": [
+        { "title": "Engineering Freshmen Welcome", "date": "2026-08-22", "status": "completed", "attendance": 220, "budget_allocated": 14000, "budget_used": 13120 },
+        { "title": "CAD Basics Workshop", "date": "2026-08-29", "status": "completed", "attendance": 61, "budget_allocated": 6000, "budget_used": 5400 },
+        { "title": "Arduino Bootcamp", "date": "2026-09-05", "status": "completed", "attendance": 48, "budget_allocated": 9500, "budget_used": 9500 },
+        { "title": "Alumni Talk: Careers in Civil Works", "date": "2026-09-12", "status": "completed", "attendance": 97, "budget_allocated": 3000, "budget_used": 2650 },
+        { "title": "Bridge Building Contest", "date": "2026-09-26", "status": "completed", "attendance": 134, "budget_allocated": 18000, "budget_used": 19400 },
+        { "title": "Plant Visit: Mactan Power Facility", "date": "2026-10-03", "status": "completed", "attendance": 40, "budget_allocated": 22000, "budget_used": 20850 },
+        { "title": "Engineers' Day Parade", "date": "2026-10-10", "status": "completed", "attendance": 288, "budget_allocated": 11000, "budget_used": 10300 },
+        { "title": "Robotics Demo Night", "date": "2026-10-24", "status": "completed", "attendance": 156, "budget_allocated": 8000, "budget_used": 7650 },
+        { "title": "Blood Donation Drive", "date": "2026-11-04", "status": "completed", "attendance": 72, "budget_allocated": 2500, "budget_used": 2100 },
+        { "title": "Licensure Exam Review Kickoff", "date": "2026-11-11", "status": "completed", "attendance": null, "budget_allocated": 5000, "budget_used": null },
+        { "title": "Guild Foundation Day", "date": "2026-11-28", "status": "approved", "attendance": null, "budget_allocated": 16000, "budget_used": null },
+        { "title": "Christmas Outreach sa Sitio Buhisan", "date": "2026-12-13", "status": "approved", "attendance": null, "budget_allocated": 12000, "budget_used": null }
+      ],
+      "tasks": { "completed": 47, "overdue": 5, "open": 11 },
+      "elections": [
+        { "title": "Guild Batch Representatives Election", "voters": 1240, "ballots": 903 }
+      ],
+      "merchandise": { "orders": 150, "claimed": 131 },
+      "announcements": { "posted": 29 },
+      "finance": { "income": 186000, "expense": 171420, "closing_balance": 54780 },
+      "upcoming_events": [
+        { "title": "Guild Foundation Day", "date": "2026-11-28" },
+        { "title": "Christmas Outreach sa Sitio Buhisan", "date": "2026-12-13" }
+      ],
+      "officers": [
+        { "name": "Rafael Magalang", "position": "President" },
+        { "name": "Carmela Dimaculangan", "position": "Vice President" },
+        { "name": "Pedro Penduko", "position": "Treasurer" },
+        { "name": "Ana Kalayaan", "position": "Secretary" }
+      ],
+      "expect": {
+        "titles": [
+          "Engineering Freshmen Welcome",
+          "CAD Basics Workshop",
+          "Arduino Bootcamp",
+          "Alumni Talk: Careers in Civil Works",
+          "Bridge Building Contest",
+          "Plant Visit: Mactan Power Facility",
+          "Engineers' Day Parade",
+          "Robotics Demo Night",
+          "Blood Donation Drive",
+          "Licensure Exam Review Kickoff",
+          "Guild Foundation Day",
+          "Christmas Outreach sa Sitio Buhisan"
+        ],
+        "cancelled_titles": [],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-t03",
+      "organization": "Future Educators Society - College of Teacher Education",
+      "semester": "1st Semester 2026-2027",
+      "events": [
+        { "title": "Education Week Opening Program", "date": "2026-09-14", "status": "completed", "attendance": 175, "budget_allocated": 10000, "budget_used": 9240 },
+        { "title": "Literacy Camp sa Barangay Pasil", "date": "2026-10-10", "status": "cancelled", "attendance": null, "budget_allocated": 8000, "budget_used": null },
+        { "title": "Teaching Strategies Seminar", "date": "2026-10-31", "status": "completed", "attendance": 88, "budget_allocated": 7000, "budget_used": 6800 },
+        { "title": "Gift-Giving for Public School Pupils", "date": "2026-12-10", "status": "approved", "attendance": null, "budget_allocated": 9000, "budget_used": null }
+      ],
+      "tasks": { "completed": 12, "overdue": 2, "open": 4 },
+      "elections": [],
+      "merchandise": { "orders": 21, "claimed": 21 },
+      "announcements": { "posted": 9 },
+      "finance": { "income": 28000, "expense": 23640, "closing_balance": 11860 },
+      "upcoming_events": [
+        { "title": "Gift-Giving for Public School Pupils", "date": "2026-12-10" }
+      ],
+      "officers": [
+        { "name": "Ana Kalayaan", "position": "President" },
+        { "name": "Jose Makiling", "position": "Treasurer" }
+      ],
+      "expect": {
+        "titles": ["Education Week Opening Program", "Literacy Camp sa Barangay Pasil", "Teaching Strategies Seminar", "Gift-Giving for Public School Pupils"],
+        "cancelled_titles": ["Literacy Camp sa Barangay Pasil"],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-t04",
+      "organization": "Philippine Society of Information Technology Students - College of Computer Studies",
+      "semester": "2nd Semester 2025-2026",
+      "events": [
+        { "title": "Code Camp for Senior High", "date": "2026-02-21", "status": "completed", "attendance": null, "budget_allocated": null, "budget_used": null },
+        { "title": "Cybersecurity Awareness Forum", "date": "2026-03-14", "status": "completed", "attendance": 109, "budget_allocated": 12000, "budget_used": null },
+        { "title": "Capstone Showcase", "date": "2026-04-25", "status": "completed", "attendance": 201, "budget_allocated": 25000, "budget_used": 26100 }
+      ],
+      "tasks": { "completed": 18, "overdue": 7, "open": 0 },
+      "elections": [
+        { "title": "PSITS Officers Election 2026", "voters": 530, "ballots": 477 }
+      ],
+      "merchandise": { "orders": 87, "claimed": 87 },
+      "announcements": { "posted": 14 },
+      "finance": { "income": 94500, "expense": 99800, "closing_balance": 0 },
+      "upcoming_events": [],
+      "officers": [
+        { "name": "Juan Dela Cruz", "position": "President" },
+        { "name": "Maria Clara Reyes", "position": "Treasurer" },
+        { "name": "Liza Montenegro", "position": "Auditor" }
+      ],
+      "expect": {
+        "titles": ["Code Camp for Senior High", "Cybersecurity Awareness Forum", "Capstone Showcase"],
+        "cancelled_titles": [],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-t05",
+      "organization": "Junior Philippine Institute of Accountants - College of Business Education",
+      "semester": "1st Semester 2026-2027",
+      "events": [
+        { "title": "Audit Case Competition", "date": "2026-10-08", "status": "completed", "attendance": 96, "budget_allocated": 15000, "budget_used": 12400 },
+        { "title": "Bookkeeping Clinic for Small Vendors", "date": "2026-11-30", "status": "approved", "attendance": null, "budget_allocated": 4500, "budget_used": null }
+      ],
+      "tasks": { "completed": 6, "overdue": 0, "open": 8 },
+      "elections": [
+        { "title": "JPIA Special Election for Vacant Auditor", "voters": 312, "ballots": 0 },
+        { "title": "JPIA Batch Representatives Election", "voters": 312, "ballots": 241 }
+      ],
+      "merchandise": { "orders": 12, "claimed": 4 },
+      "announcements": { "posted": 0 },
+      "finance": { "income": 17800, "expense": 12400, "closing_balance": 5400 },
+      "upcoming_events": [
+        { "title": "Bookkeeping Clinic for Small Vendors", "date": "2026-11-30" }
+      ],
+      "officers": [
+        { "name": "Carlo Bautista", "position": "President" },
+        { "name": "Pedro Penduko", "position": "Treasurer" }
+      ],
+      "expect": {
+        "titles": ["Audit Case Competition", "Bookkeeping Clinic for Small Vendors"],
+        "cancelled_titles": [],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-t06",
+      "organization": "Nursing Student Council - College of Health Sciences",
+      "semester": "2nd Semester 2025-2026",
+      "events": [
+        { "title": "Free Blood Pressure Screening", "date": "2026-02-28", "status": "completed", "attendance": 330, "budget_allocated": 5000, "budget_used": 4780 },
+        { "title": "Nurses' Week Celebration", "date": "2026-05-06", "status": "cancelled", "attendance": null, "budget_allocated": 20000, "budget_used": 3500 },
+        { "title": "Capping and Pinning Ceremony", "date": "2026-05-15", "status": "completed", "attendance": 410, "budget_allocated": 60000, "budget_used": 58900 },
+        { "title": "First Aid Training for Barangay Health Workers", "date": "2026-03-20", "status": "completed", "attendance": 52, "budget_allocated": 8000, "budget_used": 7300 },
+        { "title": "Dental Mission sa Talisay", "date": "2026-04-11", "status": "cancelled", "attendance": null, "budget_allocated": 15000, "budget_used": null }
+      ],
+      "tasks": { "completed": 25, "overdue": 1, "open": 2 },
+      "elections": [],
+      "merchandise": { "orders": 45, "claimed": 40 },
+      "announcements": { "posted": 11 },
+      "finance": { "income": 112000, "expense": 78480, "closing_balance": 61250 },
+      "upcoming_events": [],
+      "officers": [
+        { "name": "Maria Makiling", "position": "President" },
+        { "name": "Jose Makiling", "position": "Vice President" },
+        { "name": "Carmela Dimaculangan", "position": "Treasurer" }
+      ],
+      "expect": {
+        "titles": ["Free Blood Pressure Screening", "Nurses' Week Celebration", "Capping and Pinning Ceremony", "First Aid Training for Barangay Health Workers", "Dental Mission sa Talisay"],
+        "cancelled_titles": ["Nurses' Week Celebration", "Dental Mission sa Talisay"],
+        "empty": false
+      }
+    }
+  ]
+}

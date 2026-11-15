@@ -1,0 +1,93 @@
+{
+  "feature": "semester-narrative",
+  "author_note": "Dev set, 3 cases, written blind to the drafter's prompt and code. Semantics assumed for expect: titles = every event title the digest supplies (held, approved, cancelled and upcoming), so a correct narrative may name only titles from this list; cancelled_titles = events with status cancelled, which must never be described as held; empty = the semester has no events at all and the narrative must say so. Any number in the output must appear in the digest (attendance, budget, task, election, order, announcement and finance figures); a missing figure (null) must be shown as a bracketed gap, not invented. Officer names are invented.",
+  "cases": [
+    {
+      "id": "sn-d01",
+      "organization": "Philippine Society of Information Technology Students - College of Computer Studies",
+      "semester": "1st Semester 2026-2027",
+      "events": [
+        { "title": "Tech Orientation Week", "date": "2026-08-24", "status": "completed", "attendance": 186, "budget_allocated": 12000, "budget_used": 10850 },
+        { "title": "Intro to Web Dev Workshop", "date": "2026-09-19", "status": "completed", "attendance": 74, "budget_allocated": 8000, "budget_used": 8000 },
+        { "title": "CCS Tech Summit 2026", "date": "2026-10-17", "status": "completed", "attendance": 312, "budget_allocated": 45000, "budget_used": 47250 },
+        { "title": "Hackathon Cebu Qualifiers", "date": "2026-11-07", "status": "completed", "attendance": 58, "budget_allocated": 15000, "budget_used": 11300 },
+        { "title": "Year-End Gathering", "date": "2026-12-12", "status": "approved", "attendance": null, "budget_allocated": 9000, "budget_used": null }
+      ],
+      "tasks": { "completed": 21, "overdue": 3, "open": 6 },
+      "elections": [],
+      "merchandise": { "orders": 64, "claimed": 52 },
+      "announcements": { "posted": 17 },
+      "finance": { "income": 68500, "expense": 61400, "closing_balance": 22350 },
+      "upcoming_events": [
+        { "title": "Year-End Gathering", "date": "2026-12-12" }
+      ],
+      "officers": [
+        { "name": "Juan Dela Cruz", "position": "President" },
+        { "name": "Maria Clara Reyes", "position": "Treasurer" },
+        { "name": "Pedro Penduko", "position": "Secretary" }
+      ],
+      "expect": {
+        "titles": ["Tech Orientation Week", "Intro to Web Dev Workshop", "CCS Tech Summit 2026", "Hackathon Cebu Qualifiers", "Year-End Gathering"],
+        "cancelled_titles": [],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-d02",
+      "organization": "Future Educators Society - College of Teacher Education",
+      "semester": "2nd Semester 2025-2026",
+      "events": [
+        { "title": "Teachers' Month Kickoff", "date": "2026-02-14", "status": "completed", "attendance": null, "budget_allocated": 6000, "budget_used": null },
+        { "title": "Brigada Eskwela sa Barangay", "date": "2026-03-21", "status": "completed", "attendance": 43, "budget_allocated": null, "budget_used": null },
+        { "title": "Mock Teaching Demo Day", "date": "2026-04-18", "status": "cancelled", "attendance": null, "budget_allocated": 5000, "budget_used": null }
+      ],
+      "tasks": { "completed": 8, "overdue": 0, "open": 1 },
+      "elections": [],
+      "merchandise": { "orders": 0, "claimed": 0 },
+      "announcements": { "posted": 5 },
+      "finance": { "income": 9200, "expense": 7150, "closing_balance": 4300 },
+      "upcoming_events": [],
+      "officers": [
+        { "name": "Ana Kalayaan", "position": "President" },
+        { "name": "Jose Makiling", "position": "Treasurer" }
+      ],
+      "expect": {
+        "titles": ["Teachers' Month Kickoff", "Brigada Eskwela sa Barangay", "Mock Teaching Demo Day"],
+        "cancelled_titles": ["Mock Teaching Demo Day"],
+        "empty": false
+      }
+    },
+    {
+      "id": "sn-d03",
+      "organization": "Junior Philippine Institute of Accountants - College of Business Education",
+      "semester": "1st Semester 2026-2027",
+      "events": [
+        { "title": "Accountancy Week Opening", "date": "2026-09-07", "status": "completed", "attendance": 245, "budget_allocated": 20000, "budget_used": 16780 },
+        { "title": "Tax Update Seminar", "date": "2026-10-03", "status": "completed", "attendance": 132, "budget_allocated": 18000, "budget_used": 18000 },
+        { "title": "Financial Literacy Booth", "date": "2026-11-28", "status": "approved", "attendance": null, "budget_allocated": 7500, "budget_used": null },
+        { "title": "Christmas Bazaar", "date": "2026-12-05", "status": "approved", "attendance": null, "budget_allocated": 10000, "budget_used": null }
+      ],
+      "tasks": { "completed": 15, "overdue": 4, "open": 9 },
+      "elections": [
+        { "title": "JPIA Officers Election 2026", "voters": 412, "ballots": 266 }
+      ],
+      "merchandise": { "orders": 38, "claimed": 30 },
+      "announcements": { "posted": 12 },
+      "finance": { "income": 52000, "expense": 58900, "closing_balance": 3100 },
+      "upcoming_events": [
+        { "title": "Financial Literacy Booth", "date": "2026-11-28" },
+        { "title": "Christmas Bazaar", "date": "2026-12-05" }
+      ],
+      "officers": [
+        { "name": "Carlo Bautista", "position": "President" },
+        { "name": "Liza Montenegro", "position": "Vice President" },
+        { "name": "Pedro Penduko", "position": "Auditor" }
+      ],
+      "expect": {
+        "titles": ["Accountancy Week Opening", "Tax Update Seminar", "Financial Literacy Booth", "Christmas Bazaar"],
+        "cancelled_titles": [],
+        "empty": false
+      }
+    }
+  ]
+}

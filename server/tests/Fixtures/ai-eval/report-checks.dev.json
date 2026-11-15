@@ -1,0 +1,991 @@
+{
+  "feature": "report-checks",
+  "author_note": "Dev split for the report ledger checker (F2). 5 defective ledgers, each on an otherwise clean ledger of 10 to 14 transactions, covering all twelve codes once between them. Written independently of the prompt and implementation, only from the twelve written rules. Expected findings are one entry per offending transaction, collection or advance, and one entry per duplicate group.",
+  "cases": [
+    {
+      "id": "rc-d01",
+      "period": {
+        "from": "2026-08-01",
+        "to": "2026-12-31"
+      },
+      "previous_report_closing": 8400,
+      "opening_balance": 8400,
+      "events": [
+        {
+          "key": "e1",
+          "title": "IT Week 2026"
+        }
+      ],
+      "budgets": [
+        {
+          "key": "b1",
+          "name": "IT Week Budget",
+          "allocated_amount": 15000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": "e1"
+        },
+        {
+          "key": "b2",
+          "name": "Org Operations",
+          "allocated_amount": 12000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": null
+        }
+      ],
+      "transactions": [
+        {
+          "key": "t01",
+          "type": "income",
+          "amount": 4200,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-18",
+          "receipt_reference": "OR-0814",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t02",
+          "type": "income",
+          "amount": 3100,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-19",
+          "receipt_reference": "OR-0815",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t03",
+          "type": "expense",
+          "amount": 2850,
+          "category": "Printing",
+          "transaction_date": "2026-09-02",
+          "receipt_reference": "OR-2201",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t04",
+          "type": "expense",
+          "amount": 1200.5,
+          "category": "Supplies",
+          "transaction_date": "2026-09-05",
+          "receipt_reference": "OR-2202",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t05",
+          "type": "expense",
+          "amount": 3500,
+          "category": "Food",
+          "transaction_date": "2026-10-10",
+          "receipt_reference": "OR-3310",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t06",
+          "type": "expense",
+          "amount": 2250,
+          "category": "Venue",
+          "transaction_date": "2026-10-10",
+          "receipt_reference": null,
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t07",
+          "type": "expense",
+          "amount": 1800,
+          "category": "Tarpaulin",
+          "transaction_date": "2026-10-09",
+          "receipt_reference": "OR-3305",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t08",
+          "type": "income",
+          "amount": 2500,
+          "category": "Registration Fees",
+          "transaction_date": "2026-10-12",
+          "receipt_reference": "OR-REG-1",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t09",
+          "type": "expense",
+          "amount": 950,
+          "category": "Certificates",
+          "transaction_date": "2026-10-11",
+          "receipt_reference": "",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t10",
+          "type": "expense",
+          "amount": 1400,
+          "category": "Prizes",
+          "transaction_date": "2026-10-13",
+          "receipt_reference": "OR-3312",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t11",
+          "type": "expense",
+          "amount": 780,
+          "category": "Snacks",
+          "transaction_date": "2026-11-03",
+          "receipt_reference": "OR-4101",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t12",
+          "type": "expense",
+          "amount": 600,
+          "category": "Load",
+          "transaction_date": "2026-11-20",
+          "receipt_reference": "OR-4150",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t13",
+          "type": "income",
+          "amount": 1500,
+          "category": "Donations",
+          "transaction_date": "2026-11-25",
+          "receipt_reference": "OR-DN-3",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t14",
+          "type": "expense",
+          "amount": 1650,
+          "category": "Supplies",
+          "transaction_date": "2026-12-02",
+          "receipt_reference": "OR-4210",
+          "budget_key": "b2",
+          "event_key": null
+        }
+      ],
+      "collections": [
+        {
+          "key": "c1",
+          "amount": 3000,
+          "verified": true,
+          "remitted_amount": 3000
+        },
+        {
+          "key": "c2",
+          "amount": 4200,
+          "verified": false,
+          "remitted_amount": 0
+        }
+      ],
+      "cash_advances": [
+        {
+          "key": "a1",
+          "amount": 2000,
+          "status": "repaid",
+          "released_on": "2026-09-10",
+          "repaid_on": "2026-09-25"
+        }
+      ],
+      "report": null,
+      "expected_findings": [
+        {
+          "code": "collection_unverified",
+          "refs": [
+            "c2"
+          ]
+        },
+        {
+          "code": "missing_receipt",
+          "refs": [
+            "t06"
+          ]
+        },
+        {
+          "code": "missing_receipt",
+          "refs": [
+            "t09"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rc-d02",
+      "period": {
+        "from": "2026-08-01",
+        "to": "2026-12-31"
+      },
+      "previous_report_closing": 21500,
+      "opening_balance": 21050,
+      "events": [
+        {
+          "key": "e1",
+          "title": "Accountancy Week 2026"
+        }
+      ],
+      "budgets": [
+        {
+          "key": "b1",
+          "name": "Accountancy Week Budget",
+          "allocated_amount": 20000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": "e1"
+        },
+        {
+          "key": "b2",
+          "name": "Operations",
+          "allocated_amount": 8000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": null
+        }
+      ],
+      "transactions": [
+        {
+          "key": "t01",
+          "type": "income",
+          "amount": 4800,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-10",
+          "receipt_reference": "OR-1",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t02",
+          "type": "expense",
+          "amount": 640,
+          "category": "Supplies",
+          "transaction_date": "2026-08-20",
+          "receipt_reference": "OR-2",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t03",
+          "type": "expense",
+          "amount": 2200,
+          "category": "Venue",
+          "transaction_date": "2026-09-12",
+          "receipt_reference": "OR-3",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t04",
+          "type": "expense",
+          "amount": 3100,
+          "category": "Speaker Honorarium",
+          "transaction_date": "2026-09-14",
+          "receipt_reference": "OR-4",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t05",
+          "type": "expense",
+          "amount": 1250,
+          "category": "Food",
+          "transaction_date": "2026-09-15",
+          "receipt_reference": null,
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t06",
+          "type": "expense",
+          "amount": 1250,
+          "category": "Food",
+          "transaction_date": "2026-09-15",
+          "receipt_reference": null,
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t07",
+          "type": "income",
+          "amount": 1800,
+          "category": "Sponsorship",
+          "transaction_date": "2026-09-01",
+          "receipt_reference": "OR-5",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t08",
+          "type": "expense",
+          "amount": 980,
+          "category": "Printing",
+          "transaction_date": "2026-10-02",
+          "receipt_reference": "OR-6",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t09",
+          "type": "expense",
+          "amount": 1500,
+          "category": "Medals",
+          "transaction_date": "2026-09-16",
+          "receipt_reference": "OR-7",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t10",
+          "type": "income",
+          "amount": 3300,
+          "category": "Membership Fees",
+          "transaction_date": "2026-10-05",
+          "receipt_reference": "OR-8",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t11",
+          "type": "expense",
+          "amount": 450,
+          "category": "Load",
+          "transaction_date": "2026-11-04",
+          "receipt_reference": "OR-9",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t12",
+          "type": "expense",
+          "amount": 1750.25,
+          "category": "Tokens",
+          "transaction_date": "2026-11-20",
+          "receipt_reference": "OR-10",
+          "budget_key": "b2",
+          "event_key": null
+        }
+      ],
+      "collections": [
+        {
+          "key": "c1",
+          "amount": 2500,
+          "verified": true,
+          "remitted_amount": 2500
+        }
+      ],
+      "cash_advances": [],
+      "report": {
+        "generated_at": "2026-12-18T09:30:00",
+        "ledger_edited_after": false
+      },
+      "expected_findings": [
+        {
+          "code": "missing_receipt",
+          "refs": [
+            "t05"
+          ]
+        },
+        {
+          "code": "missing_receipt",
+          "refs": [
+            "t06"
+          ]
+        },
+        {
+          "code": "opening_balance_mismatch",
+          "refs": []
+        },
+        {
+          "code": "possible_duplicate",
+          "refs": [
+            "t05",
+            "t06"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rc-d03",
+      "period": {
+        "from": "2026-08-01",
+        "to": "2026-12-31"
+      },
+      "previous_report_closing": 5000,
+      "opening_balance": 5000,
+      "events": [
+        {
+          "key": "e1",
+          "title": "Blood Letting Drive"
+        },
+        {
+          "key": "e2",
+          "title": "Wellness Fair"
+        },
+        {
+          "key": "e3",
+          "title": "Capping Preparation"
+        }
+      ],
+      "budgets": [
+        {
+          "key": "b1",
+          "name": "Blood Letting Drive Budget",
+          "allocated_amount": 6000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": "e1"
+        },
+        {
+          "key": "b2",
+          "name": "General Fund",
+          "allocated_amount": 10000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": null
+        },
+        {
+          "key": "b3",
+          "name": "Wellness Fair Budget",
+          "allocated_amount": 9000,
+          "warning_threshold_percent": 80,
+          "submission_status": "pending",
+          "event_key": "e2"
+        }
+      ],
+      "transactions": [
+        {
+          "key": "t01",
+          "type": "income",
+          "amount": 5000,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-12",
+          "receipt_reference": "OR-1",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t02",
+          "type": "expense",
+          "amount": 1500,
+          "category": "Supplies",
+          "transaction_date": "2026-08-25",
+          "receipt_reference": "OR-2",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t03",
+          "type": "expense",
+          "amount": 2800,
+          "category": "Medical Supplies",
+          "transaction_date": "2026-10-03",
+          "receipt_reference": "OR-3",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t04",
+          "type": "expense",
+          "amount": 2400,
+          "category": "Food",
+          "transaction_date": "2026-10-03",
+          "receipt_reference": "OR-4",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t05",
+          "type": "expense",
+          "amount": 1200,
+          "category": "Rental",
+          "transaction_date": "2026-10-02",
+          "receipt_reference": "OR-5",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t06",
+          "type": "expense",
+          "amount": 3200,
+          "category": "Booth Setup",
+          "transaction_date": "2026-11-10",
+          "receipt_reference": "OR-6",
+          "budget_key": "b3",
+          "event_key": "e2"
+        },
+        {
+          "key": "t07",
+          "type": "expense",
+          "amount": 900,
+          "category": "Posters",
+          "transaction_date": "2026-11-02",
+          "receipt_reference": "OR-7",
+          "budget_key": "b3",
+          "event_key": "e2"
+        },
+        {
+          "key": "t08",
+          "type": "expense",
+          "amount": 1800,
+          "category": "Candles and Lamps",
+          "transaction_date": "2026-11-24",
+          "receipt_reference": "OR-8",
+          "budget_key": null,
+          "event_key": "e3"
+        },
+        {
+          "key": "t09",
+          "type": "income",
+          "amount": 2000,
+          "category": "Donations",
+          "transaction_date": "2026-09-20",
+          "receipt_reference": "OR-9",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t10",
+          "type": "expense",
+          "amount": 520,
+          "category": "Printing",
+          "transaction_date": "2026-09-28",
+          "receipt_reference": "OR-10",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t11",
+          "type": "expense",
+          "amount": 750,
+          "category": "Transportation",
+          "transaction_date": "2026-12-05",
+          "receipt_reference": "OR-11",
+          "budget_key": "b2",
+          "event_key": null
+        }
+      ],
+      "collections": [
+        {
+          "key": "c1",
+          "amount": 1500,
+          "verified": true,
+          "remitted_amount": 1500
+        }
+      ],
+      "cash_advances": [],
+      "report": null,
+      "expected_findings": [
+        {
+          "code": "budget_overspent",
+          "refs": [
+            "b1"
+          ]
+        },
+        {
+          "code": "event_expense_no_budget",
+          "refs": [
+            "t08"
+          ]
+        },
+        {
+          "code": "expense_on_unapproved_budget",
+          "refs": [
+            "t06"
+          ]
+        },
+        {
+          "code": "expense_on_unapproved_budget",
+          "refs": [
+            "t07"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rc-d04",
+      "period": {
+        "from": "2026-01-05",
+        "to": "2026-05-30"
+      },
+      "previous_report_closing": null,
+      "opening_balance": 3200,
+      "events": [
+        {
+          "key": "e1",
+          "title": "Literacy Outreach"
+        }
+      ],
+      "budgets": [
+        {
+          "key": "b1",
+          "name": "Literacy Outreach Budget",
+          "allocated_amount": 12000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": "e1"
+        },
+        {
+          "key": "b2",
+          "name": "Admin Fund",
+          "allocated_amount": 5000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": null
+        }
+      ],
+      "transactions": [
+        {
+          "key": "t01",
+          "type": "income",
+          "amount": 3500,
+          "category": "Membership Fees",
+          "transaction_date": "2026-01-20",
+          "receipt_reference": "OR-1",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t02",
+          "type": "expense",
+          "amount": 1200,
+          "category": "Supplies",
+          "transaction_date": "2026-02-02",
+          "receipt_reference": "OR-2",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t03",
+          "type": "expense",
+          "amount": 3000,
+          "category": "Transportation",
+          "transaction_date": "2026-03-14",
+          "receipt_reference": "OR-3",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t04",
+          "type": "expense",
+          "amount": 2600,
+          "category": "Food",
+          "transaction_date": "2026-03-14",
+          "receipt_reference": "OR-4",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t05",
+          "type": "expense",
+          "amount": 1800,
+          "category": "Learning Materials",
+          "transaction_date": "2026-03-15",
+          "receipt_reference": "OR-5",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t06",
+          "type": "income",
+          "amount": 2000,
+          "category": "Donations",
+          "transaction_date": "2026-03-01",
+          "receipt_reference": "OR-6",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t07",
+          "type": "expense",
+          "amount": 640,
+          "category": "Printing",
+          "transaction_date": "2026-04-08",
+          "receipt_reference": "OR-7",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t08",
+          "type": "expense",
+          "amount": 880,
+          "category": "Certificates",
+          "transaction_date": "2026-04-20",
+          "receipt_reference": "OR-8",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t09",
+          "type": "income",
+          "amount": 1000,
+          "category": "Fundraising",
+          "transaction_date": "2026-04-25",
+          "receipt_reference": "OR-9",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t10",
+          "type": "expense",
+          "amount": 450,
+          "category": "Snacks",
+          "transaction_date": "2026-05-10",
+          "receipt_reference": "OR-10",
+          "budget_key": "b2",
+          "event_key": null
+        }
+      ],
+      "collections": [
+        {
+          "key": "c1",
+          "amount": 2000,
+          "verified": true,
+          "remitted_amount": 1500
+        },
+        {
+          "key": "c2",
+          "amount": 3500,
+          "verified": true,
+          "remitted_amount": 3500
+        }
+      ],
+      "cash_advances": [
+        {
+          "key": "a1",
+          "amount": 3000,
+          "status": "released",
+          "released_on": "2026-02-20",
+          "repaid_on": null
+        },
+        {
+          "key": "a2",
+          "amount": 1500,
+          "status": "repaid",
+          "released_on": "2026-03-01",
+          "repaid_on": "2026-03-10"
+        }
+      ],
+      "report": {
+        "generated_at": "2026-05-28T14:00:00",
+        "ledger_edited_after": true
+      },
+      "expected_findings": [
+        {
+          "code": "cash_advance_unsettled",
+          "refs": [
+            "a1"
+          ]
+        },
+        {
+          "code": "ledger_changed_since_generated",
+          "refs": []
+        },
+        {
+          "code": "remittance_short",
+          "refs": [
+            "c1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rc-d05",
+      "period": {
+        "from": "2026-08-01",
+        "to": "2026-12-31"
+      },
+      "previous_report_closing": 15000,
+      "opening_balance": 15000,
+      "events": [
+        {
+          "key": "e1",
+          "title": "Engineering Week"
+        }
+      ],
+      "budgets": [
+        {
+          "key": "b1",
+          "name": "Engineering Week Budget",
+          "allocated_amount": 30000,
+          "warning_threshold_percent": 85,
+          "submission_status": "approved",
+          "event_key": "e1"
+        },
+        {
+          "key": "b2",
+          "name": "Operations",
+          "allocated_amount": 10000,
+          "warning_threshold_percent": 80,
+          "submission_status": "approved",
+          "event_key": null
+        }
+      ],
+      "transactions": [
+        {
+          "key": "t01",
+          "type": "income",
+          "amount": 4500,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-15",
+          "receipt_reference": "OR-1",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t02",
+          "type": "income",
+          "amount": 4500,
+          "category": "Membership Fees",
+          "transaction_date": "2026-08-16",
+          "receipt_reference": "OR-2",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t03",
+          "type": "expense",
+          "amount": 3500,
+          "category": "Equipment Rental",
+          "transaction_date": "2026-09-05",
+          "receipt_reference": "OR-3",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t04",
+          "type": "expense",
+          "amount": 2800,
+          "category": "Maintenance",
+          "transaction_date": "2026-09-20",
+          "receipt_reference": "OR-4",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t05",
+          "type": "expense",
+          "amount": 2000,
+          "category": "Supplies",
+          "transaction_date": "2026-10-02",
+          "receipt_reference": "OR-5",
+          "budget_key": "b2",
+          "event_key": null
+        },
+        {
+          "key": "t06",
+          "type": "expense",
+          "amount": 8500,
+          "category": "Booth Construction",
+          "transaction_date": "2026-10-20",
+          "receipt_reference": "OR-6",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t07",
+          "type": "expense",
+          "amount": 6200,
+          "category": "Tshirts",
+          "transaction_date": "2026-10-21",
+          "receipt_reference": "OR-7",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t08",
+          "type": "expense",
+          "amount": 4200,
+          "category": "Food",
+          "transaction_date": "2026-10-22",
+          "receipt_reference": "OR-8",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t09",
+          "type": "expense",
+          "amount": 3600,
+          "category": "Prizes",
+          "transaction_date": "2026-10-22",
+          "receipt_reference": "OR-9",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t10",
+          "type": "income",
+          "amount": 5000,
+          "category": "Sponsorship",
+          "transaction_date": "2026-10-15",
+          "receipt_reference": "OR-10",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t11",
+          "type": "expense",
+          "amount": 1500,
+          "category": "Sound System",
+          "transaction_date": "2026-10-23",
+          "receipt_reference": "OR-11",
+          "budget_key": "b1",
+          "event_key": "e1"
+        },
+        {
+          "key": "t12",
+          "type": "income",
+          "amount": 2200,
+          "category": "Donations",
+          "transaction_date": "2026-11-15",
+          "receipt_reference": "OR-12",
+          "budget_key": null,
+          "event_key": null
+        },
+        {
+          "key": "t13",
+          "type": "expense",
+          "amount": 700,
+          "category": "Misc",
+          "transaction_date": "2026-11-30",
+          "receipt_reference": "OR-13",
+          "budget_key": "b1",
+          "event_key": "e1"
+        }
+      ],
+      "collections": [
+        {
+          "key": "c1",
+          "amount": 5000,
+          "verified": true,
+          "remitted_amount": 5000
+        }
+      ],
+      "cash_advances": [],
+      "report": null,
+      "expected_findings": [
+        {
+          "code": "budget_near_limit",
+          "refs": [
+            "b2"
+          ]
+        },
+        {
+          "code": "large_unlinked_entry",
+          "refs": [
+            "t07"
+          ]
+        }
+      ]
+    }
+  ]
+}

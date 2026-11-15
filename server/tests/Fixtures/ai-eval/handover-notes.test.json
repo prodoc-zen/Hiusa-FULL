@@ -1,0 +1,661 @@
+{
+  "feature": "handover-notes",
+  "author_note": "Held-out test set for handover-notes (F4), one case per category (finance, events, tasks, organization, election, compliance). Each case carries a full term digest with deliberate distractors from other categories, so a correct category note uses only its own slice of the digest and open_items. Organizations follow the seeded HIUSA colleges plus a few invented ones; people are clearly invented placeholders (Ana Sample, Ben Demo, and so on). Amounts in must_mention are written grouped with commas and no currency sign (for example \"3,500\"); a runner should compare them ignoring the PHP sign, thousands separators and trailing \".00\". must_mention entries are case-insensitive substrings; a long requirement name may be matched by its leading words where the entry is given short. must_not_mention entries are case-insensitive substrings of facts that belong to other categories and must not appear in this category's note. Dates are ISO as supplied in the digest.",
+  "cases": [
+    {
+      "id": "hn-t01",
+      "category": "finance",
+      "digest": {
+        "organization": "Mass Communication Society - College of Arts and Sciences",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Media Literacy Forum",
+            "date": "2026-09-26",
+            "status": "completed",
+            "attendance": 88,
+            "budget_allocated": 4000,
+            "budget_used": 3950
+          },
+          {
+            "title": "Short Film Screening",
+            "date": "2026-11-07",
+            "status": "completed",
+            "attendance": 130,
+            "budget_allocated": 3500,
+            "budget_used": 3500
+          }
+        ],
+        "tasks": {
+          "completed": 5,
+          "overdue": 0,
+          "open": 1
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 0,
+          "claimed": 0
+        },
+        "announcements": {
+          "posted": 4
+        },
+        "finance": {
+          "income": 7500,
+          "expense": 7450,
+          "closing_balance": 50
+        },
+        "upcoming_events": [],
+        "officers": [
+          {
+            "name": "Ella Placeholder",
+            "position": "President"
+          },
+          {
+            "name": "Gio Fictional",
+            "position": "Treasurer"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Archive the screening permits",
+            "owner": "Gio Fictional",
+            "deadline": "2026-12-10"
+          }
+        ],
+        "unsettled": [],
+        "scheduled_events": [],
+        "election_state": "none",
+        "missing_compliance": [
+          "Planning Stage"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "50"
+        ],
+        "must_not_mention": [
+          "Planning Stage",
+          "election"
+        ]
+      }
+    },
+    {
+      "id": "hn-t02",
+      "category": "events",
+      "digest": {
+        "organization": "Hospitality and Tourism Guild - College of Business Education",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Orientation for Freshmen",
+            "date": "2026-08-14",
+            "status": "completed",
+            "attendance": 260,
+            "budget_allocated": 8000,
+            "budget_used": 7600
+          },
+          {
+            "title": "Culinary Showdown",
+            "date": "2026-08-29",
+            "status": "completed",
+            "attendance": 150,
+            "budget_allocated": 12000,
+            "budget_used": 12400
+          },
+          {
+            "title": "Barista Workshop",
+            "date": "2026-09-05",
+            "status": "completed",
+            "attendance": 45,
+            "budget_allocated": 3000,
+            "budget_used": 2800
+          },
+          {
+            "title": "Heritage Tour Cebu City",
+            "date": "2026-09-12",
+            "status": "completed",
+            "attendance": 60,
+            "budget_allocated": 9000,
+            "budget_used": 8200
+          },
+          {
+            "title": "Mock Hotel Operations",
+            "date": "2026-09-26",
+            "status": "completed",
+            "attendance": 80,
+            "budget_allocated": 5000,
+            "budget_used": 4900
+          },
+          {
+            "title": "Tourism Month Parade",
+            "date": "2026-09-27",
+            "status": "completed",
+            "attendance": 200,
+            "budget_allocated": 6000,
+            "budget_used": 5700
+          },
+          {
+            "title": "Wine Service Seminar",
+            "date": "2026-10-10",
+            "status": "cancelled",
+            "attendance": null,
+            "budget_allocated": null,
+            "budget_used": null
+          },
+          {
+            "title": "Food Safety Training",
+            "date": "2026-10-17",
+            "status": "completed",
+            "attendance": 70,
+            "budget_allocated": 2500,
+            "budget_used": 2500
+          },
+          {
+            "title": "Hotel Immersion Orientation",
+            "date": "2026-10-24",
+            "status": "completed",
+            "attendance": 95,
+            "budget_allocated": null,
+            "budget_used": null
+          },
+          {
+            "title": "Halloween Banquet",
+            "date": "2026-10-30",
+            "status": "completed",
+            "attendance": 110,
+            "budget_allocated": 7000,
+            "budget_used": 6800
+          },
+          {
+            "title": "Alumni Homecoming Dinner",
+            "date": "2026-11-14",
+            "status": "approved",
+            "attendance": null,
+            "budget_allocated": 10000,
+            "budget_used": null
+          },
+          {
+            "title": "Pastry Fair",
+            "date": "2026-11-21",
+            "status": "approved",
+            "attendance": null,
+            "budget_allocated": 4500,
+            "budget_used": null
+          }
+        ],
+        "tasks": {
+          "completed": 18,
+          "overdue": 4,
+          "open": 6
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 25,
+          "claimed": 25
+        },
+        "announcements": {
+          "posted": 21
+        },
+        "finance": {
+          "income": 70000,
+          "expense": 61000,
+          "closing_balance": 9000
+        },
+        "upcoming_events": [
+          {
+            "title": "Pastry Fair",
+            "date": "2026-11-21"
+          },
+          {
+            "title": "Alumni Homecoming Dinner",
+            "date": "2026-11-14"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Hana Dummy",
+            "position": "President"
+          },
+          {
+            "name": "Ian Trial",
+            "position": "Vice President for Events"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Final headcount for the banquet venue",
+            "owner": "Ian Trial",
+            "deadline": "2026-11-10"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "cash_advance",
+            "amount": 5000,
+            "note": "Homecoming Dinner deposit, released"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Alumni Homecoming Dinner",
+            "date": "2026-11-14"
+          },
+          {
+            "title": "Pastry Fair",
+            "date": "2026-11-21"
+          }
+        ],
+        "election_state": "none",
+        "missing_compliance": [
+          "Semestral Projects"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Alumni Homecoming Dinner",
+          "2026-11-14",
+          "Pastry Fair",
+          "2026-11-21"
+        ],
+        "must_not_mention": [
+          "5,000",
+          "Semestral Projects",
+          "election"
+        ]
+      }
+    },
+    {
+      "id": "hn-t03",
+      "category": "tasks",
+      "digest": {
+        "organization": "Criminology Students Association - College of Criminal Justice",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Crime Prevention Fair",
+            "date": "2026-10-15",
+            "status": "completed",
+            "attendance": 175,
+            "budget_allocated": 6000,
+            "budget_used": 5900
+          }
+        ],
+        "tasks": {
+          "completed": 6,
+          "overdue": 2,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "CSA Board Election",
+            "voters": 220,
+            "ballots": 190
+          }
+        ],
+        "merchandise": {
+          "orders": 14,
+          "claimed": 9
+        },
+        "announcements": {
+          "posted": 5
+        },
+        "finance": {
+          "income": 6500,
+          "expense": 5900,
+          "closing_balance": 600
+        },
+        "upcoming_events": [
+          {
+            "title": "Firearms Safety Lecture",
+            "date": "2026-12-09"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Joy Specimen",
+            "position": "President"
+          },
+          {
+            "name": "Cai Tester",
+            "position": "Secretary"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Follow up unpaid organizational fee list",
+            "owner": "Cai Tester",
+            "deadline": "2026-11-18"
+          },
+          {
+            "title": "Reserve the covered court for the lecture",
+            "owner": "Joy Specimen",
+            "deadline": ""
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "collection",
+            "amount": 750,
+            "note": "Org fees collected, not remitted"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Firearms Safety Lecture",
+            "date": "2026-12-09"
+          }
+        ],
+        "election_state": "finalized",
+        "missing_compliance": [
+          "Accomplishment Report"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Follow up unpaid organizational fee list",
+          "Cai Tester",
+          "2026-11-18",
+          "Reserve the covered court",
+          "Joy Specimen"
+        ],
+        "must_not_mention": [
+          "750",
+          "Accomplishment Report",
+          "CSA Board Election",
+          "Crime Prevention Fair"
+        ]
+      }
+    },
+    {
+      "id": "hn-t04",
+      "category": "organization",
+      "digest": {
+        "organization": "Math and Science Circle - College of Arts and Sciences",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Math Olympiad Review",
+            "date": "2026-09-05",
+            "status": "completed",
+            "attendance": 90,
+            "budget_allocated": 2000,
+            "budget_used": 1850
+          }
+        ],
+        "tasks": {
+          "completed": 4,
+          "overdue": 0,
+          "open": 0
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 0,
+          "claimed": 0
+        },
+        "announcements": {
+          "posted": 25
+        },
+        "finance": {
+          "income": 2000,
+          "expense": 1850,
+          "closing_balance": 150
+        },
+        "upcoming_events": [],
+        "officers": [
+          {
+            "name": "Ana Sample",
+            "position": "President"
+          },
+          {
+            "name": "Ben Demo",
+            "position": "Vice President"
+          },
+          {
+            "name": "Cai Tester",
+            "position": "Secretary"
+          },
+          {
+            "name": "Dino Mock",
+            "position": "Treasurer"
+          },
+          {
+            "name": "Ella Placeholder",
+            "position": "Auditor"
+          },
+          {
+            "name": "Fe Example",
+            "position": "PIO"
+          },
+          {
+            "name": "Gio Fictional",
+            "position": "Business Manager"
+          },
+          {
+            "name": "Hana Dummy",
+            "position": "Sergeant at Arms"
+          },
+          {
+            "name": "Ian Trial",
+            "position": "Fourth Year Representative"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [],
+        "unsettled": [],
+        "scheduled_events": [],
+        "election_state": "none",
+        "missing_compliance": []
+      },
+      "expect": {
+        "must_mention": [
+          "Math and Science Circle",
+          "Ana Sample",
+          "Ian Trial"
+        ],
+        "must_not_mention": [
+          "Math Olympiad Review",
+          "1,850",
+          "election results",
+          "Accomplishment Report"
+        ]
+      }
+    },
+    {
+      "id": "hn-t05",
+      "category": "election",
+      "digest": {
+        "organization": "Future Educators Society - College of Teacher Education",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Teachers Day Program",
+            "date": "2026-10-05",
+            "status": "completed",
+            "attendance": 120,
+            "budget_allocated": 9000,
+            "budget_used": 8700
+          }
+        ],
+        "tasks": {
+          "completed": 14,
+          "overdue": 3,
+          "open": 3
+        },
+        "elections": [],
+        "merchandise": {
+          "orders": 20,
+          "claimed": 20
+        },
+        "announcements": {
+          "posted": 12
+        },
+        "finance": {
+          "income": 9000,
+          "expense": 8700,
+          "closing_balance": 300
+        },
+        "upcoming_events": [
+          {
+            "title": "Literacy Outreach in Barangay Guadalupe",
+            "date": "2026-12-12"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Ella Placeholder",
+            "position": "President"
+          },
+          {
+            "name": "Fe Example",
+            "position": "Secretary"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Recruit comelec volunteers",
+            "owner": "Fe Example",
+            "deadline": "2026-12-03"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "invoice",
+            "amount": 1800,
+            "note": "Ballot printing quote, unpaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Literacy Outreach in Barangay Guadalupe",
+            "date": "2026-12-12"
+          }
+        ],
+        "election_state": "scheduled",
+        "missing_compliance": [
+          "Evaluation (Summarization and Eval Result from URO)"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "scheduled"
+        ],
+        "must_not_mention": [
+          "winner",
+          "turnout",
+          "Teachers Day Program",
+          "Literacy Outreach",
+          "Evaluation (Summarization",
+          "1,800"
+        ]
+      }
+    },
+    {
+      "id": "hn-t06",
+      "category": "compliance",
+      "digest": {
+        "organization": "Engineering Innovators Guild - College of Engineering",
+        "semester": "1st Semester 2026-2027",
+        "events": [
+          {
+            "title": "Robotics Demo Day",
+            "date": "2026-10-17",
+            "status": "completed",
+            "attendance": 110,
+            "budget_allocated": 15000,
+            "budget_used": 14200
+          }
+        ],
+        "tasks": {
+          "completed": 7,
+          "overdue": 2,
+          "open": 2
+        },
+        "elections": [
+          {
+            "title": "EIG Executive Board Election 2026",
+            "voters": 310,
+            "ballots": 198
+          }
+        ],
+        "merchandise": {
+          "orders": 10,
+          "claimed": 6
+        },
+        "announcements": {
+          "posted": 7
+        },
+        "finance": {
+          "income": 22000,
+          "expense": 14200,
+          "closing_balance": 9800
+        },
+        "upcoming_events": [
+          {
+            "title": "Engineering Week",
+            "date": "2027-02-15"
+          }
+        ],
+        "officers": [
+          {
+            "name": "Cai Tester",
+            "position": "President"
+          },
+          {
+            "name": "Dino Mock",
+            "position": "Auditor"
+          }
+        ]
+      },
+      "open_items": {
+        "pending_tasks": [
+          {
+            "title": "Print the certificates for the winners",
+            "owner": "Dino Mock",
+            "deadline": "2026-12-02"
+          }
+        ],
+        "unsettled": [
+          {
+            "kind": "cash_advance",
+            "amount": 2000,
+            "note": "Robotics Demo Day materials, not repaid"
+          }
+        ],
+        "scheduled_events": [
+          {
+            "title": "Engineering Week",
+            "date": "2027-02-15"
+          }
+        ],
+        "election_state": "closed",
+        "missing_compliance": [
+          "Sem Report Cover",
+          "Photocopy of the Bankbook Reflecting Remaining Balance",
+          "Supporting Documents on the said Financial Report (OR, AR, Voucher Slips w/ complete signatures [receiver and witness], SBO Copy of Receipts for Collections)"
+        ]
+      },
+      "expect": {
+        "must_mention": [
+          "Sem Report Cover",
+          "Photocopy of the Bankbook",
+          "Supporting Documents on the said Financial Report"
+        ],
+        "must_not_mention": [
+          "2,000",
+          "9,800",
+          "Engineering Week",
+          "EIG Executive Board Election"
+        ]
+      }
+    }
+  ]
+}

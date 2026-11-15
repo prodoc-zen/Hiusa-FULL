@@ -1,0 +1,418 @@
+{
+  "feature": "review-notes",
+  "author_note": "Held-out cases written without sight of the drafter. dev (10) is for tuning and covers all eight flows; test (20) is run once, with 14 normal cases and 6 adversarial (injection, empty marks, all files flagged, very long requirement name, Taglish, no prior round). Matching convention: must_mention and must_not_contain are case-insensitive substrings. must_not_contain uses specific phrases such as \"has been approved\" rather than bare \"approved\", so that a returned draft may say \"once your file is approved\"; a rejected or returned draft that declares approval fails. Amounts, dates and counts in must_mention are copied exactly as they appear in the input. Org names other than the seeded ones, and the Dean, Registrar and officer roles, are invented; no real persons appear.",
+  "cases": [
+    {
+      "id": "rn-d01",
+      "flow": "event",
+      "decision": "returned",
+      "subject": {
+        "organization": "Engineering Innovators Guild - College of Engineering",
+        "title": "Tech Summit 2026",
+        "dates": "2026-12-04 to 2026-12-05"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Activity Proposal",
+          "description": "Narrative with rationale, objectives, target participants and program flow.",
+          "mark": "needs_changes",
+          "note": "walang measurable objectives, at walang target number ng participants"
+        },
+        {
+          "requirement": "Budget Proposal",
+          "description": "Itemized budget with sources of funds.",
+          "mark": "needs_changes",
+          "note": "total sa cover 38,500 pero sa breakdown 36,200 lang ang sum"
+        },
+        {
+          "requirement": "Letter of Request",
+          "description": "Signed by the president and adviser.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Venue Reservation",
+          "description": "Confirmation from the facility office.",
+          "mark": "accepted",
+          "note": ""
+        }
+      ],
+      "reviewer_notes": "pakiayos lang then resubmit before Nov 25",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "Activity Proposal",
+          "Budget Proposal",
+          "38,500",
+          "36,200"
+        ],
+        "must_not_contain": [
+          "has been approved",
+          "is approved",
+          "we approve"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d02",
+      "flow": "compliance_submission",
+      "decision": "returned",
+      "subject": {
+        "organization": "Future Educators Society - College of Teacher Education",
+        "title": "Action Plan",
+        "dates": "First Semester 2026-2027"
+      },
+      "round": 2,
+      "marks": [
+        {
+          "requirement": "Action Plan",
+          "description": "Planned activities for the semester with dates, budget and persons in charge.",
+          "mark": "needs_changes",
+          "note": "pirma ng adviser ok na pero walang pirma ng Dean sa page 3"
+        }
+      ],
+      "reviewer_notes": "ok na adviser, Dean signature na lang",
+      "prior_remarks": "Please attach the Action Plan with the adviser signature on every page.",
+      "changes_since_return": [
+        "Action Plan: file replaced (action_plan_v2.pdf)",
+        "Adviser signature added to pages 1 to 3"
+      ],
+      "expect": {
+        "must_mention": [
+          "Action Plan",
+          "Dean",
+          "adviser"
+        ],
+        "must_not_contain": [
+          "has been approved",
+          "is approved",
+          "we approve"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d03",
+      "flow": "financial_report",
+      "decision": "returned",
+      "subject": {
+        "organization": "Junior Philippine Institute of Accountants - College of Business Education",
+        "title": "Financial Report for October 2026",
+        "dates": "2026-10-01 to 2026-10-31"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Cash Ledger",
+          "description": "Inflows and outflows for the month with running balance.",
+          "mark": "needs_changes",
+          "note": "Closing balance sa report 12,480.00, sa ledger 11,980.00. 500.00 ang diff"
+        },
+        {
+          "requirement": "Collections",
+          "description": "Membership and event collections with receipts.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Supporting Documents",
+          "description": "OR, AR and voucher slips for every entry.",
+          "mark": "needs_changes",
+          "note": "walang OR para sa 3 entries noong Oct 14"
+        }
+      ],
+      "reviewer_notes": "Please reconcile first before resubmitting.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "12,480.00",
+          "11,980.00",
+          "Supporting Documents"
+        ],
+        "must_not_contain": [
+          "has been approved",
+          "is approved",
+          "we approve"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d04",
+      "flow": "org_application",
+      "decision": "rejected",
+      "subject": {
+        "organization": "Cebu Esports Society",
+        "title": "Application for recognition as a new organization",
+        "dates": "Academic Year 2026-2027"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Constitution and By-Laws",
+          "description": "Own constitution with the organization name, aims, membership and officers.",
+          "mark": "needs_changes",
+          "note": "kopya from another org, pareho ang preamble at pati name ng ibang org nandun pa"
+        },
+        {
+          "requirement": "List of Officers",
+          "description": "Complete officer list with year level and program.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Adviser's Acceptance Letter",
+          "description": "Signed by a faculty adviser.",
+          "mark": "needs_changes",
+          "note": "wala pang pirma"
+        },
+        {
+          "requirement": "Plan of Activities",
+          "description": "At least three activities for the semester.",
+          "mark": "accepted",
+          "note": ""
+        }
+      ],
+      "reviewer_notes": "Reject for now. They can reapply next semester. 14 signed members lang, kailangan 20.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "Constitution and By-Laws",
+          "Adviser's Acceptance Letter",
+          "20"
+        ],
+        "must_not_contain": [
+          "pleased to approve",
+          "congratulations",
+          "has been approved"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d05",
+      "flow": "approval",
+      "decision": "rejected",
+      "subject": {
+        "organization": "Hospitality and Tourism Management Society - College of Business Education",
+        "title": "Budget request: Tourism Week Souvenir Fund",
+        "dates": "2026-11-23 to 2026-11-27"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Budget Request",
+          "description": "Requested amount with itemized breakdown.",
+          "mark": "needs_changes",
+          "note": "total 85,000 lagpas sa 60,000 cap for college-level activities"
+        },
+        {
+          "requirement": "Activity Proposal",
+          "description": "Approved activity proposal for the Tourism Week.",
+          "mark": "accepted",
+          "note": ""
+        }
+      ],
+      "reviewer_notes": "Reduce the amount or ask SAO for an exception in writing.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "85,000",
+          "60,000"
+        ],
+        "must_not_contain": [
+          "pleased to approve",
+          "congratulations",
+          "has been approved"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d06",
+      "flow": "election_application",
+      "decision": "returned",
+      "subject": {
+        "organization": "Nursing Student Council - College of Health Sciences",
+        "title": "Candidacy for Vice President, 2026-2027 election",
+        "dates": "Filing until 2026-11-20"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Certificate of Candidacy",
+          "description": "Signed and notarized form.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Certificate of Grades",
+          "description": "Latest semester, with no failing or incomplete grade.",
+          "mark": "needs_changes",
+          "note": "yung copy ay from 2nd sem 2025-2026, kailangan latest"
+        },
+        {
+          "requirement": "Good Moral Certificate",
+          "description": "Issued by the Guidance Office within the semester.",
+          "mark": "needs_changes",
+          "note": "walang dry seal"
+        }
+      ],
+      "reviewer_notes": "pwede pa magpasa until Nov 20",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "Certificate of Grades",
+          "Good Moral Certificate"
+        ],
+        "must_not_contain": [
+          "has been approved",
+          "is approved",
+          "we approve"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d07",
+      "flow": "grievance",
+      "decision": "resolved",
+      "subject": {
+        "organization": "Philippine Society of Information Technology Students - College of Computer Studies",
+        "title": "Complaint: broken aircon in Computer Lab 3",
+        "dates": "Filed 2026-11-03"
+      },
+      "round": 1,
+      "marks": [],
+      "reviewer_notes": "Facilities replaced the unit on November 10. Pwede mag message ulit if bumalik ang problema.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "Computer Lab 3",
+          "November 10"
+        ],
+        "must_not_contain": [
+          "dismissed",
+          "rejected",
+          "denied"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d08",
+      "flow": "clearance_hold",
+      "decision": "hold",
+      "subject": {
+        "organization": "Library Clearance",
+        "title": "First Semester 2026-2027 clearance",
+        "dates": "Deadline 2026-12-18"
+      },
+      "round": 1,
+      "marks": [],
+      "reviewer_notes": "May unreturned book pa: Fundamentals of Accounting Vol 2, due Oct 30. Fine 150.00 pending. Clear agad pag naibalik at nabayaran.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "Fundamentals of Accounting",
+          "150.00"
+        ],
+        "must_not_contain": [
+          "has been cleared",
+          "you are cleared"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d09",
+      "flow": "event",
+      "decision": "approved",
+      "subject": {
+        "organization": "Junior Philippine Institute of Accountants - College of Business Education",
+        "title": "Induction and Recognition Ceremony",
+        "dates": "2026-12-10"
+      },
+      "round": 1,
+      "marks": [
+        {
+          "requirement": "Activity Proposal",
+          "description": "Narrative with objectives and program flow.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Program of Activities",
+          "description": "Time-by-time program.",
+          "mark": "accepted",
+          "note": ""
+        },
+        {
+          "requirement": "Budget Proposal",
+          "description": "Itemized budget.",
+          "mark": "accepted",
+          "note": ""
+        }
+      ],
+      "reviewer_notes": "ok lahat. Remind them to submit the post-activity report within 7 days after the event.",
+      "prior_remarks": "",
+      "changes_since_return": [],
+      "expect": {
+        "must_mention": [
+          "7 days",
+          "post-activity report"
+        ],
+        "must_not_contain": [
+          "needs changes",
+          "has been rejected",
+          "please revise"
+        ],
+        "adversarial": false
+      }
+    },
+    {
+      "id": "rn-d10",
+      "flow": "compliance_submission",
+      "decision": "approved",
+      "subject": {
+        "organization": "Engineering Innovators Guild - College of Engineering",
+        "title": "Photocopy of the Bankbook Reflecting Remaining Balance",
+        "dates": "First Semester 2026-2027"
+      },
+      "round": 3,
+      "marks": [
+        {
+          "requirement": "Photocopy of the Bankbook Reflecting Remaining Balance",
+          "description": "Latest page showing the remaining balance.",
+          "mark": "accepted",
+          "note": ""
+        }
+      ],
+      "reviewer_notes": "ok na po, malinaw na",
+      "prior_remarks": "The first photo was too blurry to read the balance.",
+      "changes_since_return": [
+        "Bankbook file replaced with a scanned copy"
+      ],
+      "expect": {
+        "must_mention": [
+          "Bankbook"
+        ],
+        "must_not_contain": [
+          "needs changes",
+          "has been rejected",
+          "please revise"
+        ],
+        "adversarial": false
+      }
+    }
+  ]
+}
