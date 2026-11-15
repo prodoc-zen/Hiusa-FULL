@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { markApprovalFile } from '../../services/approvalService';
-import { Field, Select, Textarea } from '../ui';
+import { Check } from 'lucide-react';
+import { markApprovalFile, markApprovalFiles } from '../../services/approvalService';
+import { Button, Field, Select, Textarea } from '../ui';
 import FileReviewList from '../reviews/FileReviewList';
 
 // "Not checked" sends nothing, so a file the reviewer has not looked at is never recorded as accepted.
@@ -41,7 +42,18 @@ export async function saveFileMark(approvalId, fileId, value, before) {
   return data?.reviews ?? [];
 }
 
-export const allAccepted = (files, marks) => files.every((file) => marks[file.id] === 'ok');
+// The same rule for several files at once, in one call that saves all of them or none. changes is
+// [{ id, value, before }]. Resolves to [{ id, reviews }] for the files that were saved, or null when nothing had to be.
+export async function saveFileMarks(approvalId, changes) {
+  const files = changes
+    .filter(({ value, before }) => value === 'ok' || before === 'ok')
+    .map(({ id, value }) => ({ id, status: value === 'ok' ? 'ok' : 'none' }));
+  if (files.length === 0) return null;
+  const { data } = await markApprovalFiles(approvalId, files);
+  return data?.files ?? [];
+}
+
+export const allAccepted =(files, marks) => files.every((file) => marks[file.id] === 'ok');
 
 export const missingNote = (files, marks, notes) => files.some((file) => marks[file.id] === 'needs_changes' && !notes[file.id]?.trim());
 
@@ -67,14 +79,50 @@ function badge(state) {
 // The same per-file check organization applications use: one aligned row per file, and the reviewer of
 // this step marks each one Accepted or Needs changes with a note. Everyone else reads the marks. A screen
 // that already sits in a card passes framed={false} so the list is not a box inside a box.
-export default function EventFilesReview({ files, actionable, marks, notes, onMark, onNote, framed = true }) {
+//
+// With onMarkAll the reviewer can also tick files and press Accept selected. Select all leaves out a file marked
+// Needs changes, so a return is never overwritten by accident; that file is ticked on its own.
+export default function EventFilesReview({ files, actionable, marks, notes, onMark, onNote, onMarkAll, framed = true }) {
   const [openId, setOpenId] = useState(null);
+  const [ticked, setTicked] = useState(() => new Set());
+  const [saving, setSaving] = useState(false);
+
+  const fileIds = files.map((file) => file.id);
+  const checkedIds = new Set(fileIds.filter((id) => ticked.has(id)));
+  const selectableIds = files.filter((file) => marks[file.id] !== 'needs_changes').map((file) => file.id);
+
+  async function acceptSelected() {
+    setSaving(true);
+    try {
+      if (await onMarkAll([...checkedIds], 'ok')) setTicked(new Set());
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selection = actionable && onMarkAll ? {
+    label: 'Select',
+    allLabel: 'Select all files',
+    checkedIds,
+    selectableIds,
+    onToggle: (id) => setTicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    }),
+    onToggleAll: (checked) => setTicked(checked ? new Set(selectableIds) : new Set()),
+    actions: (
+      <Button size="sm" leftIcon={Check} loading={saving} disabled={checkedIds.size === 0 || saving} onClick={acceptSelected}>
+        Accept selected{checkedIds.size > 0 ? ` (${checkedIds.size})` : ''}
+      </Button>
+    ),
+  } : null;
 
   return (
     <section aria-label="SAO event files" className="space-y-2">
       <h3 className="text-xs font-semibold text-ink-muted-strong">SAO event files</h3>
       <div className={framed ? 'overflow-hidden rounded-card border border-line' : 'overflow-hidden'}>
-        <FileReviewList rows={files.map((file) => {
+        <FileReviewList selection={selection} rows={files.map((file) => {
           const reviews = file.reviews ?? [];
           const mark = marks[file.id] ?? '';
           // Every note the file carries, from either step, reads beside the file. This step's earlier return

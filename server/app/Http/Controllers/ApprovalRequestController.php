@@ -26,6 +26,7 @@ use App\Services\OrganizationRecipients;
 use App\Support\FilterValues;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -303,6 +304,79 @@ class ApprovalRequestController extends Controller
      */
     public function markFile(Request $request, $id, $file)
     {
+        $approval = $this->markableApproval($request, $id);
+        if ($approval instanceof JsonResponse) {
+            return $approval;
+        }
+
+        $data = $request->validate(['status' => ['required', 'in:ok,none']]);
+
+        $event = $this->markableEvent($approval);
+        if ($event instanceof JsonResponse) {
+            return $event;
+        }
+
+        $requirementFile = EventRequirementFile::where('event_id', $event->id)->find($file);
+        if (! $requirementFile) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        try {
+            $results = $this->saveFileMarks($approval, [[$requirementFile, $data['status']]], $request->user()->school_id);
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json(['id' => $requirementFile->id, 'reviews' => $results[0]['reviews']]);
+    }
+
+    /**
+     * Saves the Accepted mark on several files at once (Accept selected). Same reviewer checks as markFile,
+     * and every file is saved inside one transaction, so a refusal leaves none of them changed.
+     */
+    public function markFiles(Request $request, $id)
+    {
+        $approval = $this->markableApproval($request, $id);
+        if ($approval instanceof JsonResponse) {
+            return $approval;
+        }
+
+        $data = $request->validate([
+            'files' => ['required', 'array', 'min:1', 'max:50'],
+            'files.*.id' => ['required', 'integer', 'distinct'],
+            'files.*.status' => ['required', 'in:ok,none'],
+        ]);
+
+        $event = $this->markableEvent($approval);
+        if ($event instanceof JsonResponse) {
+            return $event;
+        }
+
+        $statuses = collect($data['files'])->pluck('status', 'id');
+        $requirementFiles = EventRequirementFile::where('event_id', $event->id)->whereIn('id', $statuses->keys())->get();
+        if ($requirementFiles->count() !== $statuses->count()) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        try {
+            $results = $this->saveFileMarks(
+                $approval,
+                $requirementFiles->map(fn ($file) => [$file, $statuses[$file->id]])->all(),
+                $request->user()->school_id,
+            );
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json(['files' => $results]);
+    }
+
+    /**
+     * The reviewer checks shared by the single and the bulk file mark: scope, pending, active organization,
+     * the right approver, and not their own request. Returns the approval or the refusal to send back.
+     */
+    private function markableApproval(Request $request, $id): ApprovalRequest|JsonResponse
+    {
         $approvalQuery = ApprovalRequest::query();
         if ($request->user()->role !== 'SUPER_ADMIN') {
             $approvalQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
@@ -329,8 +403,12 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'You cannot review your own approval request.'], 403);
         }
 
-        $data = $request->validate(['status' => ['required', 'in:ok,none']]);
+        return $approval;
+    }
 
+    /** The event a file mark belongs to, or the refusal when it is gone or its semester is closed. */
+    private function markableEvent(ApprovalRequest $approval): Event|JsonResponse
+    {
         $event = Event::where('organization_id', $approval->organization_id)->find($approval->entity_id);
         if (! $event) {
             return response()->json(['message' => 'The record attached to this approval request no longer exists.'], 409);
@@ -339,27 +417,30 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'Historical semester event approvals are read only.'], 409);
         }
 
-        $requirementFile = EventRequirementFile::where('event_id', $event->id)->find($file);
-        if (! $requirementFile) {
-            return response()->json(['message' => 'File not found.'], 404);
-        }
+        return $event;
+    }
 
-        try {
-            $reviews = DB::transaction(function () use ($approval, $requirementFile, $data, $request) {
-                if (Organization::whereKey($approval->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
-                    throw new DomainException(self::ARCHIVED_MESSAGE);
-                }
-                if (ApprovalRequest::lockForUpdate()->whereKey($approval->id)->value('status') !== 'pending') {
-                    throw new DomainException('This request has already been reviewed.');
-                }
+    /**
+     * Applies each mark through EventFileReview::mark inside one transaction that holds the organization and
+     * approval locks. $marks is a list of [EventRequirementFile, 'ok'|'none'].
+     *
+     * @return array<int, array{id: int, reviews: mixed}>
+     */
+    private function saveFileMarks(ApprovalRequest $approval, array $marks, int $reviewer): array
+    {
+        return DB::transaction(function () use ($approval, $marks, $reviewer) {
+            if (Organization::whereKey($approval->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
+                throw new DomainException(self::ARCHIVED_MESSAGE);
+            }
+            if (ApprovalRequest::lockForUpdate()->whereKey($approval->id)->value('status') !== 'pending') {
+                throw new DomainException('This request has already been reviewed.');
+            }
 
-                return $this->eventFileReview->mark($approval, $requirementFile, $data['status'], $request->user()->school_id);
-            });
-        } catch (DomainException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 409);
-        }
-
-        return response()->json(['id' => $requirementFile->id, 'reviews' => $reviews]);
+            return array_map(
+                fn ($pair) => ['id' => $pair[0]->id, 'reviews' => $this->eventFileReview->mark($approval, $pair[0], $pair[1], $reviewer)],
+                $marks,
+            );
+        });
     }
 
     private function organizationIsActive(int $organizationId): bool

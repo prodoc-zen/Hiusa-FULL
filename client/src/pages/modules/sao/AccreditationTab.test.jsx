@@ -19,8 +19,8 @@ const club = {
   ],
 };
 
-function openRequirements(role, onChanged) {
-  render(<AccreditationTab role={role} onChanged={onChanged} overview={{ loading: false, error: '', academicYear: '2026-2027', organizations: [club] }} />);
+function openRequirements(role, onChanged, organization = club) {
+  render(<AccreditationTab role={role} onChanged={onChanged} overview={{ loading: false, error: '', academicYear: '2026-2027', organizations: [organization] }} />);
   fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Computing Club' })[0]);
   fireEvent.click(screen.getByRole('menuitem', { name: 'View requirements' }));
   return screen.getByRole('dialog', { name: 'Computing Club' });
@@ -80,7 +80,7 @@ describe('Requirements of one organization', () => {
     ['Requirement', 'Status', 'File', 'Action'].forEach((name) => expect(within(dialog).getByText(name)).toBeInTheDocument());
     const rows = within(dialog).getAllByRole('listitem');
     expect(rows).toHaveLength(4);
-    rows.forEach((row) => expect(row.firstElementChild.children).toHaveLength(4));
+    rows.forEach((row) => expect(row.querySelector('p').parentElement.children).toHaveLength(4));
     expect(within(rows[0]).getByText('Constitution')).toBeInTheDocument();
     expect(within(rows[0]).getByText('Submitted')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Returned')).toBeInTheDocument();
@@ -137,6 +137,66 @@ describe('Requirements of one organization', () => {
     expect(within(dialog).getByRole('button', { name: LONG_FILE })).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Comment for Constitution')).not.toBeInTheDocument();
+  });
+
+  describe('Approve selected', () => {
+    const busyClub = {
+      ...club,
+      requirements: [
+        ...club.requirements,
+        { requirement_type_id: 9, requirement_name: 'Budget Plan', status: 'submitted', submission_id: 15, file_name: 'budget.pdf', submitted_at: '2026-09-11T08:00:00Z', deadline_at: '2026-10-01' },
+        { requirement_type_id: 10, requirement_name: 'Activity Calendar', status: 'submitted', submission_id: 16, file_name: 'calendar.pdf', submitted_at: '2026-09-12T08:00:00Z', deadline_at: '2026-10-01' },
+      ],
+    };
+
+    it('has a labelled box on every submitted file and none on a file that is not waiting', () => {
+      const dialog = openRequirements('SUPER_ADMIN', undefined, busyClub);
+
+      ['Constitution', 'Budget Plan', 'Activity Calendar'].forEach((name) => expect(within(dialog).getByRole('checkbox', { name: `Select ${name}` })).toBeEnabled());
+      ['Officer Roster', 'Adviser Letter', 'Member List'].forEach((name) => expect(within(dialog).getByRole('checkbox', { name: `Select ${name}` })).toBeDisabled());
+      expect(within(dialog).getByRole('button', { name: 'Approve selected' })).toBeDisabled();
+    });
+
+    it('shows the in-between state for some and the full state for all submitted files', () => {
+      const dialog = openRequirements('SUPER_ADMIN', undefined, busyClub);
+      const all = within(dialog).getByRole('checkbox', { name: 'Select all submitted' });
+
+      expect(all).not.toBePartiallyChecked();
+      fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Select Budget Plan' }));
+      expect(all).toBePartiallyChecked();
+      expect(all).not.toBeChecked();
+      fireEvent.click(all);
+      expect(all).toBeChecked();
+      expect(all).not.toBePartiallyChecked();
+      expect(within(dialog).getByRole('button', { name: 'Approve selected (3)' })).toBeEnabled();
+      fireEvent.click(all);
+      expect(within(dialog).getByRole('checkbox', { name: 'Select Constitution' })).not.toBeChecked();
+    });
+
+    it('approves each selected file with the single review call and says which ones failed', async () => {
+      mocks.reviewSubmission.mockResolvedValueOnce({ data: {} }).mockRejectedValueOnce({ userMessage: 'This submission was already decided.' }).mockResolvedValueOnce({ data: {} });
+      const onChanged = vi.fn();
+      const dialog = openRequirements('SUPER_ADMIN', onChanged, busyClub);
+
+      fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Select all submitted' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Approve selected (3)' }));
+
+      await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledTimes(3));
+      expect(mocks.reviewSubmission).toHaveBeenNthCalledWith(1, 12, { status: 'approved', submitted_at: '2026-09-10T08:00:00Z' });
+      expect(mocks.reviewSubmission).toHaveBeenNthCalledWith(2, 15, { status: 'approved', submitted_at: '2026-09-11T08:00:00Z' });
+      expect(mocks.reviewSubmission).toHaveBeenNthCalledWith(3, 16, { status: 'approved', submitted_at: '2026-09-12T08:00:00Z' });
+      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(expect.stringContaining('Approved 2 of 3 submissions. 1 could not be approved: This submission was already decided.'), expect.anything()));
+      expect(onChanged).toHaveBeenCalled();
+      await waitFor(() => expect(within(dialog).getByRole('checkbox', { name: 'Select Budget Plan' })).toBeChecked());
+      expect(within(dialog).getByRole('checkbox', { name: 'Select Constitution' })).not.toBeChecked();
+    });
+
+    it('offers nothing to select to the Department Head', () => {
+      const dialog = openRequirements('DEPARTMENT_HEAD', undefined, busyClub);
+
+      expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole('button', { name: /Approve selected/ })).not.toBeInTheDocument();
+    });
   });
 
   it('sends a reminder for one requirement from its row, and not for an approved one', async () => {

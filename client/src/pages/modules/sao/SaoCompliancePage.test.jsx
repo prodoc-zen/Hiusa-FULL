@@ -535,6 +535,59 @@ describe('SaoCompliancePage', () => {
       await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledWith(12, { status: 'approved', submitted_at: submission.submitted_at }));
     });
 
+    describe('Approve selected', () => {
+      const second = { ...submission, id: 13, requirement_type: { id: 5, name: 'Officer Roster' }, submitted_at: '2026-09-11T08:00:00Z' };
+      const approved = { ...submission, id: 14, status: 'approved', requirement_type: { id: 6, name: 'Member List' } };
+      const queue = (items) => ({ data: { data: items, current_page: 1, last_page: 1, per_page: 20, total: items.length } });
+
+      it('puts a labelled box on each submission waiting for a decision and none on one already decided', async () => {
+        mocks.getSubmissions.mockResolvedValue(queue([submission, second, approved]));
+        renderPage('/dashboard/super-admin/compliance?tab=review');
+        await screen.findAllByText('Officer Roster');
+
+        expect(screen.getAllByRole('checkbox', { name: 'Select Semestral Accomplishment Report for Computing Society' }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('checkbox', { name: 'Select Officer Roster for Computing Society' }).length).toBeGreaterThan(0);
+        expect(screen.queryByRole('checkbox', { name: 'Select Member List for Computing Society' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Approve selected/ })).not.toBeInTheDocument();
+      });
+
+      it('shows the in-between state for some and the full state for all waiting submissions', async () => {
+        mocks.getSubmissions.mockResolvedValue(queue([submission, second]));
+        renderPage('/dashboard/super-admin/compliance?tab=review');
+        await screen.findAllByText('Officer Roster');
+        const all = screen.getByRole('checkbox', { name: 'Select all waiting (2)' });
+
+        expect(all).not.toBePartiallyChecked();
+        fireEvent.click(screen.getAllByRole('checkbox', { name: 'Select Officer Roster for Computing Society' })[0]);
+        expect(all).toBePartiallyChecked();
+        expect(all).not.toBeChecked();
+        fireEvent.click(all);
+        expect(all).toBeChecked();
+        expect(all).not.toBePartiallyChecked();
+        expect(screen.getByRole('button', { name: 'Approve selected (2)' })).toBeInTheDocument();
+        fireEvent.click(all);
+        expect(screen.queryByRole('button', { name: /Approve selected/ })).not.toBeInTheDocument();
+      });
+
+      it('approves every selected submission with the single review call after one confirmation and reports a failure', async () => {
+        mocks.getSubmissions.mockResolvedValue(queue([submission, second]));
+        mocks.reviewSubmission.mockResolvedValueOnce({ data: {} }).mockRejectedValueOnce({ userMessage: 'Already decided.' });
+        renderPage('/dashboard/super-admin/compliance?tab=review');
+        await screen.findAllByText('Officer Roster');
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting (2)' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Approve selected (2)' }));
+        expect(mocks.reviewSubmission).not.toHaveBeenCalled();
+        fireEvent.click(await screen.findByRole('button', { name: 'Approve selected' }));
+
+        await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledTimes(2));
+        expect(mocks.reviewSubmission).toHaveBeenNthCalledWith(1, 12, { status: 'approved', submitted_at: submission.submitted_at });
+        expect(mocks.reviewSubmission).toHaveBeenNthCalledWith(2, 13, { status: 'approved', submitted_at: second.submitted_at });
+        await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(expect.stringContaining('Approved 1 of 2 submissions. 1 could not be approved: Already decided.'), expect.anything()));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Approve selected (1)' })).toBeInTheDocument());
+      });
+    });
+
     it('labels non-semestral requirements as renewal documents', async () => {
       mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, requirement_type: { id: 5, name: 'Officer Roster' } }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
       renderPage('/dashboard/super-admin/compliance?tab=review');

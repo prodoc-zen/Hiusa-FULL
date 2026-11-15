@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink, FolderOpen, RotateCcw } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, Select, StatusBadge, Textarea, resolveStatus } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, Select, SelectAllCheckbox, StatusBadge, Textarea, resolveStatus } from '../../../components/ui';
 import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -17,6 +17,7 @@ import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
 import { submissionsWaiting, waitingFirst } from './waiting';
+import approveSelected from './approveSelected';
 
 const DEFAULT_STATUS = 'submitted';
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -55,6 +56,9 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   const remarksRef = useRef(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+  const [ticked, setTicked] = useState(() => new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const loadQueue = useCallback((target = 1) => {
     setQueue((current) => ({ ...current, loading: true, error: null }));
@@ -158,8 +162,47 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
     );
   }
 
+  // Only a submission waiting for this decision can be ticked, and only the ones on this page are ever ticked.
+  const approvable = (submission) => submission.status === 'submitted' && !registrationReview(submission);
+  const selectableSubmissions = queue.items.filter(approvable);
+  const tickedSubmissions = selectableSubmissions.filter((submission) => ticked.has(submission.id));
+
+  function toggleTicked(id) {
+    setTicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmApproveSelected() {
+    setBulkBusy(true);
+    const failed = await approveSelected(
+      tickedSubmissions.map((submission) => ({ id: submission.id, submittedAt: submission.submitted_at })),
+      BELOW_DRAWER_HEADER,
+    );
+    setTicked(new Set(failed));
+    setBulkOpen(false);
+    setBulkBusy(false);
+    loadQueue(page);
+    onChanged();
+  }
+
   const columns = [
-    { key: 'organization', header: 'Organization', render: (submission) => <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-medium text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button> },
+    {
+      key: 'organization',
+      header: 'Organization',
+      render: (submission) => (
+        <div className="flex items-center gap-1">
+          {approvable(submission) ? (
+            <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
+              <input type="checkbox" aria-label={`Select ${submission.requirement_type?.name || 'document'} for ${submission.organization?.name || 'organization'}`} checked={ticked.has(submission.id)} onChange={() => toggleTicked(submission.id)} className="h-4 w-4 accent-brand-700" />
+            </label>
+          ) : selectableSubmissions.length > 0 && <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 md:block" />}
+          <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-medium text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button>
+        </div>
+      ),
+    },
     {
       key: 'requirement',
       header: 'Requirement',
@@ -245,6 +288,17 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
             {filtersActive && (
               <Button variant="ghost" size="sm" className={`${ROW_ACTION} shrink-0 whitespace-nowrap`} onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
             )}
+            {selectableSubmissions.length > 0 && (
+              <SelectAllCheckbox
+                label={`Select all waiting (${selectableSubmissions.length})`}
+                selected={tickedSubmissions.length}
+                total={selectableSubmissions.length}
+                onChange={(checked) => setTicked(checked ? new Set(selectableSubmissions.map((submission) => submission.id)) : new Set())}
+              />
+            )}
+            {tickedSubmissions.length > 0 && (
+              <Button size="sm" leftIcon={Check} onClick={() => setBulkOpen(true)}>Approve selected ({tickedSubmissions.length})</Button>
+            )}
             <p className="whitespace-nowrap text-xs tabular-nums text-ink-muted sm:ml-auto">
               {queue.meta.total} {queue.meta.total === 1 ? 'submission' : 'submissions'}
             </p>
@@ -325,6 +379,18 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
         busy={reviewBusy}
         onCancel={closeReview}
         onConfirm={confirmApprove}
+      />
+
+      <ConfirmModal
+        open={bulkOpen}
+        title="Approve the selected submissions?"
+        message="The organizations will be notified and these documents will be locked from further edits."
+        recordName={`${tickedSubmissions.length} submission${tickedSubmissions.length === 1 ? '' : 's'}`}
+        confirmText="Approve selected"
+        variant="primary"
+        busy={bulkBusy}
+        onCancel={() => setBulkOpen(false)}
+        onConfirm={confirmApproveSelected}
       />
 
       <Modal

@@ -103,7 +103,7 @@ describe('ApplicationReview', () => {
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeEnabled();
   });
 
-  it('accepts every requirement still Not checked in one action and leaves the ones already marked alone', async () => {
+  it('select all accepts every requirement with a file, skips one marked Needs changes and sends nothing yet', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ requirements: [
       ...detail().requirements,
       { id: 3, name: 'Adviser letter', document: { id: 13, name: 'adviser.pdf', open_url: '/organization-applications/8/documents/13' }, reviews: [], review_files: [] },
@@ -112,15 +112,52 @@ describe('ApplicationReview', () => {
     await screen.findByText('Ana Cruz');
 
     mark('Officer list', 'needs_changes');
-    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept all' }));
 
     expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change Adviser letter' })).toBeInTheDocument();
     expect(screen.getByLabelText('Review of Officer list')).toHaveValue('needs_changes');
+    expect(screen.getByRole('checkbox', { name: 'Accept Officer list' })).not.toBeChecked();
     expect(screen.getAllByText('Accepted', { selector: 'span' })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: 'Accept all not checked' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Accept all' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
     expect(mocks.reviewOrganizationApplication).not.toHaveBeenCalled();
+  });
+
+  it('shows the in-between state when only some requirements are ticked, and clears the ticks when select all is unticked', async () => {
+    renderReview();
+    await screen.findByText('Ana Cruz');
+    const all = screen.getByRole('checkbox', { name: 'Accept all' });
+
+    expect(all).not.toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept Constitution' }));
+    expect(all).toBePartiallyChecked();
+    expect(all).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
+
+    fireEvent.click(all);
+    expect(all).toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+    fireEvent.click(all);
+    expect(screen.getByRole('checkbox', { name: 'Accept Constitution' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Accept Officer list' })).not.toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+  });
+
+  it('ticking a row marked Needs changes on its own replaces the return with Accepted, and a requirement without a file cannot be ticked', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ requirements: [
+      ...detail().requirements,
+      { id: 3, name: 'Adviser letter', document: null, reviews: [], review_files: [] },
+    ] }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    mark('Officer list', 'needs_changes');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept Officer list' }));
+    expect(screen.getByLabelText('Review of Officer list')).toHaveValue('ok');
+    expect(screen.getByRole('checkbox', { name: 'Accept Adviser letter' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Accept all' })).not.toBeChecked();
   });
 
   it('endorses with every requirement Accepted after one Accept all click', async () => {
@@ -128,7 +165,7 @@ describe('ApplicationReview', () => {
     renderReview();
     await screen.findByText('Ana Cruz');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept all' }));
     fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));
 
     await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, expect.objectContaining({ action: 'endorse', requirements: [
@@ -153,7 +190,7 @@ describe('ApplicationReview', () => {
     expect(screen.getByRole('button', { name: 'Change Constitution' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review Officer list' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Accept all not checked' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept all' }));
     expect(screen.getByRole('button', { name: 'Endorse' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Endorse' }));
 
@@ -223,12 +260,13 @@ describe('ApplicationReview', () => {
     expect(screen.getAllByText('Not checked', { selector: 'span' })).toHaveLength(2);
   });
 
-  it('offers no Accept all to a reviewer who is not deciding', async () => {
+  it('offers no select all to a reviewer who is not deciding', async () => {
     mocks.getOrganizationApplication.mockResolvedValue({ data: detail({ status: 'pending_sao' }) });
     renderReview();
     await screen.findByText('Ana Cruz');
 
-    expect(screen.queryByRole('button', { name: 'Accept all not checked' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Accept all' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Accept Constitution' })).not.toBeInTheDocument();
   });
 
   it('lets the dean endorse with a comment and then shows the read-only summary', async () => {
@@ -334,8 +372,8 @@ describe('ApplicationReview', () => {
 
     ['Requirement', 'Status', 'File', 'Action'].forEach((name) => expect(within(section).getByText(name)).toBeInTheDocument());
     const [first, second] = within(section).getAllByRole('listitem');
-    expect(first.firstElementChild.children).toHaveLength(4);
-    expect(second.firstElementChild.children).toHaveLength(4);
+    [first, second].forEach((row) => expect(row.querySelector('p').parentElement.children).toHaveLength(4));
+    expect(within(first).getByRole('checkbox', { name: 'Accept Calendar of Activities (1st & 2nd Sem)' })).toBeEnabled();
     const link = within(first).getByRole('button', { name: long });
     expect(link).toHaveAttribute('title', long);
     expect(within(link).getByText(long)).toHaveClass('truncate');

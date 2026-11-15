@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react';
-import { StatusBadge } from '../ui';
+import { SelectAllCheckbox, StatusBadge } from '../ui';
 import notify from '../../lib/notify';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { openProtectedFile } from '../../utils/openProtectedFile';
@@ -46,20 +46,44 @@ export function FileLink({ url, name, icon: Icon = FileText, onOpen, disabled })
 //   }]} />
 //
 // note and detail show under the row while expanded is true.
-export default function FileReviewList({ rows, labels = {}, wideAction = false }) {
+//
+// A screen that reviews many files at once passes selection and gets a tick box on every row, a select all
+// bar above the list, and room in that bar for its own action (Accept selected):
+//
+//   selection={{
+//     label: 'Select',                  // each box reads "Select <row name>"
+//     allLabel: 'Select all files',
+//     checkedIds: new Set([7]),
+//     selectableIds: [7, 9],            // what select all covers; a row left out is ticked on its own
+//     disabledIds: new Set([11]),       // rows that cannot be ticked
+//     onToggle: (id) => {},
+//     onToggleAll: (checked) => {},
+//     actions: <Button>Accept selected</Button>,
+//   }}
+export default function FileReviewList({ rows, labels = {}, wideAction = false, selection = null }) {
   const heads = { name: 'Requirement', status: 'Status', file: 'File', action: 'Action', ...labels };
   const grid = wideAction ? GRID_WIDE : GRID;
+  const selectedCount = selection ? selection.selectableIds.filter((id) => selection.checkedIds.has(id)).length : 0;
   return (
     <>
-      <div aria-hidden="true" className={`${grid} hidden items-center border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:grid`}>
+      {selection && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 border-b border-line px-4">
+          <div className="flex items-center gap-3">
+            <SelectAllCheckbox label={selection.allLabel} selected={selectedCount} total={selection.selectableIds.length} onChange={selection.onToggleAll} />
+            <span className="text-xs tabular-nums text-ink-muted-strong">{selection.checkedIds.size} selected</span>
+          </div>
+          {selection.actions}
+        </div>
+      )}
+      <div aria-hidden="true" className={`${grid} hidden items-center border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:grid ${selection ? 'sm:pl-[4.25rem]' : ''}`}>
         <span>{heads.name}</span>
         <span>{heads.status}</span>
         <span>{heads.file}</span>
         <span className="text-right">{heads.action}</span>
       </div>
       <ul className="divide-y divide-line-soft border-b border-line-soft sm:border-b-0">
-        {rows.map((row) => (
-          <li key={row.id} className="px-4 py-3 sm:min-h-[3.25rem] sm:py-2.5">
+        {rows.map((row) => {
+          const line = (
             <div className={`${grid} grid items-center gap-y-1 sm:gap-y-0`}>
               <p className="min-w-0 break-words text-sm font-semibold text-ink">{row.name}</p>
               <div>{row.status && <StatusBadge {...row.status} />}</div>
@@ -74,14 +98,33 @@ export default function FileReviewList({ rows, labels = {}, wideAction = false }
                 ))}
               </div>
             </div>
-            {row.expanded && (row.note || row.detail) && (
-              <div className="mt-2 space-y-2">
-                {row.note && <div className="min-w-0 whitespace-pre-wrap break-words text-sm text-ink">{row.note}</div>}
-                {row.detail}
-              </div>
-            )}
-          </li>
-        ))}
+          );
+          return (
+            <li key={row.id} className="px-4 py-3 sm:min-h-[3.25rem] sm:py-2.5">
+              {selection ? (
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`${selection.label} ${row.name}`}
+                      checked={selection.checkedIds.has(row.id)}
+                      disabled={selection.disabledIds?.has(row.id)}
+                      onChange={() => selection.onToggle(row.id)}
+                      className="h-4 w-4 accent-brand-700"
+                    />
+                  </label>
+                  <div className="min-w-0 flex-1">{line}</div>
+                </div>
+              ) : line}
+              {row.expanded && (row.note || row.detail) && (
+                <div className={`mt-2 space-y-2 ${selection ? 'sm:pl-[3.25rem]' : ''}`}>
+                  {row.note && <div className="min-w-0 whitespace-pre-wrap break-words text-sm text-ink">{row.note}</div>}
+                  {row.detail}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </>
   );

@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ApprovalDetailDrawer from './ApprovalDetailDrawer';
 
-const mocks = vi.hoisted(() => ({ openProtectedFile: vi.fn(), getApprovalHistory: vi.fn(), markApprovalFile: vi.fn(), historyFails: false }));
+const mocks = vi.hoisted(() => ({ openProtectedFile: vi.fn(), getApprovalHistory: vi.fn(), markApprovalFile: vi.fn(), markApprovalFiles: vi.fn(), historyFails: false }));
 vi.mock('../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
 // A rejection is made here, not by the spy, so the spy does not report the handled rejection as unhandled.
 vi.mock('../../services/electionService', () => ({
@@ -13,7 +13,7 @@ vi.mock('../../services/electionService', () => ({
     return mocks.historyFails ? Promise.reject(new Error('offline')) : history;
   },
 }));
-vi.mock('../../services/approvalService', () => ({ markApprovalFile: mocks.markApprovalFile }));
+vi.mock('../../services/approvalService', () => ({ markApprovalFile: mocks.markApprovalFile, markApprovalFiles: mocks.markApprovalFiles }));
 vi.mock('../../services/financeService', () => ({ downloadFinancialReportPdf: vi.fn() }));
 
 const FILES = [
@@ -44,6 +44,7 @@ beforeEach(() => {
   mocks.historyFails = false;
   mocks.getApprovalHistory.mockResolvedValue([]);
   mocks.markApprovalFile.mockResolvedValue({ data: { reviews: [] } });
+  mocks.markApprovalFiles.mockResolvedValue({ data: { files: [] } });
 });
 
 describe('ApprovalDetailDrawer SAO event files', () => {
@@ -125,6 +126,78 @@ describe('ApprovalDetailDrawer SAO event files', () => {
     expect(within(rowOf(drawer, 'Venue Reservation Letter')).getByText('Accepted')).toBeInTheDocument();
     expect(within(rowOf(drawer, 'Request Letter')).getByText('Accepted')).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
+
+  it('accepts every file with one Select all and one Accept selected, saved in a single call', async () => {
+    const onFileMarked = vi.fn();
+    const { drawer } = renderDrawer({ onFileMarked });
+    const saved = [{ stage: 'dean', status: 'ok', note: null }];
+    mocks.markApprovalFiles.mockResolvedValueOnce({ data: { files: [{ id: 7, reviews: saved }, { id: 8, reviews: saved }] } });
+
+    expect(within(drawer).getByRole('button', { name: 'Accept selected' })).toBeDisabled();
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select all files' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Accept selected (2)' }));
+
+    await waitFor(() => expect(mocks.markApprovalFiles).toHaveBeenCalledWith(25, [{ id: 7, status: 'ok' }, { id: 8, status: 'ok' }]));
+    await waitFor(() => expect(onFileMarked).toHaveBeenCalledTimes(2));
+    expect(onFileMarked).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), 8, saved);
+    expect(mocks.markApprovalFile).not.toHaveBeenCalled();
+    await waitFor(() => expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeEnabled());
+    expect(within(rowOf(drawer, 'Venue Reservation Letter')).getByText('Accepted')).toBeInTheDocument();
+    expect(within(drawer).getByRole('checkbox', { name: 'Select all files' })).not.toBeChecked();
+  });
+
+  it('shows the in-between state when some files are ticked and a box on every row names its file', () => {
+    const { drawer } = renderDrawer();
+    const all = within(drawer).getByRole('checkbox', { name: 'Select all files' });
+
+    expect(all).not.toBePartiallyChecked();
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select Request Letter' }));
+    expect(all).toBePartiallyChecked();
+    expect(all).not.toBeChecked();
+    expect(within(drawer).getByRole('button', { name: 'Accept selected (1)' })).toBeEnabled();
+
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select Venue Reservation Letter' }));
+    expect(all).toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+  });
+
+  it('leaves a file marked Needs changes out of Select all, so only the other files are accepted', async () => {
+    const { drawer } = renderDrawer();
+    mocks.markApprovalFiles.mockResolvedValueOnce({ data: { files: [{ id: 7, reviews: [{ stage: 'dean', status: 'ok', note: null }] }] } });
+    fireEvent.click(within(rowOf(drawer, 'Request Letter')).getByRole('button', { name: 'Review Request Letter' }));
+    fireEvent.change(within(drawer).getByLabelText('Review of Request Letter'), { target: { value: 'needs_changes' } });
+
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select all files' }));
+    expect(within(drawer).getByRole('checkbox', { name: 'Select Venue Reservation Letter' })).toBeChecked();
+    expect(within(drawer).getByRole('checkbox', { name: 'Select Request Letter' })).not.toBeChecked();
+    expect(within(drawer).getByRole('checkbox', { name: 'Select all files' })).toBeChecked();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Accept selected (1)' }));
+
+    await waitFor(() => expect(mocks.markApprovalFiles).toHaveBeenCalledWith(25, [{ id: 7, status: 'ok' }]));
+    expect(within(drawer).getByLabelText('Review of Request Letter')).toHaveValue('needs_changes');
+    expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+
+  it('puts every mark back and says so when the bulk save fails, keeping the ticks', async () => {
+    mocks.markApprovalFiles.mockRejectedValue(new Error('offline'));
+    const { drawer } = renderDrawer();
+
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select all files' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Accept selected (2)' }));
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent('Could not save those marks. Try again.');
+    expect(within(rowOf(drawer, 'Venue Reservation Letter')).getByText('Not checked')).toBeInTheDocument();
+    expect(within(rowOf(drawer, 'Request Letter')).getByText('Not checked')).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(within(drawer).getByRole('checkbox', { name: 'Select all files' })).toBeChecked();
+  });
+
+  it('offers no boxes to someone who cannot review the request', () => {
+    const { drawer } = renderDrawer({ canAct: false });
+
+    expect(within(drawer).queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /Accept selected/ })).not.toBeInTheDocument();
   });
 
   it('opens a file through the protected url', () => {

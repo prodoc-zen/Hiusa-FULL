@@ -11,7 +11,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
 import { FileLink } from '../reviews/FileReviewList';
 import ApprovalReceipt from './ApprovalReceipt';
-import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, stageOfRequest } from './EventFilesReview';
+import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
 import { electionProposal, formatDateTime, fullName } from './approvalFormat';
 
@@ -297,6 +297,22 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
     }
   }
 
+  // The same for several files at once, saved in one call. Resolves to whether it was saved.
+  async function markAll(ids, value) {
+    const before = Object.fromEntries(ids.map((id) => [id, marks[id] ?? '']));
+    setMarks((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, value])) }));
+    setMarkError('');
+    try {
+      const saved = await saveFileMarks(request.id, ids.map((id) => ({ id, value, before: before[id] })));
+      saved?.forEach(({ id, reviews }) => onFileMarked?.(request, id, reviews));
+      return true;
+    } catch (cause) {
+      setMarks((current) => ({ ...current, ...before }));
+      setMarkError(getApiErrorMessage(cause, 'Could not save those marks. Try again.'));
+      return false;
+    }
+  }
+
   async function decide(payload) {
     setDeciding(true);
     setDecisionError('');
@@ -354,6 +370,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
             marks={marks}
             notes={notes}
             onMark={markFile}
+            onMarkAll={markAll}
             onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))}
           />
         )}
