@@ -108,7 +108,7 @@ describe("MerchandisePage buyer experience", () => {
     );
 
     expect(await screen.findByText("8 in stock")).toBeInTheDocument();
-    expect(screen.getByText("Out of stock")).toBeInTheDocument();
+    expect(screen.getAllByText("Out of stock").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Currently unavailable" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Filter merchandise category"), {
@@ -1465,6 +1465,21 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(filled.map((button) => button.textContent)).toEqual(["Add product"]);
     fireEvent.click(screen.getByRole("button", { name: "Add stock" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
+  });
+
+  it("shows an Officer the inventory with every write control hidden and no payment setup call", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect((await screen.findAllByText("HIUSA Shirt")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Out of stock").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Add product" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add stock" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Set up GCash" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Actions for / })).not.toBeInTheDocument();
+    expect(screen.queryByText("Set up GCash so students can pay online")).not.toBeInTheDocument();
+    expect(merchandiseMocks.getGcashSettings).not.toHaveBeenCalled();
   });
 
   it("labels the stock field as what can still be ordered", async () => {

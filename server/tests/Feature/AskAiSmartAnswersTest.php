@@ -209,7 +209,7 @@ class AskAiSmartAnswersTest extends TestCase
 
         $this->assertSame('merchandise_stock', $answer['intent']);
         $this->assertStringStartsWith('1 item needs restocking: HIUSA Lanyard has 6 left.', $answer['answer']);
-        $this->assertSame(['/dashboard/merchandise/order-merchandise'], array_values(array_unique($answer['hrefs'])));
+        $this->assertSame(['/dashboard/merchandise/manage-inventory'], array_values(array_unique($answer['hrefs'])));
         $this->assertHrefsOpenFor($answer, 'SBO_OFFICER');
 
         $people['officer']->accountProfiles()->update(['modules' => ['tasks']]);

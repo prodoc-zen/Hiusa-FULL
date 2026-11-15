@@ -50,7 +50,7 @@ const SPEC = {
         ['Check-in', '/dashboard/events/check-in'],
       ],
     },
-    { band: 'Community', label: 'Voting', children: [['Elections', '/dashboard/elections/manage-elections'], ['Results', '/dashboard/elections/election-results']] },
+    { band: 'Community', label: 'Voting', children: [['Elections', '/dashboard/elections/manage-elections'], ['Voters', '/dashboard/elections/manage-voters'], ['Results', '/dashboard/elections/election-results']] },
     { band: 'Community', label: 'Store', children: [['Inventory', '/dashboard/merchandise/manage-inventory'], ['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
     { band: 'Oversight', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['School year records', '/dashboard/records'], ['Officer transition', '/dashboard/records/officer-transition'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
@@ -72,7 +72,7 @@ const SPEC = {
     { band: 'Manage', label: 'Finance (view only)', children: FINANCE_MANAGER_LEAVES },
     { band: 'Manage', label: 'Members and fingerprints', path: '/dashboard/admin/users' },
     { band: 'Community', label: 'Voting', children: [['Candidates', '/dashboard/elections/manage-candidates'], ['Voters', '/dashboard/elections/manage-voters'], ['Results', '/dashboard/elections/election-results']] },
-    { band: 'Community', label: 'Store', children: [['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
+    { band: 'Community', label: 'Store', children: [['Inventory', '/dashboard/merchandise/manage-inventory'], ['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
     { band: 'Oversight', label: 'Clearance signing', path: '/dashboard/clearances' },
     { band: 'Oversight', label: 'Records', path: '/dashboard/records' },
@@ -155,8 +155,8 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it.each([
-    ['ADMIN', 11, 38],
-    ['SBO_OFFICER', 12, 26],
+    ['ADMIN', 11, 39],
+    ['SBO_OFFICER', 12, 27],
     ['DEPARTMENT_HEAD', 14, 18],
     ['STUDENT', 8, 13],
     ['SUPER_ADMIN', 8, 20],

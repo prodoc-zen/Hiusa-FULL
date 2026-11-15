@@ -62,9 +62,9 @@ const WORKSPACE_STEPS = [
     key: 'voters',
     label: 'Voters',
     roles: ['ADMIN', 'SBO_OFFICER'],
-    path: (role) => (role === 'ADMIN' ? `${BASE}/manage-elections` : `${BASE}/manage-voters`),
-    params: (role) => (role === 'ADMIN' ? { view: 'voters' } : {}),
-    isActive: (pathname, view, role) => (role === 'ADMIN' ? pathname.endsWith('/manage-elections') && view === 'voters' : pathname.endsWith('/manage-voters')),
+    path: () => `${BASE}/manage-voters`,
+    // Older links to the voters list open it on the overview route, so that route still marks the step.
+    isActive: (pathname, view) => pathname.endsWith('/manage-voters') || (pathname.endsWith('/manage-elections') && view === 'voters'),
   },
   {
     key: 'results',
