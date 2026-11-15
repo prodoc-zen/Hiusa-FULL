@@ -1,13 +1,13 @@
 import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import { manilaDate } from '../../../lib/format';
 import { PERIODS_CHANGED_EVENT } from '../../../utils/academicPeriodStore';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
 import notify from '../../../lib/notify';
-import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -191,6 +191,116 @@ describe('AcademicYearsPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Complete academic year' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close year' }));
     await waitFor(() => expect(closeAcademicYear).toHaveBeenCalledWith(1));
+  });
+
+  describe('telling the top bar picker that the calendar changed', () => {
+    const upcoming = { id: 31, number: 1, status: 'upcoming', starts_on: '2999-08-07', ends_on: '2999-12-15' };
+    const futureYear = { id: 3, label: '2999-3000', starts_on: '2999-08-01', ends_on: '3000-05-31', is_current: true, can_be_removed: true, removal_blocker: null, semesters: [upcoming] };
+    let periodsChanged;
+
+    beforeEach(() => {
+      periodsChanged = vi.fn();
+      window.addEventListener(PERIODS_CHANGED_EVENT, periodsChanged);
+    });
+    afterEach(() => window.removeEventListener(PERIODS_CHANGED_EVENT, periodsChanged));
+
+    it('announces after a year is added', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([]);
+      vi.mocked(createAcademicYear).mockResolvedValue({ id: 9, label: '2027-2028', is_current: false });
+      renderPage();
+
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Add academic year' }))[0]);
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.change(within(dialog).getByLabelText(/Starts on/), { target: { value: '2027-08-01' } });
+      fireEvent.change(within(dialog).getByLabelText(/Ends on/), { target: { value: '2028-05-31' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add academic year' }));
+
+      await waitFor(() => expect(createAcademicYear).toHaveBeenCalled());
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after a year is edited', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(years);
+      vi.mocked(updateAcademicYear).mockResolvedValue({});
+      renderPage();
+
+      fireEvent.click(await findRowAction('Edit', '2027-2028'));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit 2027-2028' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(updateAcademicYear).toHaveBeenCalledWith(2, expect.anything()));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after a year is made current', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(years);
+      vi.mocked(makeAcademicYearCurrent).mockResolvedValue({ ...years[0], is_current: true });
+      renderPage();
+
+      fireEvent.click(await findRowAction('Make current'));
+      fireEvent.click(within(await screen.findByRole('dialog', { name: 'Make this the current year' })).getByRole('button', { name: 'Make current' }));
+
+      await waitFor(() => expect(makeAcademicYearCurrent).toHaveBeenCalledWith(2));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after a year is closed', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([
+        { ...years[1], semesters: [{ id: 1, number: 1, status: 'completed' }, { id: 2, number: 2, status: 'completed' }] },
+      ]);
+      vi.mocked(closeAcademicYear).mockResolvedValue({ ...years[1], is_current: false });
+      renderPage();
+
+      fireEvent.click(await findRowAction('Close year'));
+      fireEvent.click(within(await screen.findByRole('dialog', { name: 'Complete academic year' })).getByRole('button', { name: 'Close year' }));
+
+      await waitFor(() => expect(closeAcademicYear).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after a year is removed', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([futureYear]);
+      vi.mocked(deleteAcademicYear).mockResolvedValue({});
+      renderPage();
+
+      fireEvent.click(await findRowAction('Remove 2999-3000', '2999-3000'));
+      fireEvent.click(within(await screen.findByRole('dialog', { name: 'Remove academic year' })).getByRole('button', { name: 'Remove year' }));
+
+      await waitFor(() => expect(deleteAcademicYear).toHaveBeenCalledWith(3));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after semester dates change', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue([futureYear]);
+      vi.mocked(updateAcademicSemesterDates).mockResolvedValue({});
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit dates of 1st semester of AY 2999-3000' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit dates of the 1st semester, AY 2999-3000' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save dates' }));
+
+      await waitFor(() => expect(updateAcademicSemesterDates).toHaveBeenCalledWith(31, expect.anything()));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
+
+    it('announces after a semester is removed, and stays quiet when the server refuses', async () => {
+      const withSemesters = [{ ...years[1], semesters: [
+        { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+        { id: 12, number: 2, status: 'upcoming', starts_on: '2026-10-05', ends_on: '2027-05-31' },
+      ] }];
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      vi.mocked(deleteAcademicSemester).mockRejectedValueOnce({ response: { status: 409, data: { message: 'No.', reasons: [] } } }).mockResolvedValueOnce('');
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
+      await within(dialog).findByRole('alert');
+      expect(periodsChanged).not.toHaveBeenCalled();
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
+      await waitFor(() => expect(periodsChanged).toHaveBeenCalledTimes(1));
+    });
   });
 
   describe('deleting a semester', () => {

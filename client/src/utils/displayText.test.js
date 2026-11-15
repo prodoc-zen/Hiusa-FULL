@@ -56,5 +56,8 @@ describe('display text formatting', () => {
     expect(displayAuditValue('pending_approval')).toBe('Pending Approval');
     expect(displayAuditValue('A user-provided description')).toBe('A user-provided description');
     expect(displayAuditValue(null)).toBe('Not set');
+    expect(displayAuditValue('rejected')).toBe('Rejected');
+    expect(displayAuditValue('returned')).toBe('Returned');
+    expect(displayAuditValue('gymnasium')).toBe('gymnasium');
   });
 });

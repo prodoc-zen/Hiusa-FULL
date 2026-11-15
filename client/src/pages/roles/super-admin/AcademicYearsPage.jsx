@@ -224,6 +224,7 @@ export default function AcademicYearsPage() {
         notify.success(created.is_current ? `${created.label} is now the current academic year` : `${created.label} added to the calendar`);
       }
       setModal(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setFieldErrors(cause?.response?.data?.errors || {});
@@ -239,6 +240,7 @@ export default function AcademicYearsPage() {
       await makeAcademicYearCurrent(currentTarget.id);
       notify.success(`${currentTarget.label} is now the current academic year`, { description: 'Accreditation status now counts this year\'s requirements.' });
       setCurrentTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       notify.error(getApiErrorMessage(cause, 'The current year was not changed.'));
@@ -254,6 +256,7 @@ export default function AcademicYearsPage() {
       await deleteAcademicYear(deleteTarget.id);
       notify.success(`${deleteTarget.label} removed`);
       setDeleteTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setYearDeleteError(getApiErrorMessage(cause, 'The academic year was not removed.'));
@@ -268,6 +271,7 @@ export default function AcademicYearsPage() {
       await closeAcademicYear(closeYearTarget.id);
       notify.success(`AY ${closeYearTarget.label} completed`);
       setCloseYearTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       notify.error(getApiErrorMessage(cause, 'The academic year could not be closed.'));
@@ -340,6 +344,7 @@ export default function AcademicYearsPage() {
       await updateAcademicSemesterDates(datesTarget.semester.id, datesForm);
       notify.success('Semester dates changed');
       setDatesTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setSemesterErrors(cause?.response?.data?.errors || {});
@@ -377,6 +382,7 @@ export default function AcademicYearsPage() {
       await deleteAcademicSemester(semesterDeleteTarget.id);
       notify.success('Semester removed');
       setSemesterDeleteTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setSemesterDeleteError({ message: getApiErrorMessage(cause, 'The semester was not removed.'), reasons: cause?.response?.data?.reasons || [] });

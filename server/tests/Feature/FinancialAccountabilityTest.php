@@ -8,6 +8,8 @@ use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\Venue;
+use App\Models\VenueBooking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -361,5 +363,31 @@ class FinancialAccountabilityTest extends TestCase
             $this->assertStringContainsString('reviewed rejected ', $row['description']);
             $this->assertSame('rejected', collect($row['changes'])->firstWhere('field', 'Status')['to']);
         }
+    }
+
+    public function test_a_venue_refusal_reads_as_the_venue_booking_decision_and_never_as_a_return(): void
+    {
+        $director = $this->user('SUPER_ADMIN');
+        $requester = $this->user('ADMIN');
+        $venue = Venue::create(['name' => 'Gymnasium', 'location' => 'Main Campus', 'capacity' => 200]);
+        $booking = VenueBooking::create([
+            'venue_id' => $venue->id, 'organization_id' => $requester->organization_id, 'requested_by' => $requester->school_id, 'status' => 'rejected',
+            'start_time' => now()->addDay()->setTime(9, 0), 'end_time' => now()->addDay()->setTime(11, 0),
+        ]);
+        AuditLog::create([
+            'organization_id' => $requester->organization_id, 'user_id' => $director->school_id, 'module' => 'venue_bookings',
+            'action' => 'booking_rejected', 'record_type' => VenueBooking::class, 'record_id' => $booking->id,
+            'new_values' => ['status' => 'rejected', 'remarks' => 'Taken'], 'created_at' => now(),
+        ]);
+        Sanctum::actingAs($director);
+
+        $row = collect($this->getJson('/api/audit-logs')->assertOk()->json('data'))->firstWhere('action', 'booking_rejected');
+        $this->assertSame('Venue Booking Decision', $row['action_label']);
+        $this->assertSame('Reject', $row['action_category_label']);
+        $this->assertSame('Venue booking: Gymnasium', $row['subject']);
+        $this->assertStringContainsString('rejected Venue booking: Gymnasium.', $row['description']);
+        $this->assertStringNotContainsString('returned', strtolower($row['description']));
+        $this->assertSame('rejected', collect($row['changes'])->firstWhere('field', 'Status')['to']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'booking_rejected']);
     }
 }
