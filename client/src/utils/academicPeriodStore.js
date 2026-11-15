@@ -1,6 +1,12 @@
 export const PERIOD_KEY = 'hiusa_selected_academic_period';
 export const PERIOD_EVENT = 'hiusa-period-switched';
 export const PERIOD_RESET_EVENT = 'hiusa-reset-academic-period';
+export const PERIODS_CHANGED_EVENT = 'hiusa-academic-periods-changed';
+
+// Archiving or restoring a year changes which semesters exist and how they read, so the top bar picker loads them again.
+export function announcePeriodsChanged() {
+  window.dispatchEvent(new Event(PERIODS_CHANGED_EVENT));
+}
 
 function parse(raw) {
   try {

@@ -98,6 +98,15 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByLabelText(/^Event name/)).toHaveValue('');
   });
 
+  it('loads the SAO requirements when the form opens from the request selector route', async () => {
+    eventMocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Letter of intent', venue_type: 'all', is_active: true, is_optional: false }] });
+    render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/event']}><EventsPage initialTab="events" startEventRequest /></MemoryRouter>);
+
+    expect(await screen.findByRole('heading', { name: /Required letters and documents/ })).toBeInTheDocument();
+    expect(screen.getByText('Letter of intent')).toBeInTheDocument();
+    expect(eventMocks.getEventRequirements).toHaveBeenCalled();
+  });
+
   it('offers no Back to events button and cancels back to the request selector', async () => {
     function Where() { return <p data-testid="where">{useLocation().pathname}</p>; }
     render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/event']}><EventsPage initialTab="events" startEventRequest /><Where /></MemoryRouter>);

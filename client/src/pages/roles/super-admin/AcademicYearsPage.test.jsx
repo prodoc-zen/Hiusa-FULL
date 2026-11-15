@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import { manilaDate } from '../../../lib/format';
+import { PERIODS_CHANGED_EVENT } from '../../../utils/academicPeriodStore';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
 import notify from '../../../lib/notify';
 import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
@@ -710,6 +711,8 @@ describe('archiving a school year', () => {
   it('asks the SAO to type the year before it archives, and says what happens to the year and its records', async () => {
     vi.mocked(getAcademicYears).mockResolvedValueOnce([live]).mockResolvedValueOnce([{ ...live, is_current: false, archived_at: '2026-11-15T10:00:00Z' }]);
     vi.mocked(archiveAcademicYear).mockResolvedValue({});
+    const periodsChanged = vi.fn();
+    window.addEventListener(PERIODS_CHANGED_EVENT, periodsChanged);
     renderPage();
 
     fireEvent.click(await findRowAction('Archive year', '2026-2027'));
@@ -733,6 +736,9 @@ describe('archiving a school year', () => {
     await waitFor(() => expect(archiveAcademicYear).toHaveBeenCalledWith(2));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Archive academic year' })).not.toBeInTheDocument());
     expect(notify.success).toHaveBeenCalledWith('AY 2026-2027 archived', expect.anything());
+    // The top bar picker listens for this to load the semesters again.
+    expect(periodsChanged).toHaveBeenCalledOnce();
+    window.removeEventListener(PERIODS_CHANGED_EVENT, periodsChanged);
     expect(getAcademicYears).toHaveBeenCalledTimes(2);
     expect(await screen.findByText('No academic year set')).toBeInTheDocument();
   });
@@ -782,6 +788,8 @@ describe('archiving a school year', () => {
   it('restores an archived year and reloads the calendar', async () => {
     vi.mocked(getAcademicYears).mockResolvedValueOnce([live, archivedYear]).mockResolvedValueOnce([live, { ...archivedYear, archived_at: null }]);
     vi.mocked(restoreAcademicYear).mockResolvedValue({});
+    const periodsChanged = vi.fn();
+    window.addEventListener(PERIODS_CHANGED_EVENT, periodsChanged);
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Archived years (1)' }));
@@ -790,6 +798,8 @@ describe('archiving a school year', () => {
     await waitFor(() => expect(restoreAcademicYear).toHaveBeenCalledWith(1));
     await waitFor(() => expect(getAcademicYears).toHaveBeenCalledTimes(2));
     expect(notify.success).toHaveBeenCalledWith('AY 2025-2026 restored', expect.anything());
+    expect(periodsChanged).toHaveBeenCalledOnce();
+    window.removeEventListener(PERIODS_CHANGED_EVENT, periodsChanged);
     expect(await screen.findByRole('button', { name: 'Archived years (0)' })).toBeInTheDocument();
     expect((await screen.findAllByRole('button', { name: 'Actions for 2025-2026' })).length).toBeGreaterThan(0);
   });

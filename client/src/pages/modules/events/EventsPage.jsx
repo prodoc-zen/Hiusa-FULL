@@ -557,6 +557,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setEditingEventId(null);
       setForm(emptyEventForm());
       setFormError(null);
+      loadEventRequirements();
       setShowForm(true);
     }
   }, [canCreateEvents, startEventRequest]);
@@ -799,10 +800,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setAttachedEventFiles({});
     setAttachedFileErrors({});
     setFormError(null);
+    loadEventRequirements();
+    setShowForm(true);
+  }
+
+  function loadEventRequirements() {
     (typeof getEventRequirements === 'function' ? getEventRequirements() : Promise.resolve({ data: [] }))
       .then((res) => setActiveEventRequirements(res?.data || []))
       .catch(() => setActiveEventRequirements([]));
-    setShowForm(true);
   }
 
   function openEditForm(event) {

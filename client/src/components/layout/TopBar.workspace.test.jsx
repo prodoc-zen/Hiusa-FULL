@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TopBar from './TopBar';
-import { PERIOD_KEY } from '../../utils/academicPeriodStore';
+import { PERIOD_KEY, announcePeriodsChanged } from '../../utils/academicPeriodStore';
 import { SUB_ACCOUNT_KEY } from '../../utils/subAccountStore';
 
 const mocks = vi.hoisted(() => ({
@@ -137,6 +137,23 @@ describe('TopBar school year picker', () => {
     fireEvent.click(row);
 
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/records');
+  });
+
+  it('marks the semesters Archived without a reload once the SAO archives their year', async () => {
+    const nextYear = { id: 5, number: 1, status: 'upcoming', academic_year: { label: '2027-2028' } };
+    mocks.getAcademicPeriods.mockResolvedValueOnce([live, nextYear]);
+    renderTopBar('/dashboard/admin');
+    const list = await openPicker();
+    const before = within(list).getByRole('button', { name: /AY 2027-2028 · 1st Semester/ });
+    expect(within(before).getByText('Upcoming, for planning')).toBeInTheDocument();
+    expect(within(before).queryByText('Archived')).not.toBeInTheDocument();
+
+    mocks.getAcademicPeriods.mockResolvedValueOnce([live, { ...nextYear, status: 'completed', archived: true }]);
+    act(() => announcePeriodsChanged());
+
+    await waitFor(() => expect(within(within(list).getByRole('button', { name: /AY 2027-2028 · 1st Semester/ })).getByText('Archived')).toBeInTheDocument());
+    expect(within(list).queryByText('Upcoming, for planning')).not.toBeInTheDocument();
+    expect(mocks.getAcademicPeriods).toHaveBeenCalledTimes(2);
   });
 
   it('sends a closed semester to Records instead of switching to it', async () => {
