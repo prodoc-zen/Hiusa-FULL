@@ -182,10 +182,13 @@ export default function SaoClearancesPage() {
                   </div>
                   <TableRowActions subject={formatDisplayText(period.title)} actions={[
                     { label: 'View students', icon: ClipboardCheck, onClick: () => setRecordId(period.id) },
-                    { label: 'Add students who joined since', icon: UserPlus, disabled: syncingId === period.id, onClick: () => syncStudents(period) },
-                    { label: 'Edit period', icon: Pencil, onClick: () => setEditTarget(period) },
-                    ...(closed ? [] : [{ label: 'Close period', icon: Lock, onClick: () => { setCloseError(null); setCloseTarget(period); } }]),
-                    { label: 'Delete period', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(period); } },
+                    // An archived year's periods stay open to view only.
+                    ...(period.archived ? [] : [
+                      { label: 'Add students who joined since', icon: UserPlus, disabled: syncingId === period.id, onClick: () => syncStudents(period) },
+                      { label: 'Edit period', icon: Pencil, onClick: () => setEditTarget(period) },
+                      ...(closed ? [] : [{ label: 'Close period', icon: Lock, onClick: () => { setCloseError(null); setCloseTarget(period); } }]),
+                      { label: 'Delete period', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(period); } },
+                    ]),
                   ]} />
                 </div>
               </Card>
