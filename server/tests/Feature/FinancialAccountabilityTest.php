@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Merchandise;
 use App\Models\Order;
@@ -311,5 +312,54 @@ class FinancialAccountabilityTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('message', 'GCash payment is unavailable until an administrator uploads the official QR code.');
         $this->assertDatabaseCount('orders', 0);
+    }
+
+    private function reviewLog(string $action, array $values, int $recordId = 5): AuditLog
+    {
+        $director = $this->user('SUPER_ADMIN');
+
+        return AuditLog::create([
+            'organization_id' => $director->organization_id,
+            'user_id' => $director->school_id,
+            'module' => 'approvals',
+            'action' => $action,
+            'record_type' => ApprovalRequest::class,
+            'record_id' => $recordId,
+            'new_values' => $values,
+            'created_at' => now(),
+        ]);
+    }
+
+    public function test_a_rejected_review_reads_as_a_return_in_the_audit_trail_without_changing_the_stored_action(): void
+    {
+        $this->reviewLog('reviewed_rejected', ['entity_type' => 'event', 'entity_id' => 5, 'status' => 'rejected', 'remarks' => 'Fix it']);
+        $viewer = $this->user('SUPER_ADMIN');
+        Sanctum::actingAs($viewer);
+
+        $row = collect($this->getJson('/api/audit-logs')->assertOk()->json('data'))->firstWhere('action', 'reviewed_rejected');
+        $this->assertSame('reviewed_rejected', $row['action'], 'The stored action is not rewritten.');
+        $this->assertSame('Return', $row['action_category_label']);
+        $this->assertSame('Reviewed Returned', $row['action_label']);
+        $this->assertSame('REJECT', $row['action_category'], 'The filter value is unchanged.');
+        $this->assertStringContainsString('reviewed returned Event #5.', $row['description']);
+        $this->assertStringNotContainsString('rejected', strtolower($row['description']));
+        $this->assertSame('returned', collect($row['changes'])->firstWhere('field', 'Status')['to']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'reviewed_rejected']);
+    }
+
+    public function test_a_merch_payment_refusal_and_a_final_election_refusal_keep_the_refusal_word_in_the_audit_trail(): void
+    {
+        $this->reviewLog('reviewed_rejected', ['entity_type' => 'payment', 'entity_id' => 8, 'status' => 'rejected'], 6);
+        $this->reviewLog('reviewed_rejected', ['entity_type' => 'election', 'entity_id' => 3, 'status' => 'rejected', 'final' => true], 7);
+        Sanctum::actingAs($this->user('SUPER_ADMIN'));
+
+        $rows = collect($this->getJson('/api/audit-logs')->assertOk()->json('data'))->where('action', 'reviewed_rejected');
+        $this->assertCount(2, $rows);
+        foreach ($rows as $row) {
+            $this->assertSame('Reject', $row['action_category_label']);
+            $this->assertSame('Reviewed Rejected', $row['action_label']);
+            $this->assertStringContainsString('reviewed rejected ', $row['description']);
+            $this->assertSame('rejected', collect($row['changes'])->firstWhere('field', 'Status')['to']);
+        }
     }
 }

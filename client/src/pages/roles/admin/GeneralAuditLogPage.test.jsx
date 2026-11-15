@@ -90,4 +90,16 @@ describe('GeneralAuditLogPage', () => {
     await waitFor(() => expect(downloadBlob).toHaveBeenCalled());
     expect(exportAuditLogs).toHaveBeenCalledWith(expect.objectContaining({ sort: 'newest', module: '' }));
   });
+
+  it('offers the send-back filter as Returned and shows a returned review as a return', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    vi.mocked(getAuditLogs).mockResolvedValue({ data: { data: [{ id: 5, created_at: '2026-10-01T08:00:00Z', module: 'approvals', module_label: 'Approvals', action: 'reviewed_rejected', action_category_label: 'Return', subject: 'Event #5', description: 'SAO Director (990001) reviewed returned Event #5.', changes: [] }], total: 1, per_page: 10, current_page: 1 } });
+    render(<GeneralAuditLogPage />);
+
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('Return')).toBeInTheDocument();
+    expect(within(table).getByText(/reviewed returned Event #5/)).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Returned' })).toHaveValue('REJECT');
+    expect(screen.queryByRole('option', { name: /rejected/i })).not.toBeInTheDocument();
+  });
 });
