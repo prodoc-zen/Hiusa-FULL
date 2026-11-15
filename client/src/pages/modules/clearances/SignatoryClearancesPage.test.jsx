@@ -163,6 +163,19 @@ describe('SignatoryClearancesPage', () => {
     expect(screen.getByText('No signatures match these filters')).toBeInTheDocument();
   });
 
+  it('badges a line of an archived year and offers no way to sign or select it', async () => {
+    mocks.getClearancePeriods.mockResolvedValue(envelope([{ id: 1, title: 'Old finals', academic_year: '2024-2025', archived: true }]));
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([{ ...PENDING_ROW, archived: true }]));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
+    expect(within(row).getByText('Archived')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Hold: Organization' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Clear: Organization' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/for bulk clear/)).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Old finals (Archived)' })).toBeInTheDocument();
+  });
+
   it('sends one search request after typing stops instead of one per keystroke', async () => {
     mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW]));
 

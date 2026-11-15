@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
+use App\Models\ClearancePeriod;
 use App\Models\Election;
 use App\Models\Grievance;
 use App\Models\Organization;
@@ -1390,7 +1391,8 @@ class DashboardBriefingService
             ];
         }
 
-        $pendingSaoClearances = DB::table('clearance_signatures')->whereNull('retired_at')->where('required_role', 'sao')->where('status', 'pending')->count();
+        $pendingSaoClearances = DB::table('clearance_signatures')->whereNull('retired_at')->where('required_role', 'sao')->where('status', 'pending')
+            ->whereIn('clearance_period_id', ClearancePeriod::notInArchivedYear()->select('id'))->count();
         if ($pendingSaoClearances > 0) {
             $items[] = [
                 'id' => 'sao_queue-clearance',
