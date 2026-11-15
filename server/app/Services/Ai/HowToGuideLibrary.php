@@ -1165,27 +1165,17 @@ class HowToGuideLibrary
     }
 
     /**
-     * The pages that can open a step, best first. The dean's office staff sign in with the Admin profile, which cannot
-     * open the Department Head compliance and announcement pages, so those steps fall back to the nearest page it can open.
+     * The pages that can open a step, best first. The dean's office staff open every page the dean does, so a step has
+     * one page per role.
      *
      * @return array<int, string>
      */
     public function stepPaths(array $step, string $role): array
     {
         $path = $this->stepPath($step, $role);
-        if ($path === null) {
-            return [];
-        }
 
-        $fallback = $role === 'DEPARTMENT_HEAD' ? (self::OFFICE_STAFF_FALLBACKS[$path] ?? null) : null;
-
-        return $fallback === null ? [$path] : [$path, $fallback];
+        return $path === null ? [] : [$path];
     }
-
-    private const OFFICE_STAFF_FALLBACKS = [
-        '/dashboard/department-head/compliance' => '/dashboard/department-head/documents',
-        '/dashboard/department-head/announcements' => '/dashboard/announcements/view-announcements',
-    ];
 
     /**
      * @return array<int, string>

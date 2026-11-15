@@ -139,7 +139,6 @@ describe('ProtectedRoute office staff guard', () => {
   const officeStaff = { role: 'ADMIN', organization: { organization_type: 'COLLEGE' } };
 
   it.each([
-    '/dashboard/finance/financial-ledger',
     '/dashboard/tasks/task-board',
     '/dashboard/elections/manage-elections',
     '/dashboard/admin/users',
@@ -153,17 +152,17 @@ describe('ProtectedRoute office staff guard', () => {
   it('tells the home page which page was refused, with no role that could open it, so no Switch is offered', () => {
     signIn(officeStaff);
     render(
-      <MemoryRouter initialEntries={['/dashboard/finance/financial-ledger?x=1']}>
+      <MemoryRouter initialEntries={['/dashboard/tasks/task-board?x=1']}>
         <Routes>
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard/finance/financial-ledger" element={<p>Ledger</p>} />
+            <Route path="/dashboard/tasks/task-board" element={<p>Task board</p>} />
           </Route>
           <Route path="/dashboard/admin" element={<Landed />} />
         </Routes>
       </MemoryRouter>,
     );
-    expect(screen.queryByText('Ledger')).not.toBeInTheDocument();
-    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/finance/financial-ledger?x=1","allowedRoles":[]}}');
+    expect(screen.queryByText('Task board')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/tasks/task-board?x=1","allowedRoles":[]}}');
   });
 
   it('lets office staff open every page their menu offers, and the account page', () => {
@@ -184,10 +183,36 @@ describe('ProtectedRoute office staff guard', () => {
     expect(screen.getByText('at /dashboard/records')).toBeInTheDocument();
   });
 
-  it('keeps office staff out of the pages under School year records that their menu does not offer', () => {
+  it('lets office staff open the dean pages: officer transition, finance, and an organization space', () => {
+    ['/dashboard/records/officer-transition', '/dashboard/finance/financial-ledger', '/dashboard/department-head/org/7'].forEach((path) => {
+      localStorage.clear();
+      signIn(officeStaff);
+      const { unmount } = renderGuarded(path);
+      expect(screen.getByText(`at ${path}`)).toBeInTheDocument();
+      unmount();
+    });
+  });
+
+  it('admits office staff to a page only the Department Head may open, and nobody else on the ADMIN role', () => {
+    const dean = (
+      <MemoryRouter initialEntries={['/dashboard/department-head/compliance']}>
+        <Routes>
+          <Route path="/dashboard/department-head/compliance" element={<ProtectedRoute allowedRoles={['DEPARTMENT_HEAD']}><p>College compliance</p></ProtectedRoute>} />
+          <Route path="/dashboard/admin" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
     signIn(officeStaff);
-    renderGuarded('/dashboard/records/officer-transition');
-    expect(screen.getByText('at /dashboard/admin')).toBeInTheDocument();
+    const staffView = render(dean);
+    expect(screen.getByText('College compliance')).toBeInTheDocument();
+    staffView.unmount();
+
+    localStorage.clear();
+    signIn({ role: 'ADMIN', organization: { organization_type: 'STUDENT_ORGANIZATION' } });
+    render(dean);
+    expect(screen.queryByText('College compliance')).not.toBeInTheDocument();
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/department-head/compliance","allowedRoles":["DEPARTMENT_HEAD"]}}');
   });
 
   it('leaves a real organization Admin free to open the finance, task and voting pages', () => {

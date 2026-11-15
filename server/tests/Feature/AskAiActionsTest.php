@@ -945,7 +945,7 @@ class AskAiActionsTest extends TestCase
         $this->assertSame(0, ApprovalRequest::count());
     }
 
-    public function test_the_deans_staff_are_never_offered_the_dean_only_applicant_card(): void
+    public function test_the_deans_staff_are_offered_the_applicant_card_like_the_dean(): void
     {
         $college = $this->makeCollege('CCS');
         $home = $this->makeCollegeHome($college);
@@ -954,8 +954,8 @@ class AskAiActionsTest extends TestCase
         User::factory()->student()->create(['organization_id' => $home->id, 'first_name' => 'Maria', 'last_name' => 'Santos']);
 
         Sanctum::actingAs($staff);
-        $this->assertArrayNotHasKey('action', $this->ask('let Maria Santos apply for a new organization')['payload']);
-        $this->assertSame([], app(AskAiActions::class)->titlesFor($staff));
+        $this->assertSame('allow_applicant', $this->ask('let Maria Santos apply for a new organization')['payload']['action']['key']);
+        $this->assertSame(app(AskAiActions::class)->titlesFor($dean), app(AskAiActions::class)->titlesFor($staff));
 
         Sanctum::actingAs($dean);
         $this->assertSame('allow_applicant', $this->ask('let Maria Santos apply for a new organization')['payload']['action']['key']);

@@ -1003,7 +1003,7 @@ class AskAiService
             }
         }
 
-        $home = $this->linkTo($user, ...array_filter([self::ROLE_HOME[$role] ?? null, self::ROLE_HOME[(string) $user->profileRole()] ?? null]));
+        $home = $this->linkTo($user, ...array_filter([self::ROLE_HOME[(string) $user->profileRole()] ?? null, self::ROLE_HOME[$role] ?? null]));
 
         return $home === null ? null : $row('Open my dashboard', 'start from your dashboard, where your own work is gathered', $home);
     }
@@ -4372,13 +4372,16 @@ class AskAiService
         return $missing;
     }
 
-    /** The first path the signed-in profile may open, so a link is never one the client sends the person away from. */
+    /** The first path the signed-in profile may open, so a link is never one the client sends the person away from. The dean's office staff open every page the dean does, as well as their own home. */
     private function linkTo(User $user, string ...$paths): ?string
     {
+        $roles = array_values(array_unique([(string) $user->profileRole(), $user->approvalRole()]));
         foreach ($paths as $path) {
-            $href = $this->routeAccess->hrefFor((string) $user->profileRole(), $path);
-            if ($href !== null) {
-                return $href;
+            foreach ($roles as $role) {
+                $href = $this->routeAccess->hrefFor($role, $path);
+                if ($href !== null) {
+                    return $href;
+                }
             }
         }
 

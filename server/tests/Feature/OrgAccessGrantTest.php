@@ -159,20 +159,20 @@ class OrgAccessGrantTest extends TestCase
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
     }
 
-    public function test_office_staff_cannot_name_an_org_head_or_officer_in_a_student_organization_of_the_college(): void
+    public function test_office_staff_name_an_org_head_or_officer_in_a_student_organization_of_the_college_as_the_dean_does(): void
     {
         $this->computingOrg->update(['parent_organization_id' => $this->computingHome->id]);
         $staff = User::factory()->admin()->create(['organization_id' => $this->computingHome->id]);
-        $student = $this->homeStudent();
         SboPosition::create(['organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'title' => 'President', 'is_active' => true]);
 
         foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
+            $student = $this->homeStudent();
             $this->grant($staff, [
                 'school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id,
                 'role' => $role, 'position_title' => $role === 'ADMIN' ? 'President' : null,
-            ])->assertForbidden();
+            ])->assertCreated();
+            $this->assertDatabaseHas('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id, 'role' => $role]);
         }
-        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
     }
 
     public function test_the_org_head_cannot_grant_in_another_organization(): void

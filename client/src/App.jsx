@@ -5,7 +5,7 @@ import RouteLoadingFallback from './components/layout/RouteLoadingFallback';
 import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 import SessionExpiry from './components/auth/SessionExpiry';
-import { isOfficeStaff, storedUser } from './utils/collegeIdentity';
+import { effectiveRole, isOfficeStaff, storedUser } from './utils/collegeIdentity';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const StudentSignUpPage = lazy(() => import('./pages/auth/StudentSignUpPage'));
@@ -81,22 +81,14 @@ const StudentClearancePage = lazy(() => import('./pages/modules/clearances/Stude
 const AskAiPage = lazy(() => import('./pages/modules/ai/AskAiPage'));
 const UiKitPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/UiKitPage')) : null;
 
+// The dean's office staff read as the Department Head here, so every page the dean opens shows them the dean's view.
 function getStoredRole() {
-  const storedUser = localStorage.getItem('user');
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(storedUser)?.role || null;
-  } catch {
-    return null;
-  }
+  return effectiveRole(storedUser());
 }
 
 function DashboardIndexRedirect() {
-  const role = getStoredRole();
+  // Office staff keep their own home at /dashboard/admin, so this reads the profile role, not the effective one.
+  const role = storedUser()?.role || null;
   const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
 
   if (role && allowedRoles.includes(role)) {

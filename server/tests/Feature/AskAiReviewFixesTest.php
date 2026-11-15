@@ -526,7 +526,7 @@ class AskAiReviewFixesTest extends TestCase
 
     // ask-16
 
-    public function test_the_deans_office_staff_are_given_only_links_their_profile_can_open(): void
+    public function test_the_deans_office_staff_are_given_only_links_their_pages_can_open(): void
     {
         $college = $this->makeCollege('ENG');
         $home = $this->makeCollegeHome($college);
@@ -546,17 +546,16 @@ class AskAiReviewFixesTest extends TestCase
         }
         $this->assertNotEmpty($hrefs);
         foreach ($hrefs as $href) {
-            $this->assertNotNull($access->hrefFor('ADMIN', $href), "{$href} is refused for the Admin profile");
+            $this->assertTrue($access->hrefFor('ADMIN', $href) !== null || $access->hrefFor('DEPARTMENT_HEAD', $href) !== null, "{$href} is refused for office staff");
         }
-        $this->assertNotContains('/dashboard/department-head/compliance', $hrefs);
     }
 
-    public function test_a_guide_step_on_a_page_office_staff_cannot_open_names_the_page_they_can(): void
+    public function test_a_guide_step_names_one_page_per_role_and_office_staff_use_the_deans_page(): void
     {
         $library = $this->app->make(HowToGuideLibrary::class);
         $step = ['title' => 'Open College compliance', 'path' => '/dashboard/department-head/compliance'];
 
-        $this->assertSame(['/dashboard/department-head/compliance', '/dashboard/department-head/documents'], $library->stepPaths($step, 'DEPARTMENT_HEAD'));
+        $this->assertSame(['/dashboard/department-head/compliance'], $library->stepPaths($step, 'DEPARTMENT_HEAD'));
         $this->assertSame(['/dashboard/department-head/compliance'], $library->stepPaths($step, 'ADMIN'));
         $this->assertSame([], $library->stepPaths(['title' => 'No page'], 'ADMIN'));
     }

@@ -67,6 +67,7 @@ import ReportDetailDrawer, { withDraftDefault } from '../../../components/financ
 import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge } from '../../../components/ui';
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
 
@@ -496,7 +497,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
   let currentUserRole = '';
-  try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
+  try { currentUserRole = effectiveRole(JSON.parse(localStorage.getItem('user') ?? '{}')) ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
   const isDepartmentHead = currentUserRole === 'DEPARTMENT_HEAD';
   const [collegeOrganizations, setCollegeOrganizations] = useState([]);

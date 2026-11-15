@@ -13,7 +13,7 @@ import { getCollegePeople } from '../../../services/collegePeopleService';
 import { removeCollegeStaff } from '../../../services/collegeOrganizationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
+import { storedUser } from '../../../utils/collegeIdentity';
 import { visibleSchoolId } from '../../../utils/schoolId';
 
 const PAGE_SIZE = 20;
@@ -24,7 +24,7 @@ const TABS = [
   { key: 'leaders', label: 'Leaders' },
 ];
 
-// Only the dean of a college can correct or remove its school records.
+// The dean and the dean's office staff can correct or remove a college's school records.
 const RECORDS_TAB = { key: 'records', label: 'School records' };
 
 const SHOW_OPTIONS = [
@@ -166,15 +166,14 @@ export default function CollegePeoplePage() {
     }
   }
 
-  const dean = !isOfficeStaff(storedUser());
-  const collegeId = dean ? storedUser()?.organization?.college_id || null : null;
+  const collegeId = storedUser()?.organization?.college_id || null;
   const tabs = collegeId ? [...TABS, RECORDS_TAB] : TABS;
   const recordsTab = tab === 'records' && Boolean(collegeId);
   const filtersActive = Boolean(query || (tab === 'students' && show !== 'all'));
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
 
-  const staffActions = (row) => (!dean || row.is_lead_head || row.is_you ? null : (
+  const staffActions = (row) => (row.is_lead_head || row.is_you ? null : (
     <Button variant="secondary" size="sm" onClick={() => setRemoving(row)} aria-label={`Remove ${row.name}`}>Remove</Button>
   ));
 
@@ -182,7 +181,7 @@ export default function CollegePeoplePage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="People"
-        primary={!dean ? undefined : tab === 'students' ? (
+        primary={tab === 'students' ? (
           <Button leftIcon={UserPlus} onClick={() => setGranting(true)}>Allow a student to apply</Button>
         ) : tab === 'staff' ? <Button leftIcon={UserPlus} onClick={() => setInviting(true)}>Add staff</Button> : null}
       />

@@ -1,4 +1,5 @@
 import { ROLE_HOME_PATHS, getNavForRole, resolveItemPath } from '../components/layout/navigation';
+import { effectiveRole } from '../utils/collegeIdentity';
 
 // The single source of truth for what each dashboard route is called: its title, a one-line purpose
 // (120 characters at most, plain words, never shown as a lead line), the sidebar group it belongs to
@@ -212,7 +213,7 @@ export function hasPageMeta(pathname) {
 
 export function getStoredRole() {
   try {
-    return JSON.parse(localStorage.getItem('user'))?.role || null;
+    return effectiveRole(JSON.parse(localStorage.getItem('user')));
   } catch {
     return null;
   }

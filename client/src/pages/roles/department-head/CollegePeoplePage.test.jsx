@@ -214,11 +214,18 @@ describe('College people page', () => {
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
   });
 
-  it('does not offer the School records tab to office staff', async () => {
+  it('gives office staff the School records tab, Add staff and Remove the dean has, but never Remove on the dean', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', position_title: 'College Secretary', organization: { id: 9, college_id: 5, organization_type: 'COLLEGE' } }));
     renderPage();
     await screen.findAllByText('Ana Alvarez');
-    expect(screen.queryByRole('tab', { name: 'School records' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Allow a student to apply' })).toBeInTheDocument();
+    tab('School records');
+    expect(await screen.findByTestId('records-panel')).toHaveTextContent('records panel for college 5');
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(screen.getByRole('button', { name: 'Add staff' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove Sol Secretary' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Remove Dana Dean' })).not.toBeInTheDocument();
   });
 
   it('reloads the list from the first page, showing everyone, after records are saved', async () => {

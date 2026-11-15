@@ -16,7 +16,7 @@ import { getApplicantGrants } from '../../../services/applicantGrantService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
-import { headCollegeName, isOfficeStaff, storedUser } from '../../../utils/collegeIdentity';
+import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { visibleSchoolId } from '../../../utils/schoolId';
 import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
@@ -278,10 +278,9 @@ function OrganizationDetails({ organization, onClose }) {
   );
 }
 
-// The dean's office staff see and review every organization in the college; granting applicants, managing the
-// office and entering an organization's own space stay with the dean.
+// The dean and the dean's office staff do the same here: review every organization in the college, allow students to
+// apply, manage the office and enter an organization's own space.
 export default function CollegeOrganizationsPage() {
-  const dean = !isOfficeStaff(storedUser());
   const [state, setState] = useState({ loading: true, error: null, organizations: [] });
   const [grants, setGrants] = useState({ error: null, rows: [] });
   const [searchParams, setSearchParams] = useSearchParams();
@@ -321,7 +320,7 @@ export default function CollegeOrganizationsPage() {
     .catch((err) => setGrants((current) => ({ ...current, error: getApiErrorMessage(err, 'Could not load the students allowed to apply.') }))), []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (dean) loadGrants(); }, [dean, loadGrants]);
+  useEffect(() => { loadGrants(); }, [loadGrants]);
   useRefetchOnReturn(() => load({ silent: true }));
   useEffect(() => {
     let cancelled = false;
@@ -379,7 +378,7 @@ export default function CollegeOrganizationsPage() {
             </div>
           </div>
           {/* Under the mark row, not in the text column beside it: on a phone that column is too narrow for "organization". */}
-          {organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? 1) === 0 && <RegistrationRowStatus organization={organization} viewerRole={dean ? 'DEPARTMENT_HEAD' : 'ADMIN'} linkToAction className="mt-2 md:pl-[2.625rem]" />}
+          {organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? 1) === 0 && <RegistrationRowStatus organization={organization} viewerRole="DEPARTMENT_HEAD" linkToAction className="mt-2 md:pl-[2.625rem]" />}
         </div>
       ),
     },
@@ -391,9 +390,9 @@ export default function CollegeOrganizationsPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        primary={!dean || state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
+        primary={state.loading || noOrganizations ? undefined : <Button leftIcon={UserPlus} onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>}
       />
-      <CollegeHeader overview={overview} onManageStaff={dean ? () => setStaffModalOpen(true) : undefined} />
+      <CollegeHeader overview={overview} onManageStaff={() => setStaffModalOpen(true)} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-medium text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
@@ -409,12 +408,12 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState icon={Building2} title="No organizations yet" description={dean ? 'Allow a student to apply. Their application comes to you for review.' : 'No student organization in your college has registered yet.'} action={dean ? <Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button> : undefined} />
+              ? <EmptyState icon={Building2} title="No organizations yet" description="Allow a student to apply. Their application comes to you for review." action={<Button onClick={() => setGrantModalOpen(true)}>Allow a student to apply</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap">
                 <Button variant="secondary" size="sm" className="min-w-28 max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
-                {dean && organization.lifecycle_status !== 'archived' && (
+                {organization.lifecycle_status !== 'archived' && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -434,15 +433,15 @@ export default function CollegeOrganizationsPage() {
         </div>
       </Card>
 
-      {dean && <ApplicantGrantList grants={grants.rows} error={grants.error} onRetry={loadGrants} onChanged={loadGrants} />}
+      <ApplicantGrantList grants={grants.rows} error={grants.error} onRetry={loadGrants} onChanged={loadGrants} />
 
-      {dean && <ApplicantGrantModal open={grantModalOpen} onClose={() => setGrantModalOpen(false)} onGranted={loadGrants} />}
+      <ApplicantGrantModal open={grantModalOpen} onClose={() => setGrantModalOpen(false)} onGranted={loadGrants} />
 
       <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setRecordId(null)} width="max-w-lg">
         <OrganizationDetails organization={shownDetails} onClose={() => setRecordId(null)} />
       </Drawer>
 
-      {dean && <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />}
+      <CollegeStaffModal open={staffModalOpen} onClose={() => setStaffModalOpen(false)} />
     </div>
   );
 }

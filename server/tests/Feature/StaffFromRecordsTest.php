@@ -107,7 +107,8 @@ class StaffFromRecordsTest extends TestCase
         $this->assertStringNotContainsString('1988-05-17', $body);
         $this->assertStringNotContainsString('birth', $body);
 
-        $this->actingAs(User::factory()->admin()->create(['organization_id' => $this->computingHome->id]))->getJson('/api/college/staff/records')->assertForbidden();
+        $this->actingAs(User::factory()->admin()->create(['organization_id' => $this->computingHome->id]))->getJson('/api/college/staff/records')->assertOk();
+        $this->actingAs(User::factory()->admin()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->computing)->id]))->getJson('/api/college/staff/records')->assertForbidden();
         $this->actingAs(User::factory()->student()->create())->getJson('/api/college/staff/records')->assertForbidden();
         $this->actingAs(User::factory()->superAdmin()->create())->getJson('/api/college/staff/records')->assertForbidden();
     }

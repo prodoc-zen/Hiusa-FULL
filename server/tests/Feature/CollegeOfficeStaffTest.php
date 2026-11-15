@@ -26,8 +26,9 @@ use Tests\TestCase;
 
 /**
  * Office staff are faculty or other people the dean gives access to, never students. They sit on the college home
- * organization with an ADMIN profile and reach every student organization in the college, but never the SAO's
- * powers and never the dean's own staff and invitation controls. They arrive through a link, like the dean does.
+ * organization with an ADMIN profile and reach every student organization in the college and do everything the dean
+ * does in their own name, but never the SAO's powers and never a Department Head's removal. They arrive through a
+ * link, like the dean does.
  */
 class CollegeOfficeStaffTest extends TestCase
 {
@@ -188,20 +189,35 @@ class CollegeOfficeStaffTest extends TestCase
         $this->getJson('/api/organization-applications')->assertOk();
     }
 
-    public function test_office_staff_never_get_sao_powers_and_cannot_invite_or_remove_staff_or_deans(): void
+    public function test_office_staff_invite_and_remove_other_staff_but_never_get_sao_powers(): void
     {
         $other = $this->staffMember();
         $staff = $this->staffMember();
         $this->employee(70000001);
 
         Sanctum::actingAs($staff);
-        $this->postJson('/api/college/staff/invitations', ['registry_school_id' => 70000001])->assertForbidden();
-        $this->getJson('/api/college/staff/invitations')->assertForbidden();
-        $this->getJson('/api/college/staff/records')->assertForbidden();
-        $this->deleteJson('/api/college/staff/'.$other->school_id)->assertForbidden();
-        $this->postJson('/api/college/applicant-grants', ['school_id' => 1])->assertForbidden();
+        $this->postJson('/api/college/staff/invitations', ['registry_school_id' => 70000001])->assertCreated();
+        $this->getJson('/api/college/staff/invitations')->assertOk();
+        $this->getJson('/api/college/staff/records')->assertOk();
+        $this->deleteJson('/api/college/staff/'.$other->school_id)->assertOk();
+        $this->assertSame('disabled', $other->fresh()->getRawOriginal('account_status'));
+        $this->assertNotSame(403, $this->postJson('/api/college/applicant-grants', ['school_id' => 1])->getStatusCode());
         $this->getJson('/api/system/colleges')->assertForbidden();
         $this->postJson("/api/system/colleges/{$this->computing->id}/invite-department-head", [])->assertForbidden();
+    }
+
+    public function test_nobody_but_the_sao_removes_a_department_head_from_the_college_office(): void
+    {
+        $staff = $this->staffMember();
+        $coDean = $this->makeCollegeHead($this->computing);
+
+        foreach ([[$staff, $this->dean], [$staff, $coDean], [$this->dean, $coDean]] as [$actor, $target]) {
+            $this->actingAs($actor)->deleteJson('/api/college/staff/'.$target->school_id)
+                ->assertStatus(422)->assertJsonPath('message', 'Only the SAO can remove a Department Head.');
+            $this->assertSame('active', $target->fresh()->getRawOriginal('account_status'));
+            $this->assertSame(1, AccountProfile::where('user_school_id', $target->school_id)->where('organization_id', $this->home->id)->where('role', 'DEPARTMENT_HEAD')->count());
+        }
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'college_staff_removed']);
     }
 
     public function test_an_org_adviser_is_not_college_office_staff(): void
@@ -212,6 +228,12 @@ class CollegeOfficeStaffTest extends TestCase
         Sanctum::actingAs($adviser);
         $this->getJson('/api/college/organizations')->assertForbidden();
         $this->getJson('/api/college/people?tab=students')->assertForbidden();
+        $this->getJson('/api/college/staff/invitations')->assertForbidden();
+        $this->getJson('/api/college/staff/records')->assertForbidden();
+        $this->getJson('/api/college/applicant-grants')->assertForbidden();
+        $this->getJson('/api/students/registry')->assertForbidden();
+        $this->postJson('/api/college/staff/invitations', [])->assertForbidden();
+        $this->deleteJson('/api/college/staff/'.$this->dean->school_id)->assertForbidden();
     }
 
     public function test_the_overview_names_the_departments_head_not_the_staff_member_who_asks(): void
@@ -265,7 +287,7 @@ class CollegeOfficeStaffTest extends TestCase
         $this->assertSame('active', $student->fresh()->account_status);
     }
 
-    public function test_office_staff_can_look_at_compliance_files_but_cannot_replace_or_delete_them(): void
+    public function test_office_staff_can_look_at_replace_and_delete_compliance_files(): void
     {
         Storage::fake('local');
         $type = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Constitution', 'deadline_at' => '2026-12-31 23:59:59', 'is_active' => true, 'created_by' => $this->dean->school_id]);
@@ -282,12 +304,10 @@ class CollegeOfficeStaffTest extends TestCase
         $this->get("/api/compliance/submissions/{$submission->id}/document")->assertOk();
         $this->postJson("/api/compliance/submissions/{$submission->id}/document", [
             'document' => UploadedFile::fake()->create('new.pdf', 10, 'application/pdf'), 'submitted_at' => '2026-09-01 08:00:00',
-        ])->assertForbidden();
-        $this->deleteJson("/api/compliance/submissions/{$submission->id}", ['submitted_at' => '2026-09-01 08:00:00'])->assertForbidden();
-
-        $this->assertDatabaseHas('organization_compliance_submissions', ['id' => $submission->id, 'file_path' => $path]);
-        Storage::disk('local')->assertExists($path);
-        $this->assertSame('%PDF-1.4 original', Storage::disk('local')->get($path));
+        ])->assertOk();
+        $this->assertNotSame($path, $submission->fresh()->file_path);
+        $this->deleteJson("/api/compliance/submissions/{$submission->id}", ['submitted_at' => $submission->fresh()->submitted_at->toDateTimeString()])->assertOk();
+        $this->assertDatabaseMissing('organization_compliance_submissions', ['id' => $submission->id]);
     }
 
     // ---- S1: only office staff and deans count as already on staff ----

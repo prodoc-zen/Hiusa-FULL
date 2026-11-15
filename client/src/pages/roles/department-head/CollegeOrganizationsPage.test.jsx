@@ -236,15 +236,14 @@ describe('CollegeOrganizationsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Allow a student to apply' }).length).toBeGreaterThan(0);
   });
 
-  it('gives office staff an empty state with no grant action they cannot use', async () => {
+  it('gives office staff the same empty state and grant action as the dean', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { organization_type: 'COLLEGE', college_id: 5 } }));
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
     try {
       renderPage();
 
       expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Allow a student to apply' })).toBeNull();
-      expect(screen.queryByText(/Allow a student to apply/)).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Allow a student to apply' }).length).toBeGreaterThan(0);
     } finally {
       localStorage.removeItem('user');
     }

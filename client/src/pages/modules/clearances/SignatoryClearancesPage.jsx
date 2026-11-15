@@ -11,10 +11,11 @@ import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import SignAction from './SignAction';
 import { clearanceStatusTone, humanizeRole } from './clearanceLabels';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 
 function getCurrentRole() {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+    return effectiveRole(JSON.parse(localStorage.getItem('user') || '{}')) || '';
   } catch {
     return '';
   }

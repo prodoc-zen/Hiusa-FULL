@@ -74,26 +74,63 @@ class OfficeStaffParityTest extends TestCase
     ];
 
     /**
-     * Writes the dean can reach that office staff may also make, on purpose: the dean's approval step, review of
-     * applications, the college's announcements, and the account's own settings. Any other write the dean can reach
-     * belongs on EnsureRole::DEAN_ONLY, so a new route has to be placed on one list or the other.
+     * Routes that used to refuse office staff and now answer them as they answer the dean. EnsureRole::DEAN_ONLY is
+     * empty; the walk below keeps each of these honest, so none can go back to a staff refusal without a decision.
+     */
+    private const FORMER_DEAN_ONLY = [
+        'GET api/college/applicant-grants',
+        'POST api/college/applicant-grants',
+        'DELETE api/college/applicant-grants/{grant}',
+        'GET api/students/registry',
+        'POST api/students/registry/preview',
+        'POST api/students/registry/apply',
+        'PATCH api/students/registry/{entry}',
+        'DELETE api/students/registry/{entry}',
+        'GET api/college/staff/records',
+        'GET api/college/staff/invitations',
+        'POST api/college/staff/invitations',
+        'POST api/college/staff/invitations/{invitation}/link',
+        'DELETE api/college/staff/invitations/{invitation}',
+        'DELETE api/college/staff/{user}',
+        'POST api/compliance/organizations/{organization}/reminders',
+        'PATCH api/clearance-signatures/{clearanceSignature}',
+        'POST api/account-profiles/invite',
+        'PUT api/account-profiles/{profile}',
+        'DELETE api/account-profiles/{profile}',
+        'POST api/compliance/submissions/{submission}/document',
+        'DELETE api/compliance/submissions/{submission}',
+    ];
+
+    /**
+     * Writes the dean can reach that office staff may also make, on purpose: everything the dean does, in their own
+     * name. Any write the dean can reach belongs on this list, or on EnsureRole::DEAN_ONLY for a future dean-only
+     * route, so a new route has to be placed on one list or the other.
      */
     private const OPEN_TO_STAFF = [
+        'DELETE api/account-profiles/{profile}',
         'DELETE api/ai/assistant/conversations',
         'DELETE api/ai/assistant/conversations/{conversation}',
         'DELETE api/ai/assistant/memories',
         'DELETE api/ai/assistant/memories/{memory}',
         'DELETE api/announcements/{id}',
         'DELETE api/announcements/{id}/reaction',
+        'DELETE api/college/applicant-grants/{grant}',
+        'DELETE api/college/staff/invitations/{invitation}',
+        'DELETE api/college/staff/{user}',
+        'DELETE api/compliance/submissions/{submission}',
         'DELETE api/events/{id}/registrations/mine',
         'DELETE api/organization-applications/{application}/review-files/{file}',
+        'DELETE api/students/registry/{entry}',
         'PATCH api/ai/assistant/conversations/{conversation}',
         'PATCH api/announcements/{id}/publish',
         'PATCH api/approval-requests/{id}',
         'PATCH api/approval-requests/{id}/files/{file}',
+        'PATCH api/clearance-signatures/{clearanceSignature}',
         'PATCH api/notifications/read-all',
         'PATCH api/notifications/{id}/read',
         'PATCH api/organization-applications/{application}/review',
+        'PATCH api/students/registry/{entry}',
+        'POST api/account-profiles/invite',
         'POST api/ai/assistant/ask',
         'POST api/ai/assistant/chat',
         'POST api/ai/assistant/memories',
@@ -102,6 +139,11 @@ class OfficeStaffParityTest extends TestCase
         'POST api/ai/assistant/messages/{message}/feedback',
         'POST api/announcements',
         'POST api/announcements/{id}/view',
+        'POST api/college/applicant-grants',
+        'POST api/college/staff/invitations',
+        'POST api/college/staff/invitations/{invitation}/link',
+        'POST api/compliance/organizations/{organization}/reminders',
+        'POST api/compliance/submissions/{submission}/document',
         'POST api/department-head-invitations/{token}/claim',
         'POST api/elections/{id}/positions/{position}/tie-resolution',
         'POST api/events/{id}/registrations',
@@ -110,7 +152,10 @@ class OfficeStaffParityTest extends TestCase
         'POST api/my/organization-applications/{application}/resubmit',
         'POST api/organization-applications/{application}/comments',
         'POST api/organization-applications/{application}/review-files',
+        'POST api/students/registry/apply',
+        'POST api/students/registry/preview',
         'POST api/user/profiles/{profile}/switch',
+        'PUT api/account-profiles/{profile}',
         'PUT api/announcements/{id}',
         'PUT api/announcements/{id}/reaction',
         'PUT api/user/notification-preferences',
@@ -425,8 +470,6 @@ class OfficeStaffParityTest extends TestCase
 
     public function test_every_get_route_the_dean_can_reach_answers_office_staff_the_same_and_never_with_more_rows(): void
     {
-        $deanOnly = array_filter(EnsureRole::DEAN_ONLY, fn (string $entry) => str_starts_with($entry, 'GET '));
-        $deanOnly = array_map(fn (string $entry) => substr($entry, 4), $deanOnly);
         $covered = [];
         $skipped = [];
         $requests = 0;
@@ -452,13 +495,6 @@ class OfficeStaffParityTest extends TestCase
 
                     if ($deanStatus === 422) {
                         $failures[] = "{$target}: the dean's request was rejected as incomplete, so it measures nothing; add the query it needs to targetsFor()";
-                    }
-                    if (in_array($uri, $deanOnly, true)) {
-                        if ($staffStatus !== 403 || $deanStatus === 403) {
-                            $failures[] = "{$target}: dean-only route answered dean {$deanStatus}, staff {$staffStatus}, expected a refusal for staff only";
-                        }
-
-                        continue;
                     }
                     // 501 is a full election route that is registered on its stub controller and not built yet; staff and dean must still agree on it.
                     if (($deanStatus >= 500 && $deanStatus !== 501) || ($staffStatus >= 500 && $staffStatus !== 501)) {
@@ -557,7 +593,7 @@ class OfficeStaffParityTest extends TestCase
         $this->withToken($token)->getJson('/api/user')->assertOk()->assertJsonPath('role', 'ADMIN');
         $this->withToken($token)->getJson('/api/events/'.$this->ids['planning'])->assertForbidden();
         $this->withToken($token)->getJson('/api/college/overview')->assertOk();
-        $this->withToken($token)->getJson('/api/college/staff/invitations')->assertForbidden()->assertJsonPath('message', EnsureRole::DEAN_ONLY_MESSAGE);
+        $this->withToken($token)->getJson('/api/college/staff/invitations')->assertOk();
         $this->withToken($token)->getJson('/api/user/profiles')->assertOk()->assertJsonPath('profiles.0.role', 'ADMIN');
     }
 
@@ -584,7 +620,7 @@ class OfficeStaffParityTest extends TestCase
         $this->assertSame([], array_values(array_intersect(EnsureRole::DEAN_ONLY, self::OPEN_TO_STAFF)), 'A write is on both lists.');
     }
 
-    public function test_the_dean_only_list_denies_staff_and_every_entry_is_a_real_route_the_dean_passes(): void
+    public function test_office_staff_pass_every_route_that_used_to_be_dean_only_and_each_is_a_real_route_the_dean_passes(): void
     {
         $routes = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
@@ -605,15 +641,15 @@ class OfficeStaffParityTest extends TestCase
         $filled = ['{grant}' => $grant->id, '{invitation}' => $invitation->id, '{user}' => $other->school_id, '{profile}' => $profile->id, '{entry}' => $entry->id, '{submission}' => $this->ids['submissions'][0],
             '{organization}' => $this->psits->id, '{clearanceSignature}' => $this->ids['signature']];
 
-        foreach (EnsureRole::DEAN_ONLY as $entry) {
-            $this->assertArrayHasKey($entry, $routes, "{$entry} is on the dean-only list but is not a route");
-            $this->assertNotNull($routes[$entry], "{$entry} has no role middleware, so the list cannot reach it");
-            $this->assertContains('DEPARTMENT_HEAD', $routes[$entry], "{$entry} is not open to the dean, so listing it hides nothing");
+        foreach (self::FORMER_DEAN_ONLY as $entry) {
+            $this->assertArrayHasKey($entry, $routes, "{$entry} is on the former dean-only list but is not a route");
+            $this->assertNotNull($routes[$entry], "{$entry} has no role middleware");
+            $this->assertContains('DEPARTMENT_HEAD', $routes[$entry], "{$entry} is not open to the dean");
 
             [$method, $uri] = explode(' ', $entry, 2);
             $url = '/'.strtr($uri, $filled);
             $this->actingAsFresh($this->staff);
-            $this->json($method, $url, [])->assertForbidden()->assertJsonPath('message', EnsureRole::DEAN_ONLY_MESSAGE);
+            $this->assertNotSame(403, $this->json($method, $url, [])->getStatusCode(), "office staff are refused {$entry}");
             if ($method === 'GET') {
                 $this->actingAsFresh($this->dean);
                 $this->assertNotSame(403, $this->getJson($url)->getStatusCode(), "the dean is refused {$entry}");
