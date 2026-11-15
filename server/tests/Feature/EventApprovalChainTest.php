@@ -351,6 +351,27 @@ class EventApprovalChainTest extends TestCase
         $this->assertSame('awaiting_sao', $this->getJson('/api/events/'.$eventId)->assertOk()->json('approval_stage'));
     }
 
+    public function test_the_submission_payload_says_whether_the_organization_is_university_wide(): void
+    {
+        $this->requirement();
+        $unified = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null]);
+        $unifiedAdmin = User::factory()->admin()->create(['organization_id' => $unified->id]);
+        Sanctum::actingAs($unifiedAdmin);
+        $unifiedEventId = $this->postJson('/api/events', [
+            'title' => 'Foundation Day',
+            'start_time' => now()->addWeek()->toDateTimeString(),
+            'end_time' => now()->addWeek()->addHours(2)->toDateTimeString(),
+        ])->assertCreated()->json('id');
+        $this->getJson('/api/events/'.$unifiedEventId.'/submission')->assertOk()
+            ->assertJsonPath('university_wide', true)->assertJsonPath('approval_stage', 'awaiting_requirements');
+        $this->getJson('/api/events/'.$unifiedEventId)->assertOk()->assertJsonPath('university_wide', true);
+
+        $collegeEventId = $this->propose();
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/events/'.$collegeEventId.'/submission')->assertOk()->assertJsonPath('university_wide', false);
+        $this->assertFalse($this->payload($collegeEventId)['university_wide']);
+    }
+
     public function test_sao_approval_approves_the_event(): void
     {
         $requirement = $this->requirement();

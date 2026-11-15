@@ -96,10 +96,11 @@ function EventSubmission({ eventId, role, onSubmitted }) {
     (requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected'))
     || (sendsToSao && (requirements.length > 0 || SEND_STAGES.includes(stage)))
   );
-  // Any send that carries a file goes to the Department Head first, unless the SAO returned the event; a send with no file goes to the SAO.
+  // Any send that carries a file goes to the Department Head first, unless the SAO returned the event or the organization has no
+  // Department Head step (university-wide); a send with no file goes to the SAO.
   const carriesFile = Object.values(files).some(Boolean)
     || (stage === 'awaiting_requirements' && requirements.some((requirement) => !requirement.is_optional && !byRequirement.has(requirement.id)));
-  const sendLabel = !sendsToSao ? 'Submit event files' : carriesFile && stage !== 'requirements_returned' ? 'Send to the Department Head' : 'Send to SAO';
+  const sendLabel = !sendsToSao ? 'Submit event files' : carriesFile && stage !== 'requirements_returned' && !submission?.university_wide ?'Send to the Department Head' : 'Send to SAO';
   const verification = deanApprovalLine(submission);
 
   return (

@@ -107,6 +107,18 @@ describe('EventSubmissionPanel', () => {
     expect(screen.getAllByText('Not submitted').length).toBeGreaterThan(0);
   });
 
+  it('labels the send for the SAO when the organization is university-wide, even with a file chosen', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: null, approval_stage: 'awaiting_requirements', university_wide: true } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+    expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
+    const input = screen.getByText('Event Proposal', { selector: 'label' }).querySelector('input[type="file"]');
+    fireEvent.change(input, { target: { files: [new File(['pdf'], 'proposal.pdf', { type: 'application/pdf' })] } });
+
+    expect(screen.getByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send to the Department Head' })).not.toBeInTheDocument();
+  });
+
   describe('after the Department Head approved', () => {
     const approvedData = { requirements, files: [uploadedFile], approval_status: 'approved', approval_stage: 'ready_for_sao', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' };
 
