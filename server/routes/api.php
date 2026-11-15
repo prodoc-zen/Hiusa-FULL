@@ -48,6 +48,7 @@ use App\Http\Controllers\OrgSpaceController;
 use App\Http\Controllers\PeopleSearchController;
 use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
+use App\Http\Controllers\ReviewNoteDraftController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
 use App\Http\Controllers\StudentFeeUsageController;
@@ -111,6 +112,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/student/fee-usage', [StudentFeeUsageController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/outputs/{aiOutput}/outcome', [AiOutputOutcomeController::class, 'store'])->middleware('throttle:api-write')->whereNumber('aiOutput');
+    Route::post('/ai/review-notes/draft', [ReviewNoteDraftController::class, 'store'])->middleware(['throttle:ai-generation', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
     Route::get('/ai/assistant', [AskAiController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/ask', [AskAiController::class, 'ask'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/ai/assistant/chat', [AskAiController::class, 'chat'])->middleware(['throttle:ai-chat', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
