@@ -115,7 +115,7 @@ class ComplianceController extends Controller
         AuditLog::create([
             'organization_id' => null,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'compliance',
             'action' => 'requirement_type_created',
             'description' => 'SAO defined a new organization compliance requirement.',
@@ -175,7 +175,7 @@ class ComplianceController extends Controller
         AuditLog::create([
             'organization_id' => null,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'compliance',
             'action' => 'requirement_type_updated',
             'record_type' => ComplianceRequirementType::class,
@@ -236,7 +236,7 @@ class ComplianceController extends Controller
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'compliance',
                 'action' => 'requirement_type_deleted',
                 'record_type' => ComplianceRequirementType::class,
@@ -595,7 +595,7 @@ class ComplianceController extends Controller
         AuditLog::create([
             'organization_id' => $organizationId,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'compliance',
             'action' => $isResubmission ? 'submission_resubmitted' : 'submission_submitted',
             'record_type' => OrganizationComplianceSubmission::class,
@@ -702,7 +702,7 @@ class ComplianceController extends Controller
         $requirement = $submission->requirementType?->name ?? 'a requirement';
         AuditLog::create([
             'organization_id' => $organization->id, 'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role, 'module' => 'compliance', 'action' => 'submission_document_'.$action,
+            'actor_role' => $request->user()->profileRole(), 'module' => 'compliance', 'action' => 'submission_document_'.$action,
             'record_type' => OrganizationComplianceSubmission::class, 'record_id' => $submission->id,
             'description' => "Document for {$requirement} {$action}.", 'old_values' => $old, 'new_values' => $new, 'ip_address' => $request->ip(), 'created_at' => now(),
         ]);
@@ -790,7 +790,7 @@ class ComplianceController extends Controller
         AuditLog::create([
             'organization_id' => $submission->organization_id,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'compliance',
             'action' => $data['status'] === 'approved' ? 'submission_approved' : 'submission_returned',
             'record_type' => OrganizationComplianceSubmission::class,

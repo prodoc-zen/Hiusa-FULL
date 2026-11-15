@@ -212,7 +212,7 @@ class OrganizationApplicationReviewController extends Controller
                     'reject' => $locked->forceFill(['status' => 'rejected', 'remarks' => $data['remarks'], 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]),
                 };
                 $locked->save();
-                AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => $locked->status, 'record_type' => OrganizationApplication::class, 'record_id' => $locked->id, 'new_values' => ['status' => $locked->status, 'round' => $locked->round, 'note' => filled($data['remarks'] ?? null) ? trim($data['remarks']) : null], 'created_at' => now(), 'ip_address' => request()->ip()]);
+                AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(), 'module' => 'organization_applications', 'action' => $locked->status, 'record_type' => OrganizationApplication::class, 'record_id' => $locked->id, 'new_values' => ['status' => $locked->status, 'round' => $locked->round, 'note' => filled($data['remarks'] ?? null) ? trim($data['remarks']) : null], 'created_at' => now(), 'ip_address' => request()->ip()]);
 
                 return $locked;
             });
@@ -237,7 +237,7 @@ class OrganizationApplicationReviewController extends Controller
             throw ValidationException::withMessages(['note' => 'Write a note before saving.']);
         }
 
-        AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => 'comment', 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['note' => $note, 'round' => $application->round], 'created_at' => now(), 'ip_address' => $request->ip()]);
+        AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(), 'module' => 'organization_applications', 'action' => 'comment', 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['note' => $note, 'round' => $application->round], 'created_at' => now(), 'ip_address' => $request->ip()]);
 
         return response()->json($this->detail($application, $actor), 201);
     }

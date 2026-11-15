@@ -147,7 +147,7 @@ class AccountProfileController extends Controller
             $result = $this->profileDeletion->remove($request->user(), $profile);
             AuditLog::create([
                 'organization_id' => $profile->organization_id, 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role, 'module' => 'users', 'action' => 'account_profile_deleted',
+                'actor_role' => $request->user()->profileRole(), 'module' => 'users', 'action' => 'account_profile_deleted',
                 'record_type' => AccountProfile::class, 'record_id' => $profile->id,
                 'old_values' => ['school_id' => $profile->user_school_id, 'role' => $profile->role],
                 'new_values' => $result, 'ip_address' => $request->ip(), 'created_at' => now(),
@@ -263,7 +263,7 @@ class AccountProfileController extends Controller
                 'organization_id' => $organization->id, 'role' => $data['role'], 'account_status' => 'active', ...$details,
             ]);
             AuditLog::create([
-                'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+                'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
                 'module' => 'users', 'action' => 'organization_membership_added', 'record_type' => AccountProfile::class,
                 'record_id' => $profile->id, 'new_values' => ['user_school_id' => $user->school_id, 'role' => $data['role'], ...$details],
                 'description' => 'Added an existing user to the organization.', 'ip_address' => $request->ip(), 'created_at' => now(),
@@ -304,7 +304,7 @@ class AccountProfileController extends Controller
             $before = $profile->only(['role', 'position_title', 'modules']);
             $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization)]);
             AuditLog::create([
-                'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+                'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
                 'module' => 'users', 'action' => 'organization_access_changed', 'record_type' => AccountProfile::class,
                 'record_id' => $profile->id, 'old_values' => $before, 'new_values' => $profile->only(['role', 'position_title', 'modules']),
                 'ip_address' => $request->ip(), 'created_at' => now(),
@@ -344,7 +344,7 @@ class AccountProfileController extends Controller
 
         $student = $person->accountProfiles()->create(['organization_id' => $home->id, 'role' => 'STUDENT', 'account_status' => 'active', 'position_title' => null]);
         AuditLog::create([
-            'organization_id' => $home->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+            'organization_id' => $home->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
             'module' => 'users', 'action' => 'student_profile_restored', 'record_type' => AccountProfile::class,
             'record_id' => $student->id, 'new_values' => ['user_school_id' => $person->school_id, 'role' => 'STUDENT', 'organization_id' => $home->id],
             'description' => 'Kept a student workspace for a member promoted in '.$organization->name.'.',

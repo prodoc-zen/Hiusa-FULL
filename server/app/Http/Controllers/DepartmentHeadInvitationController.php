@@ -500,7 +500,7 @@ class DepartmentHeadInvitationController extends Controller
         AuditLog::create([
             'organization_id' => $home->id,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'users',
             'action' => $action,
             'record_type' => DepartmentHeadInvitation::class,

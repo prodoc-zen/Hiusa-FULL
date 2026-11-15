@@ -175,7 +175,8 @@ export default function CollegePeoplePage() {
   const columns = tab === 'students' ? studentColumns : tab === 'staff' ? staffColumns : leaderColumns;
   const rowKey = tab === 'leaders' ? (row) => `${row.school_id}:${row.organization.id}` : (row) => row.school_id;
 
-  const staffActions = (row) => (row.is_lead_head || row.is_you ? null : (
+  // A Department Head profile is removed by the SAO only, so a dean who also holds a secondary profile never gets the button.
+  const staffActions = (row) => (row.is_lead_head || row.is_you || row.role === 'DEPARTMENT_HEAD' ? null : (
     <Button variant="secondary" size="sm" onClick={() => setRemoving(row)} aria-label={`Remove ${row.name}`}>Remove</Button>
   ));
 
@@ -218,7 +219,7 @@ export default function CollegePeoplePage() {
               )}
               {tab === 'students' && collegeId && (
                 <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                  <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student record</Button>
+                  <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student</Button>
                   <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button>
                 </span>
               )}
@@ -241,7 +242,7 @@ export default function CollegePeoplePage() {
                     description={EMPTY[tab].description}
                     action={tab === 'students' && collegeId ? (
                       <span className="flex flex-wrap items-center justify-center gap-2">
-                        <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student record</Button>
+                        <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student</Button>
                         <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button>
                       </span>
                     ) : undefined}

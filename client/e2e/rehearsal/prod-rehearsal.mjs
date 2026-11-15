@@ -644,9 +644,10 @@ await step('staff_add', 'Dean adds office staff from the employee records (link 
   else rec.evidence.push('the dean lists the staff member under Office staff');
 });
 
-// Office staff take the dean's role on every request (User::getRoleAttribute) and meet the dean's pages, but the routes in
-// EnsureRole::DEAN_ONLY refuse them with 403 "Only the dean can do this." and the matching controls are not drawn for them.
-await step('office_staff_walk', 'Office staff act as the dean: dashboard, People, Organizations and Approvals read cleanly, the dean-only controls are hidden, a dean-only write is refused with 403, phone shot', async (rec) => {
+// Office staff take the dean's role on every request (User::getRoleAttribute) and meet the dean's pages with the dean's
+// controls: they invite and remove other staff, add and upload school records and allow a student to apply, in their own
+// name. The one write they never make is removing a Department Head: the server refuses it with 422 for the dean and staff alike.
+await step('office_staff_walk', 'Office staff act as the dean: dashboard, People, Organizations and Approvals read cleanly, the dean controls are drawn, removing the dean is refused with 422, phone shot', async (rec) => {
   if (!account('staff')?.created) throw new Error('the staff account does not exist yet; run staff_add first');
   if (!people.has('staff')) { const s = await signIn('staff', rec); if (!s.ok) throw new Error(`staff sign-in ${s.status}`); }
   const page = people.get('staff').page;
@@ -673,32 +674,34 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   if (missing.length) rec.defect('ux_gap', `The office staff sidebar has no link for: ${missing.join(', ')}.`, ['client/src/components/layout/navigation.js']);
   else rec.evidence.push('the sidebar shows Organization applications, Approvals, Organizations, People and College files');
 
-  // People, read paths. The dean's controls (Add staff, Remove, Allow a student to apply, Upload student records) must not be drawn.
+  // People, read paths. The dean's controls (Add staff, Allow a student to apply, Add a student, Upload student records) are drawn for staff too.
   await goSidebar(page, rec, /^People$/, '/dashboard/department-head/people');
   await waitForText(page, 'Search students', 15000);
   await shot('staff', 'people-students', rec);
-  const hiddenControls = async (where, names, file = 'client/src/pages/roles/department-head/CollegePeoplePage.jsx') => {
-    const shown = [];
-    for (const name of names) if (await page.getByRole('button', { name }).count()) shown.push(String(name).replace(/[/^$\\]/g, ''));
-    if (shown.length) rec.defect('ux_gap', `Office staff are shown dean-only controls on ${where}: ${shown.join(', ')}.`, [file]);
-    return shown.length === 0;
+  const drawnControls = async (where, names, file = 'client/src/pages/roles/department-head/CollegePeoplePage.jsx') => {
+    const missing = [];
+    for (const name of names) if (!(await page.getByRole('button', { name }).count())) missing.push(String(name).replace(/[/^$\\]/g, ''));
+    if (missing.length) rec.defect('ux_gap', `Office staff are not shown the dean's controls on ${where}: ${missing.join(', ')}.`, [file]);
+    return missing.length === 0;
   };
-  const studentsClean = await hiddenControls('People > Students', [/^Allow a student to apply$/, /^Upload student records$/]);
+  const studentsClean = await drawnControls('People > Students', [/^Allow a student to apply$/, /^Add a student$/, /^Upload student records$/]);
   await page.getByRole('tab', { name: /Office staff/ }).click();
   await waitSettled(page);
   const listed = await waitForText(page, fullName('staff'), 15000);
   if (!listed) rec.defect('app_bug', 'Office staff do not see themselves under People > Office staff.', ['server/app/Http/Controllers/CollegePeopleController.php']);
   await shot('staff', 'people-staff', rec);
-  const staffClean = await hiddenControls('People > Office staff', [/^Add staff$/, /^Remove /]);
+  const staffClean = await drawnControls('People > Office staff', [/^Add staff$/]);
+  // Remove is drawn for other staff, never for a Department Head: only the SAO removes one.
+  if (await page.getByRole('button', { name: /^Remove Dario / }).count()) rec.defect('ux_gap', 'Office staff are shown Remove on the Department Head, which only the SAO may remove.', ['client/src/pages/roles/department-head/CollegePeoplePage.jsx']);
   await page.getByRole('tab', { name: /Leaders/ }).click();
   await waitSettled(page);
   await shot('staff', 'people-leaders', rec);
-  rec.evidence.push(`People opens on Students, Office staff and Leaders; dean-only controls hidden: ${studentsClean && staffClean ? 'yes' : 'NO'}`);
+  rec.evidence.push(`People opens on Students, Office staff and Leaders; the dean's controls are drawn: ${studentsClean && staffClean ? 'yes' : 'NO'}`);
 
   // Organizations and Approvals, read paths.
   await goSidebar(page, rec, /^Organizations$/, '/dashboard/department-head/organizations');
   await page.waitForTimeout(800);
-  await hiddenControls('Organizations', [/^Allow a student to apply$/, /^Office staff$/, /^Open organization space for /], 'client/src/pages/roles/department-head/CollegeOrganizationsPage.jsx');
+  await drawnControls('Organizations', [/^Allow a student to apply$/, /^Office staff$/], 'client/src/pages/roles/department-head/CollegeOrganizationsPage.jsx');
   await shot('staff', 'organizations', rec);
   await goSidebar(page, rec, /^Approvals$/, '/dashboard/department-head/approvals');
   await page.waitForTimeout(800);
@@ -707,20 +710,24 @@ await step('office_staff_walk', 'Office staff act as the dean: dashboard, People
   if (walkNew) rec.evidence.push(`${walkNew} unexpected issues during the walk`);
   else rec.evidence.push('People, Organizations and Approvals opened without console errors or refused reads');
 
-  // One dean-only write that is safe to attempt. POST api/college/staff/invitations is refused by the role gate before the
-  // controller runs, and this body has no email, so the invitation would fail validation even if the gate were open: nothing is created either way.
-  allowed = [/^http 403 POST \/api\/college\/staff\/invitations/, /^console Failed to load resource: the server responded with a status of 403/];
-  const refused = await api('staff', 'POST', '/college/staff/invitations', { first_name: 'Refused', last_name: 'Probe', position_title: 'Probe' });
-  await page.waitForTimeout(500);
-  allowed = [];
-  rec.evidence.push(`staff POST /college/staff/invitations answered ${refused.status}: ${JSON.stringify(refused.body).slice(0, 120)}`);
-  if (refused.status !== 403) rec.defect('app_bug', `Office staff were not refused a dean-only write: POST /college/staff/invitations answered ${refused.status}, expected 403.`, ['server/app/Http/Middleware/EnsureRole.php']);
-  else if (refused.body?.message !== 'Only the dean can do this.') rec.defect('app_bug', `The refusal says "${refused.body?.message}", expected "Only the dean can do this.".`, ['server/app/Http/Middleware/EnsureRole.php']);
-  if (people.has('dean')) {
-    const pendingNow = await api('dean', 'GET', '/college/staff/invitations');
-    const rows = Array.isArray(pendingNow.body?.data) ? pendingNow.body.data : [];
-    if (rows.some((row) => /Refused/.test(String(row.name)))) rec.defect('app_bug', 'The refused staff request still left an invitation behind.', ['server/app/Http/Middleware/EnsureRole.php']);
-    else rec.evidence.push('the refused request left no invitation for the dean');
+  // One write that must be refused: staff removing the dean. DELETE /college/staff/{dean} answers 422 "Only the SAO can remove a
+  // Department Head." before anything changes, so the dean stays on the staff list either way.
+  const deanId = account('dean')?.school_id;
+  if (!deanId) rec.evidence.push('the dean School ID is not known, so the refused removal was not tried');
+  else {
+    allowed = [/^http 422 DELETE \/api\/college\/staff\//, /^console Failed to load resource: the server responded with a status of 422/];
+    const refused = await api('staff', 'DELETE', `/college/staff/${deanId}`);
+    await page.waitForTimeout(500);
+    allowed = [];
+    rec.evidence.push(`staff DELETE /college/staff/<dean> answered ${refused.status}: ${JSON.stringify(refused.body).slice(0, 120)}`);
+    if (refused.status !== 422) rec.defect('app_bug', `Office staff removing the dean answered ${refused.status}, expected 422.`, ['server/app/Http/Controllers/CollegeOrganizationController.php']);
+    else if (refused.body?.message !== 'Only the SAO can remove a Department Head.') rec.defect('app_bug', `The refusal says "${refused.body?.message}", expected "Only the SAO can remove a Department Head.".`, ['server/app/Http/Controllers/CollegeOrganizationController.php']);
+    if (people.has('dean')) {
+      const staffNow = await api('dean', 'GET', '/college/staff');
+      const rows = Array.isArray(staffNow.body) ? staffNow.body : Array.isArray(staffNow.body?.data) ? staffNow.body.data : [];
+      if (rows.length && !rows.some((row) => Number(row.school_id) === Number(deanId))) rec.defect('app_bug', 'The refused removal still took the dean off the staff list.', ['server/app/Http/Controllers/CollegeOrganizationController.php']);
+      else rec.evidence.push('the refused removal left the dean on the staff list');
+    }
   }
 
   // Phone shot of the staff dashboard.

@@ -83,7 +83,7 @@ class ComplianceReminderController extends Controller
             }
             AuditLog::create([
                 'organization_id' => $organization->id, 'user_id' => $actor->school_id,
-                'actor_role' => $actor->role, 'module' => 'compliance', 'action' => 'requirement_reminder_sent',
+                'actor_role' => $actor->profileRole(), 'module' => 'compliance', 'action' => 'requirement_reminder_sent',
                 'record_type' => Announcement::class, 'record_id' => $announcement->id,
                 'new_values' => ['requirement_type_id' => $requirement->id, 'recipient_count' => $recipients->count()],
                 'ip_address' => $request->ip(), 'created_at' => $now,
