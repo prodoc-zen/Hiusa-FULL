@@ -84,6 +84,36 @@ describe('StudentClearancePage', () => {
     expect(await screen.findByText('Your clearance is complete!')).toBeInTheDocument();
   });
 
+  it('does not pick an archived year\'s incomplete period as current and badges it in the picker', async () => {
+    mocks.getMyClearances.mockResolvedValue({
+      data: [
+        { clearance_period_id: 1, academic_year: '2026-2027', title: 'Old finals', archived: true, deadline_at: null, is_complete: false, signatures: [{ id: 1, required_role: 'sao', status: 'pending', remarks: null }] },
+        { clearance_period_id: 2, academic_year: '2026-2027', title: 'New finals', archived: false, deadline_at: null, is_complete: true, signatures: [{ id: 2, required_role: 'sao', status: 'cleared', remarks: null }] },
+      ],
+    });
+
+    renderPage();
+    expect(await screen.findByText('Your clearance is complete!')).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting on the Student Affairs Office/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Old finals (2026-2027) (Archived)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'New finals (2026-2027)' })).toBeInTheDocument();
+
+    // The archived period stays viewable and shows the badge.
+    fireEvent.change(screen.getByLabelText('Choose clearance period'), { target: { value: '1' } });
+    expect(await screen.findByText(/Waiting on the Student Affairs Office/)).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+  });
+
+  it('opens an archived period only when no live period exists', async () => {
+    mocks.getMyClearances.mockResolvedValue({
+      data: [{ clearance_period_id: 1, academic_year: '2026-2027', title: 'Old finals', archived: true, deadline_at: null, is_complete: false, signatures: [{ id: 1, required_role: 'sao', status: 'pending', remarks: null }] }],
+    });
+
+    renderPage();
+    expect(await screen.findByText(/Waiting on the Student Affairs Office/)).toBeInTheDocument();
+  });
+
   it('tells a student who owes money that the clearance is held for the same debt the Statement shows', async () => {
     mocks.getMyClearances.mockResolvedValue({
       data: [{

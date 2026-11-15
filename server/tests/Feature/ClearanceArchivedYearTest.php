@@ -79,6 +79,19 @@ class ClearanceArchivedYearTest extends TestCase
         $this->patchJson("/api/clearance-signatures/{$newLine->id}", ['status' => 'cleared'])->assertOk()->assertJsonPath('status', 'cleared');
     }
 
+    public function test_a_students_own_clearances_flag_the_archived_years_period_and_leave_the_new_years_unflagged(): void
+    {
+        $oldPeriod = $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+        $newPeriod = $this->openPeriod('New finals');
+
+        Sanctum::actingAs($this->student);
+        $mine = collect($this->getJson('/api/clearances/mine')->assertOk()->json())->keyBy('clearance_period_id');
+        $this->assertCount(2, $mine);
+        $this->assertTrue($mine[$oldPeriod]['archived']);
+        $this->assertFalse($mine[$newPeriod]['archived']);
+    }
+
     public function test_a_line_cleared_before_the_archive_cannot_be_reopened_afterwards(): void
     {
         $oldPeriod = $this->openPeriod('Old finals');
