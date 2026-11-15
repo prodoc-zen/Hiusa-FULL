@@ -18,6 +18,9 @@ vi.mock('../../../services/clearanceService', () => ({
 
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../../services/aiDraftService', () => aiMocks);
+
 function envelope(data) {
   return { data: { data, current_page: 1, last_page: 1, per_page: 20, total: data.length } };
 }
@@ -69,6 +72,52 @@ describe('SignatoryClearancesPage', () => {
     fireEvent.click(holdConfirm);
 
     await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'held', remarks: 'Unpaid dues.' }));
+  });
+
+  it('drafts the hold reason, keeps the reason rule, and reports the final text after the hold is saved', async () => {
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW]));
+    mocks.updateClearanceSignature.mockResolvedValue({ data: { ...PENDING_ROW, status: 'held', remarks: 'Unpaid dues.' } });
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please settle your organization dues.', engine: 'claude', ai_output_id: 25 } });
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
+    fireEvent.click(within(row).getByRole('button', { name: 'Hold: Organization' }));
+    const holdConfirm = screen.getByRole('button', { name: 'Hold this signature' });
+    expect(holdConfirm).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/reason/i)).toHaveValue('Please settle your organization dues.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'clearance_hold', record_id: 11, decision: 'hold', marks: [], reviewer_notes: '' });
+    expect(screen.getByText('Claude')).toBeInTheDocument();
+    expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+    expect(holdConfirm).not.toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/reason/i), { target: { value: 'Unpaid dues.' } });
+    fireEvent.click(holdConfirm);
+
+    await waitFor(() => expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'held', remarks: 'Unpaid dues.' }));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(25, 'Unpaid dues.'));
+  });
+
+  it('asks before it rewords a hold reason already typed, and offers no drafter when clearing', async () => {
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW]));
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded reason.', engine: 'template', ai_output_id: 26 } });
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
+    fireEvent.click(within(row).getByRole('button', { name: 'Hold: Organization' }));
+    fireEvent.change(screen.getByLabelText(/reason/i), { target: { value: 'dues' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Improve my wording' }));
+    expect(screen.getByLabelText(/reason/i)).toHaveValue('dues');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/reason/i)).toHaveValue('Reworded reason.'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Clear: Organization' }));
+    expect(screen.queryByRole('button', { name: 'Draft the remarks' })).not.toBeInTheDocument();
   });
 
   it('bulk-clears every selected pending signature with one confirmation', async () => {

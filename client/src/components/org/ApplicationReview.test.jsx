@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
 const apiMocks = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock('../../services/api', () => ({ default: apiMocks }));
 vi.mock('../../services/organizationApplicationService', () => mocks);
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../services/aiDraftService', () => aiMocks);
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../utils/openProtectedFile', () => openMocks);
 const notifyMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -314,6 +316,54 @@ describe('ApplicationReview', () => {
       remarks: null,
       requirements: [{ requirement_type_id: 1, status: 'needs_changes', note: 'Sign the last page.' }],
     }));
+  });
+
+  it('drafts the comments from the requirement marks, shows the engine, and reports the final text after the return', async () => {
+    mocks.reviewOrganizationApplication.mockResolvedValue({ data: detail({ status: 'returned' }) });
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please sign the last page of the Constitution.', engine: 'claude', ai_output_id: 70 } });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+    mark('Constitution', 'needs_changes');
+    fireEvent.change(screen.getByLabelText('Note for the applicant'), { target: { value: 'Sign the last page.' } });
+    mark('Officer list', 'ok');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/Comments for the applicant/)).toHaveValue('Please sign the last page of the Constitution.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({
+      flow: 'org_application',
+      record_id: 8,
+      decision: 'returned',
+      marks: [
+        { requirement: 'Constitution', mark: 'needs_changes', note: 'Sign the last page.' },
+        { requirement: 'Officer list', mark: 'accepted', note: '' },
+      ],
+      reviewer_notes: '',
+    });
+    expect(screen.getByText('Claude')).toBeInTheDocument();
+    expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return with comments' }));
+
+    await waitFor(() => expect(mocks.reviewOrganizationApplication).toHaveBeenCalledWith(8, expect.objectContaining({ action: 'return', remarks: 'Please sign the last page of the Constitution.' })));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(70, 'Please sign the last page of the Constitution.'));
+  });
+
+  it('asks before it rewords comments already typed and keeps Return off while there is no comment or note', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded comments.', engine: 'template', ai_output_id: 71 } });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+    expect(screen.getByRole('button', { name: 'Return with comments' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Comments for the applicant/), { target: { value: 'add adviser' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Improve my wording' }));
+    expect(screen.getByLabelText(/Comments for the applicant/)).toHaveValue('add adviser');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/Comments for the applicant/)).toHaveValue('Reworded comments.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ current_text: 'add adviser', decision: 'returned' }));
+    expect(screen.getByText('Built-in rules')).toBeInTheDocument();
   });
 
   it('drops the note of a row that was switched back to Accepted', async () => {

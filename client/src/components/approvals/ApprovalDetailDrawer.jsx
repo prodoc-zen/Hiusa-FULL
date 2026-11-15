@@ -12,6 +12,8 @@ import notify from '../../lib/notify';
 import { FileLink } from '../reviews/FileReviewList';
 import ChangesSinceReturn from '../reviews/ChangesSinceReturn';
 import ApprovalReceipt from './ApprovalReceipt';
+import DraftNoteButton from '../ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../services/aiDraftService';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink, isFinalRefusal } from './approvalStage';
 import { electionProposal, formatDateTime, fullName } from './approvalFormat';
@@ -271,6 +273,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
   const isElection = request.entity_type === 'election';
   const decidingElection = isElection && canAct && typeof onDecide === 'function';
   const [remarks, setRemarks] = useState('');
+  const [draftId, setDraftId] = useState(null);
   const [confirmingFinal, setConfirmingFinal] = useState(false);
   const [deciding, setDeciding] = useState(false);
   const [decisionError, setDecisionError] = useState('');
@@ -319,6 +322,8 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
     setDecisionError('');
     try {
       await onDecide(request, payload);
+      recordDraftOutcome(draftId, payload.remarks ?? null);
+      setDraftId(null);
       setRemarks('');
       setHistoryKey((key) => key + 1);
     } catch (cause) {
@@ -393,6 +398,14 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
             <Field label="Remarks for the Admin" hint="Needed to return or to reject for good. Optional when you approve.">
               <Textarea rows={3} value={remarks} onChange={(event) => setRemarks(event.target.value)} maxLength={1000} disabled={deciding} />
             </Field>
+            <DraftNoteButton
+              flow="approval"
+              recordId={request.id}
+              decision="returned"
+              value={remarks}
+              onDraft={({ text, aiOutputId }) => { setRemarks(text); setDraftId(aiOutputId); }}
+              disabled={deciding}
+            />
             {decisionError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong">{decisionError}</p>}
           </section>
         )}

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   updateGrievanceClassification: vi.fn(),
 }));
 
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../../services/aiDraftService', () => aiMocks);
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
@@ -182,6 +184,62 @@ describe('SaoGrievancesPage', () => {
 
     await waitFor(() => expect(mocks.updateGrievanceStatus).toHaveBeenCalledWith(1, { status: 'under_review', remarks: 'The student sent new facts.' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reopen grievance' })).not.toBeInTheDocument());
+  });
+
+  it('drafts the remarks for resolving a grievance, keeps the remarks rule, and reports the final text after it is saved', async () => {
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [CRITICAL] : [])));
+    mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...CRITICAL, status: 'resolved', remarks: 'We fixed the lighting.' } });
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'The lighting was fixed on Monday.', engine: 'claude', ai_output_id: 33 } });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resolve' });
+    expect(within(dialog).getByRole('button', { name: 'Resolve' })).toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText(/Remarks/)).toHaveValue('The lighting was fixed on Monday.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'grievance', record_id: 1, decision: 'resolved', marks: [], reviewer_notes: '' });
+    expect(within(dialog).getByText('Claude')).toBeInTheDocument();
+    expect(within(dialog).getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText(/Remarks/), { target: { value: 'We fixed the lighting.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resolve' }));
+
+    await waitFor(() => expect(mocks.updateGrievanceStatus).toHaveBeenCalledWith(1, { status: 'resolved', remarks: 'We fixed the lighting.' }));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(33, 'We fixed the lighting.'));
+  });
+
+  it('asks the drafter for a dismissal when the grievance is dismissed, and asks before it rewords typed remarks', async () => {
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [CRITICAL] : [])));
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'This is outside what we can act on.', engine: 'template', ai_output_id: 34 } });
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Dismiss' });
+    fireEvent.change(within(dialog).getByLabelText(/Remarks/), { target: { value: 'not ours' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Improve my wording' }));
+    expect(within(dialog).getByLabelText(/Remarks/)).toHaveValue('not ours');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText(/Remarks/)).toHaveValue('This is outside what we can act on.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ decision: 'dismissed', current_text: 'not ours' }));
+  });
+
+  it('offers no drafter when a closed grievance is reopened', async () => {
+    const closed = { ...CRITICAL, status: 'dismissed', remarks: 'Not a concern.' };
+    mocks.getGrievances.mockImplementation((params) => Promise.resolve(envelope(params?.per_page === 50 ? [closed] : [])));
+
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Critical concern/ }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reopen grievance' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Reopen grievance' });
+
+    expect(within(dialog).queryByRole('button', { name: 'Draft the remarks' })).not.toBeInTheDocument();
   });
 
   it('shows why a reopen failed and keeps the reason', async () => {

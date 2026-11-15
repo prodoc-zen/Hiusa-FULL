@@ -23,6 +23,8 @@ const { getApplications, reviewApplication, openProtectedFile, outlet } = vi.hoi
 
 vi.mock('../../../services/electionService', () => ({ getApplications, reviewApplication }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../../services/aiDraftService', () => aiMocks);
 vi.mock('react-router-dom', async (importOriginal) => ({ ...(await importOriginal()), useOutletContext: () => outlet }));
 
 const rows = [
@@ -111,6 +113,45 @@ describe('ElectionApplicationsPage', () => {
     expect(send).toBeEnabled();
     fireEvent.click(send);
     await waitFor(() => expect(reviewApplication).toHaveBeenCalledWith(5, 1, { decision: 'correction', notes: 'Upload the COC again.' }));
+  });
+
+  it('drafts the notes for a correction, keeps the notes rule, and reports the final text after the review', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please upload the COC again.', engine: 'groq', ai_output_id: 15 } });
+    renderPage();
+    await openMenu('Ana Reyes');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Ask for correction' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Ask for correction' })).toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Notes for the candidate')).toHaveValue('Please upload the COC again.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'election_application', record_id: 1, decision: 'returned', marks: [], reviewer_notes: '' });
+    expect(within(dialog).getByText('Groq')).toBeInTheDocument();
+    expect(within(dialog).getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Ask for correction' })).toBeEnabled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ask for correction' }));
+
+    await waitFor(() => expect(reviewApplication).toHaveBeenCalledWith(5, 1, { decision: 'correction', notes: 'Please upload the COC again.' }));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(15, 'Please upload the COC again.'));
+  });
+
+  it('asks the drafter for a rejection when rejecting, and asks before it rewords typed notes', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'You are not a member of the organization.', engine: 'template', ai_output_id: 16 } });
+    renderPage();
+    await openMenu('Ana Reyes');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Reason for rejecting'), { target: { value: 'not a member' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Improve my wording' }));
+    expect(within(dialog).getByLabelText('Reason for rejecting')).toHaveValue('not a member');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Reason for rejecting')).toHaveValue('You are not a member of the organization.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ flow: 'election_application', decision: 'rejected', current_text: 'not a member' }));
   });
 
   it('rejects only with a reason written', async () => {

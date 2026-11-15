@@ -16,6 +16,8 @@ import { FileLink } from '../../../components/reviews/FileReviewList';
 import ChangesSinceReturn from '../../../components/reviews/ChangesSinceReturn';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { complianceStage, complianceStageText } from './complianceStage';
 import { submissionsWaiting, waitingFirst } from './waiting';
 import approveSelected from './approveSelected';
@@ -54,6 +56,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewRemarks, setReviewRemarks] = useState('');
   const [remarksError, setRemarksError] = useState(null);
+  const [draftId, setDraftId] = useState(null);
   const remarksRef = useRef(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState(null);
@@ -115,6 +118,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
     setReviewTarget(null);
     setReviewRemarks('');
     setRemarksError(null);
+    setDraftId(null);
   }
 
   async function runReview(payload, successMessage, failureMessage) {
@@ -124,6 +128,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
       await reviewSubmission(reviewTarget.submission.id, { ...payload, submitted_at: reviewTarget.submission.submitted_at });
       setPinned({ ...reviewTarget.submission, status: payload.status, remarks: payload.remarks ?? reviewTarget.submission.remarks });
       notify.success(successMessage, BELOW_DRAWER_HEADER);
+      recordDraftOutcome(draftId, payload.remarks ?? null);
       closeReview();
       loadQueue(page);
       onChanged();
@@ -408,9 +413,21 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
           </>
         )}
       >
-        <Field label="Remarks" required error={remarksError} hint="Say what needs to be corrected before they resubmit.">
-          <Textarea ref={remarksRef} data-autofocus value={reviewRemarks} onChange={(event) => { setReviewRemarks(event.target.value); setRemarksError(null); }} />
-        </Field>
+        <div className="space-y-3">
+          <Field label="Remarks" required error={remarksError} hint="Say what needs to be corrected before they resubmit.">
+            <Textarea ref={remarksRef} data-autofocus value={reviewRemarks} onChange={(event) => { setReviewRemarks(event.target.value); setRemarksError(null); }} />
+          </Field>
+          {reviewTarget?.action === 'return' && (
+            <DraftNoteButton
+              flow="compliance_submission"
+              recordId={reviewTarget.submission.id}
+              decision="returned"
+              value={reviewRemarks}
+              onDraft={({ text, aiOutputId }) => { setReviewRemarks(text); setDraftId(aiOutputId); setRemarksError(null); }}
+              disabled={reviewBusy}
+            />
+          )}
+        </div>
       </Modal>
     </Card>
   );

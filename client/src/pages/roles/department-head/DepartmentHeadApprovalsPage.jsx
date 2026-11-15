@@ -17,6 +17,9 @@ import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import ApprovalDetailDrawer from '../../../components/approvals/ApprovalDetailDrawer';
 import ApprovalReceipt from '../../../components/approvals/ApprovalReceipt';
+import { draftMarks, filesOf } from '../../../components/approvals/EventFilesReview';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { ENTITY_LABEL, describeApproval, entityLink, isFinalRefusal } from '../../../components/approvals/approvalStage';
 import { formatDateTime, fullName, summaryLine } from '../../../components/approvals/approvalFormat';
 import { findApprovalRequest } from '../../modules/approvals/approvalApi';
@@ -60,11 +63,15 @@ function downloadCsv(rows, organizationNames) {
   const link = document.createElement('a'); link.href = url; link.download = `approval-register-${manilaDateStamp()}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
-function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organizationName, error }) {
+function ReviewModal({ open, request, action, files, onCancel, onConfirm, busy, organizationName, error }) {
   const [remarks, setRemarks] = useState('');
+  const [draftId, setDraftId] = useState(null);
 
   useEffect(() => {
-    if (open) setRemarks('');
+    if (open) {
+      setRemarks('');
+      setDraftId(null);
+    }
   }, [open]);
 
   if (!open || !request) return null;
@@ -90,10 +97,20 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
             className="resize-none"
           />
         </Field>
+        <DraftNoteButton
+          className="mt-3"
+          flow="approval"
+          recordId={request.id}
+          decision={isReject ? (isFinalRefusal(request) ? 'rejected' : 'returned') : 'approved'}
+          marks={draftMarks(filesOf(request), files)}
+          value={remarks}
+          onDraft={({ text, aiOutputId }) => { setRemarks(text); setDraftId(aiOutputId); }}
+          disabled={busy}
+        />
         {error && <p role="alert" className="mt-4 text-sm font-semibold text-danger-strong">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || request.status !== 'pending' || (isReject && !remarks.trim())}>
+          <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks, draftId)} disabled={busy || request.status !== 'pending' || (isReject && !remarks.trim())}>
             {busy ? 'Saving...' : isReject ? rejectVerb : 'Approve'}
           </Button>
         </div>
@@ -329,7 +346,7 @@ export default function DepartmentHeadApprovalsPage() {
 
   const canAct = (request) => request.status === 'pending' && Boolean(role) && request.required_role === role && request.requested_by !== user.school_id;
 
-  async function handleReview(remarks) {
+  async function handleReview(remarks, draftId) {
     const { request, action, files } = modalState;
     setSubmitting(true);
     setDecisionError(null);
@@ -338,6 +355,7 @@ export default function DepartmentHeadApprovalsPage() {
       const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
       setModalState({ open: false, request: null, action: null });
       setOpened({ id: String(request.id), request: updated, state: 'ready' });
+      recordDraftOutcome(draftId, remarks.trim() || null);
       notify.success(action === 'rejected' ? (isFinalRefusal(request) ? 'Request rejected.' : 'Request returned.') : 'Request approved.');
       load();
     } catch (cause) {
@@ -495,6 +513,7 @@ export default function DepartmentHeadApprovalsPage() {
         open={modalState.open}
         request={modalState.request}
         action={modalState.action}
+        files={modalState.files}
         busy={submitting}
         error={decisionError}
         organizationName={organizationNames[modalState.request?.organization_id]}
