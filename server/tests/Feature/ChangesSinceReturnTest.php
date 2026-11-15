@@ -135,6 +135,47 @@ class ChangesSinceReturnTest extends TestCase
         $this->assertSame(['Location'], $this->labels($this->listed($director, $eventId, 'event', 'SUPER_ADMIN')['changes_since_return']));
     }
 
+    public function test_the_event_reviews_list_carries_the_change_for_the_sao_after_a_return_and_resend_but_not_for_the_organization(): void
+    {
+        Storage::fake('local');
+        config(['performance.api_cache.enabled' => false]);
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $head = $this->makeCollegeHead($college);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $director = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]);
+        $proposal = EventRequirement::create(['name' => 'Event proposal', 'allowed_extensions' => ['pdf'], 'is_active' => true, 'is_optional' => false, 'venue_type' => 'all', 'sort_order' => 1]);
+
+        Sanctum::actingAs($admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'Leadership Camp',
+            'start_time' => now()->addWeek()->toDateTimeString(),
+            'end_time' => now()->addWeek()->addHours(2)->toDateTimeString(),
+        ])->assertCreated()->json('id');
+        $this->post('/api/events/'.$eventId.'/submission', ['documents' => [$proposal->id => UploadedFile::fake()->create('proposal-v1.pdf', 20, 'application/pdf')]], ['Accept' => 'application/json'])->assertOk();
+        $fileId = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD')['summary']['requirement_files'][0]['id'];
+        $this->decide($head, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail(), 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->post('/api/events/'.$eventId.'/submission', [], ['Accept' => 'application/json'])->assertOk();
+        $this->decide($director, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->firstOrFail(), 'rejected')->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/events/'.$eventId, ['location' => 'Gym'])->assertOk();
+        $this->decide($head, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail(), 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->post('/api/events/'.$eventId.'/submission', [], ['Accept' => 'application/json'])->assertOk();
+
+        // The request the Event reviews tab makes: pending event rows, all pages.
+        Sanctum::actingAs($director);
+        $rows = collect($this->getJson('/api/approval-requests?entity_type=event&status=pending&page=1&per_page=100')->assertOk()->json('data'));
+        $this->assertSame(['Location'], $this->labels($rows->firstWhere('entity_id', $eventId)['changes_since_return']));
+
+        Sanctum::actingAs($admin);
+        $own = collect($this->getJson('/api/approval-requests?entity_type=event&status=all&scope=submitted&per_page=100')->assertOk()->json('data'))->where('entity_id', $eventId);
+        $this->assertNotEmpty($own);
+        $this->assertSame([], $own->pluck('changes_since_return')->flatten(1)->all(), 'The organization is never shown the list.');
+    }
+
     public function test_a_budget_resent_after_a_return_lists_the_changed_fields(): void
     {
         $organization = Organization::factory()->create();

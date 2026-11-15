@@ -8,6 +8,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import { deanApprovalLine } from '../../../components/events/eventStage';
+import ChangesSinceReturn from '../../../components/reviews/ChangesSinceReturn';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks } from '../../../components/approvals/EventFilesReview';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
@@ -281,7 +282,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     try {
       await reviewApprovalRequest(approval.id, { status, remarks: decisionRemarks.trim() || undefined, files: markedFiles(filesOf(approval), marks, notes) });
       chooseEvent(null);
-      notify.success(`Event ${status}.`);
+      notify.success(status === 'approved' ? 'Event approved.' : 'Event returned.');
       closeDecision();
       await load();
     } catch (cause) {
@@ -514,6 +515,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 </div>
                 {selectedEventId === approval.entity_id && (
                   <div className="mt-3 space-y-2">
+                    <ChangesSinceReturn changes={approval.changes_since_return} />
                     {filesOf(approval).length === 0
                       ? <p className="text-sm text-ink-muted-strong">No files have been submitted for this event.</p>
                       : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => markFile(approval, id, value)} onMarkAll={(ids, value) => markAll(approval, ids, value)} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}

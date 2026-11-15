@@ -623,14 +623,15 @@ class FinancialAccountabilityController extends Controller
         if (! $subject && ! empty($values['entity_type'])) {
             $subject = Str::headline($values['entity_type']).' #'.($values['entity_id'] ?? $log->record_id);
         }
-        $actionLabel = Str::headline(str_replace(['_', '.'], ' ', $log->action));
+        $returned = $this->isReturnedReview($log);
+        $actionLabel = Str::headline(str_replace(['_', '.'], ' ', $returned ? 'reviewed_returned' : $log->action));
         $moduleLabel = Str::headline(str_replace('_', ' ', $log->module));
         $actor = $log->user ? $this->profileData($log->user) : ['name' => 'System'];
         $subject = $subject ?? Str::headline(class_basename((string) $recordType)).' #'.$log->record_id;
 
         $actionCategory = $this->actionCategory($log->action);
 
-        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $actionCategory, 'action_category_label' => $this->identifierLabel($actionCategory), 'module_label' => $moduleLabel, 'record_type_label' => $this->identifierLabel(class_basename((string) $recordType)), 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.$this->descriptionVerb($log->action).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
+        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $actionCategory, 'action_category_label' => $returned ? 'Return' : $this->identifierLabel($actionCategory), 'module_label' => $moduleLabel, 'record_type_label' => $this->identifierLabel(class_basename((string) $recordType)), 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.$this->descriptionVerb($returned ? 'reviewed_returned' : $log->action).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
     }
 
     private function profileData(User $user): array
@@ -651,7 +652,18 @@ class FinancialAccountabilityController extends Controller
         $old = is_array($log->old_values) ? $log->old_values : [];
         $new = is_array($log->new_values) ? $log->new_values : [];
 
-        return collect($new)->reject(fn ($value, $key) => in_array($key, ['password', 'password_hash', 'biometric_template', 'updated_at', 'created_at'], true))->map(fn ($value, $key) => ['field' => Str::headline(str_replace('_', ' ', $key)), 'from' => array_key_exists($key, $old) ? $this->displayValue($old[$key]) : null, 'to' => $this->displayValue($value)])->values()->all();
+        return collect($new)->reject(fn ($value, $key) => in_array($key, ['password', 'password_hash', 'biometric_template', 'updated_at', 'created_at'], true))->map(fn ($value, $key) => ['field' => Str::headline(str_replace('_', ' ', $key)), 'from' => array_key_exists($key, $old) ? $this->displayValue($old[$key]) : null, 'to' => $this->displayValue($key === 'status' && $this->isReturnedReview($log) ? 'returned' : $value)])->values()->all();
+    }
+
+    /**
+     * A send-back is stored as a rejected review but read as a return. A merch payment refusal and a final
+     * election refusal are the only reviews that keep the refusal word. The stored action never changes.
+     */
+    private function isReturnedReview(AuditLog $log): bool
+    {
+        $values = is_array($log->new_values) ? $log->new_values : [];
+
+        return $log->action === 'reviewed_rejected' && ($values['entity_type'] ?? null) !== 'payment' && empty($values['final']);
     }
 
     private function displayValue(mixed $value): string

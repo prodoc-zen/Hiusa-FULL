@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EventRequirementsTab from './EventRequirementsTab';
+import notify from '../../../lib/notify';
 
 const mocks = vi.hoisted(() => ({
   getEventRequirements: vi.fn(), createEventRequirement: vi.fn(), updateEventRequirement: vi.fn(),
@@ -408,6 +409,44 @@ describe('EventRequirementsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Fix the letter', files: [{ id: 8, status: 'needs_changes', note: 'The seal is missing.' }] }));
+  });
+
+  it('shows the SAO what the organization changed since the return above the files, and nothing for an event with no change', async () => {
+    const changes = [{ field: 'location', label: 'Location', before: 'Hall', after: 'Gym' }, { field: 'file:Request Letter', label: 'request-v2.pdf replaced request.pdf' }];
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ ...waiting(), changes_since_return: changes }, { ...waiting(), id: 42, entity_id: 12, title: 'Sports Fest', changes_since_return: [] }] } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    const note = screen.getByRole('region', { name: 'Changed since you returned it' });
+    expect(within(note).getByText('Location')).toBeInTheDocument();
+    expect(note).toHaveTextContent('Hall to Gym');
+    expect(note).toHaveTextContent('request-v2.pdf replaced request.pdf');
+    expect(note.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Sports Fest' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));
+    expect(screen.queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+
+  it('says Event returned, not rejected, after the SAO sends an event back, and Event approved after an approval', async () => {
+    const success = vi.spyOn(notify, 'success').mockImplementation(() => {});
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
+    render(<EventRequirementsTab mode="reviews" />);
+    await screen.findByText('Foundation Day');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
+    fireEvent.change(await screen.findByLabelText(/Remarks for the return/), { target: { value: 'Fix the letter' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Event returned.'));
+    expect(success).not.toHaveBeenCalledWith('Event rejected.');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Foundation Day' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve event' }));
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Event approved.'));
+    success.mockRestore();
   });
 
   it('keeps event decisions inside the three-dot action menu', async () => {
