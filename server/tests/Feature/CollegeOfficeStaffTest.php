@@ -129,7 +129,7 @@ class CollegeOfficeStaffTest extends TestCase
         $this->patchJson('/api/approval-requests/'.$adviserStep->id, ['status' => 'approved'])->assertForbidden();
         $this->patchJson('/api/approval-requests/'.$foreign->id, ['status' => 'approved'])->assertNotFound();
         $this->patchJson('/api/approval-requests/'.$deanStep->id, ['status' => 'approved'])->assertOk();
-        $this->assertSame('approved', $event->fresh()->status);
+        $this->assertSame('planning', $event->fresh()->status, 'the dean never finalizes an event, it goes on to the organization and then the SAO');
     }
 
     private function approval(Organization $organization, int $entityId, User $requester, string $role): ApprovalRequest

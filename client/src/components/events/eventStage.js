@@ -1,15 +1,19 @@
 import { eventLifecycle, roleLabel } from '../../lib/lifecycle';
 import { readCanBookVenues } from '../../utils/userModules';
+import { formatDateTime } from '../../utils/dateTime';
 
 // The server's approval_stage is the source of truth for the approval chain. eventLifecycle reads
 // approval_status and approval_required_role instead, and cannot tell "the head approved, files are
 // still missing" from "approved", so this adapter feeds it the fields it understands and then puts
 // the two approval steps in the order the chain runs: the Department Head first, then the SAO files.
+// The chain is organization, Department Head, organization, SAO: the Department Head's approval hands
+// the event back to the organization's Admin, who sends it to the SAO (ready_for_sao).
 
 const STAGE_INPUT = {
   not_submitted: (event) => ({ approval_status: null, approval_required_role: null, requirements_submitted: event.requirements_required === true }),
   awaiting_department_head: () => ({ approval_status: 'pending', approval_required_role: 'DEPARTMENT_HEAD' }),
   awaiting_requirements: () => ({ approval_status: null, approval_required_role: null, requirements_required: true, requirements_submitted: false }),
+  ready_for_sao: () => ({ approval_status: null, approval_required_role: null, requirements_required: true, requirements_submitted: false }),
   awaiting_sao: () => ({ approval_status: 'pending', approval_required_role: 'SUPER_ADMIN', requirements_required: true }),
   requirements_returned: () => ({ approval_status: null, approval_required_role: null, requirements_required: true, requirements_submitted: false }),
   approved: () => ({ approval_status: 'approved', approval_required_role: null }),
@@ -19,12 +23,14 @@ const STAGE_INPUT = {
 const STEP_STATES = {
   awaiting_department_head: { requirements: 'upcoming' },
   awaiting_requirements: { approval: 'done', requirements: 'current' },
+  ready_for_sao: { approval: 'done', requirements: 'current' },
   awaiting_sao: { approval: 'done', requirements: 'current' },
   requirements_returned: { approval: 'done', requirements: 'blocked' },
   rejected: { requirements: 'upcoming' },
 };
 
 const STEP_NOTES = {
+  ready_for_sao: { requirements: 'Ready to send' },
   awaiting_sao: { requirements: 'Waiting for SAO' },
   requirements_returned: { requirements: 'Returned' },
   rejected: { approval: 'Returned' },
@@ -34,6 +40,7 @@ const STAGE_TEXT = {
   not_submitted: 'Not submitted',
   awaiting_department_head: 'Waiting for Department Head',
   awaiting_requirements: 'SAO files needed',
+  ready_for_sao: 'Ready to send to SAO',
   awaiting_sao: 'Waiting for SAO',
   requirements_returned: 'Returned by SAO',
   rejected: 'Returned by Department Head',
@@ -41,24 +48,34 @@ const STAGE_TEXT = {
 };
 
 export const RETURNED_STAGES = ['rejected', 'requirements_returned'];
-export const FILE_STAGES = ['awaiting_department_head', 'awaiting_requirements', 'awaiting_sao', 'requirements_returned'];
+export const FILE_STAGES = ['awaiting_department_head', 'awaiting_requirements', 'ready_for_sao', 'awaiting_sao', 'requirements_returned'];
+
+// Stages where the event is with, or on its way to, the SAO. Every event goes there, with or without files.
+const SAO_STAGES = ['ready_for_sao', 'awaiting_sao', 'requirements_returned'];
 
 export function stageText(event) {
   return STAGE_TEXT[event?.approval_stage] ?? null;
+}
+
+// The verification line the organization and the SAO read once a Department Head approved the event.
+export function deanApprovalLine(record) {
+  if (!record?.dean_approved_at) return null;
+  const who = [record.dean_approved_by, formatDateTime(record.dean_approved_at, '')].filter(Boolean).join(', ');
+  return `Approved by the Department Head: ${who}`;
 }
 
 function stepFor(steps, key, patch) {
   return steps.map((step) => (step.key === key ? { ...step, ...patch } : step));
 }
 
-function orderSteps(steps, stage, requirementsRequired) {
+function orderSteps(steps, stage, requirementsRequired, hasFiles) {
   const byKey = Object.fromEntries(steps.map((step) => [step.key, step]));
   const states = STEP_STATES[stage] ?? {};
   const notes = STEP_NOTES[stage] ?? {};
   let ordered = [
     { ...byKey.proposal, actor: 'Admin' },
     { ...byKey.approval, label: 'Department Head approval', actor: undefined },
-    { ...byKey.requirements, label: 'SAO files', actor: 'Admin, SAO' },
+    { ...byKey.requirements, label: hasFiles ? 'SAO files' : 'SAO approval', actor: 'Admin, SAO' },
     ...steps.filter((step) => !['proposal', 'approval', 'requirements'].includes(step.key)),
   ];
 
@@ -86,7 +103,7 @@ export function eventFlow(event, viewerRole, progress = null) {
   const input = STAGE_INPUT[stage]?.(e) ?? {};
   const lifecycle = eventLifecycle({ ...e, ...input }, viewerRole);
   const requirementsRequired = e.requirements_required === true;
-  const steps = orderSteps(lifecycle.steps, stage, requirementsRequired);
+  const steps = orderSteps(lifecycle.steps, stage, requirementsRequired || SAO_STAGES.includes(stage), requirementsRequired);
   let nextAction = { ...lifecycle.nextAction };
   let action = null;
   const selfLink = lifecycle.href;
@@ -99,12 +116,19 @@ export function eventFlow(event, viewerRole, progress = null) {
       title: viewerRole && viewerRole !== 'ADMIN' ? 'Returned to the Admin for new files' : 'Returned: read the remarks, replace the files',
       body: withProgress(e.approval_remarks || 'The SAO sent the files back. Replace them below and submit again.', progress),
     };
+  } else if (stage === 'ready_for_sao') {
+    const waiting = viewerRole && viewerRole !== 'ADMIN';
+    nextAction = {
+      tone: waiting ? 'waiting' : 'action',
+      title: waiting ? 'Waiting for the Admin to send it to the SAO' : 'Send the event to the SAO',
+      body: withProgress(waiting ? 'The Department Head approved this event. The Admin sends it to the SAO next.' : 'The Department Head approved this event. Check the files below and send it to the SAO.', progress),
+    };
   } else if (stage === 'awaiting_requirements') {
-    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? 'The Department Head approved this event. The SAO needs the event files next.' : 'The Department Head approved this event. Upload each file below and submit them to the SAO.', progress) };
+    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? 'The Department Head approved this event. The SAO needs the event files next.' : 'The Department Head approved this event. Upload each file below, then send the event to the SAO.', progress) };
   } else if (FILE_STAGES.includes(stage) && requirementsRequired) {
     nextAction = { ...nextAction, body: withProgress(nextAction.body, progress) };
   }
-  if (stage === 'awaiting_requirements' || stage === 'requirements_returned') {
+  if (stage === 'awaiting_requirements' || stage === 'requirements_returned' || stage === 'ready_for_sao') {
     nextAction = { ...nextAction, label: undefined, to: undefined };
   } else if (mine && hasLink) {
     const label = nextAction.label === 'Prepare report' ? 'Prepare event report' : nextAction.label;

@@ -245,6 +245,17 @@ describe('EventRequirementsTab', () => {
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: undefined }));
   });
 
+  it('shows each waiting event the Department Head approval with the name and the time', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [
+      { ...waiting(), summary: { requirement_files: FILES, dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' } },
+      { ...waiting(), id: 42, entity_id: 12, title: 'Sports Fest' },
+    ] } });
+    render(<EventRequirementsTab mode="reviews" />);
+
+    expect(await screen.findByText('Approved by the Department Head: Maria Cruz, Nov 10, 2026, 10:30 AM')).toBeInTheDocument();
+    expect(screen.getAllByText(/Approved by the Department Head/)).toHaveLength(1);
+  });
+
   it('opens the files of the event a link named and tells the page when the SAO opens or hides one', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ ...waiting(), requester: {} }, { ...waiting(), id: 42, entity_id: 12, title: 'Sports Fest', requester: {} }] } });
     const onEventOpen = vi.fn();

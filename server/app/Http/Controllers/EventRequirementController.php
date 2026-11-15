@@ -173,6 +173,8 @@ class EventRequirementController extends Controller
             'approval_status' => $approval['approval_status'],
             'approval_stage' => $approval['approval_stage'],
             'approval_remarks' => $approval['approval_remarks'],
+            'dean_approved_by' => $approval['dean_approved_by'],
+            'dean_approved_at' => $approval['dean_approved_at'],
         ]);
     }
 
@@ -189,17 +191,22 @@ class EventRequirementController extends Controller
 
         $request->validate(['documents' => ['sometimes', 'array'], 'documents.*' => ['required', 'file', 'max:10240']]);
         $requirements = EventRequirement::activeForEvent($event)->get();
-        if ($requirements->isEmpty()) {
+        $documents = $request->file('documents', []);
+        if ($requirements->isEmpty() && $documents !== []) {
             return response()->json(['message' => 'SAO has not configured any event requirements.'], 422);
         }
-
-        $documents = $request->file('documents', []);
         $existing = EventRequirementFile::where('event_id', $event->id)->get()->keyBy('requirement_id');
         $availableIds = array_unique(array_merge($existing->keys()->all(), array_map('intval', array_keys($documents))));
-        if (! array_intersect($availableIds, $requirements->pluck('id')->all())
+        if ($requirements->isNotEmpty() && (! array_intersect($availableIds, $requirements->pluck('id')->all())
             || array_diff($requirements->where('is_optional', false)->pluck('id')->all(), $availableIds)
-            || array_diff(array_map('intval', array_keys($documents)), $requirements->pluck('id')->all())) {
+            || array_diff(array_map('intval', array_keys($documents)), $requirements->pluck('id')->all()))) {
             return response()->json(['message' => 'Upload a PDF for every required SAO item.'], 422);
+        }
+
+        // Sending with no new files is the Admin's explicit send to the SAO, which only the Department Head's approval opens.
+        $unified = (bool) $event->organization?->is_university_wide;
+        if ($documents === [] && $head?->status !== 'approved' && ! $unified) {
+            return response()->json(['message' => 'The Department Head must approve this event before it can be sent to the Student Affairs Office.'], 409);
         }
 
         foreach ($requirements as $requirement) {
@@ -214,7 +221,7 @@ class EventRequirementController extends Controller
         $storedPaths = [];
         $oldPaths = [];
         try {
-            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $existing, $storagePolicy, &$storedPaths, &$oldPaths) {
+            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, $existing, $storagePolicy, &$storedPaths, &$oldPaths) {
                 Organization::whereKey($event->organization_id)->lockForUpdate()->firstOrFail();
                 $replacedBytes = $existing->only(array_keys($documents))->sum(fn ($old) => Storage::disk('local')->exists($old->path) ? Storage::disk('local')->size($old->path) : 0);
                 $storagePolicy->assertUpload(array_values($documents), $event->organization_id, $replacedBytes, 'documents');
@@ -240,7 +247,10 @@ class EventRequirementController extends Controller
                     ]);
                 }
 
-                if (! $head || $head->status === 'rejected') {
+                // A replaced file has no Department Head mark, so unless the SAO already returned the files
+                // the event goes back to the Head; a returned event goes straight back to the SAO.
+                $replaced = array_intersect_key($documents, $existing->all()) !== [];
+                if (! $head || $head->status === 'rejected' || ($head->status === 'approved' && $replaced && $sao?->status !== 'rejected')) {
                     $this->approvalChain->submitToHead($event, $request->user()->school_id);
                 } elseif ($head->status === 'approved') {
                     $this->approvalChain->openSaoReview($event, $request->user()->school_id);

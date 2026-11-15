@@ -74,6 +74,14 @@ class EventFileReviewTest extends TestCase
         ], ['Accept' => 'application/json']);
     }
 
+    /** The Admin's explicit send to the SAO after the Department Head approved: a submission with no new files. */
+    private function send(int $eventId)
+    {
+        Sanctum::actingAs($this->admin);
+
+        return $this->postJson('/api/events/'.$eventId.'/submission');
+    }
+
     private function row(int $eventId, string $role): ApprovalRequest
     {
         return ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', $role)->firstOrFail();
@@ -257,6 +265,8 @@ class EventFileReviewTest extends TestCase
         $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
             ['id' => $this->fileId($eventId, $this->permit), 'status' => 'ok'],
         ])->assertOk();
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'required_role' => 'SUPER_ADMIN']);
+        $this->send($eventId)->assertOk();
         $this->assertSame('pending', $this->row($eventId, 'SUPER_ADMIN')->status);
     }
 
@@ -269,6 +279,7 @@ class EventFileReviewTest extends TestCase
             ['id' => $proposalId, 'status' => 'ok'],
             ['id' => $permitId, 'status' => 'ok'],
         ])->assertOk();
+        $this->send($eventId)->assertOk();
 
         $this->decide($this->director, $this->row($eventId, 'SUPER_ADMIN'), 'rejected', [
             ['id' => $permitId, 'status' => 'needs_changes', 'note' => 'Wrong venue.'],
@@ -363,6 +374,7 @@ class EventFileReviewTest extends TestCase
             ['id' => $proposalId, 'status' => 'ok'],
             ['id' => $permitId, 'status' => 'ok'],
         ])->assertOk();
+        $this->send($eventId)->assertOk();
 
         $this->markFile($this->director, $this->row($eventId, 'SUPER_ADMIN'), $permitId)->assertOk();
 

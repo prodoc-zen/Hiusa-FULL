@@ -145,6 +145,9 @@ class ApprovalSummaryFieldsTest extends TestCase
         $this->decide($this->head, $stages['rejected'], 'DEPARTMENT_HEAD', 'rejected');
         $stages['awaiting_requirements'] = $this->propose('Awaiting files');
         $this->decide($this->head, $stages['awaiting_requirements'], 'DEPARTMENT_HEAD');
+        $stages['ready_for_sao'] = $this->propose('Ready for SAO');
+        $this->upload($stages['ready_for_sao'], $requirement);
+        $this->decide($this->head, $stages['ready_for_sao'], 'DEPARTMENT_HEAD');
         $stages['awaiting_sao'] = $this->propose('Awaiting SAO');
         $this->decide($this->head, $stages['awaiting_sao'], 'DEPARTMENT_HEAD');
         $this->upload($stages['awaiting_sao'], $requirement);
@@ -173,16 +176,21 @@ class ApprovalSummaryFieldsTest extends TestCase
         }
         $this->assertTrue($rows->where('entity_id', $stages['awaiting_sao'])->first()['summary']['requirements_submitted']);
         $this->assertFalse($rows->where('entity_id', $stages['awaiting_requirements'])->first()['summary']['requirements_submitted']);
+
+        $ready = $rows->where('entity_id', $stages['ready_for_sao'])->first()['summary'];
+        $this->assertSame(trim($this->head->first_name.' '.$this->head->last_name), $ready['dean_approved_by']);
+        $this->assertNotNull($ready['dean_approved_at']);
+        $this->assertNull($rows->where('entity_id', $stages['awaiting_department_head'])->first()['summary']['dean_approved_by']);
     }
 
-    public function test_a_head_approved_event_with_no_requirements_and_no_approval_date_reads_not_submitted_like_the_events_endpoint(): void
+    public function test_a_head_approved_event_with_no_requirements_and_no_approval_date_reads_ready_for_sao_like_the_events_endpoint(): void
     {
         $event = Event::factory()->create(['organization_id' => $this->organization->id, 'created_by' => $this->admin->school_id, 'status' => 'planning']);
         $this->approval('event', $event->id, ['status' => 'approved', 'reviewed_by' => $this->head->school_id, 'reviewed_at' => now()]);
 
         Sanctum::actingAs($this->admin);
-        $this->assertSame('not_submitted', $this->getJson('/api/events/'.$event->id)->assertOk()->json('approval_stage'));
-        $this->assertSame('not_submitted', $this->summariesFor('event', $event->id)[0]['approval_stage']);
+        $this->assertSame('ready_for_sao', $this->getJson('/api/events/'.$event->id)->assertOk()->json('approval_stage'));
+        $this->assertSame('ready_for_sao', $this->summariesFor('event', $event->id)[0]['approval_stage']);
     }
 
     public function test_an_event_row_carries_requirements_budget_task_and_attendance_fields(): void

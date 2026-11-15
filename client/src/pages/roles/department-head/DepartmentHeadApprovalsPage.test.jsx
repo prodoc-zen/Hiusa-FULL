@@ -302,7 +302,7 @@ describe('DepartmentHeadApprovalsPage for the Admin', () => {
   });
 
   it('shows the SAO stage for an event the Department Head already approved', async () => {
-    serve({ submitted: [{ ...submittedRows[0], status: 'approved', required_role: 'DEPARTMENT_HEAD', summary: { ...submittedRows[0].summary, requirement_files: [{ id: 1, requirement: 'Venue form', original_name: 'venue.pdf' }] } }] });
+    serve({ submitted: [{ ...submittedRows[0], status: 'approved', required_role: 'DEPARTMENT_HEAD', summary: { ...submittedRows[0].summary, approval_stage: 'awaiting_sao', requirement_files: [{ id: 1, requirement: 'Venue form', original_name: 'venue.pdf' }] } }] });
     renderPage('/dashboard/approvals?tab=submitted');
 
     await screen.findByText('Foundation Day');
@@ -459,8 +459,8 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     expect(await screen.findByText('This request is not available to you')).toBeInTheDocument();
   });
 
-  it('approves an event that continues to the SAO and stays open on the updated record', async () => {
-    const decided = { ...eventRow, status: 'approved', reviewer: { first_name: 'Dee', last_name: 'Head' }, reviewed_at: '2026-10-08T09:00:00+08:00', remarks: null, summary: { ...eventRow.summary, status: 'planning', requirement_files: [{ id: 1, requirement: 'Venue form', original_name: 'venue.pdf' }] } };
+  it('approves an event, hands it back to the organization to send to the SAO, and stays open on the updated record', async () => {
+    const decided = { ...eventRow, status: 'approved', reviewer: { first_name: 'Dee', last_name: 'Head' }, reviewed_at: '2026-10-08T09:00:00+08:00', remarks: null, summary: { ...eventRow.summary, status: 'planning', approval_stage: 'ready_for_sao', requirements_required: true, requirements_submitted: true, requirement_files: [{ id: 1, requirement: 'Venue form', original_name: 'venue.pdf' }] } };
     mocks.reviewApprovalRequest.mockResolvedValue({ data: decided });
     renderPage('/dashboard/department-head/approvals?record=41');
     const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
@@ -470,9 +470,9 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: null }));
-    expect(await screen.findByText('Approved. Now with the SAO for requirements review')).toBeInTheDocument();
+    expect(await screen.findByText('Approved. Returned to the organization to send to the SAO')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Foundation Day' })).toBeInTheDocument();
-    expect(screen.getByText('Waiting for SAO approval')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for the Admin to send it to the SAO')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('record=41');
   });

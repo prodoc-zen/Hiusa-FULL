@@ -99,11 +99,65 @@ describe('EventSubmissionPanel', () => {
     expect(screen.queryByText(/Sample format not provided/)).not.toBeInTheDocument();
   });
 
-  it('allows the admin to upload SAO files after Department Head approval', async () => {
+  it('allows the admin to upload SAO files after Department Head approval and send them on', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
-    expect(await screen.findByRole('button', { name: 'Submit event files' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
     expect(screen.getAllByText('Not submitted').length).toBeGreaterThan(0);
+  });
+
+  describe('after the Department Head approved', () => {
+    const approvedData = { requirements, files: [uploadedFile], approval_status: 'approved', approval_stage: 'ready_for_sao', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' };
+
+    it('shows who approved it and when, and lets the admin send it to the SAO without a new file', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: approvedData });
+      mocks.submitEventRequirements.mockResolvedValue({ data: { ...approvedData, approval_status: 'pending', approval_stage: 'awaiting_sao' } });
+      const onSubmitted = vi.fn();
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" onSubmitted={onSubmitted} />);
+
+      expect(await screen.findByText('Approved by the Department Head: Maria Cruz, Nov 10, 2026, 10:30 AM')).toBeInTheDocument();
+      expect(screen.queryByText(/Review: approved/)).not.toBeInTheDocument();
+      const send = screen.getByRole('button', { name: 'Send to SAO' });
+      expect(send).toBeEnabled();
+      expect(screen.getByText(/Replacing a file sends the event back to the Department Head/)).toBeInTheDocument();
+
+      fireEvent.submit(send.closest('form'));
+
+      await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, {}));
+      await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
+    });
+
+    it('offers the send for an event that needs no files', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { ...approvedData, requirements: [], files: [] } });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      expect(screen.queryByText(/Replacing a file/)).not.toBeInTheDocument();
+    });
+
+    it('offers no send to the SAO or an officer, and shows the line to the SAO', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: approvedData });
+      render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
+
+      expect(await screen.findByText(/Approved by the Department Head: Maria Cruz/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
+    });
+
+    it('shows no verification line before the head decided', async () => {
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      await screen.findByText('Event Proposal', { selector: 'label' });
+      expect(screen.queryByText(/Approved by the Department Head/)).not.toBeInTheDocument();
+    });
+
+    it('sends a returned event straight back to the SAO', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { ...approvedData, approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'Permit expired.' } });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      expect(screen.getByText(/Permit expired/)).toBeInTheDocument();
+    });
   });
 
   it('shows the upload error and keeps the form', async () => {

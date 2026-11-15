@@ -127,6 +127,10 @@ class EventRequirementSubmissionTest extends TestCase
         $headApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
         $this->patchJson('/api/approval-requests/'.$headApproval->id, ['status' => 'approved', 'files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'planning']);
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'required_role' => 'SUPER_ADMIN']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/events/'.$eventId.'/submission')->assertOk()->assertJsonPath('approval_stage', 'awaiting_sao');
 
         Sanctum::actingAs($director);
         $this->getJson('/api/approval-requests')->assertOk()->assertJsonPath('data.0.entity_type', 'event');
@@ -221,6 +225,8 @@ class EventRequirementSubmissionTest extends TestCase
         Sanctum::actingAs($head);
         $headRequest = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
         $this->patchJson('/api/approval-requests/'.$headRequest->id, ['status' => 'approved', 'files' => EventRequirementFile::where('event_id', $eventId)->pluck('id')->map(fn ($id) => ['id' => $id, 'status' => 'ok'])->all()])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->postJson("/api/events/{$eventId}/submission")->assertOk();
         Sanctum::actingAs($director);
         $saoRequest = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
         $this->patchJson('/api/approval-requests/'.$saoRequest->id, ['status' => 'rejected', 'remarks' => 'Use the sample proposal format.'])->assertOk();

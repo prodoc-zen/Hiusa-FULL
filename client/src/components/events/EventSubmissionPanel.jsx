@@ -7,6 +7,7 @@ import { RichTextBody } from '../RichText';
 import { Button } from '../ui';
 import FileReviewList from '../reviews/FileReviewList';
 import { describeReview, reviewLineClass } from '../approvals/EventFilesReview';
+import { deanApprovalLine } from './eventStage';
 
 export default function EventSubmissionPanel(props) {
   return <EventSubmission key={props.eventId} {...props} />;
@@ -88,19 +89,29 @@ function EventSubmission({ eventId, role, onSubmitted }) {
       ) : null,
     };
   });
-  const maySubmit = role === 'ADMIN' && requirements.length > 0 && (
-    !submission?.approval_status || submission.approval_status === 'rejected' || submission.approval_stage === 'awaiting_requirements'
+  const stage = submission?.approval_stage;
+  // After the Department Head approves, the same form is the Admin's send to the SAO; it has no file inputs when the SAO listed none.
+  const sendsToSao = ['awaiting_requirements', 'ready_for_sao', 'requirements_returned'].includes(stage);
+  const maySubmit = role === 'ADMIN' && (
+    (requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected'))
+    || (sendsToSao && (requirements.length > 0 || stage === 'ready_for_sao'))
   );
+  const verification = deanApprovalLine(submission);
 
   return (
     <section>
       <h3 className="text-sm font-semibold text-ink">SAO event requirements</h3>
       {error && <p role="alert" className="mt-2 rounded-lg bg-danger-tint p-2 text-xs text-danger-strong">{error} <button type="button" onClick={() => load(true)} className="font-semibold underline">Retry</button></p>}
+      {verification && <p className="mt-2 text-xs font-semibold text-success-strong">{verification}</p>}
       {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-ink-muted">SAO has not listed any file requirements.</p>}
       {rows.length > 0 && <section aria-label="SAO event requirement files" className="mt-3 overflow-hidden rounded-card border border-line"><FileReviewList rows={rows} /></section>}
       {submission?.approval_status === 'rejected' && submission.approval_remarks && <p className="mt-3 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm text-danger-strong"><strong>Why this was returned:</strong> {submission.approval_remarks}</p>}
       {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3">
-        <p className="text-xs text-ink-muted-strong">{uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.</p>
+        <p className="text-xs text-ink-muted-strong">{
+          stage === 'ready_for_sao'
+            ? `The Department Head approved this event. Send it to the SAO when you are ready.${requirements.length > 0 ? ' Replacing a file sends the event back to the Department Head to check it again.' : ''}`
+            : `${uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.`
+        }</p>
         {requirements.map((requirement) => <div key={requirement.id}>
           <label className="block text-xs font-semibold text-ink">
             {formatDisplayText(requirement.name)} <span className="font-normal text-ink-muted">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>
@@ -113,9 +124,9 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         </div>)}
         {missingFiles > 0 && <p id="event-files-missing" className="text-xs text-ink-muted-strong">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
         {toReplace > 0 && <p id="event-files-replace" className="text-xs text-ink-muted-strong">{toReplace === 1 ? '1 file still needs to be replaced.' : `${toReplace} files still need to be replaced.`}</p>}
-        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>Submit event files</Button>
+        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>{sendsToSao ? 'Send to SAO' : 'Submit event files'}</Button>
       </form>}
-      {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
+      {submission?.approval_status && !['awaiting_requirements', 'ready_for_sao'].includes(stage) && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
     </section>
   );
 }

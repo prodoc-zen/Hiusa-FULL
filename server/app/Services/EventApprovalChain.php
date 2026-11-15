@@ -10,10 +10,11 @@ use App\Models\Organization;
 use Illuminate\Support\Collection;
 
 /**
- * The Department Head approves every event proposal. When active SAO requirements apply to the
- * event, the Student Affairs Office clears it afterwards, once the Admin has uploaded the files.
- * The stage is computed from the approval rows that exist, so events filed under the old routing
- * (an SAO row and no Department Head row) keep working.
+ * The Department Head approves every event proposal and the approval never moves the event on by
+ * itself: it goes back to the organization, whose Admin sends it to the Student Affairs Office once
+ * any required files are uploaded. Every event ends at the Student Affairs Office. The stage is
+ * computed from the approval rows that exist, so events filed under the old routing (an SAO row and
+ * no Department Head row) keep working.
  */
 class EventApprovalChain
 {
@@ -97,7 +98,8 @@ class EventApprovalChain
         }
 
         $ids = $events->pluck('id');
-        $rows = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->orderByDesc('id')->get()->groupBy('entity_id');
+        $rows = ApprovalRequest::with('reviewer:school_id,first_name,last_name')
+            ->where('entity_type', 'event')->whereIn('entity_id', $ids)->orderByDesc('id')->get()->groupBy('entity_id');
         $uploaded = EventRequirementFile::whereIn('event_id', $ids)->get(['event_id', 'requirement_id'])->groupBy('event_id');
         $requirementsByShape = [];
         $unifiedIds = Organization::whereIn('id', $events->pluck('organization_id'))->where('is_university_wide', true)->pluck('id');
@@ -108,13 +110,16 @@ class EventApprovalChain
             $eventRows = $rows->get($event->id, collect());
             $required = $requirements->isNotEmpty();
             $submitted = $this->filesComplete($requirements, $uploaded->get($event->id, collect())->pluck('requirement_id'));
+            $head = $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role !== self::SAO_ROLE);
             [$stage, $row] = $this->resolve(
                 $event,
-                $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role !== self::SAO_ROLE),
+                $head,
                 $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role === self::SAO_ROLE),
                 $required,
+                $submitted,
                 $unifiedIds->contains($event->organization_id),
             );
+            $deanApproved = $head?->status === 'approved';
 
             return [$event->id => [
                 'approval_id' => $row?->id,
@@ -124,6 +129,8 @@ class EventApprovalChain
                 'requirements_required' => $required,
                 'requirements_submitted' => $required && $submitted,
                 'approval_stage' => $stage,
+                'dean_approved_by' => $deanApproved && $head->reviewer ? trim($head->reviewer->first_name.' '.$head->reviewer->last_name) : null,
+                'dean_approved_at' => $deanApproved ? $head->reviewed_at?->toIso8601String() : null,
             ]];
         })->all();
     }
@@ -141,7 +148,7 @@ class EventApprovalChain
         }
     }
 
-    private function resolve(Event $event, ?ApprovalRequest $head, ?ApprovalRequest $sao, bool $required, bool $unified): array
+    private function resolve(Event $event, ?ApprovalRequest $head, ?ApprovalRequest $sao, bool $required, bool $submitted, bool $unified): array
     {
         return match (true) {
             $event->approved_at !== null => ['approved', collect([$head, $sao])->filter()->sortBy('id')->last()],
@@ -149,6 +156,7 @@ class EventApprovalChain
             $head?->status === 'rejected' => ['rejected', $head],
             $sao?->status === 'pending' => ['awaiting_sao', $sao],
             $sao?->status === 'rejected' => ['requirements_returned', $sao],
+            $head?->status === 'approved' && (! $required || $submitted) => ['ready_for_sao', $head],
             ($head !== null || $unified) && $required => ['awaiting_requirements', $head],
             default => ['not_submitted', null],
         };
