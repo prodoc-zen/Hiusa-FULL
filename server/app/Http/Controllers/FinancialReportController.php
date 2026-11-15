@@ -447,6 +447,7 @@ class FinancialReportController extends Controller
                 ->where('status', 'pending')
                 ->update(['status' => 'rejected', 'active_key' => null, 'remarks' => 'Superseded by a new submission.', 'reviewed_at' => now()]);
 
+            $earlierNames = collect($financialReport->supporting_documents ?? [])->pluck('name')->all();
             $financialReport->update([
                 'supporting_documents' => $documents->values()->all(),
                 'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
@@ -477,7 +478,8 @@ class FinancialReportController extends Controller
                 'description' => 'Financial report submitted to the Department Head for first-stage review.',
                 'record_type' => FinancialReport::class,
                 'record_id' => $financialReport->id,
-                'new_values' => ['document_count' => $documents->count()],
+                'old_values' => ['document_names' => $earlierNames],
+                'new_values' => ['document_count' => $documents->count(), 'document_names' => $documents->pluck('name')->all()],
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);

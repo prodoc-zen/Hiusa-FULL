@@ -673,3 +673,36 @@ describe('ApplicationReview', () => {
     expect(screen.queryByText(/Complete\./)).not.toBeInTheDocument();
   });
 });
+
+describe('ApplicationReview changes since the return', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lists what the applicant changed under the line that says it was sent again', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail({
+      round: 2,
+      changes_since_return: [
+        { field: 'position_title', label: 'Position title', before: 'Secretary', after: 'President' },
+        { field: 'file:Officer list', label: 'officers-v2.pdf replaced officers.pdf' },
+      ],
+    }) });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.getByText(/Sent again, round 2/)).toBeInTheDocument();
+    const note = screen.getByRole('region', { name: 'Changed since you returned it' });
+    expect(within(note).getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      'Position title: Secretary to President',
+      'officers-v2.pdf replaced officers.pdf',
+    ]);
+  });
+
+  it('shows no note for a first submission', async () => {
+    mocks.getOrganizationApplication.mockResolvedValue({ data: detail() });
+    renderReview();
+    await screen.findByText('Ana Cruz');
+
+    expect(screen.queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+});

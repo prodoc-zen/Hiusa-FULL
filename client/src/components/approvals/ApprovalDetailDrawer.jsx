@@ -10,6 +10,7 @@ import { openProtectedFile } from '../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../utils/apiError';
 import notify from '../../lib/notify';
 import { FileLink } from '../reviews/FileReviewList';
+import ChangesSinceReturn from '../reviews/ChangesSinceReturn';
 import ApprovalReceipt from './ApprovalReceipt';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks, stageOfRequest } from './EventFilesReview';
 import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
@@ -362,6 +363,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
           </div>
         )}
         <NextStep {...nextStep} />
+        <ChangesSinceReturn changes={request.changes_since_return} />
         <ApprovalReceipt request={request} organizationName={organizationName} compact />
         {files.length > 0 && (
           <EventFilesReview

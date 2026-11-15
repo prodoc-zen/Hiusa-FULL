@@ -503,3 +503,31 @@ describe('ApprovalDetailDrawer event approval is unchanged', () => {
     expect(mocks.getApprovalHistory).not.toHaveBeenCalled();
   });
 });
+
+describe('ApprovalDetailDrawer changes since the return', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows the reviewer what changed since they returned it', () => {
+    const { drawer } = renderDrawer({ request: request({ changes_since_return: [
+      { field: 'title', label: 'Title', before: 'Acquaintance Night', after: 'Acquaintance Party' },
+      { field: 'file:Venue Reservation Letter', label: 'venue-v2.pdf replaced venue.pdf' },
+    ] }) });
+
+    const note = within(drawer).getByRole('region', { name: 'Changed since you returned it' });
+    expect(within(note).getByText('Changed since you returned it:')).toBeInTheDocument();
+    expect(within(note).getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+      'Title: Acquaintance Night to Acquaintance Party',
+      'venue-v2.pdf replaced venue.pdf',
+    ]);
+  });
+
+  it('shows no note when the request carries no list, as it does for the organization', () => {
+    const { drawer } = renderDrawer();
+    expect(within(drawer).queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+
+  it('shows no note when nothing changed since the return', () => {
+    const { drawer } = renderDrawer({ request: request({ changes_since_return: [] }) });
+    expect(within(drawer).queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+});

@@ -172,6 +172,7 @@ class OrganizationApplicationController extends Controller
         $obsolete = [];
         try {
             $application = DB::transaction(function () use ($application, $data, $request, $semester, $types, &$stored, &$obsolete) {
+                $documentChanges = [];
                 $locked = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
                 abort_unless($locked->status === 'returned', 409, 'Only a returned application can be sent again.');
                 College::whereKey($locked->college_id)->where('is_active', true)->lockForUpdate()->firstOrFail();
@@ -184,6 +185,7 @@ class OrganizationApplicationController extends Controller
                 foreach ($documents as $document) {
                     if (! in_array((int) $document->requirement_type_id, $currentIds, true)) {
                         $obsolete[] = $document->file_path;
+                        $documentChanges[] = ['requirement' => $document->file_original_name, 'previous_name' => $document->file_original_name];
                         $document->delete();
                     }
                 }
@@ -201,9 +203,12 @@ class OrganizationApplicationController extends Controller
                         $obsolete[] = $document->file_path;
                         $document->delete();
                     }
+                    $documentChanges[] = ['requirement' => $type->name, 'name' => $file->getClientOriginalName(), 'previous_name' => $document?->file_original_name];
                     $this->storeDocument($locked, $type, $file, $stored);
                 }
 
+                $fields = ['name', 'acronym', 'description', 'position_title'];
+                $before = $locked->only($fields);
                 $locked->fill($data);
                 $locked->forceFill([
                     'status' => 'pending_dean', 'round' => $locked->round + 1, 'submitted_at' => now(),
@@ -211,7 +216,7 @@ class OrganizationApplicationController extends Controller
                     'returned_by' => null, 'returned_by_role' => null, 'returned_at' => null, 'reviewed_by' => null, 'reviewed_at' => null,
                     'requires_documents' => true, 'required_documents_count' => $types->count(),
                 ])->save();
-                $this->audit($request, 'resubmitted', $locked, ['status' => 'pending_dean', 'round' => $locked->round]);
+                $this->audit($request, 'resubmitted', $locked, ['status' => 'pending_dean', 'round' => $locked->round, ...$locked->only($fields), 'documents' => $documentChanges], $before);
 
                 return $locked;
             });
@@ -279,8 +284,8 @@ class OrganizationApplicationController extends Controller
             ]));
     }
 
-    private function audit(Request $request, string $action, OrganizationApplication $application, array $values): void
+    private function audit(Request $request, string $action, OrganizationApplication $application, array $values, ?array $old = null): void
     {
-        AuditLog::create(['organization_id' => null, 'user_id' => $request->user()->school_id, 'actor_role' => 'APPLICANT', 'module' => 'organization_applications', 'action' => $action, 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => $values, 'created_at' => now(), 'ip_address' => $request->ip()]);
+        AuditLog::create(['organization_id' => null, 'user_id' => $request->user()->school_id, 'actor_role' => 'APPLICANT', 'module' => 'organization_applications', 'action' => $action, 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'old_values' => $old, 'new_values' => $values, 'created_at' => now(), 'ip_address' => $request->ip()]);
     }
 }

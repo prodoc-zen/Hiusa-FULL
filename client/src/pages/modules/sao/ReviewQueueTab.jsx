@@ -13,6 +13,7 @@ import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { FileLink } from '../../../components/reviews/FileReviewList';
+import ChangesSinceReturn from '../../../components/reviews/ChangesSinceReturn';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
@@ -348,6 +349,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
             {registrationReview(openSubmission)
               ? <p className="text-sm text-ink">{registrationReview(openSubmission).text}.</p>
               : <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />}
+            <ChangesSinceReturn changes={openSubmission.changes_since_return} />
             <dl className="grid gap-3 text-sm">
               <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-medium text-ink">{manilaDate(openSubmission.submitted_at, 'long')}</dd></div>
               <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-medium text-ink">{openSubmission.submitter ? `${openSubmission.submitter.first_name} ${openSubmission.submitter.last_name}` : 'Unknown'}</dd></div>

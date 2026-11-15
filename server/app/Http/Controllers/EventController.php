@@ -498,7 +498,7 @@ class EventController extends Controller
     private function auditedFields(Event $event): array
     {
         return array_map(fn ($value) => $value instanceof \DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value,
-            $event->only(['title', 'description', 'start_time', 'end_time', 'location', 'requires_budget', 'status']));
+            $event->only(['title', 'description', 'start_time', 'end_time', 'location', 'requires_budget', 'status', 'planning_details', 'image_url']));
     }
 
     /** Records only the audited fields that differ after the save, and nothing when a save changed none of them. */

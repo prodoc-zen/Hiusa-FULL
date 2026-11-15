@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Bell, Check, Eye, FileText, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
 import FileReviewList from '../../../components/reviews/FileReviewList';
+import ChangesSinceReturn from '../../../components/reviews/ChangesSinceReturn';
 import ComplianceReminderModal from './ComplianceReminderModal';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
@@ -122,10 +123,11 @@ export default function AccreditationTab({ title = 'Organization accreditation',
         ? [{ label: 'Remind', ariaLabel: `Send compliance reminder for ${requirement.requirement_name}`, onClick: () => { setReminder({ organization: selected, requirementId: requirement.requirement_type_id }); setSelectedId(null); } }]
         : [],
       expanded: true,
-      note: dates || returnedRemarks ? (
+      note: dates || returnedRemarks || requirement.changes_since_return?.length ? (
         <div className="space-y-1">
           {dates && <p className="text-xs text-ink-muted-strong">{dates}</p>}
           {returnedRemarks && <p className="text-xs text-danger-strong">SAO: {requirement.remarks}</p>}
+          <ChangesSinceReturn changes={requirement.changes_since_return} />
         </div>
       ) : null,
       detail: deciding ? (
