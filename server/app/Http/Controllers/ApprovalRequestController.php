@@ -597,7 +597,7 @@ class ApprovalRequestController extends Controller
         AuditLog::create([
             'organization_id' => $election->organization_id,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'elections',
             'action' => 'rules_version_created',
             'description' => 'Election rules version '.$version.' approved.',
@@ -623,7 +623,7 @@ class ApprovalRequestController extends Controller
         AuditLog::create([
             'organization_id' => $election->organization_id,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'elections',
             'action' => 'declined',
             'description' => 'Election proposal declined by the reviewer.',
@@ -1054,7 +1054,7 @@ class ApprovalRequestController extends Controller
         AuditLog::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $request->user()?->school_id,
-            'actor_role' => $request->user()?->role,
+            'actor_role' => $request->user()?->profileRole(),
             'module' => 'approvals',
             'action' => 'reviewed_'.$status,
             'description' => 'SAO or designated approver '.($status === 'approved' ? 'approved' : $word).' an approval request.',
