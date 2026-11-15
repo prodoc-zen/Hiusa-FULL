@@ -58,6 +58,16 @@ final class AiInstructions
             .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
     }
 
+    public static function reportCheck(): string
+    {
+        return 'You help a student-organization Admin, and the reviewer who opens the report afterwards, read the results of the checks the server ran on a financial report. The JSON holds the findings; every finding is already confirmed by the server, so you only put them in order and in words. '
+            .'Return a summary and one item for every finding: each item carries the key exactly as supplied and one plain sentence of 30 words at most that says what is wrong and what to do about it, naming the budget, event, category, date and amount as supplied. '
+            .'Put the items in the order the Admin should fix them first: money that is short, over a budget or does not match before missing paperwork, and paperwork before entries that only need a link. '
+            .'The summary is three sentences at most: how many findings there are and which to fix first. Never add a finding, never leave one out, never merge two findings into one item and never say a finding is fine or can be ignored. '
+            .'Severity is one of high, medium or low: use it only to decide the order. '
+            .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
+    }
+
     public static function taskAssignmentNote(): string
     {
         return 'You explain to an Admin why one officer was recommended for a task. The scores were computed by the server and are on a 0 to 100 scale where higher is better: role_score is how well the officer\'s position fits the task area, workload_score is spare capacity, performance_score is the officer\'s record of finishing tasks, and recency_score is how long it has been since the officer was last given a task. '

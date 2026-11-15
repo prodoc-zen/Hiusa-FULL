@@ -14,7 +14,10 @@ use App\Models\User;
 use App\Services\Ai\ClaudeMessagesService;
 use App\Services\Ai\Evaluation\GroundingCheck;
 use App\Services\Ai\Evaluation\RecordingTextGenerator;
+use App\Services\Ai\Evaluation\ReportCheckFixture;
 use App\Services\Ai\Evaluation\TemplateOnlyTextGenerator;
+use App\Services\Ai\ReportCheckExplainer;
+use App\Services\Finance\FinancialReportChecks;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
@@ -60,6 +63,8 @@ class AiLiveEval extends Command
      * @var array<string, string>
      */
     protected const HELDOUT_RUNNERS = [
+        'report-checks' => 'heldoutReportCheck',
+        'report_check' => 'heldoutReportCheck',
     ];
 
     private RecordingTextGenerator $recorder;
@@ -290,6 +295,67 @@ class AiLiveEval extends Command
             'pass_rate' => $cases === [] ? 0.0 : round($passedAll / count($cases) * 100, 1),
             'checks' => $checks,
         ];
+    }
+
+    /**
+     * The prose of "Before you send": the case's ledger is seeded into the throwaway database, the rules run on it, and
+     * the explainer orders the findings and words them. The rules themselves are judged by the PHPUnit held-out test;
+     * this judges the words. A model answer that fails the explainer's own guards is replaced by the rules list, which
+     * shows in the engine column as template.
+     *
+     * @param  array<string, mixed>  $case
+     * @return array{facts: array<string, mixed>, text: string, engine: string, checks: array<string, bool>}
+     */
+    private function heldoutReportCheck(array $case): array
+    {
+        $fixture = ReportCheckFixture::seed($case);
+        $findings = array_values($this->laravel->make(FinancialReportChecks::class)->forReport($fixture->report));
+        $explained = $this->laravel->make(ReportCheckExplainer::class)->explainFromFindings($findings);
+
+        $sentences = array_column($explained['items'], 'sentence', 'key');
+        $supplied = array_map(fn (array $finding) => FinancialReportChecks::keyOf($finding), $findings);
+
+        $mentioned = true;
+        foreach ($findings as $finding) {
+            $mentioned = $mentioned && $this->mentionsFinding((string) ($sentences[FinancialReportChecks::keyOf($finding)] ?? ''), $finding);
+        }
+
+        return [
+            'facts' => $explained['facts'],
+            'text' => $explained['text'],
+            'engine' => $explained['engine'],
+            'checks' => [
+                'every_finding_mentioned' => $mentioned,
+                'none_invented' => count($sentences) === count($supplied) && array_diff(array_keys($sentences), $supplied) === [],
+                'no_unsupplied_number' => GroundingCheck::check($explained['text'], (string) json_encode($explained['facts'], JSON_UNESCAPED_UNICODE))['violations'] === [],
+            ],
+        ];
+    }
+
+    /** A sentence is about a finding when it carries one of that finding's amounts, names or categories. */
+    private function mentionsFinding(string $sentence, array $finding): bool
+    {
+        $needles = [];
+        array_walk_recursive($finding['facts'], function ($value) use (&$needles) {
+            if (is_float($value) || is_int($value)) {
+                $needles[] = number_format((float) $value, 2);
+            } elseif (is_string($value) && ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) && ! in_array($value, ['income', 'expense'], true) && mb_strlen($value) > 2) {
+                $needles[] = $value;
+            }
+        });
+        $needles[] = match ($finding['code']) {
+            'opening_balance_mismatch' => 'opening',
+            'ledger_changed_since_generated' => 'ledger',
+            default => '',
+        };
+
+        foreach (array_filter($needles) as $needle) {
+            if (mb_stripos($sentence, (string) $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Puts the chosen engine behind the TextGenerator contract; template leaves no key for any provider. */
