@@ -1948,7 +1948,7 @@
     "preconditions": "Signed in as SAO 990001 with an application under To review on Applications (the Department Head endorsed it, see DH-094).",
     "steps": [
       "1. Open Governance, then Applications, and select Review on the row under To review.",
-      "2. Open the files, then mark each requirement Accepted or select Accept all not checked.",
+      "2. Open the files, then mark each requirement Accepted or tick Accept all.",
       "3. Type optional Comments for the applicant.",
       "4. Select Approve.",
       "5. Open Governance, then Organizations, and select the Active tab."

@@ -7,6 +7,7 @@ use App\Models\College;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
@@ -90,23 +91,29 @@ class StudentRegistryController extends Controller
         if (! $yearLevel) {
             throw ValidationException::withMessages(['year_level' => ['Year level must be 1 to 8, for example 3 or 3rd Year.']]);
         }
+        $duplicate = ValidationException::withMessages(['school_id' => ['That school ID is already in the records.']]);
         if (StudentRegistryEntry::where('school_id', $data['school_id'])->exists()) {
-            throw ValidationException::withMessages(['school_id' => ['That school ID is already in the records.']]);
+            throw $duplicate;
         }
 
         $section = trim((string) ($data['section'] ?? ''));
-        $entry = StudentRegistryEntry::create([
-            'school_id' => (int) $data['school_id'],
-            'record_type' => StudentRegistryEntry::STUDENT,
-            'first_name' => trim($data['first_name']), 'last_name' => trim($data['last_name']), 'birth_date' => $data['birth_date'],
-            'college_id' => $collegeId, 'program' => trim($data['program']), 'year_level' => $yearLevel,
-            'section' => $section !== '' ? $section : null,
-            'claimed_at' => User::whereKey((int) $data['school_id'])->exists() ? now() : null,
-        ]);
+        try {
+            $entry = StudentRegistryEntry::create([
+                'school_id' => (int) $data['school_id'],
+                'record_type' => StudentRegistryEntry::STUDENT,
+                'first_name' => trim($data['first_name']), 'last_name' => trim($data['last_name']), 'birth_date' => $data['birth_date'],
+                'college_id' => $collegeId, 'program' => trim($data['program']), 'year_level' => $yearLevel,
+                'section' => $section !== '' ? $section : null,
+                'claimed_at' => User::whereKey((int) $data['school_id'])->exists() ? now() : null,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // Two requests passed the check above together: the unique index on school_id lets only one of them in.
+            throw $duplicate;
+        }
 
         // As in update(), the audit row never carries the birth date.
         AuditLog::create([
-            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->profileRole(),
             'module' => 'student_registry', 'action' => 'created', 'record_type' => StudentRegistryEntry::class,
             'record_id' => $entry->id,
             'new_values' => ['school_id' => $entry->school_id, 'first_name' => $entry->first_name, 'last_name' => $entry->last_name, 'record_type' => $entry->record_type, 'college_id' => $entry->college_id],
@@ -132,7 +139,7 @@ class StudentRegistryController extends Controller
 
         // The birth date proves who is signing up, so the audit row records that it changed, never the date itself.
         AuditLog::create([
-            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->profileRole(),
             'module' => 'student_registry', 'action' => 'updated', 'record_type' => StudentRegistryEntry::class,
             'record_id' => $entry->id, 'old_values' => $before,
             'new_values' => ['first_name' => $data['first_name'], 'last_name' => $data['last_name'], 'birth_date_changed' => $birthDateChanged],
@@ -147,7 +154,7 @@ class StudentRegistryController extends Controller
         $this->authorizeEntry($request, $entry);
 
         AuditLog::create([
-            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+            'organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->profileRole(),
             'module' => 'student_registry', 'action' => 'deleted', 'record_type' => StudentRegistryEntry::class,
             'record_id' => $entry->id,
             'old_values' => ['school_id' => $entry->school_id, 'first_name' => $entry->first_name, 'last_name' => $entry->last_name, 'record_type' => $entry->record_type, 'college_id' => $entry->college_id],

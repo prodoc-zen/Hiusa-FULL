@@ -214,7 +214,7 @@ describe('College people page', () => {
   it('lets the dean add one student record from the students toolbar and reloads the list after', async () => {
     renderPage();
     await screen.findAllByText('Ana Alvarez');
-    fireEvent.click(screen.getByRole('button', { name: 'Add a student record' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add a student' }));
     expect(await screen.findByRole('dialog', { name: 'Add a student' })).toHaveTextContent('add for college 5');
 
     fireEvent.click(screen.getByRole('button', { name: 'Finish add' }));
@@ -223,7 +223,7 @@ describe('College people page', () => {
     await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'students').length).toBe(2));
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
-    expect(screen.queryByRole('button', { name: 'Add a student record' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add a student' })).not.toBeInTheDocument();
   });
 
   it('gives the dean a School records tab that mounts the records panel for the own college', async () => {
@@ -292,6 +292,17 @@ describe('College people page', () => {
     await screen.findByText('No students yet');
     fireEvent.click(screen.getAllByRole('button', { name: 'Upload student records' }).at(-1));
     expect(await screen.findByTestId('records-upload')).toBeInTheDocument();
+  });
+
+  it('never offers Remove on a Department Head who holds a secondary profile, which only the SAO may remove', async () => {
+    const secondHead = { ...dean, school_id: 10002, name: 'Dario Dean', email: 'dario@school.test', is_lead_head: false, is_you: false };
+    people.getCollegePeople.mockImplementation(({ tab: key }) => Promise.resolve(pageOf(key === 'staff' ? [dean, secondHead, secretary] : byTab[key])));
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    tab('Office staff');
+    await screen.findAllByText('Dario Dean');
+    expect(screen.queryByRole('button', { name: 'Remove Dario Dean' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Remove Sol Secretary' }).length).toBeGreaterThan(0);
   });
 
   it('removes a staff member after confirming, but never offers it for the dean or yourself', async () => {

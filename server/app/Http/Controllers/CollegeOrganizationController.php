@@ -160,7 +160,7 @@ class CollegeOrganizationController extends Controller
             AuditLog::create([
                 'organization_id' => $home->id,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'users',
                 'action' => 'college_staff_removed',
                 'record_type' => User::class,

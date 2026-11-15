@@ -38,7 +38,7 @@ class EventVenueRelease
                 AuditLog::create([
                     'organization_id' => $booking->organization_id,
                     'user_id' => $request->user()->school_id,
-                    'actor_role' => $request->user()->role,
+                    'actor_role' => $request->user()->profileRole(),
                     'module' => 'venue_bookings',
                     'action' => 'booking_withdrawn',
                     'record_type' => VenueBooking::class,

@@ -152,7 +152,7 @@ class ApplicantGrantController extends Controller
         AuditLog::create([
             'organization_id' => $request->user()->organization_id,
             'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
+            'actor_role' => $request->user()->profileRole(),
             'module' => 'organizations',
             'action' => $action,
             'description' => $description,

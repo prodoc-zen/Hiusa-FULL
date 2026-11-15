@@ -107,7 +107,7 @@ Menu names as the sidebar shows them today (from the menu configuration, in orde
 
 ### SAO
 
-1. Approve an organization application (5 clicks). Governance, Applications, Review on the row under To review, Accept all not checked, Approve. Approve has no confirmation window. This needs an application that a Department Head endorsed, so open a semester first (section 3). End: the page reads Approved. Governance, Organizations, Active tab then shows the organization with one administrator: the applicant holds the position they asked for at once, and there is no separate step to create an administrator.
+1. Approve an organization application (5 clicks). Governance, Applications, Review on the row under To review, Accept all, Approve. Approve has no confirmation window. This needs an application that a Department Head endorsed, so open a semester first (section 3). End: the page reads Approved. Governance, Organizations, Active tab then shows the organization with one administrator: the applicant holds the position they asked for at once, and there is no separate step to create an administrator.
 2. Review compliance (5 clicks, the confirmation counted and kept on purpose). From the home page: Reviews, Compliance, the amber "N waiting" badge in the Awaiting review column (organizations with submissions waiting are listed first), open a submission, decide, confirm. End: the submission shows its new status.
 3. Decide a financial report (5 clicks, the confirmation counted and kept on purpose, also under Reviews, Compliance). Follow the amber "N waiting" badge for reports. End: the report shows Approved.
 4. See what needs attention (1 click). On the Dashboard the Review inbox counts the work waiting for the SAO and each row opens the list that holds it. Select the row with the highest count, or the filled button at the top. End: you land on that list without searching.
@@ -115,9 +115,9 @@ Menu names as the sidebar shows them today (from the menu configuration, in orde
 
 ### Department Head (940001)
 
-1. Endorse an organization application (4 clicks). Organization applications, Review on the row under To review, Accept all not checked, Endorse. Needs an active semester (section 3) and an application sent by a student the head allowed to apply. End: the message reads Endorsed. The SAO is next. and the page shows the status With the SAO.
+1. Endorse an organization application (4 clicks). Organization applications, Review on the row under To review, Accept all, Endorse. Needs an active semester (section 3) and an application sent by a student the head allowed to apply. End: the message reads Endorsed. The SAO is next. and the page shows the status With the SAO.
 2. Approve an item (4 clicks). Approvals, open an item, Approve, confirm. End: the item shows Approved and links to the event, budget or report.
-3. Review an application again after it was returned and sent again (4 clicks from home, the same path as journey 1; 3 only when your own stage had already accepted every file and the SAO returned none of them, so the student changed no file and every file starts as Accepted; if even one file is not carried as Accepted you still need Accept all not checked and it stays 4). End: the page shows the status With the SAO again.
+3. Review an application again after it was returned and sent again (4 clicks from home, the same path as journey 1; 3 only when your own stage had already accepted every file and the SAO returned none of them, so the student changed no file and every file starts as Accepted; if even one file is not carried as Accepted you still need Accept all and it stays 4). End: the page shows the status With the SAO again.
 4. Act from a notification (2 clicks). Click the bell, click a notification. End: you land on the exact item.
 
 ### Admin (900001)

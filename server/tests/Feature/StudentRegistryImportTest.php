@@ -9,6 +9,7 @@ use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class StudentRegistryImportTest extends TestCase
@@ -314,6 +315,24 @@ class StudentRegistryImportTest extends TestCase
         $this->assertSame('Ana', StudentRegistryEntry::where('school_id', 2600555)->value('first_name'));
     }
 
+    public function test_a_duplicate_that_lands_between_the_check_and_the_insert_is_refused_the_same_way(): void
+    {
+        // The second request of a race: the row appears after the existence check has passed, so only the unique index stops it.
+        StudentRegistryEntry::creating(function (StudentRegistryEntry $entry) {
+            DB::table('student_registry')->insert([
+                'school_id' => $entry->school_id, 'record_type' => StudentRegistryEntry::STUDENT, 'first_name' => 'Ana', 'last_name' => 'Cruz',
+                'birth_date' => '2007-01-02', 'college_id' => $this->cit->id, 'program' => 'BS IT', 'year_level' => '1st Year',
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        });
+
+        $this->actingAs($this->dean)->postJson('/api/students/registry', $this->record())
+            ->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That school ID is already in the records.');
+        $this->assertSame(1, StudentRegistryEntry::where('school_id', 2600555)->count());
+        $this->assertSame('Ana', StudentRegistryEntry::where('school_id', 2600555)->value('first_name'));
+        $this->assertDatabaseMissing('audit_logs', ['module' => 'student_registry', 'action' => 'created']);
+    }
+
     public function test_a_new_record_is_checked_like_an_import_row(): void
     {
         $bad = [
@@ -347,6 +366,7 @@ class StudentRegistryImportTest extends TestCase
         $staff = User::factory()->admin()->create(['organization_id' => $this->dean->organization_id]);
 
         $this->actingAs($staff)->postJson('/api/students/registry', $this->record())->assertCreated()->assertJsonPath('college.code', 'CIT');
+        $this->assertSame('ADMIN', AuditLog::where('module', 'student_registry')->where('action', 'created')->value('actor_role'));
         $this->actingAs($staff)->postJson('/api/students/registry', $this->record(['school_id' => 2600556, 'college_id' => $this->cbe->id]))->assertForbidden();
     }
 
