@@ -358,7 +358,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
     >
       <div className="space-y-5">
         {info.kind === 'lifecycle' && (
-          <div className="sticky top-0 z-10 -mx-5 -mt-4 bg-surface px-5 pb-3 pt-4">
+          <div className="sticky -top-4 z-10 -mx-5 -mt-4 border-b border-line bg-surface px-5 pb-3 pt-4">
             <FlowStepper variant="full" layout="wrap" steps={info.steps} ariaLabel={`${typeLabel} progress`} />
           </div>
         )}
