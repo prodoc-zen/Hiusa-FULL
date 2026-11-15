@@ -3797,6 +3797,7 @@ class AskAiService
             'rejected' => ['The Department Head sent the event back.', $you, 'your organization revises and resubmits the event'],
             'requirements_returned' => ['The SAO sent the event files back.', $you, 'your organization fixes the returned files'],
             'awaiting_requirements' => ['The required files are not all uploaded yet.', $you, 'your organization uploads the required files'],
+            'ready_for_sao' => ['The Department Head approved the event. It has not been sent to the SAO yet.', $you, 'your organization sends the event to the SAO'],
             default => ['The event has not been sent for approval yet.', $you, 'your organization sends the event for approval'],
         };
         $approval = $check('approval', 'Event approval', $stage === 'approved' ? 'Ready' : 'Not ready', $approvalDetail, $approvalOwner, $approvalMove, $eventsHref, 'Open event');

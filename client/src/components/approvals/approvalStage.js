@@ -14,7 +14,7 @@ export const ENTITY_LABEL = {
 // rebuild the fields each lifecycle function reads from the approval row and that summary, so a row
 // says the same thing the entity's own page says for the same data. Where the server summary has
 // the real field (pass-through below), it wins over what is derived from the approval row.
-const EVENT_EXTRAS = ['approval_stage', 'requirements_required', 'requirements_submitted', 'requires_budget', 'budgets', 'tasks_count', 'completed_tasks_count', 'present_count', 'financial_report'];
+const EVENT_EXTRAS = ['approval_stage', 'dean_approved_by', 'dean_approved_at', 'requirements_required', 'requirements_submitted', 'requires_budget', 'budgets', 'tasks_count', 'completed_tasks_count', 'present_count', 'financial_report'];
 
 function pick(source, keys) {
   return Object.fromEntries(keys.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
@@ -22,15 +22,14 @@ function pick(source, keys) {
 
 function eventRecord(request) {
   const summary = request.summary ?? {};
-  const files = Array.isArray(summary.requirement_files) ? summary.requirement_files.length : 0;
   const base = { id: request.entity_id, organization_id: request.organization_id, status: summary.status, approval_id: request.id, approval_remarks: request.remarks, ...pick(summary, EVENT_EXTRAS) };
 
-  // The Department Head approved but the event is still in planning: the SAO chain is next, or the
-  // organization still owes the SAO files.
+  // The Department Head approved but the event is still in planning: it is back with the organization
+  // to send to the SAO, unless the organization already did and the SAO holds it.
   if (summary.status === 'planning' && request.status === 'approved' && request.required_role === 'DEPARTMENT_HEAD') {
-    return files > 0
+    return summary.approval_stage === 'awaiting_sao'
       ? { ...base, approval_status: 'pending', approval_required_role: 'SUPER_ADMIN', requirements_required: true, requirements_submitted: true }
-      : { ...base, approval_status: null, requirements_required: true, requirements_submitted: false };
+      : { ...base, approval_status: null, approval_required_role: null, requirements_required: true, requirements_submitted: summary.requirements_submitted === true };
   }
 
   return { ...base, approval_status: request.status, approval_required_role: request.required_role };
@@ -141,8 +140,8 @@ export function waitingOnRole(request) {
   return request.status === 'pending' ? request.required_role : null;
 }
 
-// The sentence shown once a request is decided. For an event the Department Head approved while the
-// SAO still has to clear it, the sentence says so; it is the same sentence on a fresh load.
+// The sentence shown once a request is decided. For an event the Department Head approved, the
+// sentence says it is back with the organization to send to the SAO; it is the same sentence on a fresh load.
 export function decisionMessage(request) {
   if (request.status === 'pending') return null;
 
@@ -152,10 +151,11 @@ export function decisionMessage(request) {
   const headApprovedEvent = request.entity_type === 'event' && request.required_role === 'DEPARTMENT_HEAD' && summary.status === 'planning';
   if (!headApprovedEvent) return 'Approved';
 
-  const files = Array.isArray(summary.requirement_files) ? summary.requirement_files.length : 0;
-  return files > 0
-    ? 'Approved. Now with the SAO for requirements review'
-    : 'Approved. Waiting for the organization to submit the SAO event files';
+  if (summary.approval_stage === 'awaiting_sao') return 'Approved. Now with the SAO for requirements review';
+
+  return summary.requirements_required === true && summary.requirements_submitted !== true
+    ? 'Approved. Returned to the organization to upload the SAO event files and send them'
+    : 'Approved. Returned to the organization to send to the SAO';
 }
 
 const OPEN_LABEL = { event: 'Open event', budget: 'Open budget', election: 'Open election', financial_report: 'Open report' };

@@ -54,6 +54,7 @@ class ComplianceDocumentService
     /** [status, stage] per EventApprovalChain stage; any other stage is a filed event nobody is reviewing yet. */
     private const EVENT_STATE = [
         'awaiting_department_head' => ['under_review', 'department_head'],
+        'ready_for_sao' => ['submitted', null],
         'awaiting_sao' => ['under_review', 'sao'],
         'approved' => ['approved', null],
         'rejected' => ['returned', 'department_head'],

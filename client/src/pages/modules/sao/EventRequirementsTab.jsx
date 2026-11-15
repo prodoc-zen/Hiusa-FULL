@@ -7,6 +7,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
+import { deanApprovalLine } from '../../../components/events/eventStage';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark } from '../../../components/approvals/EventFilesReview';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
@@ -488,6 +489,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   <div className="min-w-0">
                     <h3 className="break-words text-sm font-semibold text-ink">{formatDisplayText(approval.title)}</h3>
                     <p className="mt-0.5 text-xs text-ink-muted">Event #{approval.entity_id} · {formatDisplayText(approval.requester?.first_name)} {formatDisplayText(approval.requester?.last_name)}</p>
+                    {deanApprovalLine(approval.summary) && <p className="mt-0.5 text-xs font-semibold text-success-strong">{deanApprovalLine(approval.summary)}</p>}
                   </div>
                   <TableRowActions subject={formatDisplayText(approval.title)} actions={[
                     { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => chooseEvent(selectedEventId === approval.entity_id ? null : approval.entity_id) },

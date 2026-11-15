@@ -14,11 +14,13 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
+use Tests\Concerns\FinishesEventApproval;
 use Tests\TestCase;
 
 class PlanningAheadWiringTest extends TestCase
 {
     use CreatesCollegeFixtures;
+    use FinishesEventApproval;
     use RefreshDatabase;
 
     private AcademicSemester $closed;
@@ -94,6 +96,7 @@ class PlanningAheadWiringTest extends TestCase
         $approvalId = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $id)->value('id');
         Sanctum::actingAs($this->dean);
         $this->patchJson("/api/approval-requests/{$approvalId}", ['status' => 'approved'])->assertOk();
+        $this->sendEventToSaoAndApprove($id, $this->admin);
 
         $this->assertSame('approved', Event::findOrFail($id)->status);
     }

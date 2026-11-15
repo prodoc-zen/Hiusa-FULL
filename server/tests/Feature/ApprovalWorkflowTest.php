@@ -10,11 +10,13 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
+use Tests\Concerns\FinishesEventApproval;
 use Tests\TestCase;
 
 class ApprovalWorkflowTest extends TestCase
 {
     use CreatesCollegeFixtures;
+    use FinishesEventApproval;
     use RefreshDatabase;
 
     /**
@@ -87,6 +89,9 @@ class ApprovalWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('status', 'approved');
 
+        $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'planning']);
+        $this->sendEventToSaoAndApprove($eventId, $admin);
+
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
         $notification = Notification::where('user_id', $admin->school_id)->latest('id')->firstOrFail();
         $this->assertSame('event', $notification->reference_type);
@@ -115,6 +120,10 @@ class ApprovalWorkflowTest extends TestCase
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs($departmentHead);
         $this->patchJson("/api/approval-requests/{$approvalId}", ['status' => 'approved'])->assertOk();
+        foreach ([$profileAdmin, $profileMember] as $person) {
+            $this->assertDatabaseMissing('notifications', ['user_id' => $person->school_id, 'notification_type' => 'event', 'reference_id' => $eventId]);
+        }
+        $this->sendEventToSaoAndApprove($eventId, $admin);
 
         foreach ([$profileAdmin, $profileMember] as $person) {
             $this->assertDatabaseHas('notifications', ['user_id' => $person->school_id, 'organization_id' => $organization->id, 'notification_type' => 'event', 'reference_id' => $eventId]);

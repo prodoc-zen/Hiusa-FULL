@@ -21,16 +21,34 @@ describe('describeApproval for events', () => {
     expect(info.stageText).toBe(page.nextAction.title);
   });
 
-  it('moves to the SAO once the head approved and the files are in', () => {
-    const info = describeApproval(event({ status: 'approved' }, { requirement_files: [{ id: 1, original_name: 'a.pdf' }] }), 'ADMIN');
+  it('is with the SAO only after the organization sent the event on', () => {
+    const summary = { approval_stage: 'awaiting_sao', requirement_files: [{ id: 1, original_name: 'a.pdf' }] };
+    const info = describeApproval(event({ status: 'approved' }, summary), 'ADMIN');
 
     expect(info.stageText).toBe('Waiting for SAO approval');
-    expect(decisionMessage(event({ status: 'approved' }, { requirement_files: [{ id: 1 }] }))).toBe('Approved. Now with the SAO for requirements review');
+    expect(decisionMessage(event({ status: 'approved' }, summary))).toBe('Approved. Now with the SAO for requirements review');
+  });
+
+  it('hands the event back to the organization to send when the head approved and the files are in', () => {
+    const summary = { approval_stage: 'ready_for_sao', requirements_required: true, requirements_submitted: true, requirement_files: [{ id: 1 }] };
+
+    expect(describeApproval(event({ status: 'approved' }, summary), 'ADMIN').stageText).toBe('Send the event to the SAO');
+    expect(describeApproval(event({ status: 'approved' }, summary), 'DEPARTMENT_HEAD').stageText).toBe('Waiting for the Admin to send it to the SAO');
+    expect(waitingOnRole(event({ status: 'approved' }, summary))).toBeNull();
+    expect(decisionMessage(event({ status: 'approved' }, summary))).toBe('Approved. Returned to the organization to send to the SAO');
+  });
+
+  it('hands the event back to the organization when the head approved an event that needs no files', () => {
+    const summary = { approval_stage: 'ready_for_sao', requirements_required: false, requirements_submitted: false };
+
+    expect(decisionMessage(event({ status: 'approved' }, summary))).toBe('Approved. Returned to the organization to send to the SAO');
   });
 
   it('asks the Admin for the SAO files when the head approved and none are in', () => {
-    expect(describeApproval(event({ status: 'approved' }), 'ADMIN').stageText).toBe('Submit the SAO event files');
-    expect(decisionMessage(event({ status: 'approved' }))).toBe('Approved. Waiting for the organization to submit the SAO event files');
+    const summary = { approval_stage: 'awaiting_requirements', requirements_required: true, requirements_submitted: false };
+
+    expect(describeApproval(event({ status: 'approved' }, summary), 'ADMIN').stageText).toBe('Submit the SAO event files');
+    expect(decisionMessage(event({ status: 'approved' }, summary))).toBe('Approved. Returned to the organization to upload the SAO event files and send them');
   });
 
   it('reads Returned when the SAO sent the event back', () => {
@@ -44,7 +62,7 @@ describe('describeApproval for events', () => {
   });
 
   it('gives the SAO an Open approval link that carries the organization and the event', () => {
-    const waiting = event({ status: 'approved', organization_id: 7, entity_id: 31 }, { requirement_files: [{ id: 1, original_name: 'a.pdf' }] });
+    const waiting = event({ status: 'approved', organization_id: 7, entity_id: 31 }, { approval_stage: 'awaiting_sao', requirement_files: [{ id: 1, original_name: 'a.pdf' }] });
     const info = describeApproval(waiting, 'SUPER_ADMIN');
 
     expect(info.lifecycle.nextAction.label).toBe('Open approval');
@@ -86,11 +104,12 @@ describe('waitingOnRole', () => {
     expect(waitingOnRole(request({ entity_type: 'announcement', status: 'approved' }))).toBeNull();
   });
 
-  it('moves a head-approved event to the SAO once its files are in', () => {
-    const approved = (files) => request({ entity_type: 'event', status: 'approved', summary: { status: 'planning', requirement_files: files } });
+  it('holds a head-approved event with the organization until it sends the event to the SAO', () => {
+    const approved = (stage) => request({ entity_type: 'event', status: 'approved', summary: { status: 'planning', approval_stage: stage, requirement_files: [{ id: 1 }] } });
 
-    expect(waitingOnRole(approved([{ id: 1 }]))).toBe('SUPER_ADMIN');
-    expect(waitingOnRole(approved([]))).toBeNull();
+    expect(waitingOnRole(approved('awaiting_sao'))).toBe('SUPER_ADMIN');
+    expect(waitingOnRole(approved('ready_for_sao'))).toBeNull();
+    expect(waitingOnRole(approved('awaiting_requirements'))).toBeNull();
   });
 });
 

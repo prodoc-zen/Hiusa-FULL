@@ -146,7 +146,7 @@ class DepartmentHeadCollegeScopeTest extends TestCase
             $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'approved'])->assertOk();
         }
         $this->assertSame('approved', $budget->fresh()->submission_status);
-        $this->assertSame('approved', $event->fresh()->status);
+        $this->assertSame('planning', $event->fresh()->status, 'the dean never finalizes an event, it goes on to the organization and then the SAO');
         $this->assertSame('pending_sao', $report->fresh()->submission_status);
         $this->assertSame('upcoming', $election->fresh()->status);
         $this->patchJson('/api/approval-requests/'.$foreign->id, ['status' => 'approved'])->assertNotFound();

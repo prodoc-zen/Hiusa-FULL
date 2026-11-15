@@ -29,10 +29,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\FinishesEventApproval;
 use Tests\TestCase;
 
 class UseCaseComplianceTest extends TestCase
 {
+    use FinishesEventApproval;
     use RefreshDatabase;
 
     public function test_closed_election_rejects_mutations_and_remains_tenant_scoped(): void
@@ -221,6 +223,9 @@ class UseCaseComplianceTest extends TestCase
         $this->patchJson("/api/approval-requests/{$approval->id}", [
             'status' => 'approved',
         ])->assertOk();
+
+        $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'planning']);
+        $this->sendEventToSaoAndApprove($eventId, $admin);
 
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
         $this->assertDatabaseHas('audit_logs', ['module' => 'approvals', 'action' => 'reviewed_approved']);
@@ -620,6 +625,7 @@ class UseCaseComplianceTest extends TestCase
         $approval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->firstOrFail();
         $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+        $this->sendEventToSaoAndApprove($eventId, $admin);
 
         $this->authenticate($admin);
         $this->putJson("/api/events/{$eventId}", ['location' => 'New Auditorium'])

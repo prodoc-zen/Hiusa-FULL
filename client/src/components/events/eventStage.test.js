@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { eventFlow, stageText } from './eventStage';
+import { deanApprovalLine, eventFlow, stageText } from './eventStage';
 
 const base = { id: 7, status: 'planning', requires_budget: false, budgets: [], tasks_count: 0, completed_tasks_count: 0, requirements_required: false, requirements_submitted: false, approval_id: 3, approval_status: null, approval_required_role: null, approval_remarks: null };
 const states = (flow) => Object.fromEntries(flow.steps.map((step) => [step.key, step.state]));
@@ -48,6 +48,33 @@ describe('eventFlow', () => {
     expect(flow.action).toBeNull();
   });
 
+  it('ready_for_sao: the head step is done and the Admin sends the event to the SAO', () => {
+    const event = { ...base, approval_stage: 'ready_for_sao', approval_status: 'approved', requirements_required: true, requirements_submitted: true };
+    const forAdmin = eventFlow(event, 'ADMIN', { done: 3, total: 3 });
+    expect(states(forAdmin)).toMatchObject({ proposal: 'done', approval: 'done', requirements: 'current' });
+    expect(forAdmin.steps[2]).toMatchObject({ label: 'SAO files', note: 'Ready to send' });
+    expect(forAdmin.nextAction).toMatchObject({ tone: 'action', title: 'Send the event to the SAO' });
+    expect(forAdmin.nextAction.body).toContain('send it to the SAO');
+    expect(forAdmin.nextAction.body).toContain('3 of 3 files uploaded.');
+    expect(forAdmin.action).toBeNull();
+
+    const forOfficer = eventFlow(event, 'SBO_OFFICER');
+    expect(forOfficer.nextAction).toMatchObject({ tone: 'waiting', title: 'Waiting for the Admin to send it to the SAO' });
+  });
+
+  it('ready_for_sao without files: the SAO step still stands for the send and the review', () => {
+    const flow = eventFlow({ ...base, approval_stage: 'ready_for_sao', approval_status: 'approved', requirements_required: false }, 'ADMIN');
+    expect(states(flow)).toMatchObject({ proposal: 'done', approval: 'done', requirements: 'current' });
+    expect(flow.steps[2].label).toBe('SAO approval');
+    expect(flow.nextAction.title).toBe('Send the event to the SAO');
+  });
+
+  it('awaiting_sao without files: the head step is done and the SAO step is current', () => {
+    const flow = eventFlow({ ...base, approval_stage: 'awaiting_sao', approval_status: 'pending', approval_required_role: 'SUPER_ADMIN', requirements_required: false }, 'ADMIN');
+    expect(states(flow)).toMatchObject({ approval: 'done', requirements: 'current' });
+    expect(flow.steps[2]).toMatchObject({ label: 'SAO approval', note: 'Waiting for SAO' });
+  });
+
   it('awaiting_sao: the SAO owns it, as a waiting step with no action', () => {
     const flow = eventFlow({ ...base, approval_stage: 'awaiting_sao', approval_status: 'pending', approval_required_role: 'SUPER_ADMIN', requirements_required: true, requirements_submitted: true }, 'ADMIN', { done: 3, total: 3 });
     expect(states(flow)).toMatchObject({ approval: 'done', requirements: 'current' });
@@ -89,7 +116,14 @@ describe('eventFlow', () => {
 
   it('names a text for every stage that has one', () => {
     expect(stageText({ approval_stage: 'awaiting_requirements' })).toBe('SAO files needed');
+    expect(stageText({ approval_stage: 'ready_for_sao' })).toBe('Ready to send to SAO');
     expect(stageText({ approval_stage: 'approved' })).toBe('Approved');
     expect(stageText({})).toBeNull();
+  });
+
+  it('words the Department Head verification line, and says nothing before the approval', () => {
+    expect(deanApprovalLine({ dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' })).toBe('Approved by the Department Head: Maria Cruz, Nov 10, 2026, 10:30 AM');
+    expect(deanApprovalLine({ dean_approved_by: null, dean_approved_at: null })).toBeNull();
+    expect(deanApprovalLine(undefined)).toBeNull();
   });
 });

@@ -16,10 +16,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\FinishesEventApproval;
 use Tests\TestCase;
 
 class EventPlanningWorkflowTest extends TestCase
 {
+    use FinishesEventApproval;
     use RefreshDatabase;
 
     public function test_admin_reviews_structured_workflow_before_tasks_are_created_and_assigned(): void
@@ -337,6 +339,7 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertSame(config('approvals.routes.budget'), $budgetApproval->required_role);
         $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
         $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'submission_status' => 'approved', 'department_head_approved_by' => $departmentHead->school_id]);
+        $this->sendEventToSaoAndApprove($event->id, $admin);
         $event->refresh();
 
         Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode($this->workflowPayload($event))])]);

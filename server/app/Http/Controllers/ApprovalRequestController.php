@@ -570,11 +570,8 @@ class ApprovalRequestController extends Controller
             if ($this->eventChain->headRow($event)?->status === 'pending') {
                 throw new DomainException(self::HEAD_FIRST_MESSAGE);
             }
-        } elseif ($this->eventChain->requiresRequirements($event)) {
-            if ($this->eventChain->requirementsSubmitted($event)) {
-                $this->eventChain->openSaoReview($event, $approval->requested_by);
-            }
-
+        } else {
+            // The Department Head's approval is never final and never forwards: the organization's Admin sends the event on.
             return;
         }
 
@@ -726,6 +723,8 @@ class ApprovalRequestController extends Controller
             'approval_stage' => $described[$event->id]['approval_stage'],
             'requirements_required' => $described[$event->id]['requirements_required'],
             'requirements_submitted' => $described[$event->id]['requirements_submitted'],
+            'dean_approved_by' => $described[$event->id]['dean_approved_by'],
+            'dean_approved_at' => $described[$event->id]['dean_approved_at'],
             'budgets' => $budgets->get($event->id, collect())->map(fn (Budget $budget) => ['id' => $budget->id, 'submission_status' => $budget->submission_status])->all(),
             'requirement_files' => $files->get($event->id, collect())->map(fn ($file) => [
                 'id' => $file->id,
@@ -922,9 +921,9 @@ class ApprovalRequestController extends Controller
         }
         $event = $approval->entity_type === 'event' && $status === 'approved' ? Event::find($approval->entity_id) : null;
         if ($event && ! $event->approved_at) {
-            $message = 'Event "'.$label.'" was approved by the Department Head. '.($this->eventChain->saoRow($event)
-                ? 'It is now with the Student Affairs Office.'
-                : 'Upload the SAO event files to continue.');
+            $message = 'Event "'.$label.'" was approved by the Department Head. '.($this->eventChain->requiresRequirements($event) && ! $this->eventChain->requirementsSubmitted($event)
+                ? 'Upload the SAO event files, then send the event to the Student Affairs Office.'
+                : 'Send it to the Student Affairs Office to continue.');
         }
         Notification::create([
             'organization_id' => $approval->organization_id,
