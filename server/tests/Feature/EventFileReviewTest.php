@@ -414,6 +414,7 @@ class EventFileReviewTest extends TestCase
 
         $this->assertDatabaseCount('event_requirement_file_reviews', 0);
     }
+
     private function markFiles(User $reviewer, ApprovalRequest $approval, array $files)
     {
         Sanctum::actingAs($reviewer);
