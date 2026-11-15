@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Ai\ClaudeMessagesService;
 use App\Services\Ai\Evaluation\GroundingCheck;
 use App\Services\Ai\Evaluation\RecordingTextGenerator;
+use App\Services\Ai\Evaluation\TemplateOnlyTextGenerator;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
@@ -28,16 +29,38 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * It never touches a configured database: it replaces the connection with SQLite in memory before it
  * migrates, and refuses to run in production.
+ *
+ * With --heldout it instead runs one feature over a file of held-out cases through that feature's runner
+ * (HELDOUT_RUNNERS) and writes what was sent, what came back and the automatic checks for every case.
+ * With --engine=template both providers are replaced by nothing, so every feature answers from its PHP template
+ * and no API key is needed.
  */
 class AiLiveEval extends Command
 {
     protected $signature = 'ai:live-eval
         {--feature=* : Run only these features (announcement, budget_advice, event_plan, workflow_explanations, forecast_summary, report_summary, task_note, ask_ai)}
-        {--out= : Folder for the eval-<feature>.json files (default storage/app/ai-live-eval)}';
+        {--out= : Folder for the eval-<feature>.json files (default storage/app/ai-live-eval)}
+        {--heldout= : Path to a held-out .json case file; runs the runner registered for the file feature over its cases instead of the eight features}
+        {--split= : dev or test, the split the --heldout file belongs to (taken from a .dev.json or .test.json name when left out)}
+        {--engine=claude : claude (needs ANTHROPIC_API_KEY) or template (no model, every feature answers from its PHP template)}';
 
     protected $description = 'Run every Claude-backed feature once on invented demo data and check the numbers in each answer against its input (needs ANTHROPIC_API_KEY, never production).';
 
     private const FEATURES = ['announcement', 'budget_advice', 'event_plan', 'workflow_explanations', 'forecast_summary', 'report_summary', 'task_note', 'ask_ai'];
+
+    private const SPLITS = ['dev', 'test'];
+
+    private const ENGINES = ['claude', 'template'];
+
+    /**
+     * Held-out runners: case-file feature key -> name of the method here that runs one case. A runner takes the
+     * case array and returns ['facts' => what was sent, 'text' => what came back, 'engine' => claude|groq|template,
+     * 'checks' => [check name => bool]]. The slices that own a feature add its line and its method.
+     *
+     * @var array<string, string>
+     */
+    protected const HELDOUT_RUNNERS = [
+    ];
 
     private RecordingTextGenerator $recorder;
 
@@ -56,8 +79,24 @@ class AiLiveEval extends Command
 
             return self::FAILURE;
         }
-        if (trim((string) config('services.anthropic.key')) === '') {
+
+        $engine = (string) $this->option('engine');
+        if (! in_array($engine, self::ENGINES, true)) {
+            $this->error('Unknown engine: '.$engine.'. Use claude or template.');
+
+            return self::FAILURE;
+        }
+        if ($engine === 'claude' && trim((string) config('services.anthropic.key')) === '') {
             $this->error('ANTHROPIC_API_KEY is not set in the environment.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('heldout') !== null) {
+            return $this->handleHeldout($engine);
+        }
+        if ($this->option('split') !== null) {
+            $this->error('--split only goes with --heldout.');
 
             return self::FAILURE;
         }
@@ -78,10 +117,8 @@ class AiLiveEval extends Command
         }
 
         $this->isolate();
+        $this->useEngine($engine);
         $this->seed();
-
-        $this->recorder = new RecordingTextGenerator($this->laravel->make(ClaudeMessagesService::class));
-        $this->laravel->instance(TextGenerator::class, $this->recorder);
 
         $rows = [];
         foreach ($selected as $feature) {
@@ -93,6 +130,179 @@ class AiLiveEval extends Command
         ], $rows));
 
         return self::SUCCESS;
+    }
+
+    /** Held-out run: load and check the case file first, so a bad file costs no migration, then run every case. */
+    private function handleHeldout(string $engine): int
+    {
+        if ($this->option('feature')) {
+            $this->error('Use either --feature or --heldout, not both.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $loaded = $this->loadHeldout((string) $this->option('heldout'), $this->option('split') === null ? null : (string) $this->option('split'));
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $out = rtrim((string) ($this->option('out') ?: storage_path('app/ai-live-eval')), '/\\');
+        if (! is_dir($out) && ! mkdir($out, 0777, true) && ! is_dir($out)) {
+            $this->error("Cannot create {$out}.");
+
+            return self::FAILURE;
+        }
+
+        $this->isolate();
+        $this->useEngine($engine);
+        $this->seed();
+
+        $method = static::HELDOUT_RUNNERS[$loaded['feature']];
+        $cases = [];
+        foreach ($loaded['cases'] as $case) {
+            $cases[] = $this->runHeldoutCase($method, $case);
+        }
+
+        $summary = $this->summarise($cases);
+        file_put_contents("{$out}/heldout-{$loaded['feature']}-{$loaded['split']}.json", json_encode([
+            'feature' => $loaded['feature'],
+            'split' => $loaded['split'],
+            'engine_requested' => $engine,
+            'summary' => $summary,
+            'cases' => $cases,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        $this->line(sprintf(
+            '%s %s: %d cases, %d passed all checks (%s%%); %s',
+            $loaded['feature'], $loaded['split'], $summary['cases'], $summary['passed_all'], $summary['pass_rate'],
+            $summary['checks'] === [] ? 'no checks recorded' : implode(', ', array_map(fn (string $name, array $tally) => "{$name} {$tally['passed']}/{$tally['of']}", array_keys($summary['checks']), $summary['checks'])),
+        ));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Reads a held-out case file and proves it can be run: a JSON object with a feature that has a runner, and a
+     * non-empty list of cases each carrying its own unique id. The split comes from --split or from a .dev.json or
+     * .test.json file name; naming one and handing over the other is refused so a test set is never run as dev.
+     *
+     * @return array{feature: string, split: string, cases: list<array<string, mixed>>}
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function loadHeldout(string $path, ?string $split): array
+    {
+        if ($split !== null && ! in_array($split, self::SPLITS, true)) {
+            throw new \InvalidArgumentException('--split must be dev or test.');
+        }
+        $named = preg_match('/\.(dev|test)\.json$/i', $path, $m) === 1 ? strtolower($m[1]) : null;
+        if ($split !== null && $named !== null && $split !== $named) {
+            throw new \InvalidArgumentException("The file is a {$named} set but --split={$split} was given.");
+        }
+        $split ??= $named;
+        if ($split === null) {
+            throw new \InvalidArgumentException('Pass --split=dev or --split=test, or name the file <name>.dev.json or <name>.test.json.');
+        }
+        if (! is_file($path) || ! is_readable($path)) {
+            throw new \InvalidArgumentException("Cannot read the case file {$path}.");
+        }
+        if (filesize($path) > 5_000_000) {
+            throw new \InvalidArgumentException('The case file is over 5 MB.');
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+        if (! is_array($decoded) || array_is_list($decoded)) {
+            throw new \InvalidArgumentException('The case file is not a JSON object.');
+        }
+        $feature = $decoded['feature'] ?? null;
+        if (! is_string($feature) || $feature === '') {
+            throw new \InvalidArgumentException('The case file has no "feature".');
+        }
+        $cases = $decoded['cases'] ?? null;
+        if (! is_array($cases) || $cases === [] || ! array_is_list($cases)) {
+            throw new \InvalidArgumentException('The case file has no "cases" list.');
+        }
+        $ids = [];
+        foreach ($cases as $index => $case) {
+            $id = is_array($case) ? ($case['id'] ?? null) : null;
+            if (! is_string($id) || $id === '') {
+                throw new \InvalidArgumentException('Case number '.($index + 1).' has no "id".');
+            }
+            if (isset($ids[$id])) {
+                throw new \InvalidArgumentException("The case id {$id} appears twice.");
+            }
+            $ids[$id] = true;
+        }
+
+        $method = static::HELDOUT_RUNNERS[$feature] ?? null;
+        if ($method === null || ! method_exists($this, $method)) {
+            throw new \InvalidArgumentException("No held-out runner is registered for the feature {$feature}.");
+        }
+
+        return ['feature' => $feature, 'split' => $split, 'cases' => $cases];
+    }
+
+    /**
+     * Runs one case and returns the record kept for it. A runner that throws fails its case; it never stops the run.
+     *
+     * @param  array<string, mixed>  $case
+     * @return array<string, mixed>
+     */
+    private function runHeldoutCase(string $method, array $case): array
+    {
+        $record = ['id' => $case['id'], 'facts' => null, 'text' => null, 'engine' => null, 'checks' => [], 'error' => null];
+        try {
+            $result = $this->{$method}($case);
+            $record['facts'] = $result['facts'] ?? null;
+            $record['text'] = $result['text'] ?? null;
+            $record['engine'] = $result['engine'] ?? null;
+            $record['checks'] = array_map(fn ($passed) => (bool) $passed, (array) ($result['checks'] ?? []));
+        } catch (\Throwable $e) {
+            $record['error'] = get_class($e).': '.$e->getMessage();
+        }
+        $record['passed'] = $record['error'] === null && $record['checks'] !== [] && ! in_array(false, $record['checks'], true);
+
+        return $record;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $cases
+     * @return array{cases: int, passed_all: int, pass_rate: float, checks: array<string, array{passed: int, of: int}>}
+     */
+    private function summarise(array $cases): array
+    {
+        $checks = [];
+        foreach ($cases as $case) {
+            foreach ($case['checks'] as $name => $passed) {
+                $checks[$name] ??= ['passed' => 0, 'of' => 0];
+                $checks[$name]['of']++;
+                $checks[$name]['passed'] += $passed ? 1 : 0;
+            }
+        }
+        $passedAll = count(array_filter($cases, fn (array $case) => $case['passed']));
+
+        return [
+            'cases' => count($cases),
+            'passed_all' => $passedAll,
+            'pass_rate' => $cases === [] ? 0.0 : round($passedAll / count($cases) * 100, 1),
+            'checks' => $checks,
+        ];
+    }
+
+    /** Puts the chosen engine behind the TextGenerator contract; template leaves no key for any provider. */
+    private function useEngine(string $engine): void
+    {
+        if ($engine === 'template') {
+            Config::set('services.anthropic.key', '');
+            Config::set('services.groq.key', '');
+            $this->recorder = new RecordingTextGenerator(new TemplateOnlyTextGenerator);
+        } else {
+            $this->recorder = new RecordingTextGenerator($this->laravel->make(ClaudeMessagesService::class));
+        }
+        $this->laravel->instance(TextGenerator::class, $this->recorder);
     }
 
     /** Swap whatever database is configured for an empty in-memory SQLite one, then prove the swap held. */
