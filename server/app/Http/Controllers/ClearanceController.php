@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\ClearancePeriod;
@@ -12,6 +13,7 @@ use App\Support\FilterValues;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ClearanceController extends Controller
 {
@@ -39,6 +41,9 @@ class ClearanceController extends Controller
             'deadline_at' => ['nullable', 'date'],
         ]);
         $requiredRoles = array_values(array_unique($data['required_roles']));
+        if (AcademicYear::whereNotNull('archived_at')->where('label', $data['academic_year'])->exists()) {
+            throw ValidationException::withMessages(['academic_year' => ["{$data['academic_year']} is archived, so it cannot take a new clearance period."]]);
+        }
 
         $period = DB::transaction(function () use ($data, $requiredRoles, $request) {
             $period = ClearancePeriod::create([

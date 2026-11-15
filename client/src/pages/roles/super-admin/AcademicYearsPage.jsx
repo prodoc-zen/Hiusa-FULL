@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Archive, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button, Card, DataTable, EmptyState, Field, Input, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -9,7 +9,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates, updateAcademicYear } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
 const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
@@ -174,6 +174,12 @@ export default function AcademicYearsPage() {
   const [datesForm, setDatesForm] = useState({ starts_on: '', ends_on: '' });
   const [semesterChangeError, setSemesterChangeError] = useState('');
   const [semesterChangeElections, setSemesterChangeElections] = useState([]);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveError, setArchiveError] = useState('');
+  const [archiveElections, setArchiveElections] = useState([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+  const [restoreError, setRestoreError] = useState({ id: null, message: '' });
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -187,8 +193,11 @@ export default function AcademicYearsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const current = years.items.find((year) => year.is_current);
-  const wayBack = wayBackLine(years.items);
+  // An archived year is put away: the calendar, the semesters and every rule on this page see only the live years.
+  const liveYears = years.items.filter((year) => !year.archived_at);
+  const archivedYears = years.items.filter((year) => year.archived_at).sort((left, right) => String(right.starts_on).localeCompare(String(left.starts_on)));
+  const current = liveYears.find((year) => year.is_current);
+  const wayBack = wayBackLine(liveYears);
 
   function openModal(year = null) {
     setFieldErrors({});
@@ -263,6 +272,43 @@ export default function AcademicYearsPage() {
       notify.error(getApiErrorMessage(cause, 'The academic year could not be closed.'));
     } finally {
       setBusy(false);
+    }
+  }
+
+  function openArchive(year) {
+    setArchiveError('');
+    setArchiveElections([]);
+    setArchiveTarget(year);
+  }
+
+  async function confirmArchive() {
+    setBusy(true);
+    setArchiveError('');
+    setArchiveElections([]);
+    try {
+      await archiveAcademicYear(archiveTarget.id);
+      notify.success(`AY ${archiveTarget.label} archived`, { description: 'It is read only now and has left the current views. Restore it from Archived years.' });
+      setArchiveTarget(null);
+      await load();
+    } catch (cause) {
+      setArchiveError(getApiErrorMessage(cause, 'The academic year was not archived.'));
+      setArchiveElections(cause?.response?.data?.elections || []);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreYear(year) {
+    setRestoringId(year.id);
+    setRestoreError({ id: null, message: '' });
+    try {
+      await restoreAcademicYear(year.id);
+      notify.success(`AY ${year.label} restored`, { description: 'It is a past year again. It is not current, and no semester was reopened.' });
+      await load();
+    } catch (cause) {
+      setRestoreError({ id: year.id, message: getApiErrorMessage(cause, 'The academic year was not restored.') });
+    } finally {
+      setRestoringId(null);
     }
   }
 
@@ -342,7 +388,7 @@ export default function AcademicYearsPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <PageHeader primary={years.items.length > 0 && <Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>} />
+      <PageHeader primary={liveYears.length > 0 && <Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>} />
 
       {current && (
         <section aria-label="Current academic year">
@@ -362,7 +408,7 @@ export default function AcademicYearsPage() {
         </section>
       )}
 
-      {!years.loading && !years.error && years.items.length > 0 && !current && (
+      {!years.loading && !years.error && liveYears.length > 0 && !current && (
         <p role="status" className="text-sm text-ink-muted">No academic year is current. Choose Make current on a year in the calendar, or add one.</p>
       )}
 
@@ -370,7 +416,7 @@ export default function AcademicYearsPage() {
         <DataTable
           caption="Academic years"
           columns={columns}
-          rows={years.items}
+          rows={liveYears}
           loading={years.loading}
           error={years.error}
           onRetry={load}
@@ -380,6 +426,7 @@ export default function AcademicYearsPage() {
               !year.is_current && !year.closed_at && { label: 'Make current', onClick: () => setCurrentTarget(year) },
               year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && { label: 'Close year', onClick: () => setCloseYearTarget(year) },
               { label: 'Edit', onClick: () => openModal(year) },
+              { label: 'Archive year', icon: Archive, danger: true, onClick: () => openArchive(year) },
               year.can_be_removed && { label: `Remove ${year.label}`, icon: Trash2, danger: true, onClick: () => { setYearDeleteError(''); setDeleteTarget(year); } },
             ]} />
           )}
@@ -393,11 +440,11 @@ export default function AcademicYearsPage() {
           )}
         />
 
-        {years.items.length > 0 && (
+        {liveYears.length > 0 && (
           <div className="mt-6 border-t border-line pt-5">
             <h2 className="text-base font-semibold text-ink">Semesters</h2>
             <p className="mt-1 text-sm text-ink-muted">Activating a semester completes the one that is active.</p>
-            {years.items.map((year) => <div key={year.id} className="mt-4 first:mt-3">
+            {liveYears.map((year) => <div key={year.id} className="mt-4 first:mt-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-ink">AY {year.label}</h3>
                 {(year.semesters || []).length < 2 && (
@@ -421,7 +468,7 @@ export default function AcademicYearsPage() {
               </div>
               {!year.can_be_removed && year.removal_blocker && <p className="mt-0.5 text-xs text-ink-muted">{year.removal_blocker}</p>}
               <div className="mt-1 divide-y divide-line-soft">{(year.semesters || []).map((semester) => {
-                const blocker = semester.status === 'completed' ? reopenBlocker(years.items) : (semester.status === 'active' ? '' : activateBlocker(semester, year, years.items));
+                const blocker = semester.status === 'completed' ? reopenBlocker(liveYears) : (semester.status === 'active' ? '' : activateBlocker(semester, year, liveYears));
                 const datesBeside = semester.status === 'upcoming' && !year.closed_at && !hasStarted(semester);
                 return <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-ink">{semester.number === 1 ? '1st' : '2nd'} semester</span><span className="text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span></div>
@@ -511,6 +558,60 @@ export default function AcademicYearsPage() {
         )}
       </Card>
 
+      <section aria-labelledby="archived-years-heading">
+        <h2 id="archived-years-heading" className="text-base font-semibold text-ink">
+          <button
+            type="button"
+            aria-expanded={archivedOpen}
+            aria-controls="archived-years-panel"
+            onClick={() => setArchivedOpen((open) => !open)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-control text-left transition-colors duration-150 hover:text-brand-700"
+          >
+            <ChevronDown size={16} aria-hidden="true" className={`transition-transform duration-150 ${archivedOpen ? '' : '-rotate-90'}`} />
+            {`Archived years${!years.loading && !years.error ? ` (${archivedYears.length})` : ''}`}
+          </button>
+        </h2>
+        {archivedOpen && (
+          <div id="archived-years-panel" className="mt-2">
+            {years.loading && <p role="status" className="text-sm text-ink-muted">Loading archived years...</p>}
+            {!years.loading && years.error && (
+              <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-danger-strong">
+                <span>Archived years could not load.</span>
+                <Button size="sm" variant="secondary" onClick={load}>Retry</Button>
+              </div>
+            )}
+            {!years.loading && !years.error && archivedYears.length === 0 && (
+              <p className="text-sm text-ink-muted">No archived years. Archive a year from the calendar when the SAO starts a new setup.</p>
+            )}
+            {!years.loading && !years.error && archivedYears.length > 0 && (
+              <ul className="divide-y divide-line-soft border-y border-line-soft">
+                {archivedYears.map((year) => (
+                  <li key={year.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="text-sm font-medium text-ink">{`AY ${year.label}`}</span>
+                      <span className="text-xs text-ink-muted">{`${manilaDate(year.starts_on, 'long')} to ${manilaDate(year.ends_on, 'long')}`}</span>
+                      <StatusBadge tone="neutral" label="Archived" />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Restore AY ${year.label}`}
+                      aria-describedby={restoreError.id === year.id ? `restore-error-${year.id}` : undefined}
+                      loading={restoringId === year.id}
+                      disabled={restoringId !== null}
+                      onClick={() => restoreYear(year)}
+                    >
+                      Restore
+                    </Button>
+                    {restoreError.id === year.id && <p id={`restore-error-${year.id}`} role="alert" className="basis-full text-sm font-semibold text-danger-strong">{restoreError.message}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+
       <Modal open={Boolean(semesterYear)} title={`Add semester to AY ${semesterYear?.label || ''}`} onClose={busy ? undefined : () => setSemesterYear(null)} maxWidth="max-w-lg" footer={<><Button variant="secondary" disabled={busy} onClick={() => setSemesterYear(null)}>Cancel</Button><Button loading={busy} disabled={!semesterForm.starts_on || !semesterForm.ends_on} onClick={saveSemester}>Add semester</Button></>}>
         <div className="space-y-4">
           <Field label="Semester" required error={semesterErrors.number?.[0]}><Select value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))}><option value="1">1st semester</option><option value="2">2nd semester</option></Select></Field>
@@ -558,11 +659,11 @@ export default function AcademicYearsPage() {
         </div>
       </Modal>
 
-      {currentTarget && makeCurrentBlocker(currentTarget, years.items) ? (
+      {currentTarget && makeCurrentBlocker(currentTarget, liveYears) ? (
         <Modal
           open
           title="Make this the current year"
-          description={makeCurrentMessage(currentTarget, years.items)}
+          description={makeCurrentMessage(currentTarget, liveYears)}
           onClose={busy ? undefined : () => setCurrentTarget(null)}
           closeOnBackdrop={false}
           maxWidth="max-w-md"
@@ -579,7 +680,7 @@ export default function AcademicYearsPage() {
         <ConfirmModal
           open={Boolean(currentTarget)}
           title="Make this the current year"
-          message={currentTarget ? makeCurrentMessage(currentTarget, years.items) : undefined}
+          message={currentTarget ? makeCurrentMessage(currentTarget, liveYears) : undefined}
           recordName={currentTarget?.label}
           confirmText="Make current"
           variant="primary"
@@ -588,6 +689,18 @@ export default function AcademicYearsPage() {
           onConfirm={confirmCurrent}
         />
       )}
+      <ConfirmModal
+        open={Boolean(archiveTarget)}
+        title="Archive academic year"
+        message={archiveTarget ? `AY ${archiveTarget.label} and everything filed under it become read only and leave the current views. Nothing is deleted. An active semester in this year is closed, and its records are kept. You can restore the year later from Archived years.` : undefined}
+        recordName={archiveTarget?.label}
+        confirmationText={archiveTarget?.label}
+        confirmText="Archive year"
+        busy={busy}
+        error={archiveError && <ElectionRefusal message={archiveError} elections={archiveElections} />}
+        onCancel={() => !busy && setArchiveTarget(null)}
+        onConfirm={confirmArchive}
+      />
       <ConfirmModal
         open={Boolean(closeYearTarget)}
         title="Complete academic year"
@@ -602,7 +715,7 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(semesterChange)}
         title={SEMESTER_CHANGE_TITLES[semesterChange?.action]}
-        message={semesterChange ? semesterChangeMessage(semesterChange, years.items) : undefined}
+        message={semesterChange ? semesterChangeMessage(semesterChange, liveYears) : undefined}
         recordName={semesterChange ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}
         confirmText={SEMESTER_CHANGE_TITLES[semesterChange?.action]}
         confirmationText={semesterChange?.action === 'close' ? semesterLabel(semesterChange.semester, semesterChange.yearLabel) : undefined}

@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import { manilaDate } from '../../../lib/format';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
+import notify from '../../../lib/notify';
+import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -20,6 +21,8 @@ vi.mock('../../../services/systemAdministrationService', () => ({
   updateAcademicSemesterDates: vi.fn(),
   deleteAcademicYear: vi.fn(),
   deleteAcademicSemester: vi.fn(),
+  archiveAcademicYear: vi.fn(),
+  restoreAcademicYear: vi.fn(),
 }));
 vi.mock('../../../services/clearanceService', () => ({ createClearancePeriod: vi.fn() }));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
@@ -694,6 +697,145 @@ describe('AcademicYearsPage', () => {
       await screen.findByText('2027-2028 is the current year');
       expect(screen.queryByText(/To go back/)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('archiving a school year', () => {
+  const live = { id: 2, label: '2026-2027', starts_on: '2026-08-01', ends_on: '2027-05-31', is_current: true, archived_at: null, can_be_removed: false, removal_blocker: null, semesters: [{ id: 21, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' }, { id: 22, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' }] };
+  const archivedYear = { id: 1, label: '2025-2026', starts_on: '2025-08-01', ends_on: '2026-05-31', is_current: false, archived_at: '2026-11-15T10:00:00Z', can_be_removed: false, removal_blocker: '2025-2026 is archived. Restore it first if it should change.', semesters: [{ id: 11, number: 1, status: 'completed', starts_on: '2025-08-01', ends_on: '2025-12-15' }, { id: 12, number: 2, status: 'completed', starts_on: '2026-01-05', ends_on: '2026-05-31' }] };
+  const olderArchived = { ...archivedYear, id: 0, label: '2024-2025', starts_on: '2024-08-01', ends_on: '2025-05-31' };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('asks the SAO to type the year before it archives, and says what happens to the year and its records', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValueOnce([live]).mockResolvedValueOnce([{ ...live, is_current: false, archived_at: '2026-11-15T10:00:00Z' }]);
+    vi.mocked(archiveAcademicYear).mockResolvedValue({});
+    renderPage();
+
+    fireEvent.click(await findRowAction('Archive year', '2026-2027'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive academic year' });
+    expect(within(dialog).getByText(/become read only and leave the current views/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Nothing is deleted/)).toBeInTheDocument();
+    expect(within(dialog).getByText('2026-2027', { selector: 'p' })).toBeInTheDocument();
+    const confirm = within(dialog).getByRole('button', { name: 'Archive year' });
+    expect(confirm).toBeDisabled();
+    expect(confirm.className).toMatch(/bg-danger/);
+
+    fireEvent.change(within(dialog).getByLabelText(/Type 2026-2027 to confirm/), { target: { value: '2025-2026' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(archiveAcademicYear).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByLabelText(/Type 2026-2027 to confirm/), { target: { value: '2026-2027' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(archiveAcademicYear).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Archive academic year' })).not.toBeInTheDocument());
+    expect(notify.success).toHaveBeenCalledWith('AY 2026-2027 archived', expect.anything());
+    expect(getAcademicYears).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText('No academic year set')).toBeInTheDocument();
+  });
+
+  it('keeps the dialog open and names each election when the server refuses because one is still open', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([live]);
+    vi.mocked(archiveAcademicYear).mockRejectedValue({ response: { status: 422, data: {
+      message: '2026-2027 still has an election that is upcoming or open: Officer Election (Cold Computing Society).',
+      elections: [{ id: 5, title: 'Officer Election', status: 'active', organization_id: 9, organization_name: 'Cold Computing Society' }],
+    } } });
+    renderPage();
+
+    fireEvent.click(await findRowAction('Archive year', '2026-2027'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive academic year' });
+    fireEvent.change(within(dialog).getByLabelText(/Type 2026-2027 to confirm/), { target: { value: '2026-2027' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive year' }));
+
+    expect(await within(dialog).findByText(/Open now: Officer Election,/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Cold Computing Society' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/9');
+    expect(screen.getByRole('dialog', { name: 'Archive academic year' })).toBeInTheDocument();
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(getAcademicYears).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists archived years newest first under a collapsed Archived years section, out of the calendar and the semesters', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([live, olderArchived, archivedYear]);
+    renderPage();
+
+    const toggle = await screen.findByRole('button', { name: 'Archived years (2)' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('AY 2025-2026')).not.toBeInTheDocument();
+    // The archived years never reach the calendar or the semester list.
+    expect(screen.queryByRole('button', { name: 'Actions for 2025-2026' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reopen .* of AY 2025-2026/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Activate .* of AY 2025-2026/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('AY 2025-2026', { selector: 'h3' })).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById('archived-years-panel');
+    expect(within(panel).getAllByText(/^AY 20/).map((node) => node.textContent)).toEqual(['AY 2025-2026', 'AY 2024-2025']);
+    expect(within(panel).getAllByText('Archived')).toHaveLength(2);
+    expect(within(panel).getByRole('button', { name: 'Restore AY 2025-2026' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Restore AY 2024-2025' })).toBeInTheDocument();
+  });
+
+  it('restores an archived year and reloads the calendar', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValueOnce([live, archivedYear]).mockResolvedValueOnce([live, { ...archivedYear, archived_at: null }]);
+    vi.mocked(restoreAcademicYear).mockResolvedValue({});
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived years (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore AY 2025-2026' }));
+
+    await waitFor(() => expect(restoreAcademicYear).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(getAcademicYears).toHaveBeenCalledTimes(2));
+    expect(notify.success).toHaveBeenCalledWith('AY 2025-2026 restored', expect.anything());
+    expect(await screen.findByRole('button', { name: 'Archived years (0)' })).toBeInTheDocument();
+    expect((await screen.findAllByRole('button', { name: 'Actions for 2025-2026' })).length).toBeGreaterThan(0);
+  });
+
+  it('shows the server reason beside the year when a restore is refused, and keeps the year archived', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([live, archivedYear]);
+    vi.mocked(restoreAcademicYear).mockRejectedValue({ response: { status: 422, data: { message: '2025-2026 cannot be restored because its dates overlap 2026-2027. Remove or change 2026-2027 first.' } } });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived years (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore AY 2025-2026' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('2025-2026 cannot be restored because its dates overlap 2026-2027. Remove or change 2026-2027 first.');
+    expect(screen.getByRole('button', { name: 'Restore AY 2025-2026' })).toBeEnabled();
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it('says when nothing is archived, while loading, and when the list cannot load', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValueOnce([live]);
+    const { unmount } = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived years (0)' }));
+    expect(screen.getByText(/No archived years\./)).toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getAcademicYears).mockReturnValueOnce(new Promise(() => {}));
+    const pending = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived years' }));
+    expect(screen.getByText('Loading archived years...')).toBeInTheDocument();
+    pending.unmount();
+
+    vi.mocked(getAcademicYears).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([live, archivedYear]);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived years' }));
+    expect(await screen.findByText('Archived years could not load.')).toBeInTheDocument();
+    fireEvent.click(within(document.getElementById('archived-years-panel')).getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('button', { name: 'Restore AY 2025-2026' })).toBeInTheDocument();
+  });
+
+  it('shows no academic year set once every year is archived', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([archivedYear]);
+    renderPage();
+
+    expect(await screen.findByText('No academic year set')).toBeInTheDocument();
+    expect(screen.queryByText(/is the current year/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No academic year is current/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archived years (1)' })).toBeInTheDocument();
   });
 });
 
