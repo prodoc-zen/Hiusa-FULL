@@ -63,7 +63,7 @@ describe('ReportChecksPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Explain and put in order' }));
 
     expect(await screen.findByText('There are 2 things to check. Fix the receipt first.')).toBeInTheDocument();
-    expect(screen.getByText('claude')).toBeInTheDocument();
+    expect(screen.getByText('Claude')).toBeInTheDocument();
     expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem').map((row) => row.textContent);
     expect(rows[0]).toContain('Add the receipt reference');
