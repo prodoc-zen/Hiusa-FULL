@@ -591,15 +591,32 @@ class EventApprovalChainTest extends TestCase
         $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
     }
 
-    public function test_a_material_edit_while_the_sao_is_reviewing_leaves_the_head_approval_alone(): void
+    public function test_a_material_edit_while_the_sao_is_reviewing_is_refused(): void
     {
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
         $this->send($eventId)->assertOk();
 
         Sanctum::actingAs($this->admin);
-        $this->putJson('/api/events/'.$eventId, ['title' => 'General Assembly Renamed'])->assertOk();
+        $this->putJson('/api/events/'.$eventId, ['title' => 'General Assembly Renamed'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The SAO is reviewing this event. Ask the SAO to return it before changing these details.');
 
+        $this->assertSame('General Assembly', Event::findOrFail($eventId)->title);
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+        $this->assertSame('awaiting_sao', $this->payload($eventId)['approval_stage']);
+    }
+
+    public function test_a_logistics_only_edit_while_the_sao_is_reviewing_still_passes(): void
+    {
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->send($eventId)->assertOk();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['planning_details' => ['logistics_checklist' => 'Chairs and tables']])->assertOk();
+
+        $this->assertSame('Chairs and tables', Event::findOrFail($eventId)->planning_details['logistics_checklist']);
         $this->assertSame('approved', $this->headRow($eventId)->status);
         $this->assertSame('awaiting_sao', $this->payload($eventId)['approval_stage']);
     }

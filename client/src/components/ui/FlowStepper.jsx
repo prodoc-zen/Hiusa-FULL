@@ -140,9 +140,9 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
   );
 }
 
-// The step list stays short: past six counted steps a row of labels stops being readable, so it
+// The step list stays short: past seven counted steps a row of labels stops being readable, so it
 // falls back to the one-line summary. Skipped steps do not count.
-const MAX_LISTED_STEPS = 6;
+const MAX_LISTED_STEPS = 7;
 
 // The default is one line: a step label and a meter, which fits a table row, a drawer or a page
 // header. Pass variant="full" for the labelled step list; add layout="wrap" inside a drawer or any

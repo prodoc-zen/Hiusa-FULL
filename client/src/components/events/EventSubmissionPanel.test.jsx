@@ -102,7 +102,8 @@ describe('EventSubmissionPanel', () => {
   it('allows the admin to upload SAO files after Department Head approval and send them on', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
-    expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Send to the Department Head' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Not submitted').length).toBeGreaterThan(0);
   });
 
@@ -126,6 +127,32 @@ describe('EventSubmissionPanel', () => {
       await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, {}));
       await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
       expect(screen.queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
+    });
+
+    it('labels the send for the Department Head once a replacement file is chosen, and for the SAO again when it is cleared', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: approvedData });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      expect(await screen.findByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      const input = screen.getByText('Event Proposal', { selector: 'label' }).querySelector('input[type="file"]');
+      fireEvent.change(input, { target: { files: [new File(['pdf'], 'proposal-v2.pdf', { type: 'application/pdf' })] } });
+
+      expect(screen.getByRole('button', { name: 'Send to the Department Head' })).toBeEnabled();
+      expect(screen.queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
+
+      fireEvent.change(input, { target: { files: [] } });
+      expect(screen.getByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
+    });
+
+    it('keeps Send to SAO for a returned event even with a file chosen', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { ...approvedData, approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'Permit expired.' } });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      await screen.findByRole('button', { name: 'Send to SAO' });
+      const input = screen.getByText('Event Proposal', { selector: 'label' }).querySelector('input[type="file"]');
+      fireEvent.change(input, { target: { files: [new File(['pdf'], 'proposal-v2.pdf', { type: 'application/pdf' })] } });
+
+      expect(screen.getByRole('button', { name: 'Send to SAO' })).toBeInTheDocument();
     });
 
     it('offers the send for an event that needs no files', async () => {

@@ -98,20 +98,20 @@ describe('FlowStepper step limit', () => {
     ...extra,
   ];
 
-  it('lists six steps in full', () => {
-    render(<FlowStepper variant="full" steps={make(6)} />);
-    expect(screen.getAllByRole('listitem')).toHaveLength(6);
+  it('lists seven steps in full', () => {
+    render(<FlowStepper variant="full" steps={make(7)} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(7);
   });
 
-  it('falls back to the one-line summary past six counted steps', () => {
-    render(<FlowStepper variant="full" steps={make(7)} ariaLabel="Long flow" />);
+  it('falls back to the one-line summary past seven counted steps', () => {
+    render(<FlowStepper variant="full" steps={make(8)} ariaLabel="Long flow" />);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Long flow' })).toHaveAttribute('aria-valuemax', '7');
+    expect(screen.getByRole('progressbar', { name: 'Long flow' })).toHaveAttribute('aria-valuemax', '8');
   });
 
   it('does not count skipped steps toward the limit', () => {
-    render(<FlowStepper variant="full" steps={make(6, [{ key: 'x', label: 'Skipped one', state: 'skipped' }])} />);
-    expect(screen.getAllByRole('listitem')).toHaveLength(7);
+    render(<FlowStepper variant="full" steps={make(7, [{ key: 'x', label: 'Skipped one', state: 'skipped' }])} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(8);
   });
 });
 
