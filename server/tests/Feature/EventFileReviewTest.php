@@ -474,6 +474,7 @@ class EventFileReviewTest extends TestCase
             ['id' => $proposalId, 'status' => 'ok'],
             ['id' => $permitId, 'status' => 'ok'],
         ])->assertOk();
+        $this->send($eventId)->assertOk();
 
         $this->markFiles($this->director, $this->row($eventId, 'SUPER_ADMIN'), [
             ['id' => $proposalId, 'status' => 'ok'],

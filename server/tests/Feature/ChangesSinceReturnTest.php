@@ -120,6 +120,8 @@ class ChangesSinceReturnTest extends TestCase
         $fileId = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD')['summary']['requirement_files'][0]['id'];
 
         $this->decide($head, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail(), 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->post('/api/events/'.$eventId.'/submission', [], ['Accept' => 'application/json'])->assertOk();
         $saoRow = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
         $this->decide($director, $saoRow, 'rejected')->assertOk();
 
