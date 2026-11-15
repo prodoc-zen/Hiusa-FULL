@@ -101,6 +101,23 @@ const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.sh
 const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
 const askAi = () => ({ id: 'ask-ai', label: 'Ask AI', icon: Bot, path: '/dashboard/ask-ai', aliases: ['AI Assistant', 'What to do today'] });
 
+// The pages after the dashboard that the dean and the dean's office staff share: staff do everything the dean does.
+const COLLEGE_OFFICE_PAGES = [
+  askAi(),
+  { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
+  { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
+  { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+  { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
+  { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
+  group('records', 'Records', Archive, [L.archive, L.officerTransition]),
+  { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },
+  { id: 'college-clearances', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances' },
+  { id: 'college-announcements', label: 'Announcements', icon: Megaphone, path: '/dashboard/department-head/announcements', aliases: ['College announcements', 'New announcement'], also: ['/dashboard/announcements/view-announcements'] },
+  group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
+  { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
+  { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },
+];
+
 const NAV_BY_ROLE = {
   ADMIN: [
     dashboard('ADMIN'),
@@ -129,34 +146,11 @@ const NAV_BY_ROLE = {
     { ...L.officerTransition, band: 'Oversight' },
     myActivity(),
   ],
-  DEPARTMENT_HEAD: [
-    dashboard('DEPARTMENT_HEAD'),
-    askAi(),
-    { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
-    { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
-    { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
-    { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
-    { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
-    group('records', 'Records', Archive, [L.archive, L.officerTransition]),
-    { id: 'college-compliance', label: 'College compliance', icon: ClipboardCheck, path: '/dashboard/department-head/compliance' },
-    { id: 'college-clearances', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances' },
-    { id: 'college-announcements', label: 'Announcements', icon: Megaphone, path: '/dashboard/department-head/announcements', aliases: ['College announcements', 'New announcement'], also: ['/dashboard/announcements/view-announcements'] },
-    group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
-    { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
-    { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },
-  ],
+  DEPARTMENT_HEAD: [dashboard('DEPARTMENT_HEAD'), ...COLLEGE_OFFICE_PAGES],
   // The dean's office staff: an ADMIN profile on the college home organization. Sidebar.jsx and
-  // CommandPalette.jsx pick this list in place of ADMIN's when isOfficeStaff() is true.
-  // They work for the dean across every organization in the college, so they get the dean's review pages and
-  // none of the dean's own controls (granting applicants, managing staff, entering an organization's space).
-  OFFICE_STAFF: [
-    dashboard('ADMIN'),
-    { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
-    { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals' },
-    { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
-    { id: 'college-people', label: 'People', icon: Users, path: '/dashboard/department-head/people' },
-    { id: 'college-files', label: 'College files', icon: FileText, path: '/dashboard/department-head/documents' },
-  ],
+  // CommandPalette.jsx pick this list in place of ADMIN's when isOfficeStaff() is true. They keep their own dashboard
+  // (OfficeStaffHomePage) and have every other page the dean has.
+  OFFICE_STAFF: [dashboard('ADMIN'), ...COLLEGE_OFFICE_PAGES],
   STUDENT: [
     dashboard('STUDENT'),
     askAi(),

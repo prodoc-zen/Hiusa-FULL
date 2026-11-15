@@ -539,9 +539,13 @@ class DepartmentHeadInvitationTest extends TestCase
         $this->assertDatabaseHas('department_head_invitations', ['role' => 'COLLEGE_STAFF', 'first_name' => null, 'last_name' => null, 'school_id' => null]);
     }
 
-    public function test_only_a_dean_makes_a_staff_link(): void
+    public function test_the_deans_office_staff_make_a_staff_link_but_an_organization_admin_does_not(): void
     {
-        $admin = User::factory()->admin()->create(['organization_id' => $this->home->id]);
+        $staff = User::factory()->admin()->create(['organization_id' => $this->home->id]);
+        $this->actingAs($staff)->postJson('/api/college/staff/invitations', [])->assertCreated();
+
+        $organization = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $this->actingAs($admin)->postJson('/api/college/staff/invitations', [])->assertForbidden();
     }
 

@@ -8,6 +8,7 @@ import CastVoteRedirectPage from './CastVoteRedirectPage';
 import { getElectionDetails } from '../../../services/electionService';
 import useRecordParam from '../../../lib/useRecordParam';
 import notify from '../../../lib/notify';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 
 // The picker is the same list for every election screen, so it is told which screen the user asked
 // for. Only the Elections screen manages elections.
@@ -29,7 +30,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
-  const role = currentUser?.role || 'SBO_OFFICER';
+  const role = effectiveRole(currentUser) || 'SBO_OFFICER';
   const selectionKey = `hiusa-election-${currentUser?.organization_id ?? 'organization'}-${currentUser?.school_id ?? 'user'}`;
   const askingToVote = location.pathname.endsWith('/cast-vote');
 

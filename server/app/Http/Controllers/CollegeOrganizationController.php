@@ -134,6 +134,11 @@ class CollegeOrganizationController extends Controller
             return response()->json(['message' => 'Staff member not found.'], 404);
         }
 
+        // A Department Head leaves the college office through the SAO (system/department-heads), never through this route, for the dean and staff alike.
+        if ($this->isDepartmentHead($user, $home)) {
+            return response()->json(['message' => 'Only the SAO can remove a Department Head.'], 422);
+        }
+
         DB::transaction(function () use ($request, $user, $home, $college) {
             $profile = AccountProfile::where('organization_id', $home->id)
                 ->where('user_school_id', $user->school_id)
@@ -148,7 +153,6 @@ class CollegeOrganizationController extends Controller
                     $user->tokens()->delete();
                 }
             } elseif ((int) $user->organization_id === (int) $home->id) {
-                abort_if($user->role === 'DEPARTMENT_HEAD' && User::where('organization_id', $home->id)->where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')->count() <= 1, 422, 'Cannot remove the primary Department Head.');
                 $user->update(['account_status' => 'disabled']);
                 $user->tokens()->delete();
             }
@@ -177,6 +181,12 @@ class CollegeOrganizationController extends Controller
 
         return $user->accountProfiles()->where('organization_id', $home->id)->where('account_status', 'active')->whereIn('role', $roles)->exists()
             || ((int) $user->getRawOriginal('organization_id') === (int) $home->id && $user->getRawOriginal('account_status') === 'active' && in_array($user->getRawOriginal('role'), $roles, true));
+    }
+
+    private function isDepartmentHead(User $user, Organization $home): bool
+    {
+        return $user->accountProfiles()->where('organization_id', $home->id)->where('role', 'DEPARTMENT_HEAD')->exists()
+            || ((int) $user->getRawOriginal('organization_id') === (int) $home->id && $user->getRawOriginal('role') === 'DEPARTMENT_HEAD');
     }
 
     private function college(User $user): College

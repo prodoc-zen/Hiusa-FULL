@@ -100,15 +100,24 @@ class StudentRegistryFixTest extends TestCase
         $this->assertSame(0, AuditLog::where('module', 'student_registry')->count());
     }
 
-    public function test_only_the_sao_and_deans_can_remove_or_correct_records(): void
+    public function test_only_the_sao_deans_and_their_office_staff_can_remove_or_correct_records(): void
     {
         $entry = $this->entry();
-        foreach (['STUDENT', 'ADMIN', 'SBO_OFFICER'] as $role) {
-            Sanctum::actingAs(User::factory()->create(['role' => $role, 'organization_id' => $this->dean->organization_id]));
+        $organization = Organization::create([
+            'name' => 'Computing Society', 'slug' => 'computing-society', 'acronym' => 'CS', 'college' => $this->cit->name,
+            'college_id' => $this->cit->id, 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => true, 'lifecycle_status' => 'active',
+        ]);
+        foreach ([['STUDENT', $this->dean->organization_id], ['ADMIN', $organization->id], ['SBO_OFFICER', $this->dean->organization_id]] as [$role, $organizationId]) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'organization_id' => $organizationId]));
             $this->deleteJson("/api/students/registry/{$entry->id}")->assertForbidden();
             $this->patchJson("/api/students/registry/{$entry->id}", ['first_name' => 'Bea', 'last_name' => 'Lim', 'birth_date' => '2007-03-04'])->assertForbidden();
         }
         $this->assertDatabaseHas('student_registry', ['id' => $entry->id, 'first_name' => 'Ana']);
+
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $this->dean->organization_id]));
+        $this->patchJson("/api/students/registry/{$entry->id}", ['first_name' => 'Bea', 'last_name' => 'Lim', 'birth_date' => '2007-03-04'])->assertOk();
+        $this->assertDatabaseHas('student_registry', ['id' => $entry->id, 'first_name' => 'Bea']);
+        $this->deleteJson("/api/students/registry/{$entry->id}")->assertNoContent();
     }
 
     public function test_the_sao_corrects_a_name_and_birth_date_and_the_audit_row_keeps_the_names(): void

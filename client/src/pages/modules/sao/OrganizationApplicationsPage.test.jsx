@@ -155,14 +155,13 @@ describe('OrganizationApplicationsPage', () => {
     expect(screen.getByText('Applications show here once a student you allowed to apply sends one.')).toBeInTheDocument();
   });
 
-  it('explains an empty queue for office staff without claiming they allowed anyone to apply', async () => {
+  it('explains an empty queue for office staff the same way as for the dean', async () => {
     mocks.getOrganizationApplications.mockResolvedValue(page([], { pending_dean: 0 }));
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { id: 9, name: 'Rehearsal College', organization_type: 'COLLEGE' } }));
     render(<MemoryRouter initialEntries={['/dashboard/organization-applications']}><OrganizationApplicationsPage /></MemoryRouter>);
 
     expect(await screen.findByText('No applications to review')).toBeInTheDocument();
-    expect(screen.getByText('Applications show here once a student the dean allowed to apply sends one.')).toBeInTheDocument();
-    expect(screen.queryByText('Applications show here once a student you allowed to apply sends one.')).not.toBeInTheDocument();
+    expect(screen.getByText('Applications show here once a student you allowed to apply sends one.')).toBeInTheDocument();
   });
 
   it('opens an application as its own page and keeps it addressable with ?record', async () => {

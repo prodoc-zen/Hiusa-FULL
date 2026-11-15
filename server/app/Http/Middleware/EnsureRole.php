@@ -12,35 +12,11 @@ class EnsureRole
 
     /**
      * The one list of dean-only routes, as "METHOD uri". Office staff take the dean's role on every request (see
-     * User::getRoleAttribute), so they pass every role gate the dean passes; these are the routes that still refuse
-     * them: handing out applicant access, the staff and records controls, access grants on an organization, compliance
-     * reminders, signing a clearance line, and replacing or deleting a submitted file. Approvals at the dean's step and
-     * everything else the dean's pages read stay open.
-     * The SAO and system routes and user management need a role staff never take, so they are not listed.
+     * User::getRoleAttribute) and do everything the dean does in their own name, so the list is empty. It stays so a
+     * future dean-only route has one place to go. The SAO and system routes and user management need a role staff
+     * never take, so they are not listed here either.
      */
-    public const DEAN_ONLY = [
-        'GET api/college/applicant-grants',
-        'POST api/college/applicant-grants',
-        'DELETE api/college/applicant-grants/{grant}',
-        'GET api/students/registry',
-        'POST api/students/registry/preview',
-        'POST api/students/registry/apply',
-        'PATCH api/students/registry/{entry}',
-        'DELETE api/students/registry/{entry}',
-        'GET api/college/staff/records',
-        'GET api/college/staff/invitations',
-        'POST api/college/staff/invitations',
-        'POST api/college/staff/invitations/{invitation}/link',
-        'DELETE api/college/staff/invitations/{invitation}',
-        'DELETE api/college/staff/{user}',
-        'POST api/compliance/organizations/{organization}/reminders',
-        'PATCH api/clearance-signatures/{clearanceSignature}',
-        'POST api/account-profiles/invite',
-        'PUT api/account-profiles/{profile}',
-        'DELETE api/account-profiles/{profile}',
-        'POST api/compliance/submissions/{submission}/document',
-        'DELETE api/compliance/submissions/{submission}',
-    ];
+    public const DEAN_ONLY = [];
 
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {

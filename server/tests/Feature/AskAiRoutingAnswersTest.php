@@ -381,10 +381,10 @@ class AskAiRoutingAnswersTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // ask-16: the dean's office staff are given only links their profile can open
+    // ask-16: the dean's office staff are given the dean's pages
     // -------------------------------------------------------------------------
 
-    public function test_office_staff_are_given_guide_links_their_profile_can_open_and_the_dean_keeps_the_dean_pages(): void
+    public function test_office_staff_are_given_the_deans_guide_links_and_every_one_opens_for_them(): void
     {
         $college = $this->makeCollege('ENG');
         $home = $this->makeCollegeHome($college);
@@ -393,23 +393,21 @@ class AskAiRoutingAnswersTest extends TestCase
         $this->assertSame('DEPARTMENT_HEAD', $staff->role);
         $dean = $this->makeCollegeHead($college);
 
-        $fallbacks = [
-            'How do I check compliance and remind organizations?' => '/dashboard/department-head/documents',
-            'How do I post a college announcement?' => '/dashboard/announcements/view-announcements',
-            'I want to post a college announcement' => '/dashboard/announcements/view-announcements',
+        $deanPages = [
+            'How do I check compliance and remind organizations?' => '/dashboard/department-head/compliance',
+            'How do I post a college announcement?' => '/dashboard/department-head/announcements',
+            'I want to post a college announcement' => '/dashboard/department-head/announcements',
         ];
-        foreach ($fallbacks as $question => $fallback) {
+        foreach ($deanPages as $question => $page) {
             $answer = $this->ask($staff, $question);
             $this->assertSame('how_to_guide', $answer['intent'], $question);
-            $this->assertHrefsOpenFor($answer, 'ADMIN');
-            $this->assertContains($fallback, $answer['hrefs'], $question);
-            $this->assertNotContains('/dashboard/department-head/compliance', $answer['hrefs'], $question);
-            $this->assertNotContains('/dashboard/department-head/announcements', $answer['hrefs'], $question);
+            $this->assertHrefsOpenFor($answer, 'DEPARTMENT_HEAD');
+            $this->assertContains($page, $answer['hrefs'], $question);
         }
 
         foreach (['How do I approve requests from my college organizations?', 'I wanna create an org', 'How do I do something with a spaceship', 'I want to zxqv wibble'] as $question) {
             $answer = $this->ask($staff, $question);
-            $this->assertHrefsOpenFor($answer, 'ADMIN');
+            $this->assertHrefsOpenFor($answer, 'DEPARTMENT_HEAD');
         }
 
         $this->assertContains('/dashboard/department-head/compliance', $this->ask($dean, 'How do I check compliance and remind organizations?')['hrefs']);

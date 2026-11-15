@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { footerNav, getNavLeaves } from "./components/layout/navigation";
-import { isOfficeStaff } from "./utils/collegeIdentity";
+import { effectiveRole, isOfficeStaff } from "./utils/collegeIdentity";
 
 const ROLE_DASHBOARD_PATHS = {
   ADMIN: "/dashboard/admin",
@@ -24,9 +24,15 @@ function getStoredUser() {
 // one page too. Its path comes from the Admin menu in navigation.js, the same list the guard reads below.
 const recordsPage = () => getNavLeaves("ADMIN").find((page) => page.id === "records-archive")?.path;
 
-// Office staff take the ADMIN role but only the pages their own menu offers (navigation.js is the one list).
+// Dean pages that no menu row names: an organization's space, which the dean opens from the Organizations page, and the
+// submitted files the dean's links open.
+const DEAN_PAGES_OUTSIDE_MENU = ["/dashboard/department-head/org", "/dashboard/submitted-files"];
+
+// Office staff keep the ADMIN profile but open the pages their own menu offers, which are the dean's (navigation.js is
+// the one list), so an organization Admin's pages stay closed to them.
 function officeStaffMayOpen(pathname) {
   if (pathname === "/dashboard" || pathname === "/change-password" || pathname === recordsPage()) return true;
+  if (DEAN_PAGES_OUTSIDE_MENU.some((page) => pathname === page || pathname.startsWith(`${page}/`))) return true;
   const pages = [...getNavLeaves("OFFICE_STAFF"), ...footerNav];
   return pages.some((page) => {
     const targets = [page.path, ...(page.also || [])].map((target) => target.split("?")[0]);
@@ -49,7 +55,8 @@ export default function ProtectedRoute({ allowedRoles = null, requireVenueBookin
     return <Navigate to="/change-password" replace />;
   }
 
-  if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+  // Office staff pass any page the Department Head may open; the menu guard below holds them to the dean's pages.
+  if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role) && !allowedRoles.includes(effectiveRole(user))) {
     const fallback = ROLE_DASHBOARD_PATHS[role] || "/dashboard";
     // The dashboard reads this to say why the person landed there, and to offer their other profile that may open the page.
     return <Navigate to={fallback} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;

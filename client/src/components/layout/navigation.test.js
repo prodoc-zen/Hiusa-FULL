@@ -324,23 +324,21 @@ describe('the dean\'s office staff', () => {
     expect(navRoleFor({ role: 'DEPARTMENT_HEAD', organization: { organization_type: 'COLLEGE' } })).toBe('DEPARTMENT_HEAD');
   });
 
-  it('gets the review pages of the whole college, and no organization setup pages or dean controls', () => {
-    expect(getNavForRole('OFFICE_STAFF').map((item) => [item.label, item.path])).toEqual([
-      ['Dashboard', '/dashboard/admin'],
-      ['Organization applications', '/dashboard/organization-applications'],
-      ['Approvals', '/dashboard/department-head/approvals'],
-      ['Organizations', '/dashboard/department-head/organizations'],
-      ['People', '/dashboard/department-head/people'],
-      ['College files', '/dashboard/department-head/documents'],
-    ]);
+  it("gets the dean's menu after its own dashboard, and no organization Admin setup pages", () => {
+    const staffMenu = getNavForRole('OFFICE_STAFF');
+    const deanMenu = getNavForRole('DEPARTMENT_HEAD');
+    expect(staffMenu[0]).toMatchObject({ label: 'Dashboard', path: '/dashboard/admin' });
+    expect(staffMenu.slice(1)).toEqual(deanMenu.slice(1));
+    expect(staffMenu.map((item) => item.label)).toEqual(expect.arrayContaining(['Ask AI', 'College compliance', 'Clearance signing', 'Announcements', 'Organizations', 'People']));
+    expect(staffMenu.map((item) => item.path)).not.toContain('/dashboard/admin/users');
   });
 
-  it('only links pages its ProtectedRoute lets an ADMIN open', () => {
+  it('only links pages its ProtectedRoute lets an ADMIN or the Department Head open', () => {
     const routes = dashboardRoutes();
     for (const page of getFlatPages('OFFICE_STAFF')) {
       const route = routes.find((candidate) => candidate.path === page.path.split('?')[0]);
       expect(route, `${page.label} is not a route in App.jsx`).toBeDefined();
-      expect(roleCanOpen(route, 'ADMIN'), `ADMIN cannot open ${page.path}`).toBe(true);
+      expect(roleCanOpen(route, 'ADMIN') || roleCanOpen(route, 'DEPARTMENT_HEAD'), `office staff cannot open ${page.path}`).toBe(true);
     }
   });
 });

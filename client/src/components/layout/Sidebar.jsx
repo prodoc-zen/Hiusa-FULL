@@ -10,6 +10,7 @@ import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import { useApplicantAccess } from '../../hooks/useApplicantAccess';
 import { readCanBookVenues, readUserModules } from '../../utils/userModules';
+import { effectiveRole } from '../../utils/collegeIdentity';
 import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, navRoleFor, resolveItemPath, withApplicantAccess } from './navigation';
 
 function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
@@ -176,7 +177,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
   const role = user?.role || 'SBO_OFFICER';
   const { subAccount, leave } = useActiveSubAccount();
-  const orgSpace = role === 'DEPARTMENT_HEAD' ? subAccount : null;
+  const orgSpace = effectiveRole(user) === 'DEPARTMENT_HEAD' ? subAccount : null;
   const modules = useMemo(() => readUserModules(), []);
   const canBookVenues = useMemo(() => readCanBookVenues(), []);
   const { visible: canApply } = useApplicantAccess(role);

@@ -138,11 +138,23 @@ class ApplicantGrantTest extends TestCase
         Sanctum::actingAs(User::factory()->departmentHead()->create(['organization_id' => $otherHome->id]));
         $this->getJson('/api/college/applicant-grants')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.student.school_id', $otherStudent->school_id);
 
-        foreach ([User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]), User::factory()->admin()->create(['organization_id' => $this->home->id]), $student] as $account) {
+        $organization = Organization::factory()->create(['college' => $this->college->name, 'college_id' => $this->college->id, 'organization_type' => 'STUDENT_ORGANIZATION']);
+        foreach ([User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]), User::factory()->admin()->create(['organization_id' => $organization->id]), $student] as $account) {
             Sanctum::actingAs($account);
             $this->postJson('/api/college/applicant-grants', ['school_id' => $student->school_id])->assertForbidden();
             $this->getJson('/api/college/applicant-grants')->assertForbidden();
         }
+    }
+
+    public function test_the_deans_office_staff_allow_a_student_to_apply_in_their_own_name(): void
+    {
+        $staff = User::factory()->admin()->create(['organization_id' => $this->home->id]);
+        $student = $this->student();
+
+        Sanctum::actingAs($staff);
+        $this->postJson('/api/college/applicant-grants', ['school_id' => $student->school_id])->assertCreated();
+        $this->assertDatabaseHas('organization_applicant_grants', ['college_id' => $this->college->id, 'user_school_id' => $student->school_id, 'granted_by' => $staff->school_id]);
+        $this->getJson('/api/college/applicant-grants')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.student.school_id', $student->school_id);
     }
 
     public function test_the_dean_takes_a_grant_back_before_it_is_used_and_the_student_stops_seeing_the_link(): void

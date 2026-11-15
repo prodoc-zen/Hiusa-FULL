@@ -5,6 +5,7 @@
 // a silent bounce to the home page. notificationLinks.test.js cross-checks every result against it.
 
 import { roleLabel } from '../lib/lifecycle';
+import { effectiveRole } from './collegeIdentity';
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -188,7 +189,7 @@ export function getItemHref(item, role) {
 
 export function getStoredRole() {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}')?.role ?? null;
+    return effectiveRole(JSON.parse(localStorage.getItem('user') || '{}'));
   } catch {
     return null;
   }

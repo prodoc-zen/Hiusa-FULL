@@ -419,7 +419,7 @@ class AskAiBuildersAuditFixesTest extends TestCase
         foreach ($payload['sections'] as $section) {
             foreach ($section['rows'] as $row) {
                 $this->assertNotNull($row['href']);
-                $this->assertContains(strtok($row['href'], '?'), config('client_routes.ADMIN'));
+                $this->assertContains(strtok($row['href'], '?'), [...config('client_routes.ADMIN'), ...config('client_routes.DEPARTMENT_HEAD')]);
             }
         }
     }
