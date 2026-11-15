@@ -126,11 +126,13 @@ class AcademicYearArchiveTest extends TestCase
         $this->assertNotNull($this->year->fresh()->archived_at);
     }
 
-    public function test_an_archived_year_leaves_the_pickers_but_stays_on_the_academic_years_page(): void
+    public function test_an_archived_years_semesters_stay_in_the_picker_marked_archived_and_the_year_stays_on_the_academic_years_page(): void
     {
         $this->archive()->assertOk();
 
-        $this->getJson('/api/academic-periods')->assertOk()->assertExactJson([]);
+        $picker = $this->getJson('/api/academic-periods')->assertOk()->assertJsonCount(2)->json();
+        $this->assertSame([true, true], array_column($picker, 'archived'));
+        $this->assertSame('2024-2025', $picker[0]['academic_year']['label']);
         $years = $this->getJson('/api/system/academic-years')->assertOk()->assertJsonCount(1)->json();
         $this->assertSame('2024-2025', $years[0]['label']);
         $this->assertNotNull($years[0]['archived_at']);
@@ -138,7 +140,7 @@ class AcademicYearArchiveTest extends TestCase
         $this->assertSame(2, count($years[0]['semesters']));
     }
 
-    public function test_a_stale_period_choice_in_an_archived_year_falls_back_to_the_active_semester(): void
+    public function test_an_archived_semester_can_be_selected_and_is_read_only_while_live_semesters_are_flagged_not_archived(): void
     {
         $this->archive()->assertOk();
         $new = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
@@ -147,7 +149,18 @@ class AcademicYearArchiveTest extends TestCase
         $request->setUserResolver(fn () => $this->director);
         $request->headers->set(AcademicSemester::PERIOD_HEADER, (string) $this->first->id);
 
-        $this->assertSame($active->id, AcademicSemester::selected($request)->id);
+        $this->assertSame($this->first->id, AcademicSemester::selected($request)->id);
+        $withoutChoice = Request::create('/api/events');
+        $withoutChoice->setUserResolver(fn () => $this->director);
+        $this->assertSame($active->id, AcademicSemester::selected($withoutChoice)->id);
+
+        $byId = collect($this->getJson('/api/academic-periods')->assertOk()->assertJsonCount(3)->json())->keyBy('id');
+        $this->assertTrue($byId[$this->first->id]['archived']);
+        $this->assertTrue($byId[$this->second->id]['archived']);
+        $this->assertFalse($byId[$active->id]['archived']);
+
+        $this->withHeader(AcademicSemester::PERIOD_HEADER, (string) $this->first->id)->postJson('/api/event-requirements', [])
+            ->assertStatus(409)->assertJsonPath('message', 'This school year is closed. Its records are read only.');
     }
 
     public function test_an_archived_year_cannot_be_activated_reopened_made_current_edited_or_given_semesters(): void
@@ -191,16 +204,77 @@ class AcademicYearArchiveTest extends TestCase
         $this->getJson('/api/academic-periods')->assertOk()->assertJsonCount(2);
     }
 
-    public function test_an_archived_label_cannot_be_reused_and_the_message_says_to_restore_it(): void
+    public function test_an_archived_label_can_be_added_again_but_only_one_live_year_holds_it(): void
     {
         $this->archive()->assertOk();
 
-        $this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2024-08-01', 'ends_on' => '2025-05-31'])
-            ->assertUnprocessable()->assertJsonPath('errors.label.0', '2024-2025 is archived. Restore it, or use a different label.');
-        $live = $this->postJson('/api/system/academic-years', ['label' => '2025-2026', 'starts_on' => '2025-08-01', 'ends_on' => '2026-05-31'])->assertCreated()->json('id');
-        $this->postJson('/api/system/academic-years', ['label' => '2025-2026', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31'])
+        $again = $this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2024-08-01', 'ends_on' => '2025-05-31'])
+            ->assertCreated()->assertJsonPath('label', '2024-2025')->assertJsonPath('is_current', true)->json('id');
+        $this->assertNotSame($this->year->id, $again);
+        $this->assertSame(2, AcademicYear::where('label', '2024-2025')->count());
+        $this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31'])
             ->assertUnprocessable()->assertJsonPath('errors.label.0', 'The label has already been taken.');
+        $live = $this->postJson('/api/system/academic-years', ['label' => '2025-2026', 'starts_on' => '2025-08-01', 'ends_on' => '2026-05-31'])->assertCreated()->json('id');
         $this->putJson("/api/system/academic-years/{$live}", ['label' => '2024-2025', 'starts_on' => '2025-08-01', 'ends_on' => '2026-05-31'])->assertUnprocessable()->assertJsonValidationErrors('label');
+    }
+
+    public function test_the_archived_year_cannot_come_back_while_a_live_year_holds_its_label(): void
+    {
+        $this->archive()->assertOk();
+        $this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31'])->assertCreated();
+
+        $this->postJson("/api/system/academic-years/{$this->year->id}/restore")->assertUnprocessable()
+            ->assertJsonPath('errors.academic_year.0', fn ($message) => str_contains($message, 'newer academic year uses the same label'));
+        $this->assertNotNull($this->year->fresh()->archived_at);
+    }
+
+    private function requirement(?AcademicSemester $semester, string $name): ComplianceRequirementType
+    {
+        return ComplianceRequirementType::create(['academic_year' => '2024-2025', 'academic_semester_id' => $semester?->id, 'category' => 'organization', 'name' => $name, 'allowed_extensions' => ['pdf'], 'deadline_at' => now()->addYear(), 'is_active' => true, 'created_by' => $this->director->school_id]);
+    }
+
+    public function test_the_new_year_with_a_repeated_label_sees_none_of_the_archived_years_requirements_and_clearance_periods(): void
+    {
+        $this->requirement($this->first, 'Old constitution');
+        $this->requirement(null, 'Loose');
+        $oldPeriod = $this->postJson('/api/clearance-periods', ['academic_year' => '2024-2025', 'title' => 'Old finals', 'required_roles' => ['organization']])->assertCreated()->json('id');
+        $this->assertSame($this->year->id, ClearancePeriod::findOrFail($oldPeriod)->academic_year_id);
+        $this->archive()->assertOk();
+
+        $newYear = AcademicYear::findOrFail($this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2024-08-01', 'ends_on' => '2025-05-31'])->assertCreated()->json('id'));
+        $newFirst = AcademicSemester::findOrFail($this->postJson("/api/system/academic-years/{$newYear->id}/semesters", ['number' => 1, 'starts_on' => '2024-08-01', 'ends_on' => '2024-12-31'])->assertCreated()->json('id'));
+        $this->patchJson("/api/system/academic-semesters/{$newFirst->id}/active")->assertOk();
+        $this->requirement($newFirst, 'New constitution');
+
+        // Lookups by the label resolve to the live year.
+        $names = ComplianceRequirementType::inYear('2024-2025')->pluck('name')->all();
+        $this->assertContains('New constitution', $names);
+        $this->assertNotContains('Old constitution', $names);
+        $this->assertNotContains('Loose', $names);
+        $this->assertSame(['Old constitution'], ComplianceRequirementType::inYear('2024-2025', $this->year->id)->where('name', 'Old constitution')->pluck('name')->all());
+        $this->assertSame('2024-2025', app(AccreditationStatusService::class)->currentAcademicYear());
+        $listed = collect($this->getJson('/api/compliance/requirement-types?academic_year=2024-2025&per_page=100')->assertOk()->json('data'))->pluck('name');
+        $this->assertContains('New constitution', $listed);
+        $this->assertNotContains('Old constitution', $listed);
+
+        // A clearance period opened now belongs to the live year, and the old year's period stays with the old one.
+        $newPeriod = $this->postJson('/api/clearance-periods', ['academic_year' => '2024-2025', 'title' => 'New finals', 'required_roles' => ['organization']])->assertCreated()->json('id');
+        $this->assertSame($newYear->id, ClearancePeriod::findOrFail($newPeriod)->academic_year_id);
+        $this->assertSame($this->year->id, ClearancePeriod::findOrFail($oldPeriod)->academic_year_id);
+    }
+
+    public function test_the_archived_years_records_do_not_lock_or_block_the_new_years_label_and_removal(): void
+    {
+        $this->requirement($this->first, 'Old constitution');
+        $this->postJson('/api/clearance-periods', ['academic_year' => '2024-2025', 'title' => 'Old finals', 'required_roles' => ['organization']])->assertCreated();
+        $this->archive()->assertOk();
+        $newYear = $this->postJson('/api/system/academic-years', ['label' => '2024-2025', 'starts_on' => '2024-08-01', 'ends_on' => '2025-05-31'])->assertCreated()->json('id');
+
+        $years = collect($this->getJson('/api/system/academic-years')->assertOk()->json())->keyBy('id');
+        $this->assertTrue($years[$newYear]['can_be_removed'], (string) $years[$newYear]['removal_blocker']);
+        $this->assertFalse($years[$this->year->id]['can_be_removed']);
+        $this->deleteJson("/api/system/academic-years/{$newYear}")->assertOk();
+        $this->assertNotNull($this->year->fresh());
     }
 
     public function test_only_the_sao_can_archive_or_restore(): void
@@ -247,6 +321,16 @@ class AcademicYearArchiveTest extends TestCase
         $this->postJson('/api/clearance-periods', ['academic_year' => '2024-2025', 'title' => 'Finals', 'required_roles' => ['organization']])
             ->assertUnprocessable()->assertJsonPath('errors.academic_year.0', '2024-2025 is archived, so it cannot take a new clearance period.');
         $this->assertSame(0, ClearancePeriod::count());
+    }
+
+    public function test_the_repeated_label_migration_is_reversible(): void
+    {
+        $migration = require database_path('migrations/2026_11_15_000002_allow_archived_year_label_to_repeat.php');
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('clearance_periods', 'academic_year_id'));
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('clearance_periods', 'academic_year_id'));
     }
 
     public function test_the_migration_is_reversible(): void

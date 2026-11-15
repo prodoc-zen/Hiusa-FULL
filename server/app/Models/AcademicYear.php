@@ -32,10 +32,13 @@ class AcademicYear extends Model
         return $query->whereNull('archived_at');
     }
 
-    /** The labels of archived years, as a subquery, for queries that must not fall back to a year that was put away. */
+    /**
+     * The labels of archived years, as a subquery, for queries that must not fall back to a year that was put away.
+     * A label that a live year carries again is not archived: the live year owns it.
+     */
     public static function archivedLabels(): Builder
     {
-        return static::whereNotNull('archived_at')->select('label');
+        return static::whereNotNull('archived_at')->whereNotIn('label', static::whereNull('archived_at')->select('label'))->select('label');
     }
 
     public function semesters(): HasMany

@@ -41,13 +41,16 @@ class ClearanceController extends Controller
             'deadline_at' => ['nullable', 'date'],
         ]);
         $requiredRoles = array_values(array_unique($data['required_roles']));
-        if (AcademicYear::whereNotNull('archived_at')->where('label', $data['academic_year'])->exists()) {
+        // A label an archived year held and a live year uses again belongs to the live year.
+        $liveYearId = AcademicYear::notArchived()->where('label', $data['academic_year'])->value('id');
+        if (! $liveYearId && AcademicYear::whereNotNull('archived_at')->where('label', $data['academic_year'])->exists()) {
             throw ValidationException::withMessages(['academic_year' => ["{$data['academic_year']} is archived, so it cannot take a new clearance period."]]);
         }
 
-        $period = DB::transaction(function () use ($data, $requiredRoles, $request) {
+        $period = DB::transaction(function () use ($data, $requiredRoles, $request, $liveYearId) {
             $period = ClearancePeriod::create([
                 'academic_year' => $data['academic_year'],
+                'academic_year_id' => $liveYearId,
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
                 'required_roles' => $requiredRoles,

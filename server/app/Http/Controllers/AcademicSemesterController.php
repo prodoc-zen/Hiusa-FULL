@@ -51,10 +51,11 @@ class AcademicSemesterController extends Controller
 
     public function index(Request $request)
     {
-        return response()->json(AcademicSemester::with('academicYear:id,label')
-            ->inLiveYear()
+        // Semesters of archived years stay in the picker, marked archived: they are completed, so choosing one is read only.
+        return response()->json(AcademicSemester::with('academicYear:id,label,archived_at')
             ->when(! in_array($request->user()->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'], true), fn ($query) => $query->where('status', '!=', 'upcoming'))
-            ->orderByDesc('academic_year_id')->orderBy('number')->get());
+            ->orderByDesc('academic_year_id')->orderBy('number')->get()
+            ->each(fn (AcademicSemester $semester) => $semester->setAttribute('archived', $semester->academicYear?->archived_at !== null)));
     }
 
     public function active()

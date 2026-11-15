@@ -255,7 +255,7 @@ class ProcessStatusService
     /** @return array{submitted: int, total: int} */
     private function requirementProgress(Organization $organization, AcademicSemester $semester, string $category): array
     {
-        $typeIds = ComplianceRequirementType::where('academic_year', $semester->academicYear->label)->where('is_active', true)
+        $typeIds = ComplianceRequirementType::inYear($semester->academicYear->label, $semester->academic_year_id)->where('is_active', true)
             ->where('category', $category)
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id))
             ->pluck('id');

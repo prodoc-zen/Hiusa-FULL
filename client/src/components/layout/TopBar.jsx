@@ -385,6 +385,7 @@ export default function TopBar({ onMenuToggle }) {
                         const isSelected = p.id === currentDisplayPeriod?.id;
                         const isLive = p.id === activeAcademicPeriod?.id;
                         const isUpcoming = p.status === 'upcoming';
+                        const isArchived = Boolean(p.archived);
                         return (
                           <button
                             key={p.id}
@@ -400,7 +401,10 @@ export default function TopBar({ onMenuToggle }) {
                                 {isLive ? 'Current semester' : isUpcoming ? 'Upcoming, for planning' : viewsClosedInPlace ? 'Closed, read only' : 'Closed, open in Records'}
                               </p>
                             </div>
-                            {isSelected && <Check size={16} aria-hidden="true" className="text-brand-700" />}
+                            <span className="flex shrink-0 items-center gap-2">
+                              {isArchived && <span className="rounded-full bg-page px-2 py-0.5 text-xs font-semibold text-ink-muted-strong">Archived</span>}
+                              {isSelected && <Check size={16} aria-hidden="true" className="text-brand-700" />}
+                            </span>
                           </button>
                         );
                       })}

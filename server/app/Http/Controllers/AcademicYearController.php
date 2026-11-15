@@ -155,6 +155,9 @@ class AcademicYearController extends Controller
             if ($year->archived_at === null) {
                 throw ValidationException::withMessages(['academic_year' => ["{$year->label} is not archived."]]);
             }
+            if (AcademicYear::notArchived()->where('label', $year->label)->exists()) {
+                throw ValidationException::withMessages(['academic_year' => ["{$year->label} cannot be restored because a newer academic year uses the same label. Archive or remove that year first."]]);
+            }
             $overlap = AcademicYear::notArchived()->whereKeyNot($year->id)
                 ->where('starts_on', '<', $year->ends_on->toDateString())
                 ->where('ends_on', '>', $year->starts_on->toDateString())
@@ -227,12 +230,18 @@ class AcademicYearController extends Controller
             || $this->hasLooseRecords($year);
     }
 
-    /** Requirements and clearance periods that carry the label but are not a semester's own. */
+    /**
+     * Requirements and clearance periods that carry the label but are not a semester's own. A label an archived year
+     * held before carries that year's records, which are not this year's, so only semesters and periods of no year count.
+     */
     private function hasLooseRecords(AcademicYear $year): bool
     {
+        $sameLabelSemesterIds = AcademicSemester::whereIn('academic_year_id', AcademicYear::where('label', $year->label)->select('id'))->select('id');
+
         return ComplianceRequirementType::where('academic_year', $year->label)
-            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhereNotIn('academic_semester_id', $this->semesterIds($year)))->exists()
-            || ClearancePeriod::where('academic_year', $year->label)->exists();
+            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhereNotIn('academic_semester_id', $sameLabelSemesterIds))->exists()
+            || ClearancePeriod::where('academic_year', $year->label)
+                ->where(fn ($query) => $query->whereNull('academic_year_id')->orWhere('academic_year_id', $year->id))->exists();
     }
 
     /** @return array<int, int> */
@@ -245,9 +254,10 @@ class AcademicYearController extends Controller
     {
         $data = $request->validate([
             'label' => ['required', 'string', 'max:20', 'regex:/^\d{4}-\d{4}$/', function (string $attribute, mixed $value, \Closure $fail) use ($existing) {
-                $taken = AcademicYear::where('label', $value)->when($existing, fn ($query) => $query->whereKeyNot($existing->id))->first();
+                // An archived year has put its label away: the label may be used again, and the new year owns it.
+                $taken = AcademicYear::notArchived()->where('label', $value)->when($existing, fn ($query) => $query->whereKeyNot($existing->id))->exists();
                 if ($taken) {
-                    $fail($taken->archived_at ? "{$taken->label} is archived. Restore it, or use a different label." : 'The label has already been taken.');
+                    $fail('The label has already been taken.');
                 }
             }],
             'starts_on' => ['required', 'date'],

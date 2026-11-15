@@ -37,7 +37,7 @@ final class RenewalDeadline
         return ComplianceRequirementType::query()
             ->where('category', 'renewal')
             ->where('is_active', true)
-            ->when($academicYear, fn ($query, $year) => $query->where('academic_year', $year))
+            ->when($academicYear, fn ($query, $year) => $query->inYear($year, $semester?->academic_year_id))
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester?->id))
             ->orderBy('deadline_at')
             ->orderBy('id')
