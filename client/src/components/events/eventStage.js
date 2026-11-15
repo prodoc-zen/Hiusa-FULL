@@ -27,6 +27,7 @@ const STEP_STATES = {
   awaiting_sao: { approval: 'done', requirements: 'current' },
   requirements_returned: { approval: 'done', requirements: 'blocked' },
   rejected: { requirements: 'upcoming' },
+  approved: { requirements: 'done' },
 };
 
 const STEP_NOTES = {
@@ -52,7 +53,8 @@ export const RETURNED_STAGES = ['rejected', 'requirements_returned'];
 export const SEND_STAGES = ['ready_for_sao', 'requirements_returned'];
 export const FILE_STAGES = ['awaiting_department_head', 'awaiting_requirements', 'ready_for_sao', 'awaiting_sao', 'requirements_returned'];
 
-// Stages where the event is with, or on its way to, the SAO. Every event goes there, with or without files.
+// Stages where the event is with, or on its way to, the SAO. Every event goes there, with or without files,
+// so an approved event keeps the SAO step too, as done.
 const SAO_STAGES = ['ready_for_sao', 'awaiting_sao', 'requirements_returned'];
 
 export function stageText(event) {
@@ -105,7 +107,7 @@ export function eventFlow(event, viewerRole, progress = null) {
   const input = STAGE_INPUT[stage]?.(e) ?? {};
   const lifecycle = eventLifecycle({ ...e, ...input }, viewerRole);
   const requirementsRequired = e.requirements_required === true;
-  const steps = orderSteps(lifecycle.steps, stage, requirementsRequired || SAO_STAGES.includes(stage), requirementsRequired);
+  const steps = orderSteps(lifecycle.steps, stage, requirementsRequired || SAO_STAGES.includes(stage) || (stage === 'approved' && e.status !== 'cancelled'), requirementsRequired);
   let nextAction = { ...lifecycle.nextAction };
   let action = null;
   const selfLink = lifecycle.href;
@@ -129,7 +131,7 @@ export function eventFlow(event, viewerRole, progress = null) {
       body: withProgress(waiting ? 'The Department Head approved this event. The Admin sends it to the SAO next.' : 'The Department Head approved this event. Check the files below and send it to the SAO.', progress),
     };
   } else if (stage === 'awaiting_requirements') {
-    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? 'The Department Head approved this event. The SAO needs the event files next.' : 'The Department Head approved this event. Upload each file below, then send the event to the SAO.', progress) };
+    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? 'The Department Head approved this event. The SAO needs the event files next.' : 'Upload each file below. The Department Head checks them, then you send the event to the SAO.', progress) };
   } else if (FILE_STAGES.includes(stage) && requirementsRequired) {
     nextAction = { ...nextAction, body: withProgress(nextAction.body, progress) };
   }

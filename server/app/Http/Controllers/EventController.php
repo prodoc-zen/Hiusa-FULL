@@ -463,8 +463,15 @@ class EventController extends Controller
             return response()->json(['message' => 'Withdraw the venue booking first, then change the date.'], 422);
         }
 
+        // While the SAO reviews the event its details are frozen: a material edit would change what the head and the SAO
+        // are approving, so the SAO returns the event first. Edits that are not material stay allowed.
+        if ($this->approvalChain->saoRow($event)?->status === 'pending'
+            && $this->hasMaterialEventChange($event, $data, $updatedPlanning, $startTime, $endTime)) {
+            return response()->json(['message' => 'The SAO is reviewing this event. Ask the SAO to return it before changing these details.'], 409);
+        }
+
         // The Department Head's approval covers what the head saw, so a material edit takes it back to the head
-        // after the SAO approved, and also before that while the Admin still holds the event (not while the SAO reviews it).
+        // after the SAO approved, and also before that while the Admin still holds the event.
         $headApprovalHeld = ! $event->approved_at
             && $this->approvalChain->headRow($event)?->status === 'approved'
             && $this->approvalChain->saoRow($event)?->status !== 'pending';

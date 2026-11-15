@@ -106,6 +106,23 @@ describe('eventFlow', () => {
     expect(flow.secondary).toEqual({ label: 'Book venue', to: '/dashboard/venues?event=7' });
   });
 
+  it('approved without files: the SAO approval step stays in the stepper as done', () => {
+    const flow = eventFlow({ ...base, status: 'approved', approval_stage: 'approved', approval_status: 'approved', requirements_required: false }, 'ADMIN');
+    expect(flow.steps.map((step) => step.key)).toEqual(['proposal', 'approval', 'requirements', 'funding', 'prepare', 'run', 'report']);
+    expect(flow.steps[2]).toMatchObject({ label: 'SAO approval', state: 'done' });
+    expect(states(flow)).toMatchObject({ proposal: 'done', approval: 'done', requirements: 'done', funding: 'skipped', prepare: 'current' });
+  });
+
+  it('a cancelled event that never reached the SAO keeps the SAO step out of the stepper', () => {
+    const flow = eventFlow({ ...base, status: 'cancelled', approval_stage: 'not_submitted' }, 'ADMIN');
+    expect(states(flow).requirements).toBe('skipped');
+  });
+
+  it('awaiting_requirements: the Admin is told the Department Head checks the files before the SAO', () => {
+    const event = { ...base, approval_stage: 'awaiting_requirements', approval_status: 'approved', requirements_required: true };
+    expect(eventFlow(event, 'ADMIN').nextAction.body).toBe('Upload each file below. The Department Head checks them, then you send the event to the SAO.');
+  });
+
   it('rejected: the head step is blocked and the files step is not started', () => {
     const flow = eventFlow({ ...base, approval_stage: 'rejected', approval_status: 'rejected', approval_remarks: 'Pick another date.', requirements_required: true }, 'ADMIN');
     expect(states(flow)).toMatchObject({ approval: 'blocked', requirements: 'upcoming' });

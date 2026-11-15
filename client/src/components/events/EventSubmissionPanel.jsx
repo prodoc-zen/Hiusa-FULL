@@ -96,6 +96,10 @@ function EventSubmission({ eventId, role, onSubmitted }) {
     (requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected'))
     || (sendsToSao && (requirements.length > 0 || SEND_STAGES.includes(stage)))
   );
+  // Any send that carries a file goes to the Department Head first, unless the SAO returned the event; a send with no file goes to the SAO.
+  const carriesFile = Object.values(files).some(Boolean)
+    || (stage === 'awaiting_requirements' && requirements.some((requirement) => !requirement.is_optional && !byRequirement.has(requirement.id)));
+  const sendLabel = !sendsToSao ? 'Submit event files' : carriesFile && stage !== 'requirements_returned' ? 'Send to the Department Head' : 'Send to SAO';
   const verification = deanApprovalLine(submission);
 
   return (
@@ -126,7 +130,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         </div>)}
         {missingFiles > 0 && <p id="event-files-missing" className="text-xs text-ink-muted-strong">{missingFiles === 1 ? '1 file is still missing.' : `${missingFiles} files are still missing.`}</p>}
         {toReplace > 0 && <p id="event-files-replace" className="text-xs text-ink-muted-strong">{toReplace === 1 ? '1 file still needs to be replaced.' : `${toReplace} files still need to be replaced.`}</p>}
-        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>{sendsToSao ? 'Send to SAO' : 'Submit event files'}</Button>
+        <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>{sendLabel}</Button>
       </form>}
       {submission?.approval_status && !['awaiting_requirements', 'ready_for_sao'].includes(stage) && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replace('rejected', 'returned').replaceAll('_', ' ')}</p>}
     </section>
