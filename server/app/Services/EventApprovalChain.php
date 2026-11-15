@@ -111,13 +111,14 @@ class EventApprovalChain
             $required = $requirements->isNotEmpty();
             $submitted = $this->filesComplete($requirements, $uploaded->get($event->id, collect())->pluck('requirement_id'));
             $head = $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role !== self::SAO_ROLE);
+            $unified = $unifiedIds->contains($event->organization_id);
             [$stage, $row] = $this->resolve(
                 $event,
                 $head,
                 $eventRows->first(fn (ApprovalRequest $candidate) => $candidate->required_role === self::SAO_ROLE),
                 $required,
                 $submitted,
-                $unifiedIds->contains($event->organization_id),
+                $unified,
             );
             $deanApproved = $head?->status === 'approved';
 
@@ -129,6 +130,7 @@ class EventApprovalChain
                 'requirements_required' => $required,
                 'requirements_submitted' => $required && $submitted,
                 'approval_stage' => $stage,
+                'university_wide' => (bool) $unified,
                 'dean_approved_by' => $deanApproved && $head->reviewer ? trim($head->reviewer->first_name.' '.$head->reviewer->last_name) : null,
                 'dean_approved_at' => $deanApproved ? $head->reviewed_at?->toIso8601String() : null,
             ]];

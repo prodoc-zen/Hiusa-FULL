@@ -174,6 +174,7 @@ class EventRequirementController extends Controller
             'approval_status' => $approval['approval_status'],
             'approval_stage' => $approval['approval_stage'],
             'approval_remarks' => $approval['approval_remarks'],
+            'university_wide' => $approval['university_wide'],
             'dean_approved_by' => $approval['dean_approved_by'],
             'dean_approved_at' => $approval['dean_approved_at'],
         ]);
