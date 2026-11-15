@@ -128,6 +128,13 @@ describe('eventFlow', () => {
     expect(eventFlow(event, 'ADMIN').nextAction.body).toBe('Upload each file below, then send the event to the SAO.');
   });
 
+  it('awaiting_requirements: a viewer who is not the Admin is not told the Department Head approved a university-wide event', () => {
+    const wide = { ...base, approval_stage: 'awaiting_requirements', approval_status: null, requirements_required: true, university_wide: true };
+    expect(eventFlow(wide, 'SUPER_ADMIN').nextAction.body).toBe('The SAO needs the event files next.');
+    const normal = { ...wide, approval_status: 'approved', university_wide: false };
+    expect(eventFlow(normal, 'SUPER_ADMIN').nextAction.body).toBe('The Department Head approved this event. The SAO needs the event files next.');
+  });
+
   it('rejected: the head step is blocked and the files step is not started', () => {
     const flow = eventFlow({ ...base, approval_stage: 'rejected', approval_status: 'rejected', approval_remarks: 'Pick another date.', requirements_required: true }, 'ADMIN');
     expect(states(flow)).toMatchObject({ approval: 'blocked', requirements: 'upcoming' });

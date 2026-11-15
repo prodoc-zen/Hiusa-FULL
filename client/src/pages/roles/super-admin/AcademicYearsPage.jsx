@@ -320,6 +320,7 @@ export default function AcademicYearsPage() {
     setSemesterErrors({});
     try {
       await createAcademicSemester(semesterYear.id, { ...semesterForm, number: Number(semesterForm.number) });
+      announcePeriodsChanged();
       notify.success('Semester added', { description: 'All default requirements for organizations, renewals, events, and semestral reports are active for this semester.' });
       setSemesterYear(null);
       setSemesterForm(EMPTY_SEMESTER);
@@ -357,6 +358,7 @@ export default function AcademicYearsPage() {
       if (action === 'activate') await activateAcademicSemester(semester.id);
       else if (action === 'reopen') await reopenAcademicSemester(semester.id);
       else await closeAcademicSemester(semester.id, semesterLabel(semester, yearLabel));
+      announcePeriodsChanged();
       notify.success({ activate: 'Academic semester activated', reopen: 'Academic semester reopened', close: 'Academic semester completed' }[action]);
       setSemesterChange(null);
       await load();

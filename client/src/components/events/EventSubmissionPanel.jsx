@@ -117,7 +117,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
             ? `The Department Head approved this event. Send it to the SAO when you are ready.${requirements.length > 0 ? ' Replacing a file sends the event back to the Department Head to check it again.' : ''}`
             : stage === 'requirements_returned' && requirements.length === 0
               ? 'The SAO returned this event. Read the remarks above, then send it to the SAO again.'
-              : `${uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.`
+              : `${uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'}${submission?.university_wide ? '' : ' The Department Head can view the submission.'}`
         }</p>
         {requirements.map((requirement) => <div key={requirement.id}>
           <label className="block text-xs font-semibold text-ink">

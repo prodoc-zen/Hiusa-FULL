@@ -119,6 +119,18 @@ describe('EventSubmissionPanel', () => {
     expect(screen.queryByRole('button', { name: 'Send to the Department Head' })).not.toBeInTheDocument();
   });
 
+  it('only mentions the Department Head viewing the submission when the event goes through one', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: null, approval_stage: 'awaiting_requirements', university_wide: true } });
+    const { unmount } = render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    await screen.findByRole('button', { name: 'Send to SAO' });
+    expect(screen.queryByText(/The Department Head can view the submission/)).not.toBeInTheDocument();
+    unmount();
+
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    expect(await screen.findByText(/The Department Head can view the submission/)).toBeInTheDocument();
+  });
+
   describe('after the Department Head approved', () => {
     const approvedData = { requirements, files: [uploadedFile], approval_status: 'approved', approval_stage: 'ready_for_sao', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' };
 

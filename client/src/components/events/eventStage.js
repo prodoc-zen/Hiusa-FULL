@@ -134,7 +134,7 @@ export function eventFlow(event, viewerRole, progress = null) {
     const adminBody = e.university_wide === true
       ? 'Upload each file below, then send the event to the SAO.'
       : 'Upload each file below. The Department Head checks them, then you send the event to the SAO.';
-    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? 'The Department Head approved this event. The SAO needs the event files next.' : adminBody, progress) };
+    nextAction = { ...nextAction, body: withProgress(viewerRole && viewerRole !== 'ADMIN' ? (e.university_wide === true ? 'The SAO needs the event files next.' : 'The Department Head approved this event. The SAO needs the event files next.') : adminBody, progress) };
   } else if (FILE_STAGES.includes(stage) && requirementsRequired) {
     nextAction = { ...nextAction, body: withProgress(nextAction.body, progress) };
   }
