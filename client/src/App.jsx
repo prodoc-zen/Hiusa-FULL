@@ -14,6 +14,7 @@ const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/Orga
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const AcceptInvitationPage = lazy(() => import('./pages/auth/AcceptInvitationPage'));
+const PrivacyNoticePage = lazy(() => import('./pages/auth/PrivacyNoticePage'));
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
@@ -262,6 +263,8 @@ function App() {
       </Route>
       {/* Outside the signed-out group: an employee who already has an account signs in first, then opens the staff link. */}
       <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+      {/* Public and outside the signed-out group: the sign-up form, the invitation page and a signed-in person all open it. */}
+      <Route path="/privacy" element={<PrivacyNoticePage />} />
       
 
       {/* Dashboard Pages */}

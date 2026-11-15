@@ -133,6 +133,7 @@ for (const viewport of VIEWPORTS) {
         await page.getByLabel('Email').fill('walk.lookup@example.test');
         await page.getByLabel('Password', { exact: true }).fill('Walk-lookup-2026-x');
         await page.getByLabel('Confirm password').fill('Walk-lookup-2026-x');
+        await page.getByLabel(/agree to the processing of my personal data/).check();
         await page.getByRole('button', { name: 'Create account' }).click();
         await expect(page.getByRole('alert').filter({ hasText: "We couldn't match that school ID and birth date with the school records." })).toBeVisible({ timeout: 15_000 });
       }, [422]);

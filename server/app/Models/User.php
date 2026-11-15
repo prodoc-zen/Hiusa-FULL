@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
@@ -115,6 +116,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'password_hash' => 'hashed',
             'notification_preferences' => 'array',
+            'privacy_accepted_at' => 'datetime',
         ];
     }
 
@@ -154,6 +156,11 @@ class User extends Authenticatable
         if ($this->activeAccountProfile && ! $this->listedAmongOthers) {
             $attributes['can_book_venues'] = $this->canBookVenues();
             $attributes['in_student_organization'] = $this->inStudentOrganization();
+        }
+
+        // Whether someone agreed to the privacy notice is theirs to see, not a column in a member list.
+        if ($this->listedAmongOthers) {
+            unset($attributes['privacy_accepted_at'], $attributes['privacy_notice_version']);
         }
 
         return $attributes;
@@ -272,6 +279,20 @@ class User extends Authenticatable
         'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
         'is_active', 'logo_url', 'color', 'lifecycle_status', 'is_university_wide',
     ];
+
+    /**
+     * What agreeing to the Data Privacy Notice writes. These columns are not fillable, so no request body can name them:
+     * a caller that has validated the person's agreement applies this with forceFill, and the time and version are the server's.
+     *
+     * @return array{privacy_accepted_at: Carbon, privacy_notice_version: string}
+     */
+    public static function privacyConsentAttributes(): array
+    {
+        return [
+            'privacy_accepted_at' => now(),
+            'privacy_notice_version' => (string) config('hiusa.privacy_notice_version'),
+        ];
+    }
 
     /** Marks this instance as one row of a list, so serializing it skips the fields only the signed-in person's payload carries. */
     public function listAmongOthers(): static

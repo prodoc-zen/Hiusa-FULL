@@ -87,7 +87,7 @@ class MustChangePasswordFlaggingTest extends TestCase
 
         $this->postJson("/api/department-head-invitations/{$query['token']}/accept", [
             'first_name' => 'Ramon', 'last_name' => 'Castillo', 'email' => 'ramon@example.edu', 'school_id' => 88000005,
-            'password' => 'Dean2026!Pass', 'password_confirmation' => 'Dean2026!Pass',
+            'password' => 'Dean2026!Pass', 'password_confirmation' => 'Dean2026!Pass', 'privacy_accepted' => true,
         ])->assertOk();
 
         $this->assertFalse((bool) User::find(88000005)->must_change_password);

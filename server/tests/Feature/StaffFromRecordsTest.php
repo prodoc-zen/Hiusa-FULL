@@ -70,7 +70,7 @@ class StaffFromRecordsTest extends TestCase
 
     private function credentials(array $overrides = []): array
     {
-        return ['email' => 'marites@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', ...$overrides];
+        return ['email' => 'marites@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true, ...$overrides];
     }
 
     private function csv(string $header, string $body): UploadedFile
@@ -264,7 +264,7 @@ class StaffFromRecordsTest extends TestCase
     {
         $this->employee(7000001, 'Marites', 'Dizon');
 
-        $payload = ['school_id' => 7000001, 'birth_date' => '1988-05-17', 'email' => 'marites@example.edu', 'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase'];
+        $payload = ['school_id' => 7000001, 'birth_date' => '1988-05-17', 'email' => 'marites@example.edu', 'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true];
         $this->postJson('/api/register', $payload)->assertUnprocessable()->assertJsonValidationErrors('school_id');
         $this->postJson('/api/register/lookup', ['school_id' => 7000001, 'birth_date' => '1988-05-17'])->assertUnprocessable();
         $this->assertDatabaseMissing('users', ['school_id' => 7000001]);

@@ -201,7 +201,7 @@ class PasswordChangeEnforcementTest extends TestCase
             'birth_date' => '2005-12-10',
             'email' => 'ada@example.com',
             'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password_confirmation' => 'password123', 'privacy_accepted' => true,
         ])->assertCreated()->assertJsonPath('user.must_change_password', false);
 
         $this->as($response->json('access_token'))->getJson('/api/events')->assertOk();

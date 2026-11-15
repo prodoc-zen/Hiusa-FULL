@@ -355,7 +355,9 @@ class DepartmentHeadInvitationController extends Controller
             'email' => ['required', 'email', 'max:100', 'unique:users,email', ...($invitation->email ? [Rule::in([$invitation->email])] : [])],
             'school_id' => ['bail', $fromRecord ? 'prohibited' : 'required', 'integer', 'min:1', 'max:'.(self::INTERNAL_ID_START - 1), 'unique:users,school_id', fn ($attribute, $value, $fail) => StudentRegistryEntry::students()->where('school_id', $value)->exists() && $fail('That school ID belongs to a student record. Enter your employee number.'), ...($invitation->role === self::STAFF ? [fn ($attribute, $value, $fail) => StudentRegistryEntry::employees()->whereNull('claimed_at')->where('school_id', $value)->exists() && $fail('That number is in the employee records. Ask for a link made from your record.')] : [])],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'privacy_accepted' => ['accepted'],
         ], [
+            'privacy_accepted.accepted' => 'Read the Data Privacy Notice and tick the box to agree.',
             'email.in' => 'Use the email this invitation was made for.',
             'school_id.required' => 'Enter your school ID.',
             'school_id.integer' => 'Enter your school ID using numbers only.',
@@ -570,7 +572,7 @@ class DepartmentHeadInvitationController extends Controller
             }
         }
 
-        $user = User::create([
+        $user = new User([
             ...$identity,
             'organization_id' => $home->id,
             'email' => $validated['email'],
@@ -582,6 +584,8 @@ class DepartmentHeadInvitationController extends Controller
             'department' => $college?->name,
             'must_change_password' => false,
         ]);
+        // accept() validated privacy_accepted; the time and version are the server's, never read from the request.
+        $user->forceFill(User::privacyConsentAttributes())->save();
 
         AccountProfile::firstOrCreate(
             ['user_school_id' => $user->school_id, 'organization_id' => $home->id],

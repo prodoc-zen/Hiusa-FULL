@@ -54,7 +54,7 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
             'school_id' => 20269500,
             'email' => $email,
             'password' => 'Dean2026!Pass',
-            'password_confirmation' => 'Dean2026!Pass',
+            'password_confirmation' => 'Dean2026!Pass', 'privacy_accepted' => true,
             ...$extra,
         ]);
     }

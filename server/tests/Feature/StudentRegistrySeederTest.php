@@ -44,7 +44,7 @@ class StudentRegistrySeederTest extends TestCase
 
         $this->postJson('/api/register', [
             'school_id' => 2500101, 'birth_date' => '2007-03-14', 'email' => 'hannah.demo@example.edu',
-            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase',
+            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true,
         ])->assertCreated()->assertJsonPath('user.first_name', 'Hannah');
 
         $this->assertSame('CCS', User::findOrFail(2500101)->organization->acronym);
@@ -55,7 +55,7 @@ class StudentRegistrySeederTest extends TestCase
         $this->seedDemo();
         $this->postJson('/api/register', [
             'school_id' => 2500101, 'birth_date' => '2007-03-14', 'email' => 'hannah.demo@example.edu',
-            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase',
+            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true,
         ])->assertCreated();
         $count = StudentRegistryEntry::count();
 

@@ -131,6 +131,9 @@ export default function LoginPage() {
       <p className="mt-6 text-sm font-medium text-ink-muted">
         New student? <Link to="/sign-up" className="font-bold text-brand-700 hover:text-navy-950">Create your account</Link>
       </p>
+      <p className="mt-4 border-t border-line pt-4 text-xs font-medium text-ink-muted">
+        <Link to="/privacy" className="font-semibold text-brand-700 underline hover:text-navy-950">Data Privacy Notice</Link>
+      </p>
     </AuthLayout>
   );
 }

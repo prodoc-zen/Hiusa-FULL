@@ -18,7 +18,8 @@ class AdministratorSeeder extends Seeder
 
         $saoOrganizationId = Organization::where('acronym', 'SAO')->value('id');
 
-        User::updateOrCreate(
+        // Demo accounts are seeded as having agreed to the Data Privacy Notice; the guarded columns are written unguarded.
+        User::unguarded(fn () => User::updateOrCreate(
             ['school_id' => 990001],
             [
                 'organization_id' => $saoOrganizationId,
@@ -29,8 +30,9 @@ class AdministratorSeeder extends Seeder
                 'must_change_password' => $mustChange,
                 'role' => 'SUPER_ADMIN',
                 'position_title' => 'SAO Director',
+                ...User::privacyConsentAttributes(),
             ]
-        );
+        ));
 
         // Adviser is an organization-scoped ADMIN position assigned by SAO.
         // Other demo organization leaders belong in UserSeeder; creating them
@@ -46,7 +48,7 @@ class AdministratorSeeder extends Seeder
                     ? 'org.admin@hiusa.local'
                     : 'adviser.'.($organization->slug ?: $organization->id).'@hiusa.local';
 
-                User::updateOrCreate(
+                User::unguarded(fn () => User::updateOrCreate(
                     ['school_id' => $schoolId],
                     [
                         'organization_id' => $organization->id,
@@ -60,8 +62,9 @@ class AdministratorSeeder extends Seeder
                         'account_status' => 'active',
                         'is_member' => true,
                         'department' => $organization->college,
+                        ...User::privacyConsentAttributes(),
                     ]
-                );
+                ));
             });
     }
 }

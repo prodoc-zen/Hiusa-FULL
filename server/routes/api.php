@@ -46,6 +46,7 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\OrgSpaceController;
 use App\Http\Controllers\PeopleSearchController;
+use App\Http\Controllers\PrivacyConsentController;
 use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SboPositionController;
@@ -104,6 +105,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     // Profile Routes (authenticated user updates own profile/password)
     Route::put('/user/profile', [UserController::class, 'updateProfile'])->middleware('throttle:api-write');
     Route::put('/user/password', [UserController::class, 'updatePassword'])->middleware('throttle:api-write');
+    Route::post('/user/privacy-consent', [PrivacyConsentController::class, 'store'])->middleware('throttle:api-write');
     Route::get('/me/activity', MyActivityController::class)->middleware('throttle:api-read');
     Route::get('/user/notification-preferences', [NotificationController::class, 'preferences'])->middleware('throttle:api-read');
     Route::put('/user/notification-preferences', [NotificationController::class, 'updatePreferences'])->middleware('throttle:api-write');

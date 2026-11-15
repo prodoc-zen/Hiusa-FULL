@@ -83,7 +83,7 @@ class DepartmentHeadInvitationTest extends TestCase
             'school_id' => 20265555,
             'email' => 'arthur.dent@example.edu',
             'password' => 'SecurePass123!',
-            'password_confirmation' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
             ...$overrides,
         ];
     }

@@ -85,6 +85,13 @@ export async function uiLogin(page, account, { newPassword } = {}) {
     await page.waitForURL(/\/dashboard/, { timeout: 20000 });
   }
   await page.getByRole('navigation').first().waitFor({ state: 'visible', timeout: 15000 });
+  // An account someone else made has not agreed to the Data Privacy Notice yet; the dialog holds the page until it does.
+  const consent = page.getByRole('dialog', { name: 'Before you continue' });
+  if (await consent.waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false)) {
+    await consent.getByLabel(/agree to the processing of my personal data/).check();
+    await consent.getByRole('button', { name: 'Agree and continue' }).click();
+    await consent.waitFor({ state: 'hidden', timeout: 10000 });
+  }
 }
 
 export async function apiLogin(request, account) {
