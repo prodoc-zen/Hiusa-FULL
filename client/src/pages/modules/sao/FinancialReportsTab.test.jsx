@@ -6,7 +6,11 @@ const financeMocks = vi.hoisted(() => ({
   downloadFinancialReportPdf: vi.fn(),
   getFinancialReport: vi.fn(),
   getFinancialReports: vi.fn(),
+  getReportChecks: vi.fn(),
+  explainReportChecks: vi.fn(),
+  ignoreReportCheck: vi.fn(),
 }));
+const draftMocks = vi.hoisted(() => ({ recordAiOutcome: vi.fn() }));
 const approvalMocks = vi.hoisted(() => ({
   getApprovalRequests: vi.fn(),
   reviewApprovalRequest: vi.fn(),
@@ -17,6 +21,7 @@ const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn
 
 vi.mock('../../../services/financeService', () => financeMocks);
 vi.mock('../../../services/approvalService', () => approvalMocks);
+vi.mock('../../../services/aiDraftService', () => draftMocks);
 vi.mock('../../../services/systemAdministrationService', () => systemMocks);
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
@@ -45,6 +50,8 @@ describe('FinancialReportsTab', () => {
     financeMocks.getFinancialReport.mockResolvedValue({ data: { report, transactions: [] } });
     approvalMocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 31, entity_id: 8, entity_type: 'financial_report' }] } });
     approvalMocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
+    financeMocks.getReportChecks.mockResolvedValue({ data: { findings: [{ key: 'missing_receipt:11', code: 'missing_receipt', severity: 'medium', message: 'The expense of PHP 90.00 for Supplies on Sep 2, 2026 has no receipt reference.', ignored: null }] } });
+    draftMocks.recordAiOutcome.mockResolvedValue({});
   });
 
   it('states what the tab is for and never calls the reports received', async () => {
@@ -87,6 +94,32 @@ describe('FinancialReportsTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'approved' }));
+  });
+
+  it('shows the reviewer the same checks, without a way to ignore them', async () => {
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+
+    await viewReportFromMenu();
+
+    expect(await screen.findByText(/has no receipt reference/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Checks on this report' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ignore with a reason' })).not.toBeInTheDocument();
+    expect(financeMocks.getReportChecks).toHaveBeenCalledWith(8);
+  });
+
+  it('records the explanation as used once the reviewer decides', async () => {
+    financeMocks.explainReportChecks.mockResolvedValue({ data: { engine: 'claude', ai_output_id: 61, text: 'summary', summary: 'There is 1 thing to check.', items: [{ key: 'missing_receipt:11', sentence: 'Add the receipt reference.' }] } });
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+    await viewReportFromMenu();
+    fireEvent.click(await screen.findByRole('button', { name: 'Explain and put in order' }));
+    await screen.findByText('There is 1 thing to check.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
+
+    await waitFor(() => expect(draftMocks.recordAiOutcome).toHaveBeenCalledWith(61, 'summary'));
   });
 
   it('labels each signatory role the way the report form does and shows the name as typed', async () => {

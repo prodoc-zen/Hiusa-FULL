@@ -26,6 +26,7 @@ vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequest: mocks.getApprovalRequest }));
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
 vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester, readOnly, mode, organizationId, initialEventId, onEventOpen }) => <div><p data-no-semester={String(Boolean(noSemester))} data-read-only={String(Boolean(readOnly))} data-mode={mode || 'settings'} data-organization={organizationId || ''} data-event={initialEventId || ''}>Event requirements content</p><button type="button" onClick={() => onEventOpen?.(31)}>Open event 31</button><button type="button" onClick={() => onEventOpen?.(null)}>Close event</button></div> }));
+vi.mock('./FinancialReportDeadlineField', () => ({ default: () => <p>Financial report due date content</p> }));
 vi.mock('./FinancialReportsTab', () => ({ default: ({ initialStatus }) => <p data-status={initialStatus || ''}>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
 

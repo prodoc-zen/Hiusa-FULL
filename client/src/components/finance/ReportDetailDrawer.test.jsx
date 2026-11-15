@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportDetailDrawer from './ReportDetailDrawer';
 
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+const finance = vi.hoisted(() => ({ getReportChecks: vi.fn(), explainReportChecks: vi.fn(), ignoreReportCheck: vi.fn() }));
+const draft = vi.hoisted(() => ({ recordAiOutcome: vi.fn() }));
 vi.mock('../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../services/financeService', () => finance);
+vi.mock('../../services/aiDraftService', () => draft);
 
 const report = {
   id: 8,
@@ -15,7 +19,11 @@ const report = {
 };
 
 describe('ReportDetailDrawer', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    finance.getReportChecks.mockResolvedValue({ data: { findings: [{ key: 'missing_receipt:11', code: 'missing_receipt', severity: 'medium', message: 'The expense of PHP 90.00 for Supplies on Sep 2, 2026 has no receipt reference.', ignored: null }] } });
+    draft.recordAiOutcome.mockResolvedValue({});
+  });
 
   it('shows a returned report’s submitted file and opens it for the admin', async () => {
     render(<ReportDetailDrawer report={report} viewerRole="ADMIN" onClose={vi.fn()} onSubmit={vi.fn()} />);
@@ -24,6 +32,59 @@ describe('ReportDetailDrawer', () => {
     expect(screen.getByText('Resubmit for review')).toBeInTheDocument();
     fireEvent.click(await findRowAction('View file'));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/financial-reports/8/documents/0'));
+  });
+
+  describe('before you send', () => {
+    const unsent = { id: 9, title: 'October report', document_type: 'financial_report', submission_status: 'draft' };
+    const explanation = { engine: 'claude', ai_output_id: 52, text: 'summary', summary: 'There is 1 thing to check.', items: [{ key: 'missing_receipt:11', sentence: 'Add the receipt reference.' }] };
+
+    it('shows the checks to the Admin of a draft, with a way to ignore one', async () => {
+      render(<ReportDetailDrawer report={unsent} viewerRole="ADMIN" onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+      expect(await screen.findByText(/has no receipt reference/)).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Before you send' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Ignore with a reason' })).toBeInTheDocument();
+      expect(finance.getReportChecks).toHaveBeenCalledWith(9);
+    });
+
+    it('lets an officer read the checks but not ignore them', async () => {
+      render(<ReportDetailDrawer report={unsent} viewerRole="SBO_OFFICER" onClose={vi.fn()} />);
+
+      expect(await screen.findByText(/has no receipt reference/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ignore with a reason' })).not.toBeInTheDocument();
+    });
+
+    it('asks nothing of a report that is already with the reviewers', () => {
+      render(<ReportDetailDrawer report={{ ...unsent, submission_status: 'pending_sao' }} viewerRole="ADMIN" onClose={vi.fn()} />);
+
+      expect(screen.queryByRole('region', { name: 'Before you send' })).not.toBeInTheDocument();
+      expect(finance.getReportChecks).not.toHaveBeenCalled();
+    });
+
+    it('records the explanation as used once the report is sent', async () => {
+      finance.explainReportChecks.mockResolvedValue({ data: explanation });
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      render(<ReportDetailDrawer report={unsent} viewerRole="ADMIN" onClose={vi.fn()} onSubmit={onSubmit} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Explain and put in order' }));
+      await screen.findByText('There is 1 thing to check.');
+
+      fireEvent.click(screen.getByText('Submit for review'));
+
+      await waitFor(() => expect(draft.recordAiOutcome).toHaveBeenCalledWith(52, 'summary'));
+    });
+
+    it('records nothing when the send fails', async () => {
+      finance.explainReportChecks.mockResolvedValue({ data: explanation });
+      const onSubmit = vi.fn().mockResolvedValue(false);
+      render(<ReportDetailDrawer report={unsent} viewerRole="ADMIN" onClose={vi.fn()} onSubmit={onSubmit} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Explain and put in order' }));
+      await screen.findByText('There is 1 thing to check.');
+
+      fireEvent.click(screen.getByText('Submit for review'));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(draft.recordAiOutcome).not.toHaveBeenCalled();
+    });
   });
 
   describe('picking supporting files', () => {

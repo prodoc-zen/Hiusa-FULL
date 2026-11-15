@@ -16,6 +16,9 @@ const financeMocks = vi.hoisted(() => ({
   updateBudget: vi.fn(),
   getFinancialReports: vi.fn(),
   submitFinancialReport: vi.fn(),
+  getReportChecks: vi.fn(),
+  explainReportChecks: vi.fn(),
+  ignoreReportCheck: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -73,6 +76,7 @@ beforeEach(() => {
   financeMocks.getForecasts.mockResolvedValue({ data: [] });
   financeMocks.getBudgets.mockResolvedValue({ data: [] });
   financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+  financeMocks.getReportChecks.mockResolvedValue({ data: { findings: [] } });
   eventMocks.getEvents.mockResolvedValue({ data: [{ id: 3, title: 'Sports Fest' }, { id: 4, title: 'Foundation Day' }] });
 });
 
