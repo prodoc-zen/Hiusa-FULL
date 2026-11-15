@@ -287,6 +287,7 @@ export default function ManageAnnouncementsPage() {
         <div className="min-w-0">
           <button type="button" onClick={() => setDetails(a)} className="min-h-10 text-left font-medium text-ink hover:text-brand-700">{formatDisplayText(a.title)}</button>
           {(announcementStage(a).key !== 'published' || announcementVisibility(a)) && <div className="mt-0.5"><AnnouncementStageChip announcement={a} /></div>}
+          {a.is_published && a.seen_by_count != null && <p className="mt-0.5 text-xs text-ink-muted">Seen by {a.seen_by_count}</p>}
         </div>
       ),
     },
@@ -409,7 +410,7 @@ export default function ManageAnnouncementsPage() {
             <NextStep {...nextStepFor(details, canModify(details))} />
             <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">{[
               ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Stage', announcementStage(details).label], ['Publication', details.is_published ? 'Published' : 'Draft'],
-              ['Unique views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
+              ['Seen by', details.seen_by_count ?? details.views_count ?? 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
             ].map(([label, value]) => <div key={label}><dt className="text-xs text-ink-muted">{label}</dt><dd className="mt-0.5 break-words font-medium text-ink">{value ?? '-'}</dd></div>)}</dl>
             <div className="border-t border-line pt-4">
               <p className="text-xs text-ink-muted">Author</p>
