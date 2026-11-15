@@ -127,6 +127,9 @@ class ChangesSinceReturnTest extends TestCase
 
         Sanctum::actingAs($admin);
         $this->putJson('/api/events/'.$eventId, ['location' => 'Gym'])->assertOk();
+        // A material edit takes the event back to the Head, who approves again before the Admin resends it.
+        $this->decide($head, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail(), 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+        Sanctum::actingAs($admin);
         $this->post('/api/events/'.$eventId.'/submission', [], ['Accept' => 'application/json'])->assertOk();
 
         $this->assertSame(['Location'], $this->labels($this->listed($director, $eventId, 'event', 'SUPER_ADMIN')['changes_since_return']));

@@ -111,6 +111,14 @@ class EventApprovalChainTest extends TestCase
         return $this->postJson('/api/events/'.$eventId.'/submission');
     }
 
+    /** Files added after the Head approved go back to the Head, who approves again, and then the Admin sends the event on. */
+    private function uploadAndSend(int $eventId, EventRequirement ...$requirements): void
+    {
+        $this->upload($eventId, ...$requirements)->assertOk()->assertJsonPath('approval_stage', 'awaiting_department_head');
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->send($eventId)->assertOk()->assertJsonPath('approval_stage', 'awaiting_sao');
+    }
+
     private function payload(int $eventId, ?User $viewer = null): array
     {
         Sanctum::actingAs($viewer ?? $this->admin);
@@ -246,7 +254,13 @@ class EventApprovalChainTest extends TestCase
             'message' => 'Event "General Assembly" was approved by the Department Head. Upload the SAO event files, then send the event to the Student Affairs Office.',
         ]);
 
-        $this->upload($eventId, $requirement)->assertOk();
+        // Files the Head has not seen go back to the Head, who approves again before the Admin sends the event on.
+        $this->upload($eventId, $requirement)->assertOk()->assertJsonPath('approval_stage', 'awaiting_department_head')->assertJsonPath('dean_approved_at', null);
+        $this->assertNull($this->saoRow($eventId));
+        $this->assertSame('pending', $this->headRow($eventId)->status);
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
+        $this->send($eventId)->assertOk();
 
         $sao = $this->saoRow($eventId);
         $this->assertSame('pending', $sao->status);
@@ -342,7 +356,7 @@ class EventApprovalChainTest extends TestCase
         $requirement = $this->requirement();
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $requirement)->assertOk();
+        $this->uploadAndSend($eventId, $requirement);
 
         $this->decide($this->director, $this->saoRow($eventId))->assertOk();
 
@@ -413,8 +427,9 @@ class EventApprovalChainTest extends TestCase
         $this->assertNull($this->saoRow($eventId));
         $this->decide($this->head, $row->fresh())->assertOk();
         $this->assertSame('awaiting_requirements', $this->payload($eventId)['approval_stage']);
-        $this->upload($eventId, $requirement)->assertOk();
-        $this->assertSame('awaiting_sao', $this->payload($eventId)['approval_stage']);
+        $this->upload($eventId, $requirement)->assertOk()->assertJsonPath('approval_stage', 'awaiting_department_head');
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
     }
 
     public function test_sao_rejection_returns_the_files_and_a_reupload_reopens_the_same_request(): void
@@ -422,7 +437,7 @@ class EventApprovalChainTest extends TestCase
         $requirement = $this->requirement();
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $requirement)->assertOk();
+        $this->uploadAndSend($eventId, $requirement);
         $sao = $this->saoRow($eventId);
 
         $this->decide($this->director, $sao, 'rejected', 'Signature missing.')->assertOk();
@@ -446,7 +461,7 @@ class EventApprovalChainTest extends TestCase
         $requirement = $this->requirement();
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $requirement)->assertOk();
+        $this->uploadAndSend($eventId, $requirement);
         $sao = $this->saoRow($eventId);
         $this->decide($this->director, $sao, 'rejected', 'Resend with the cover note.')->assertOk();
 
@@ -461,7 +476,7 @@ class EventApprovalChainTest extends TestCase
         $requirement = $this->requirement();
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $requirement)->assertOk();
+        $this->uploadAndSend($eventId, $requirement);
 
         $this->upload($eventId, $requirement)->assertStatus(409);
     }
@@ -472,7 +487,7 @@ class EventApprovalChainTest extends TestCase
         $permit = $this->requirement(['name' => 'Venue permit', 'sort_order' => 2]);
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $proposal, $permit)->assertOk();
+        $this->uploadAndSend($eventId, $proposal, $permit);
         $before = EventRequirementFile::where('event_id', $eventId)->get()->keyBy('requirement_id');
         $this->decide($this->director, $this->saoRow($eventId), 'rejected', 'Replace the proposal.')->assertOk();
 
@@ -497,7 +512,7 @@ class EventApprovalChainTest extends TestCase
         $requirement = $this->requirement();
         $eventId = $this->propose();
         $this->decide($this->head, $this->headRow($eventId))->assertOk();
-        $this->upload($eventId, $requirement)->assertOk();
+        $this->uploadAndSend($eventId, $requirement);
         $sao = $this->saoRow($eventId);
         $this->decide($this->director, $sao)->assertOk();
 
@@ -517,6 +532,76 @@ class EventApprovalChainTest extends TestCase
 
         $this->assertSame('pending', $sao->fresh()->status);
         $this->assertSame(1, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->count());
+    }
+
+    public function test_a_file_added_after_the_head_approved_sends_the_event_back_to_the_head_but_after_an_sao_return_goes_to_the_sao(): void
+    {
+        $proposal = $this->requirement();
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+
+        $this->upload($eventId, $proposal)->assertOk()->assertJsonPath('approval_stage', 'awaiting_department_head')
+            ->assertJsonPath('dean_approved_at', null);
+
+        $this->assertNull($this->saoRow($eventId));
+        $this->assertSame('pending', $this->headRow($eventId)->status);
+        $this->send($eventId)->assertStatus(409);
+
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->send($eventId)->assertOk();
+        $this->decide($this->director, $this->saoRow($eventId), 'rejected', 'Add the permit.')->assertOk();
+        $permit = $this->requirement(['name' => 'Venue permit', 'sort_order' => 2, 'is_optional' => true]);
+
+        $this->upload($eventId, $permit)->assertOk()->assertJsonPath('approval_stage', 'awaiting_sao');
+
+        $this->assertSame('approved', $this->headRow($eventId)->status, 'a file added after an SAO return goes straight back to the SAO');
+        $this->assertSame('pending', $this->saoRow($eventId)->status);
+    }
+
+    public function test_a_material_edit_after_the_head_approved_and_before_the_sao_does_returns_the_event_to_the_head(): void
+    {
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['title' => 'General Assembly Renamed'])->assertOk();
+
+        $this->assertSame('pending', $this->headRow($eventId)->status);
+        $payload = $this->payload($eventId);
+        $this->assertSame('awaiting_department_head', $payload['approval_stage']);
+        $this->assertNull($payload['dean_approved_at']);
+        $this->assertNull($this->saoRow($eventId));
+        $this->send($eventId)->assertStatus(409);
+
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
+        $this->send($eventId)->assertOk()->assertJsonPath('approval_stage', 'awaiting_sao');
+    }
+
+    public function test_an_edit_that_changes_nothing_material_keeps_the_head_approval_before_the_sao_decides(): void
+    {
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['title' => 'General Assembly'])->assertOk();
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+        $this->assertSame('ready_for_sao', $this->payload($eventId)['approval_stage']);
+    }
+
+    public function test_a_material_edit_while_the_sao_is_reviewing_leaves_the_head_approval_alone(): void
+    {
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->send($eventId)->assertOk();
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson('/api/events/'.$eventId, ['title' => 'General Assembly Renamed'])->assertOk();
+
+        $this->assertSame('approved', $this->headRow($eventId)->status);
+        $this->assertSame('awaiting_sao', $this->payload($eventId)['approval_stage']);
     }
 
     /** The Admin sends a head-approved event on and the SAO approves it. */
@@ -748,14 +833,14 @@ class EventApprovalChainTest extends TestCase
         $this->decide($this->head, $this->headRow($stages['ready_for_sao']))->assertOk();
         $stages['awaiting_sao'] = $this->propose('Awaiting SAO');
         $this->decide($this->head, $this->headRow($stages['awaiting_sao']))->assertOk();
-        $this->upload($stages['awaiting_sao'], $requirement)->assertOk();
+        $this->uploadAndSend($stages['awaiting_sao'], $requirement);
         $stages['requirements_returned'] = $this->propose('Returned');
         $this->decide($this->head, $this->headRow($stages['requirements_returned']))->assertOk();
-        $this->upload($stages['requirements_returned'], $requirement)->assertOk();
+        $this->uploadAndSend($stages['requirements_returned'], $requirement);
         $this->decide($this->director, $this->saoRow($stages['requirements_returned']), 'rejected', 'Redo.')->assertOk();
         $stages['approved'] = $this->propose('Approved');
         $this->decide($this->head, $this->headRow($stages['approved']))->assertOk();
-        $this->upload($stages['approved'], $requirement)->assertOk();
+        $this->uploadAndSend($stages['approved'], $requirement);
         $this->decide($this->director, $this->saoRow($stages['approved']))->assertOk();
 
         Sanctum::actingAs($this->admin);
@@ -879,9 +964,9 @@ class EventApprovalChainTest extends TestCase
     {
         $requirement = $this->requirement();
         $eventId = $this->propose();
-        $this->decide($this->head, $this->headRow($eventId))->assertOk();
         $this->upload($eventId, $requirement)->assertOk();
-        $this->decide($this->director, $this->saoRow($eventId))->assertOk();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->finish($eventId);
 
         $titles = Notification::where('user_id', $this->admin->school_id)->orderBy('id')->pluck('title')->all();
 

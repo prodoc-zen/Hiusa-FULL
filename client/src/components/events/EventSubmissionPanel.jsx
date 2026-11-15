@@ -7,7 +7,7 @@ import { RichTextBody } from '../RichText';
 import { Button } from '../ui';
 import FileReviewList from '../reviews/FileReviewList';
 import { describeReview, reviewLineClass } from '../approvals/EventFilesReview';
-import { deanApprovalLine } from './eventStage';
+import { SEND_STAGES, deanApprovalLine } from './eventStage';
 
 export default function EventSubmissionPanel(props) {
   return <EventSubmission key={props.eventId} {...props} />;
@@ -91,10 +91,10 @@ function EventSubmission({ eventId, role, onSubmitted }) {
   });
   const stage = submission?.approval_stage;
   // After the Department Head approves, the same form is the Admin's send to the SAO; it has no file inputs when the SAO listed none.
-  const sendsToSao = ['awaiting_requirements', 'ready_for_sao', 'requirements_returned'].includes(stage);
+  const sendsToSao = ['awaiting_requirements', ...SEND_STAGES].includes(stage);
   const maySubmit = role === 'ADMIN' && (
     (requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected'))
-    || (sendsToSao && (requirements.length > 0 || stage === 'ready_for_sao'))
+    || (sendsToSao && (requirements.length > 0 || SEND_STAGES.includes(stage)))
   );
   const verification = deanApprovalLine(submission);
 
@@ -110,7 +110,9 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         <p className="text-xs text-ink-muted-strong">{
           stage === 'ready_for_sao'
             ? `The Department Head approved this event. Send it to the SAO when you are ready.${requirements.length > 0 ? ' Replacing a file sends the event back to the Department Head to check it again.' : ''}`
-            : `${uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.`
+            : stage === 'requirements_returned' && requirements.length === 0
+              ? 'The SAO returned this event. Read the remarks above, then send it to the SAO again.'
+              : `${uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.`
         }</p>
         {requirements.map((requirement) => <div key={requirement.id}>
           <label className="block text-xs font-semibold text-ink">
@@ -126,7 +128,7 @@ function EventSubmission({ eventId, role, onSubmitted }) {
         {toReplace > 0 && <p id="event-files-replace" className="text-xs text-ink-muted-strong">{toReplace === 1 ? '1 file still needs to be replaced.' : `${toReplace} files still need to be replaced.`}</p>}
         <Button type="submit" loading={busy} disabled={missingFiles > 0 || toReplace > 0} aria-describedby={missingFiles > 0 ? 'event-files-missing' : toReplace > 0 ? 'event-files-replace' : undefined}>{sendsToSao ? 'Send to SAO' : 'Submit event files'}</Button>
       </form>}
-      {submission?.approval_status && !['awaiting_requirements', 'ready_for_sao'].includes(stage) && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
+      {submission?.approval_status && !['awaiting_requirements', 'ready_for_sao'].includes(stage) && <p className="mt-3 text-xs font-semibold text-ink">Review: {submission.approval_status.replace('rejected', 'returned').replaceAll('_', ' ')}</p>}
     </section>
   );
 }

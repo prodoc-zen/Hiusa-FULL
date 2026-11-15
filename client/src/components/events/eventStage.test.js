@@ -91,6 +91,15 @@ describe('eventFlow', () => {
     expect(flow.nextAction.body).toContain('Permit expired.');
   });
 
+  it('requirements_returned without files: the Admin is told to send it again, not to replace files', () => {
+    const event = { ...base, approval_stage: 'requirements_returned', approval_status: 'rejected', approval_remarks: 'Add the cover note.', requirements_required: false };
+    const forAdmin = eventFlow(event, 'ADMIN');
+    expect(forAdmin.nextAction).toMatchObject({ tone: 'action', title: 'Returned: read the remarks, send it again' });
+    expect(forAdmin.nextAction.body).toContain('Add the cover note.');
+    expect(eventFlow({ ...event, approval_remarks: null }, 'ADMIN').nextAction.body).toBe('The SAO returned this event. Send it to the SAO again below.');
+    expect(eventFlow(event, 'DEPARTMENT_HEAD').nextAction).toMatchObject({ tone: 'waiting', title: 'Returned to the Admin to send it again' });
+  });
+
   it('approved: both approval steps are done and the next step is preparation', () => {
     const flow = eventFlow({ ...base, status: 'approved', approval_stage: 'approved', approval_status: 'approved', requirements_required: true, requirements_submitted: true }, 'ADMIN');
     expect(states(flow)).toMatchObject({ proposal: 'done', approval: 'done', requirements: 'done', prepare: 'current' });
