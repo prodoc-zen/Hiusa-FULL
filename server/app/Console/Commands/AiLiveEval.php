@@ -17,6 +17,7 @@ use App\Services\Ai\Evaluation\RecordingTextGenerator;
 use App\Services\Ai\Evaluation\ReportCheckFixture;
 use App\Services\Ai\Evaluation\TemplateOnlyTextGenerator;
 use App\Services\Ai\ReportCheckExplainer;
+use App\Services\Ai\ReviewNoteDrafter;
 use App\Services\Finance\FinancialReportChecks;
 use App\Services\Ai\HandoverNoteDrafter;
 use App\Services\Ai\SemesterNarrativeDrafter;
@@ -71,6 +72,8 @@ class AiLiveEval extends Command
         'semester-narrative' => 'heldoutSemesterNarrative',
         'handover_note' => 'heldoutHandoverNote',
         'handover-notes' => 'heldoutHandoverNote',
+        'review_note' => 'heldoutReviewNote',
+        'review-notes' => 'heldoutReviewNote',
     ];
 
     private RecordingTextGenerator $recorder;
@@ -566,6 +569,36 @@ class AiLiveEval extends Command
                 'category_only' => ! in_array(true, array_map($mentions, $expect['must_not_mention'] ?? []), true),
                 'must_mention' => ! in_array(false, array_map($mentions, $expect['must_mention'] ?? []), true),
                 'max_length' => mb_strlen($text) <= HandoverNoteDrafter::MAX_CHARACTERS,
+            ],
+        ];
+    }
+
+    /**
+     * Held-out runner for the review note drafter: the case minus its id and expect is the facts, and the text is
+     * checked against what the case supplied and what it expects.
+     *
+     * @param  array<string, mixed>  $case
+     * @return array<string, mixed>
+     */
+    protected function heldoutReviewNote(array $case): array
+    {
+        $facts = array_diff_key($case, ['id' => true, 'expect' => true]);
+        $draft = $this->laravel->make(ReviewNoteDrafter::class)->draftFromFacts($facts);
+        $text = $draft['text'];
+        $expect = is_array($case['expect'] ?? null) ? $case['expect'] : [];
+        $mentions = fn (string $needle) => mb_stripos($text, $needle) !== false;
+
+        return [
+            'facts' => $draft['facts'],
+            'text' => $text,
+            'engine' => $draft['engine'],
+            'checks' => [
+                'names_supplied_only' => ReviewNoteDrafter::namesAreSupplied($text, $draft['facts']),
+                'no_unsupplied_number' => GroundingCheck::check($text, (string) json_encode($draft['facts'], JSON_UNESCAPED_UNICODE))['violations'] === [],
+                'decision_word_consistent' => ReviewNoteDrafter::decisionWordsAgree($text, $draft['facts']),
+                'max_120_words' => ReviewNoteDrafter::wordCount($text) <= ReviewNoteDrafter::MAX_WORDS,
+                'must_mention' => collect((array) ($expect['must_mention'] ?? []))->every(fn ($needle) => $mentions((string) $needle)),
+                'must_not_contain' => collect((array) ($expect['must_not_contain'] ?? []))->every(fn ($needle) => ! $mentions((string) $needle)),
             ],
         ];
     }
