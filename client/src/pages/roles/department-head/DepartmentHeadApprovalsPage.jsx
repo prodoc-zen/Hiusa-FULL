@@ -17,7 +17,7 @@ import useRecordParam from '../../../lib/useRecordParam';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import ApprovalDetailDrawer from '../../../components/approvals/ApprovalDetailDrawer';
 import ApprovalReceipt from '../../../components/approvals/ApprovalReceipt';
-import { ENTITY_LABEL, describeApproval, entityLink } from '../../../components/approvals/approvalStage';
+import { ENTITY_LABEL, describeApproval, entityLink, isFinalRefusal } from '../../../components/approvals/approvalStage';
 import { formatDateTime, fullName, summaryLine } from '../../../components/approvals/approvalFormat';
 import { findApprovalRequest } from '../../modules/approvals/approvalApi';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
@@ -41,7 +41,7 @@ const SUBMITTED_STATUS_TABS = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Waiting' },
   { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'rejected', label: 'Returned' },
 ];
 
 const NEW_REQUEST_PATH = '/dashboard/approval-requests/new';
@@ -70,12 +70,14 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
   if (!open || !request) return null;
 
   const isReject = action === 'rejected';
+  // A payment rejection cancels the order; every other one is a send-back.
+  const rejectVerb = isFinalRefusal(request) ? 'Reject' : 'Return';
 
   return (
-    <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/50 p-4">
+    <AccessibleOverlay label={`${isReject ? rejectVerb : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/50 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-card border border-line bg-surface p-6">
         <h3 className="text-lg font-semibold text-ink">
-          {isReject ? 'Reject' : 'Approve'} "{formatDisplayText(request.title)}"
+          {isReject ? rejectVerb : 'Approve'} "{formatDisplayText(request.title)}"
         </h3>
         <div className="mt-4"><ApprovalReceipt request={request} organizationName={organizationName} /></div>
         <Field className="mt-4" label={isReject ? 'Remarks (required)' : 'Remarks'} optional={!isReject} required={isReject}>
@@ -92,7 +94,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy, organiz
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
           <Button variant={isReject ? 'danger' : 'primary'} onClick={() => onConfirm(remarks)} disabled={busy || request.status !== 'pending' || (isReject && !remarks.trim())}>
-            {busy ? 'Saving...' : isReject ? 'Reject' : 'Approve'}
+            {busy ? 'Saving...' : isReject ? rejectVerb : 'Approve'}
           </Button>
         </div>
       </div>
@@ -115,7 +117,7 @@ function ApprovalRow({ request, role, organizationName, canAct, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-sm font-semibold text-ink">{formatDisplayText(request.title)}</p>
-          {request.status !== 'pending' && <StatusBadge status={request.status} />}
+          {request.status !== 'pending' && <StatusBadge status={request.status} label={request.status === 'rejected' && isFinalRefusal(request) ? 'Rejected' : undefined} />}
         </div>
         <p className="mt-1 text-xs text-ink-muted-strong">{[typeLabel, organizationName].filter(Boolean).join(' · ')}</p>
         {summary && <p className="mt-1 text-xs text-ink-muted-strong">{summary}</p>}
@@ -336,7 +338,7 @@ export default function DepartmentHeadApprovalsPage() {
       const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
       setModalState({ open: false, request: null, action: null });
       setOpened({ id: String(request.id), request: updated, state: 'ready' });
-      notify.success(`Request ${action}.`);
+      notify.success(action === 'rejected' ? (isFinalRefusal(request) ? 'Request rejected.' : 'Request returned.') : 'Request approved.');
       load();
     } catch (cause) {
       const message = getApiErrorMessage(cause, 'Could not save your decision. Try again.');
@@ -354,13 +356,13 @@ export default function DepartmentHeadApprovalsPage() {
     }
   }
 
-  // An election is decided from the drawer itself (approve, ask for changes, reject for good), so it skips the remarks
+  // An election is decided from the drawer itself (approve, return, reject for good), so it skips the remarks
   // dialog. A failure goes back to the drawer, which shows it beside the buttons.
   async function decideElection(request, payload) {
     const { data } = await reviewApprovalRequest(request.id, payload);
     const updated = { ...request, ...data, requester: { ...request.requester, ...data?.requester }, reviewer: { ...request.reviewer, ...data?.reviewer } };
     setOpened({ id: String(request.id), request: updated, state: 'ready' });
-    notify.success(payload.final ? 'Election rejected for good.' : `Request ${payload.status}.`);
+    notify.success(payload.final ? 'Election rejected for good.' : payload.status === 'rejected' ? 'Request returned.' : 'Request approved.');
     load();
   }
 
@@ -392,7 +394,7 @@ export default function DepartmentHeadApprovalsPage() {
       return <EmptyState title="No requests to review" description={REVIEW_EMPTY[role] ?? 'Requests sent to you for a decision appear here.'} />;
     }
 
-    return <EmptyState title="No approval history yet" description="Requests you approve or reject are listed here afterwards." />;
+    return <EmptyState title="No approval history yet" description="Requests you approve or return are listed here afterwards." />;
   }
 
   const headerPrimary = isAdmin || isOfficer ? <Button to={NEW_REQUEST_PATH} leftIcon={Plus}>New request</Button> : undefined;

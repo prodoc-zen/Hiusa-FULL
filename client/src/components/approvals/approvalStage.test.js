@@ -96,6 +96,21 @@ describe('describeApproval for the other lifecycles', () => {
   });
 });
 
+describe('a send-back reads Return and only a final refusal reads Rejected', () => {
+  it('says Returned for an announcement and Rejected for a payment', () => {
+    expect(describeApproval(request({ entity_type: 'announcement', status: 'rejected' }), 'ADMIN').stageText).toBe('Returned');
+    expect(describeApproval(request({ entity_type: 'payment', status: 'rejected' }), 'ADMIN').stageText).toBe('Rejected');
+    expect(describeApproval(request({ entity_type: 'announcement', status: 'approved' }), 'ADMIN').stageText).toBe('Approved');
+  });
+
+  it('words the decision sentence the same way, and an election declined for good is not a return', () => {
+    expect(decisionMessage(request({ entity_type: 'announcement', status: 'rejected' }))).toBe('Returned to the organization for changes');
+    expect(decisionMessage(request({ entity_type: 'payment', status: 'rejected' }))).toBe('Rejected');
+    expect(decisionMessage(request({ entity_type: 'election', status: 'rejected', summary: { declined_at: '2026-10-07T10:00:00+08:00' } }))).toBe('Rejected');
+    expect(decisionMessage(request({ entity_type: 'election', status: 'rejected', summary: { declined_at: null } }))).toBe('Returned to the organization for changes');
+  });
+});
+
 describe('waitingOnRole', () => {
   it('names the role holding a pending request and nobody once the head has decided', () => {
     expect(waitingOnRole(request({ entity_type: 'budget' }))).toBe('DEPARTMENT_HEAD');

@@ -37,7 +37,7 @@ function formatRange(start, end) {
   return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
 }
 
-// Rejected is the one stage where the Admin has something to do from here, so its callout gets the Book again button.
+// Returned is the one stage where the Admin has something to do from here, so its callout gets the Book again button.
 function BookingDetail({ booking, role, onBookAgain, onWithdraw }) {
   const stage = venueBookingLifecycle(booking, role);
   const next = toNextStepProps(stage);
@@ -126,7 +126,7 @@ export default function VenueBookingPage() {
   const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
 
   // Off-campus requests start from the Venue type choice in the form, so no separate entry point.
-  // The form opens blank unless an event or a rejected request supplies the details, so a stray click files nothing.
+  // The form opens blank unless an event or a returned request supplies the details, so a stray click files nothing.
   // What an event brings to the form: the venue its organizers planned, its times, and the link itself.
   function eventFormFields(linkedEvent) {
     const planned = linkedEvent.planning_details ?? {};

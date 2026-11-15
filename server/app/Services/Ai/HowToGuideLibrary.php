@@ -245,7 +245,7 @@ class HowToGuideLibrary
                 'steps' => [
                     ['title' => 'Open Venues', 'detail' => 'In the sidebar, open Reviews → Venues.', 'path' => '/dashboard/super-admin/venues', 'where' => 'Reviews → Venues'],
                     ['title' => 'Click "New venue"', 'detail' => 'Enter the name, location, capacity, and description.', 'path' => '/dashboard/super-admin/venues', 'where' => 'Venues'],
-                    ['title' => 'Review booking requests', 'detail' => 'Open a pending booking, check the schedule, then Approve or reject it.', 'path' => '/dashboard/super-admin/venues', 'where' => 'Venues → Bookings'],
+                    ['title' => 'Review booking requests', 'detail' => 'Open a pending booking, check the schedule, then Approve or return it.', 'path' => '/dashboard/super-admin/venues', 'where' => 'Venues → Bookings'],
                 ],
                 'tips' => [],
             ],

@@ -303,7 +303,7 @@ describe('EventRequirementsTab', () => {
     openMenu();
     expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeDisabled();
     closeMenu();
-    expect(screen.getByText('Accept every file to approve. Reject the event to send back a file with a note.')).toBeInTheDocument();
+    expect(screen.getByText('Accept every file to approve. Return the event to send back a file with a note.')).toBeInTheDocument();
 
     mark(section, 'Venue Reservation Letter', 'ok');
     mark(section, 'Request Letter', 'ok');
@@ -389,7 +389,7 @@ describe('EventRequirementsTab', () => {
     expect(within(section).getByLabelText('Review of Venue Reservation Letter')).toHaveValue('');
   });
 
-  it('keeps Approve off while a file needs changes and sends the marked files with their notes on Reject', async () => {
+  it('keeps Approve off while a file needs changes and sends the marked files with their notes on Return', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
     render(<EventRequirementsTab mode="reviews" />);
@@ -398,14 +398,14 @@ describe('EventRequirementsTab', () => {
     mark(section, 'Request Letter', 'needs_changes');
     openMenu();
     expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: 'Reject' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: 'Return' })).toBeDisabled();
     closeMenu();
 
     fireEvent.change(within(section).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
     openMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }));
-    fireEvent.change(await screen.findByLabelText(/Remarks for rejection/), { target: { value: 'Fix the letter' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Reject event' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
+    fireEvent.change(await screen.findByLabelText(/Remarks for the return/), { target: { value: 'Fix the letter' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Fix the letter', files: [{ id: 8, status: 'needs_changes', note: 'The seal is missing.' }] }));
   });
@@ -418,24 +418,24 @@ describe('EventRequirementsTab', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
     expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Return' })).toBeInTheDocument();
   });
 
-  it('asks for remarks in a confirmation before rejecting', async () => {
+  it('asks for remarks in a confirmation before returning', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
     render(<EventRequirementsTab mode="reviews" />);
     await screen.findByText('Foundation Day');
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Reject' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Reject event' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Write why this event is rejected');
-    expect(screen.getByLabelText(/Remarks for rejection/)).toHaveFocus();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Return' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Return event' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Write why this event is returned');
+    expect(screen.getByLabelText(/Remarks for the return/)).toHaveFocus();
     expect(mocks.reviewApprovalRequest).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/Remarks for rejection/), { target: { value: 'Missing budget' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Reject event' }));
+    fireEvent.change(screen.getByLabelText(/Remarks for the return/), { target: { value: 'Missing budget' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Missing budget' }));
   });

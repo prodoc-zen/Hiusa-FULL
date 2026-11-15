@@ -33,7 +33,7 @@ const ACTION_CATEGORY_OPTIONS = [
   { value: "UPDATE", label: "Update" },
   { value: "DELETE", label: "Delete" },
   { value: "APPROVE", label: "Approve" },
-  { value: "REJECT", label: "Reject" },
+  { value: "REJECT", label: "Returned or rejected" },
   { value: "PAYMENT", label: "Payment" },
   { value: "COLLECTION", label: "Collection" },
   { value: "REMITTANCE", label: "Remittance" },

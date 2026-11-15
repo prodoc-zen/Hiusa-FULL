@@ -65,7 +65,7 @@ describe('venue booking stage text', () => {
   it('reads the same for each status', () => {
     expect(venueStageText({ status: 'pending' })).toBe('Waiting for SAO approval');
     expect(venueStageText({ status: 'approved' })).toBe('Approved: venue booked');
-    expect(venueStageText({ status: 'rejected' })).toBe('Rejected: read the remarks and request again');
+    expect(venueStageText({ status: 'rejected' })).toBe('Returned: read the remarks and request again');
     expect(venueStageText({ status: 'withdrawn' })).toBe('Withdrawn');
   });
 });
@@ -146,7 +146,7 @@ describe('VenueBookingPage', () => {
     if (owner) expect(within(drawer).getByText(owner)).toBeInTheDocument();
   });
 
-  it('offers Book again on a rejected request and shows the SAO remarks', async () => {
+  it('offers Book again on a returned request and shows the SAO remarks', async () => {
     mocks.getVenueBookings.mockResolvedValue(page([{ ...BOOKING, status: 'rejected', remarks: 'Hall is closed that day.' }]));
     renderAt('/dashboard/venues?record=31', <VenueBookingPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Main Hall' });
@@ -168,7 +168,7 @@ describe('VenueBookingPage', () => {
     expect(mocks.createVenueBooking).not.toHaveBeenCalled();
   });
 
-  it('opens Book again with the rejected venue and time already filled in', async () => {
+  it('opens Book again with the returned venue and time already filled in', async () => {
     mocks.getVenueBookings.mockResolvedValue(page([{ ...BOOKING, status: 'rejected', remarks: 'Hall is closed that day.' }]));
     renderAt('/dashboard/venues?record=31', <VenueBookingPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Main Hall' });
@@ -242,13 +242,13 @@ describe('SaoVenuesPage', () => {
     expect(screen.getByRole('tab', { name: /Booking requests/ })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the SAO a review callout and the Approve and Reject buttons on a pending request', async () => {
+  it('shows the SAO a review callout and the Approve and Return buttons on a pending request', async () => {
     renderAt('/dashboard/super-admin/venues?record=31', <SaoVenuesPage />);
     const drawer = await screen.findByRole('dialog', { name: 'Main Hall' });
     expect(within(drawer).getByText('Review the booking')).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
-    expect(await screen.findByRole('dialog', { name: 'Reject this booking' })).toBeInTheDocument();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    expect(await screen.findByRole('dialog', { name: 'Return this booking' })).toBeInTheDocument();
   });
 
   it('keeps the drawer open on the decided request after approving', async () => {

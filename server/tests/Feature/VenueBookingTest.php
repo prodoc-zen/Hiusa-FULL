@@ -158,7 +158,7 @@ class VenueBookingTest extends TestCase
         $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'rejected', 'remarks' => 'Venue is under maintenance.'])
             ->assertOk()->assertJsonPath('status', 'rejected');
 
-        $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'reference_type' => 'venue_booking', 'reference_id' => $bookingId]);
+        $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'reference_type' => 'venue_booking', 'reference_id' => $bookingId, 'title' => 'Venue booking returned']);
         $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'approved'])->assertStatus(409);
     }
 

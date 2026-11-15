@@ -36,7 +36,8 @@ const STATUS_MAP = {
   draft: { tone: 'neutral', label: 'Draft' },
   approved: { tone: 'success', label: 'Approved' },
   accepted: { tone: 'success', label: 'Accepted' },
-  rejected: { tone: 'danger', label: 'Rejected' },
+  // Stored 'rejected' is a send-back the submitter can fix; a final refusal (a cancelled payment) passes its own label.
+  rejected: { tone: 'danger', label: 'Returned' },
   returned: { tone: 'danger', label: 'Returned' },
 
   // Organization applications and the per-requirement review (pending_sao, approved, returned and rejected are above)

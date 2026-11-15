@@ -102,7 +102,7 @@ function AttendanceStatus({ status }) {
 
 function BudgetApproval({ status }) {
   const value = status || 'pending';
-  return <StatusBadge tone={budgetApprovalTone[value] || 'warning'} label={capitalize(value)} />;
+  return <StatusBadge tone={budgetApprovalTone[value] || 'warning'} label={value === 'rejected' ? 'Returned' : capitalize(value)} />;
 }
 
 const allowedStatusTransitions = {
@@ -144,7 +144,7 @@ function getEventBudgetStatus(event) {
       ? { label: 'Not linked', tone: 'danger' }
       : { label: 'Not required', tone: null };
   }
-  if (event.budgets.some((budget) => budget.approval_status === 'rejected')) return { label: 'Rejected', tone: budgetApprovalTone.rejected };
+  if (event.budgets.some((budget) => budget.approval_status === 'rejected')) return { label: 'Returned', tone: budgetApprovalTone.rejected };
   if (event.budgets.some((budget) => budget.approval_status === 'pending' || !budget.approval_status)) return { label: 'Pending', tone: null };
   return { label: 'Approved', tone: null };
 }

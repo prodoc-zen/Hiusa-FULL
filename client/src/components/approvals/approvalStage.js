@@ -10,6 +10,12 @@ export const ENTITY_LABEL = {
   financial_report: 'Financial Report',
 };
 
+// A rejection that is final: a payment cancels its order and an election declined for good cannot be resubmitted.
+// Every other stored 'rejected' is a send-back, which reads "Returned".
+export function isFinalRefusal(request) {
+  return request?.entity_type === 'payment' || (request?.entity_type === 'election' && Boolean(request?.summary?.declined_at));
+}
+
 // The approval list rows carry a small summary of their record, not the record. These builders
 // rebuild the fields each lifecycle function reads from the approval row and that summary, so a row
 // says the same thing the entity's own page says for the same data. Where the server summary has
@@ -103,7 +109,7 @@ function chipStage(request, viewerRole) {
 
   return {
     kind: 'chip',
-    stageText: request.status === 'approved' ? 'Approved' : 'Rejected',
+    stageText: request.status === 'approved' ? 'Approved' : isFinalRefusal(request) ? 'Rejected' : 'Returned',
     tone: CHIP_TONE[request.status] ?? 'neutral',
   };
 }
@@ -145,7 +151,7 @@ export function waitingOnRole(request) {
 export function decisionMessage(request) {
   if (request.status === 'pending') return null;
 
-  if (request.status === 'rejected') return 'Rejected. Returned to the organization for changes';
+  if (request.status === 'rejected') return isFinalRefusal(request) ? 'Rejected' : 'Returned to the organization for changes';
 
   const summary = request.summary ?? {};
   const headApprovedEvent = request.entity_type === 'event' && request.required_role === 'DEPARTMENT_HEAD' && summary.status === 'planning';

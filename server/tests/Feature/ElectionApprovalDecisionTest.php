@@ -140,7 +140,7 @@ class ElectionApprovalDecisionTest extends TestCase
 
         $this->assertNull($election->fresh()->declined_at);
         $this->assertSame('rejected', $approval->fresh()->status);
-        $this->assertDatabaseHas('notifications', ['user_id' => $this->admin->school_id, 'message' => 'Election "'.$election->title.'" was rejected.']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->admin->school_id, 'title' => 'Approval Request Returned', 'message' => 'Election "'.$election->title.'" was returned.']);
         $this->assertDatabaseMissing('audit_logs', ['action' => 'declined', 'record_id' => $election->id]);
     }
 

@@ -226,10 +226,10 @@ class VenueBookingController extends Controller
                 'organization_id' => $booking->organization_id,
                 'user_id' => $recipient->school_id,
                 'notification_type' => 'general',
-                'title' => $data['status'] === 'approved' ? 'Venue booking approved' : 'Venue booking rejected',
+                'title' => $data['status'] === 'approved' ? 'Venue booking approved' : 'Venue booking returned',
                 'message' => $data['status'] === 'approved'
                     ? "Your booking request for \"{$venueName}\" was approved."
-                    : "Your booking request for \"{$venueName}\" was rejected: ".$data['remarks'],
+                    : "Your booking request for \"{$venueName}\" was returned: ".$data['remarks'],
                 'reference_type' => 'venue_booking',
                 'reference_id' => $booking->id,
                 'is_read' => false,

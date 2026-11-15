@@ -427,7 +427,7 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     expect(within(drawer).getByText(/Requested by Ana Admin/)).toBeInTheDocument();
     expect(within(drawer).getByText('Waiting for Department Head to decide')).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
-    expect(within(drawer).getByRole('button', { name: 'Reject' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
 
   it('writes ?record= when a row is opened and closes the drawer when it is cleared', async () => {
@@ -543,22 +543,23 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     renderPage('/dashboard/department-head/approvals?record=41');
     const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
-    const confirm = await screen.findByRole('dialog', { name: 'Reject request' });
-    expect(within(confirm).getByRole('button', { name: 'Reject' })).toBeDisabled();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return request' });
+    expect(within(confirm).getByRole('button', { name: 'Return' })).toBeDisabled();
     expect(within(confirm).getByLabelText(/Remarks \(required\)/)).toBeRequired();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reject request' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Return request' })).not.toBeInTheDocument());
     expect(screen.getByRole('dialog', { name: 'Foundation Day' })).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Foundation Day' })).getByRole('button', { name: 'Reject' }));
-    const again = await screen.findByRole('dialog', { name: 'Reject request' });
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Foundation Day' })).getByRole('button', { name: 'Return' }));
+    const again = await screen.findByRole('dialog', { name: 'Return request' });
     fireEvent.change(within(again).getByLabelText(/Remarks/), { target: { value: 'Pick another date.' } });
-    fireEvent.click(within(again).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(again).getByRole('button', { name: 'Return' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Pick another date.' }));
-    expect(await screen.findByText('Rejected. Returned to the organization for changes')).toBeInTheDocument();
+    expect(await screen.findByText('Returned to the organization for changes')).toBeInTheDocument();
+    expect(await screen.findByText('Request returned.')).toBeInTheDocument();
     expect(screen.getByText('Pick another date.')).toBeInTheDocument();
   });
 
@@ -573,16 +574,34 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
     fireEvent.click(within(drawer).getByRole('button', { name: 'Review Venue form' }));
     fireEvent.change(within(drawer).getByLabelText('Review of Venue form'), { target: { value: 'needs_changes' } });
     fireEvent.change(within(drawer).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
-    const confirm = await screen.findByRole('dialog', { name: 'Reject request' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return request' });
     fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'Fix the form.' } });
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Return' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, {
       status: 'rejected',
       remarks: 'Fix the form.',
       files: [{ id: 7, status: 'needs_changes', note: 'The seal is missing.' }],
     }));
+  });
+
+  it('keeps Reject for a payment, because rejecting it cancels the order', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', school_id: 'ADM-9' }));
+    const payment = { ...submittedRows[5], status: 'pending', required_role: 'ADMIN' };
+    serve({ review: [payment] });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: { ...payment, status: 'rejected', remarks: 'Proof is unreadable.' } });
+    renderPage('/dashboard/approvals?record=16');
+    const drawer = await screen.findByRole('dialog', { name: 'Merchandise Payment #106' });
+
+    expect(within(drawer).queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Reject request' });
+    fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'Proof is unreadable.' } });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Reject' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(16, { status: 'rejected', remarks: 'Proof is unreadable.' }));
+    expect(await screen.findByText('Request rejected.')).toBeInTheDocument();
   });
 
   it('decides an election from the drawer: reject for good sends final, with no remarks dialog', async () => {

@@ -231,17 +231,17 @@ describe('ApprovalDetailDrawer SAO event files', () => {
     fireEvent.change(within(drawer).getByLabelText('Review of Request Letter'), { target: { value: 'needs_changes' } });
 
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeDisabled();
-    expect(within(drawer).getByRole('button', { name: 'Reject' })).toBeDisabled();
+    expect(within(drawer).getByRole('button', { name: 'Return' })).toBeDisabled();
     fireEvent.change(within(drawer).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
-    expect(within(drawer).getByRole('button', { name: 'Reject' })).toBeEnabled();
+    expect(within(drawer).getByRole('button', { name: 'Return' })).toBeEnabled();
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
     expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), [{ id: 8, status: 'needs_changes', note: 'The seal is missing.' }]);
   });
 
   it('hands over no files when nothing was marked, so a plain rejection is unchanged', () => {
     const { drawer, onReject } = renderDrawer();
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
     expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), undefined);
   });
 
@@ -393,7 +393,7 @@ describe('ApprovalDetailDrawer election proposal', () => {
 
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent('Submitted by Ana Admin');
-    expect(items[1]).toHaveTextContent('Asked for changes by Dean Cruz');
+    expect(items[1]).toHaveTextContent('Returned by Dean Cruz');
     expect(items[1]).toHaveTextContent('Move voting later.');
     expect(items[2]).toHaveTextContent('Resubmitted by Ana Admin');
   });
@@ -406,9 +406,9 @@ describe('ApprovalDetailDrawer election proposal', () => {
     expect(within(drawer).queryByRole('list', { name: 'Decision history' })).not.toBeInTheDocument();
   });
 
-  it('offers Approve, Ask for changes and Reject for good, and no plain Reject', async () => {
+  it('offers Approve, Return and Reject for good, and no plain Reject', async () => {
     const { drawer } = await openDrawer({ request: proposal() });
-    for (const name of ['Approve', 'Ask for changes', 'Reject for good']) {
+    for (const name of ['Approve', 'Return', 'Reject for good']) {
       expect(within(drawer).getByRole('button', { name })).toBeInTheDocument();
     }
     expect(within(drawer).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
@@ -427,7 +427,7 @@ describe('ApprovalDetailDrawer election proposal', () => {
 
   it('needs remarks before asking for changes, then sends a rejection that is not final', async () => {
     const { drawer, onDecide } = await openDrawer({ request: proposal() });
-    const ask = within(drawer).getByRole('button', { name: 'Ask for changes' });
+    const ask = within(drawer).getByRole('button', { name: 'Return' });
     expect(ask).toBeDisabled();
     fireEvent.change(within(drawer).getByLabelText('Remarks for the Admin'), { target: { value: 'Move voting later.' } });
     expect(ask).toBeEnabled();
@@ -470,7 +470,7 @@ describe('ApprovalDetailDrawer election proposal', () => {
   it('shows no decision form to someone who cannot decide', async () => {
     const { drawer } = await openDrawer({ request: proposal(), canAct: false });
     expect(within(drawer).queryByLabelText('Remarks for the Admin')).not.toBeInTheDocument();
-    for (const name of ['Approve', 'Ask for changes', 'Reject for good']) {
+    for (const name of ['Approve', 'Return', 'Reject for good']) {
       expect(within(drawer).queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(within(drawer).getByRole('region', { name: 'Election proposal' })).toBeInTheDocument();
@@ -488,15 +488,15 @@ describe('ApprovalDetailDrawer election proposal', () => {
 describe('ApprovalDetailDrawer event approval is unchanged', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('keeps two clicks: Approve and Reject, with no proposal, remarks form or history request', () => {
+  it('keeps two clicks: Approve and Return, with no proposal, remarks form or history request', () => {
     const { drawer, onApprove, onReject, onDecide } = renderDrawer({ request: request({}, []) });
     expect(within(drawer).queryByRole('region', { name: 'Election proposal' })).not.toBeInTheDocument();
     expect(within(drawer).queryByLabelText('Remarks for the Admin')).not.toBeInTheDocument();
-    for (const name of ['Ask for changes', 'Reject for good']) {
+    for (const name of ['Reject for good']) {
       expect(within(drawer).queryByRole('button', { name })).not.toBeInTheDocument();
     }
     fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
     expect(onApprove).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), undefined);
     expect(onReject).toHaveBeenCalledWith(expect.objectContaining({ id: 25 }), undefined);
     expect(onDecide).not.toHaveBeenCalled();

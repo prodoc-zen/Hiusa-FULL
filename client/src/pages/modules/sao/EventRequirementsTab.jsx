@@ -273,7 +273,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     const { approval, action } = decision;
     const status = action === 'approve' ? 'approved' : 'rejected';
     if (status === 'rejected' && !decisionRemarks.trim()) {
-      setRemarksError('Write why this event is rejected so the organization can respond.');
+      setRemarksError('Write why this event is returned so the organization can respond.');
       remarksRef.current?.focus();
       return;
     }
@@ -509,7 +509,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                   <TableRowActions subject={formatDisplayText(approval.title)} actions={[
                     { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => chooseEvent(selectedEventId === approval.entity_id ? null : approval.entity_id) },
                     { label: 'Approve', icon: Check, disabled: busy || !allAccepted(filesOf(approval), marks), onClick: () => openDecision(approval, 'approve') },
-                    { label: 'Reject', icon: X, danger: true, disabled: busy || missingNote(filesOf(approval), marks, notes), onClick: () => openDecision(approval, 'reject') },
+                    { label: 'Return', icon: X, danger: true, disabled: busy || missingNote(filesOf(approval), marks, notes), onClick: () => openDecision(approval, 'reject') },
                   ]} />
                 </div>
                 {selectedEventId === approval.entity_id && (
@@ -517,7 +517,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                     {filesOf(approval).length === 0
                       ? <p className="text-sm text-ink-muted-strong">No files have been submitted for this event.</p>
                       : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => markFile(approval, id, value)} onMarkAll={(ids, value) => markAll(approval, ids, value)} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}
-                    {!allAccepted(filesOf(approval), marks) && <p className="text-sm text-ink-muted-strong">Accept every file to approve. Reject the event to send back a file with a note.</p>}
+                    {!allAccepted(filesOf(approval), marks) && <p className="text-sm text-ink-muted-strong">Accept every file to approve. Return the event to send back a file with a note.</p>}
                   </div>
                 )}
               </li>
@@ -563,18 +563,18 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
 
       <Modal
         open={decision?.action === 'reject'}
-        title="Reject this event"
+        title="Return this event"
         description={decision ? `${formatDisplayText(decision.approval.title)}. The organization will see your remarks.` : undefined}
         onClose={busy ? undefined : closeDecision}
         closeOnEscape={!busy}
         footer={(
           <>
             <Button variant="secondary" onClick={closeDecision} disabled={busy}>Cancel</Button>
-            <Button variant="danger" onClick={submitDecision} loading={busy}>Reject event</Button>
+            <Button variant="danger" onClick={submitDecision} loading={busy}>Return event</Button>
           </>
         )}
       >
-        <Field label="Remarks for rejection" required error={remarksError} hint="Explain what the organization needs to change.">
+        <Field label="Remarks for the return" required error={remarksError} hint="Explain what the organization needs to change.">
           <Textarea ref={remarksRef} data-autofocus value={decisionRemarks} onChange={(event) => { setDecisionRemarks(event.target.value); setRemarksError(null); }} />
         </Field>
       </Modal>

@@ -20,7 +20,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 const date = (value) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
   : 'Not set';
-const STATUS_LABEL = { pending_sao: 'Awaiting SAO review', approved: 'Approved', rejected: 'Rejected' };
+const STATUS_LABEL = { pending_sao: 'Awaiting SAO review', approved: 'Approved', rejected: 'Returned' };
 const statusLabel = (value) => STATUS_LABEL[value || 'pending_sao'] || String(value).replaceAll('_', ' ');
 const documentLabel = (value) => value === 'income_statement' ? 'Income Statement' : 'Financial Report';
 
@@ -169,7 +169,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
           <option value="">All statuses</option>
           <option value="pending_sao">Awaiting SAO review</option>
           <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
+          <option value="rejected">Returned</option>
         </Select>
         {filtersActive && <button type="button" onClick={clearFilters} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>}
         <p className="text-xs tabular-nums text-ink-muted sm:ml-auto">{meta.total || 0} {meta.total === 1 ? 'financial report' : 'financial reports'}</p>
@@ -202,7 +202,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         footer={detail?.report && <>
           <Button variant="secondary" leftIcon={Download} onClick={() => downloadReport(detail.report)} disabled={downloadingId === detail.report.id}>Download PDF</Button>
           {detailApproval && <>
-            <Button variant="secondary" leftIcon={X} onClick={() => setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report })}>Reject</Button>
+            <Button variant="secondary" leftIcon={X} onClick={() => setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report })}>Return</Button>
             <Button leftIcon={Check} onClick={() => setReviewAction({ approval: detailApproval, status: 'approved', report: detail.report })}>Approve</Button>
           </>}
         </>}
@@ -235,7 +235,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
 
       <Modal
         open={reviewAction?.status === 'rejected'}
-        title="Reject financial report"
+        title="Return financial report"
         description="The organization sees your reason."
         onClose={reviewing ? undefined : () => { setReviewAction(null); setRejectionRemarks(''); }}
         closeOnBackdrop={!reviewing}
@@ -243,10 +243,10 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         maxWidth="max-w-md"
         footer={<>
           <Button variant="secondary" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }}>Cancel</Button>
-          <Button variant="danger" loading={reviewing} disabled={!rejectionRemarks.trim()} onClick={submitReview}>Reject report</Button>
+          <Button variant="danger" loading={reviewing} disabled={!rejectionRemarks.trim()} onClick={submitReview}>Return report</Button>
         </>}
       >
-        <Field label="Rejection reason">
+        <Field label="Reason for returning">
           <Textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} placeholder="Say what is missing or incorrect." />
         </Field>
       </Modal>

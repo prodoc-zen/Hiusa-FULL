@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, SegmentedControl, Select, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { APPLICATION_LABELS } from '../../../components/org/applicationStatus';
 import { getRecords } from '../../../services/recordsService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
@@ -93,7 +94,7 @@ function OrganizationRecords({ organization, onOpen }) {
               key={application.id}
               title={application.name}
               detail={application.submitted_at ? `Filed ${manilaDate(application.submitted_at)}` : null}
-              badge={<StatusBadge status={application.status} />}
+              badge={<StatusBadge status={application.status} label={APPLICATION_LABELS[application.status]} />}
             >
               {application.documents.length > 0 && (
                 <ul className="mt-2 flex flex-col gap-1.5">

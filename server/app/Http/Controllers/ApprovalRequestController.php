@@ -1006,7 +1006,9 @@ class ApprovalRequestController extends Controller
     private function notifyRequester(ApprovalRequest $approval, string $status, bool $final = false): void
     {
         $label = $this->entityLabels->for($approval);
-        $message = Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.';
+        // A send-back the submitter can fix reads "returned"; a cancelled payment keeps "rejected".
+        $word = $status === 'rejected' && ! $final && $approval->entity_type !== 'payment' ? 'returned' : $status;
+        $message = Str::headline($approval->entity_type).' "'.$label.'" was '.$word.'.';
         if ($final) {
             $message = 'Your election "'.$label.'" was rejected: '.$approval->remarks;
         }
@@ -1019,7 +1021,7 @@ class ApprovalRequestController extends Controller
         Notification::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $approval->requested_by,
-            'title' => 'Approval Request '.Str::headline($status),
+            'title' => 'Approval Request '.Str::headline($word),
             'message' => $message,
             'notification_type' => 'general',
             'reference_type' => $approval->entity_type,
@@ -1048,13 +1050,14 @@ class ApprovalRequestController extends Controller
 
     private function recordApprovalAudit(Request $request, ApprovalRequest $approval, string $status, bool $final = false): void
     {
+        $word = $status === 'rejected' && ! $final && $approval->entity_type !== 'payment' ? 'returned' : $status;
         AuditLog::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $request->user()?->school_id,
             'actor_role' => $request->user()?->role,
             'module' => 'approvals',
             'action' => 'reviewed_'.$status,
-            'description' => 'SAO or designated approver '.($status === 'approved' ? 'approved' : 'rejected').' an approval request.',
+            'description' => 'SAO or designated approver '.($status === 'approved' ? 'approved' : $word).' an approval request.',
             'record_type' => ApprovalRequest::class,
             'record_id' => $approval->id,
             'old_values' => null,

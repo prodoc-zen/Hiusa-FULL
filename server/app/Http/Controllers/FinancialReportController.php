@@ -406,7 +406,7 @@ class FinancialReportController extends Controller
             return response()->json(['message' => 'Financial report not found.'], 404);
         }
         if (! in_array($financialReport->submission_status, ['draft', 'rejected'], true)) {
-            return response()->json(['message' => 'Only draft or rejected reports can be submitted.'], 409);
+            return response()->json(['message' => 'Only draft or returned reports can be submitted.'], 409);
         }
 
         $data = $request->validate([

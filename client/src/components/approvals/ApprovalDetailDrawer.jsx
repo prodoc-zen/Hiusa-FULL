@@ -13,7 +13,7 @@ import { FileLink } from '../reviews/FileReviewList';
 import ChangesSinceReturn from '../reviews/ChangesSinceReturn';
 import ApprovalReceipt from './ApprovalReceipt';
 import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks, stageOfRequest } from './EventFilesReview';
-import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink } from './approvalStage';
+import { ENTITY_LABEL, decisionMessage, describeApproval, entityLink, isFinalRefusal } from './approvalStage';
 import { electionProposal, formatDateTime, fullName } from './approvalFormat';
 
 function downloadBlob(response, fallbackName) {
@@ -41,7 +41,7 @@ function historyEntries(request) {
 
   entries.push({
     key: 'decided',
-    title: `${request.status === 'approved' ? 'Approved' : 'Rejected'} by ${fullName(request.reviewer) || roleLabel(request.required_role) || 'the reviewer'}`,
+    title: `${request.status === 'approved' ? 'Approved' : isFinalRefusal(request) ? 'Rejected' : 'Returned'} by ${fullName(request.reviewer) || roleLabel(request.required_role) || 'the reviewer'}`,
     when: request.reviewed_at,
     remarks: request.remarks || 'No remarks recorded.',
   });
@@ -69,7 +69,7 @@ const HISTORY_LABELS = {
   submitted: 'Submitted',
   resubmitted: 'Resubmitted',
   approved: 'Approved',
-  returned: 'Asked for changes',
+  returned: 'Returned',
   declined: 'Rejected for good',
   approval_reopened: 'Sent back for approval',
 };
@@ -235,7 +235,7 @@ function ReportExtras({ request }) {
 
 // The detail of one approval request, addressable by ?record=. It shows the entity's stage, what the
 // request says, and what has happened to it. The footer holds the viewer's one decision: Approve is
-// the single primary, Reject is the secondary. After a decision the same drawer stays open on the
+// the single primary, Return is the secondary. After a decision the same drawer stays open on the
 // updated record, so it reads the next stage and who the request is waiting on.
 export default function ApprovalDetailDrawer({ open, request, status, role, canAct, organizationName, onClose, onApprove, onReject, onDecide, onFileMarked }) {
   if (!open) return null;
@@ -334,13 +334,13 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
       {decidingElection && (
         <>
           <Button variant="secondary" leftIcon={X} disabled={deciding || !trimmed} onClick={() => setConfirmingFinal(true)}>Reject for good</Button>
-          <Button variant="secondary" disabled={deciding || !trimmed} onClick={() => decide({ status: 'rejected', remarks: trimmed })}>Ask for changes</Button>
+          <Button variant="secondary" disabled={deciding || !trimmed} onClick={() => decide({ status: 'rejected', remarks: trimmed })}>Return</Button>
           <Button leftIcon={Check} loading={deciding} disabled={deciding} onClick={() => decide({ status: 'approved', remarks: trimmed || null })}>Approve</Button>
         </>
       )}
       {canAct && !decidingElection && (
         <>
-          <Button variant="secondary" leftIcon={X} disabled={reviewing && missingNote(files, marks, notes)} onClick={() => onReject(request, markedFiles(files, marks, notes))}>Reject</Button>
+          <Button variant="secondary" leftIcon={X} disabled={reviewing && missingNote(files, marks, notes)} onClick={() => onReject(request, markedFiles(files, marks, notes))}>{isFinalRefusal(request) ? 'Reject' : 'Return'}</Button>
           <Button leftIcon={Check} disabled={reviewing && !allAccepted(files, marks)} onClick={() => onApprove(request, markedFiles(files, marks, notes))}>Approve</Button>
         </>
       )}
@@ -390,7 +390,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
         {request.entity_type === 'financial_report' && <ReportExtras request={request} />}
         {decidingElection && (
           <section aria-label="Your decision" className="space-y-2">
-            <Field label="Remarks for the Admin" hint="Needed to ask for changes or to reject. Optional when you approve.">
+            <Field label="Remarks for the Admin" hint="Needed to return or to reject for good. Optional when you approve.">
               <Textarea rows={3} value={remarks} onChange={(event) => setRemarks(event.target.value)} maxLength={1000} disabled={deciding} />
             </Field>
             {decisionError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong">{decisionError}</p>}
@@ -415,7 +415,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
       <ConfirmModal
         open={confirmingFinal}
         title="Reject election for good"
-        message="The election cannot be resubmitted. To let the Admin fix it, ask for changes instead."
+        message="The election cannot be resubmitted. To let the Admin fix it, return it instead."
         confirmText="Reject for good"
         busy={deciding}
         onCancel={() => setConfirmingFinal(false)}

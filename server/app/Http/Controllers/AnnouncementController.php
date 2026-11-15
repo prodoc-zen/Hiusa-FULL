@@ -681,7 +681,7 @@ class AnnouncementController extends Controller
         }
 
         if (! $wasPublished && $announcement->approval_status === 'rejected') {
-            return response()->json(['message' => 'Edit the rejected announcement to resubmit it before publishing.'], 422);
+            return response()->json(['message' => 'Edit the returned announcement to resubmit it before publishing.'], 422);
         }
 
         $oldValues = $this->auditableAnnouncementValues($announcement);

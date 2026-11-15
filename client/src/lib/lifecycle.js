@@ -955,12 +955,12 @@ export function venueBookingLifecycle(booking, viewerRole) {
     case 'approved':
       return finish(buildSteps(VENUE_STAGES, VENUE_STAGES.length), terminal('done', 'Approved: venue booked', 'The venue is reserved for the requested time.'), null, href);
     case 'rejected':
-      return finish(buildSteps(VENUE_STAGES, 1, { blocked: true, notes: { review: 'Rejected' } }), turn(viewerRole, ['ADMIN', 'SBO_OFFICER'], {
-        title: 'Rejected: read the remarks and request again',
+      return finish(buildSteps(VENUE_STAGES, 1, { blocked: true, notes: { review: 'Returned' } }), turn(viewerRole, ['ADMIN', 'SBO_OFFICER'], {
+        title: 'Returned: read the remarks and request again',
         body: b.remarks || 'Read the SAO remarks, adjust the request, and book again.',
         label: 'Book again',
         to: '/dashboard/venues',
-      }, { title: 'Rejected by the SAO' }), 'ADMIN', href);
+      }, { title: 'Returned by the SAO' }), 'ADMIN', href);
     case 'withdrawn':
       return finish(buildSteps(VENUE_STAGES, 1, { stopped: 'Withdrawn', skipped: ['approved'] }), terminal('blocked', 'Withdrawn', 'The organization withdrew this booking request.'), null, href);
     default:

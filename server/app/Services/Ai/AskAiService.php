@@ -3812,7 +3812,7 @@ class AskAiService
         $venue = match (true) {
             $booking === null => $check('venue', 'Venue booking', 'Not ready', 'No venue booking has been requested yet.', $you, 'your organization books the venue', null, 'Open venues'),
             $booking->status === 'approved' => $check('venue', 'Venue booking', 'Ready', "{$venueName}, booking approved.", 'the SAO', null, null, 'Open venues'),
-            $booking->status === 'rejected' => $check('venue', 'Venue booking', 'Not ready', "{$venueName}, booking rejected.", $you, 'your organization books another venue', null, 'Open venues'),
+            $booking->status === 'rejected' => $check('venue', 'Venue booking', 'Not ready', "{$venueName}, booking returned.", $you, 'your organization books another venue', null, 'Open venues'),
             default => $check('venue', 'Venue booking', 'Not ready', "{$venueName}, booking pending.", 'the SAO', 'the SAO decides the venue booking', null, 'Open venues'),
         };
         $venue['href'] = $this->linkTo($user, "/dashboard/venues?event={$event->id}", '/dashboard/venues');
@@ -3832,7 +3832,7 @@ class AskAiService
             $budgets->isEmpty() => $check('budget', 'Budget', 'Not ready', 'No budget request has been filed yet.', $you, 'your organization files the budget request', $budgetHref, 'Open budget'),
             $budgets->first()->submission_status === 'pending_department_head' => $check('budget', 'Budget', 'Not ready', 'Budget request is waiting for the Department Head.', 'the Department Head', 'the Department Head decides the budget', $budgetHref, 'Open budget'),
             $budgets->first()->submission_status === 'pending_sao' => $check('budget', 'Budget', 'Not ready', 'Budget request is waiting for the SAO.', 'the SAO', 'the SAO decides the budget', $budgetHref, 'Open budget'),
-            $budgets->first()->submission_status === 'rejected' => $check('budget', 'Budget', 'Not ready', 'The budget request was rejected.', $you, 'your organization revises the budget request', $budgetHref, 'Open budget'),
+            $budgets->first()->submission_status === 'rejected' => $check('budget', 'Budget', 'Not ready', 'The budget request was returned.', $you, 'your organization revises the budget request', $budgetHref, 'Open budget'),
             default => $check('budget', 'Budget', 'Not ready', 'The budget request is a draft.', $you, 'your organization submits the budget request', $budgetHref, 'Open budget'),
         };
 

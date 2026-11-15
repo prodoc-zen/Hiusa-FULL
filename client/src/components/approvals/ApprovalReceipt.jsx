@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../utils/displayText.js';
-import { ENTITY_LABEL, waitingOnRole } from './approvalStage';
+import { ENTITY_LABEL, isFinalRefusal, waitingOnRole } from './approvalStage';
 import { roleLabel } from '../../lib/lifecycle';
 import { StatusBadge } from '../ui';
 import { formatDateTime, fullName, summaryLine } from './approvalFormat';
@@ -11,7 +11,7 @@ export default function ApprovalReceipt({ request, organizationName, compact = f
     ['Request number', `#${request.id}`],
     ...(organizationName ? [['Organization', organizationName]] : []),
     ['Type', ENTITY_LABEL[request.entity_type] || request.entity_type],
-    ['Status', <StatusBadge status={request.status} />],
+    ['Status', <StatusBadge status={request.status} label={request.status === 'rejected' && isFinalRefusal(request) ? 'Rejected' : undefined} />],
     ['Waiting on', roleLabel(waitingOnRole(request))],
     ['Requester', fullName(request.requester) || '-'],
     ['School ID', request.requester?.school_id || '-'],

@@ -115,7 +115,7 @@ describe('FinancialReportsTab', () => {
     expect(within(inbox).queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
   });
 
-  it('puts Download PDF in the row next to Review, a read that costs no extra step, and leaves Approve and Reject to the drawer', async () => {
+  it('puts Download PDF in the row next to Review, a read that costs no extra step, and leaves Approve and Return to the drawer', async () => {
     financeMocks.downloadFinancialReportPdf.mockResolvedValue({ headers: {}, data: new Blob(['pdf']) });
     URL.createObjectURL = vi.fn(() => 'blob:report');
     URL.revokeObjectURL = vi.fn();
@@ -125,7 +125,7 @@ describe('FinancialReportsTab', () => {
     const row = within(inbox).getByRole('listitem');
     expect(within(row).getByRole('button', { name: 'Review September Income Statement' })).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
-    expect(within(row).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
 
     fireEvent.click(within(row).getByRole('button', { name: 'Download PDF of September Income Statement' }));
     await waitFor(() => expect(financeMocks.downloadFinancialReportPdf).toHaveBeenCalledWith(8));
@@ -147,11 +147,11 @@ describe('FinancialReportsTab', () => {
 
     await viewReportFromMenu();
     await screen.findByText('Income and expenses were calculated from the saved ledger.');
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Return' }));
 
-    const confirm = await screen.findByRole('button', { name: 'Reject report' });
+    const confirm = await screen.findByRole('button', { name: 'Return report' });
     expect(confirm).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Rejection reason'), { target: { value: 'Totals do not match the ledger' } });
+    fireEvent.change(screen.getByLabelText('Reason for returning'), { target: { value: 'Totals do not match the ledger' } });
     fireEvent.click(confirm);
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'rejected', remarks: 'Totals do not match the ledger' }));

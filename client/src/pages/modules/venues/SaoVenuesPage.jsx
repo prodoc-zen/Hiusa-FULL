@@ -65,7 +65,7 @@ function formatRange(start, end) {
   return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
 }
 
-// The Approve and Reject buttons open the review modals, so the callout carries no button of its own.
+// The Approve and Return buttons open the review modals, so the callout carries no button of its own.
 function BookingDetail({ booking, conflict, onApprove, onReject }) {
   const stage = venueBookingLifecycle(booking, 'SUPER_ADMIN');
   const next = { ...toNextStepProps(stage), primary: undefined };
@@ -83,7 +83,7 @@ function BookingDetail({ booking, conflict, onApprove, onReject }) {
       </dl>
       {booking.status === 'pending' && (
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={onReject}>Reject</Button>
+          <Button variant="secondary" onClick={onReject}>Return</Button>
           <Button onClick={onApprove}>Approve</Button>
         </div>
       )}
@@ -316,12 +316,12 @@ export default function SaoVenuesPage() {
     try {
       const response = await reviewVenueBooking(reviewState.booking.id, { status: 'rejected', remarks: rejectRemarks.trim() });
       setPinned(response?.data?.id ? response.data : { ...reviewState.booking, status: 'rejected', remarks: rejectRemarks.trim() });
-      notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" rejected.`);
+      notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" returned.`);
       setReviewState(null);
       setRejectRemarks('');
       loadBookings(bookingsPage);
     } catch (err) {
-      notify.error(getApiErrorMessage(err, 'Could not reject this booking.'));
+      notify.error(getApiErrorMessage(err, 'Could not return this booking.'));
     } finally {
       setReviewBusy(false);
     }
@@ -450,7 +450,7 @@ export default function SaoVenuesPage() {
                 <Select filter aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="sm:w-56">
                   <option value="pending">Awaiting decision</option>
                   <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="rejected">Returned</option>
                   <option value="withdrawn">Withdrawn</option>
                   <option value="">All statuses</option>
                 </Select>
@@ -465,7 +465,7 @@ export default function SaoVenuesPage() {
             actions={(booking) => (
                 <TableRowActions subject={`${booking.venue?.name || 'Venue'} booking ${booking.id}`} actions={[
                   { label: 'View schedule', onClick: () => setScheduleBooking(booking) },
-                  booking.status === 'pending' && { label: 'Reject', danger: true, onClick: () => openReview(booking, 'reject') },
+                  booking.status === 'pending' && { label: 'Return', danger: true, onClick: () => openReview(booking, 'reject') },
                   booking.status === 'pending' && { label: 'Approve', onClick: () => openReview(booking, 'approve') },
                 ]} />
             )}
@@ -570,14 +570,14 @@ export default function SaoVenuesPage() {
 
       <Modal
         open={reviewState?.action === 'reject'}
-        title="Reject this booking"
+        title="Return this booking"
         description="Tell the organization why."
         onClose={reviewBusy ? undefined : () => { setReviewState(null); setRejectRemarks(''); }}
         closeOnEscape={!reviewBusy}
         footer={(
           <>
             <Button variant="secondary" onClick={() => { setReviewState(null); setRejectRemarks(''); }} disabled={reviewBusy}>Cancel</Button>
-            <Button variant="danger" onClick={confirmReject} loading={reviewBusy} disabled={!rejectRemarks.trim()}>Reject booking</Button>
+            <Button variant="danger" onClick={confirmReject} loading={reviewBusy} disabled={!rejectRemarks.trim()}>Return booking</Button>
           </>
         )}
       >

@@ -40,7 +40,7 @@ describe('StatusBadge', () => {
     );
     expect(screen.getByText('Pending')).toHaveClass('bg-amber-50', 'text-amber-800');
     expect(screen.getByText('Approved')).toHaveClass('bg-green-50', 'text-green-800');
-    expect(screen.getByText('Rejected')).toHaveClass('bg-red-50', 'text-red-800');
+    expect(screen.getByText('Returned')).toHaveClass('bg-red-50', 'text-red-800');
     expect(screen.getByText('Draft')).toHaveClass('bg-slate-100', 'text-slate-700');
     expect(screen.getByText('Under Review').className).toMatch(/bg-brand-600\/10/);
   });
