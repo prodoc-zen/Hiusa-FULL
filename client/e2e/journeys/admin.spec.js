@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { HEAD_CCS, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, shot, uiLogin } from '../support/live.js';
+import { HEAD_CCS, PSITS_ADMIN, SAO, STUDENT, apiAs, liveEnabled, shot, uiLogin } from '../support/live.js';
 import { newStudent } from '../support/pipeline.js';
 
 // ADMIN acceptance journeys from docs/UX_FLOW.md section 9. Each runs at 1440 and 390 px, starts at the
@@ -81,12 +81,19 @@ function eventWindow(startHours, durationHours) {
   return { start_time: stamp(start), end_time: stamp(new Date(start.getTime() + durationHours * 3600 * 1000)) };
 }
 
-async function headApprove(head, eventId) {
-  const list = await head.get('/approval-requests?status=pending&per_page=100');
+async function approveEvent(reviewer, eventId, who) {
+  const list = await reviewer.get('/approval-requests?status=pending&per_page=100');
   const row = (list.body?.data ?? []).find((r) => r.entity_type === 'event' && r.entity_id === eventId);
-  if (!row) throw new Error(`No pending approval for event ${eventId}: ${JSON.stringify(list.body).slice(0, 200)}`);
-  const res = await head.patch(`/approval-requests/${row.id}`, { status: 'approved' });
-  if (!res.ok) throw new Error(`Department Head approval failed: ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`);
+  if (!row) throw new Error(`No pending approval for event ${eventId} for ${who}: ${JSON.stringify(list.body).slice(0, 200)}`);
+  const res = await reviewer.patch(`/approval-requests/${row.id}`, { status: 'approved' });
+  if (!res.ok) throw new Error(`${who} approval failed: ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`);
+}
+
+// The chain is organization, Department Head, organization, SAO: the Department Head's approval hands the event
+// back to the Admin, who sends it to the SAO, and only the SAO's approval makes the event approved.
+async function sendToSao(admin, eventId) {
+  const res = await admin.post(`/events/${eventId}/submission`);
+  if (!res.ok) throw new Error(`Send to the SAO failed: ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`);
 }
 
 async function seedEvent(admin, title, extra = {}) {
@@ -98,8 +105,11 @@ async function seedEvent(admin, title, extra = {}) {
 async function approvedEvent(title, extra) {
   const admin = await signedApi(PSITS_ADMIN);
   const head = await signedApi(HEAD_CCS);
+  const sao = await signedApi(SAO);
   const event = await seedEvent(admin, title, extra);
-  await headApprove(head, event.id);
+  await approveEvent(head, event.id, 'Department Head');
+  await sendToSao(admin, event.id);
+  await approveEvent(sao, event.id, 'SAO');
   return { admin, head, event };
 }
 

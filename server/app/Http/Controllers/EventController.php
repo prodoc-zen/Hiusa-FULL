@@ -463,9 +463,16 @@ class EventController extends Controller
             return response()->json(['message' => 'Withdraw the venue booking first, then change the date.'], 422);
         }
 
-        if ($event->approved_at && $this->hasMaterialEventChange($event, $data, $updatedPlanning, $startTime, $endTime)) {
-            $data['status'] = 'planning';
-            $data['approved_at'] = null;
+        // The Department Head's approval covers what the head saw, so a material edit takes it back to the head
+        // after the SAO approved, and also before that while the Admin still holds the event (not while the SAO reviews it).
+        $headApprovalHeld = ! $event->approved_at
+            && $this->approvalChain->headRow($event)?->status === 'approved'
+            && $this->approvalChain->saoRow($event)?->status !== 'pending';
+        if (($event->approved_at || $headApprovalHeld) && $this->hasMaterialEventChange($event, $data, $updatedPlanning, $startTime, $endTime)) {
+            if ($event->approved_at) {
+                $data['status'] = 'planning';
+                $data['approved_at'] = null;
+            }
             $this->reopenApproval($event, $request);
         }
 

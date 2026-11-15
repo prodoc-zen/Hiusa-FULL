@@ -52,7 +52,7 @@ import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
-import { FILE_STAGES, RETURNED_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
+import { FILE_STAGES, RETURNED_STAGES, SEND_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
 import { budgetLifecycle } from '../../../lib/lifecycle';
 import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
@@ -1152,7 +1152,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   };
 
   const filesAtStage = FILE_STAGES.includes(selectedEvent?.approval_stage);
-  const eventFilesPanel = holdsEventFiles && selectedEvent && selectedEvent.requirements_required !== false
+  // An event with no SAO files still goes to the SAO, so the panel with the dean's line and Send to SAO shows at the send stages too.
+  const eventFilesPanel = holdsEventFiles && selectedEvent && (selectedEvent.requirements_required !== false || SEND_STAGES.includes(selectedEvent.approval_stage))
     ? <EventSubmissionPanel eventId={selectedEvent.id} role={currentUserRole} onSubmitted={() => { setSubmissionVersion((value) => value + 1); refreshSelectedEvent(); }} />
     : null;
   const hasEventFilters = Boolean(search.trim() || dateFilter || eventStatusFilter);

@@ -91,6 +91,15 @@ class ApprovalSummaryFieldsTest extends TestCase
         ])->assertOk();
     }
 
+    /** Files added after the Head approved go back to the Head, who approves again, and then the Admin sends the event on. */
+    private function uploadAndSend(int $eventId, EventRequirement $requirement): void
+    {
+        $this->upload($eventId, $requirement);
+        $this->decide($this->head, $eventId, 'DEPARTMENT_HEAD');
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/events/'.$eventId.'/submission')->assertOk();
+    }
+
     private function decide(User $reviewer, int $eventId, string $role, string $status = 'approved'): void
     {
         $row = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', $role)->firstOrFail();
@@ -150,14 +159,14 @@ class ApprovalSummaryFieldsTest extends TestCase
         $this->decide($this->head, $stages['ready_for_sao'], 'DEPARTMENT_HEAD');
         $stages['awaiting_sao'] = $this->propose('Awaiting SAO');
         $this->decide($this->head, $stages['awaiting_sao'], 'DEPARTMENT_HEAD');
-        $this->upload($stages['awaiting_sao'], $requirement);
+        $this->uploadAndSend($stages['awaiting_sao'], $requirement);
         $stages['requirements_returned'] = $this->propose('Returned');
         $this->decide($this->head, $stages['requirements_returned'], 'DEPARTMENT_HEAD');
-        $this->upload($stages['requirements_returned'], $requirement);
+        $this->uploadAndSend($stages['requirements_returned'], $requirement);
         $this->decide($this->director, $stages['requirements_returned'], 'SUPER_ADMIN', 'rejected');
         $stages['approved'] = $this->propose('Approved');
         $this->decide($this->head, $stages['approved'], 'DEPARTMENT_HEAD');
-        $this->upload($stages['approved'], $requirement);
+        $this->uploadAndSend($stages['approved'], $requirement);
         $this->decide($this->director, $stages['approved'], 'SUPER_ADMIN');
 
         $rows = collect($this->submittedRows())->where('entity_type', 'event');

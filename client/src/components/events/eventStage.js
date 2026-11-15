@@ -48,6 +48,8 @@ const STAGE_TEXT = {
 };
 
 export const RETURNED_STAGES = ['rejected', 'requirements_returned'];
+// The stages where the organization's Admin sends the event to the SAO, whether or not the SAO listed any files.
+export const SEND_STAGES = ['ready_for_sao', 'requirements_returned'];
 export const FILE_STAGES = ['awaiting_department_head', 'awaiting_requirements', 'ready_for_sao', 'awaiting_sao', 'requirements_returned'];
 
 // Stages where the event is with, or on its way to, the SAO. Every event goes there, with or without files.
@@ -111,10 +113,13 @@ export function eventFlow(event, viewerRole, progress = null) {
   const mine = nextAction.tone === 'action';
 
   if (stage === 'requirements_returned') {
+    const waiting = viewerRole && viewerRole !== 'ADMIN';
     nextAction = {
-      tone: viewerRole && viewerRole !== 'ADMIN' ? 'waiting' : 'action',
-      title: viewerRole && viewerRole !== 'ADMIN' ? 'Returned to the Admin for new files' : 'Returned: read the remarks, replace the files',
-      body: withProgress(e.approval_remarks || 'The SAO sent the files back. Replace them below and submit again.', progress),
+      tone: waiting ? 'waiting' : 'action',
+      title: requirementsRequired
+        ? (waiting ? 'Returned to the Admin for new files' : 'Returned: read the remarks, replace the files')
+        : (waiting ? 'Returned to the Admin to send it again' : 'Returned: read the remarks, send it again'),
+      body: withProgress(e.approval_remarks || (requirementsRequired ? 'The SAO sent the files back. Replace them below and submit again.' : 'The SAO returned this event. Send it to the SAO again below.'), progress),
     };
   } else if (stage === 'ready_for_sao') {
     const waiting = viewerRole && viewerRole !== 'ADMIN';

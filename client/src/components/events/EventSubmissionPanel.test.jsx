@@ -151,6 +151,22 @@ describe('EventSubmissionPanel', () => {
       expect(screen.queryByText(/Approved by the Department Head/)).not.toBeInTheDocument();
     });
 
+    it('sends a returned event that has no files straight back to the SAO with its own copy', async () => {
+      mocks.getEventSubmission.mockResolvedValue({ data: { ...approvedData, requirements: [], files: [], approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'Add the cover note.' } });
+      mocks.submitEventRequirements.mockResolvedValue({ data: { ...approvedData, requirements: [], files: [], approval_status: 'pending', approval_stage: 'awaiting_sao' } });
+      render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+      const send = await screen.findByRole('button', { name: 'Send to SAO' });
+      expect(send).toBeEnabled();
+      expect(screen.getByText(/Add the cover note/)).toBeInTheDocument();
+      expect(screen.getByText(/The SAO returned this event. Read the remarks above, then send it to the SAO again./)).toBeInTheDocument();
+      expect(screen.queryByText(/Replace only the files/)).not.toBeInTheDocument();
+      expect(screen.getByText('Review: returned')).toBeInTheDocument();
+
+      fireEvent.submit(send.closest('form'));
+      await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, {}));
+    });
+
     it('sends a returned event straight back to the SAO', async () => {
       mocks.getEventSubmission.mockResolvedValue({ data: { ...approvedData, approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'Permit expired.' } });
       render(<EventSubmissionPanel eventId={9} role="ADMIN" />);

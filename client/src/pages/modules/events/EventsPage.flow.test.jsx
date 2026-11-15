@@ -234,6 +234,54 @@ describe('event drawer stage and next action', () => {
     expect(within(drawer).getByText('Approval stage').nextSibling).toHaveTextContent('Returned by SAO');
   });
 
+  describe('an event with no SAO files still goes to the SAO', () => {
+    const noFiles = { requirements: [], files: [], approval_status: 'approved' };
+
+    it('gives the Admin the dean line and Send to SAO once the Department Head approved', async () => {
+      useViewer('ADMIN', { ...FIXTURES.ready_for_sao, requirements_required: false, requirements_submitted: false });
+      eventMocks.getEventSubmission.mockResolvedValue({ data: { ...noFiles, approval_stage: 'ready_for_sao', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' } });
+      renderPage();
+      const drawer = await openDrawer();
+
+      expect(await within(drawer).findByText(/Approved by the Department Head: Maria Cruz/)).toBeInTheDocument();
+      expect(within(drawer).getByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      expect(within(drawer).getByText('Send the event to the SAO')).toBeInTheDocument();
+    });
+
+    it('shows the Department Head the same line and no send button', async () => {
+      useViewer('DEPARTMENT_HEAD', { ...FIXTURES.ready_for_sao, requirements_required: false, requirements_submitted: false });
+      eventMocks.getEventSubmission.mockResolvedValue({ data: { ...noFiles, approval_stage: 'ready_for_sao', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' } });
+      renderPage();
+      const drawer = await openDrawer();
+
+      expect(await within(drawer).findByText(/Approved by the Department Head: Maria Cruz/)).toBeInTheDocument();
+      expect(within(drawer).queryByRole('button', { name: 'Send to SAO' })).not.toBeInTheDocument();
+    });
+
+    it('lets the Admin send it again after the SAO returned it, with no file to replace', async () => {
+      useViewer('ADMIN', { ...FIXTURES.requirements_returned, requirements_required: false });
+      eventMocks.getEventSubmission.mockResolvedValue({ data: { ...noFiles, approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'The venue permit is expired.', dean_approved_by: 'Maria Cruz', dean_approved_at: '2026-11-10T02:30:00+00:00' } });
+      renderPage();
+      const drawer = await openDrawer();
+
+      expect(await within(drawer).findByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      expect(within(drawer).getByText('Returned: read the remarks, send it again')).toBeInTheDocument();
+      expect(within(drawer).getByText(/Why this was returned/)).toBeInTheDocument();
+      expect(within(drawer).getByText(/Read the remarks above, then send it to the SAO again/)).toBeInTheDocument();
+      expect(within(drawer).queryByText(/replace the files/i)).not.toBeInTheDocument();
+    });
+
+    it('lets a university-wide organization send it again after the SAO returned it, with no dean line', async () => {
+      useViewer('ADMIN', { ...FIXTURES.requirements_returned, requirements_required: false });
+      eventMocks.getEventSubmission.mockResolvedValue({ data: { ...noFiles, approval_status: 'rejected', approval_stage: 'requirements_returned', approval_remarks: 'Add the cover note.', dean_approved_by: null, dean_approved_at: null } });
+      renderPage();
+      const drawer = await openDrawer();
+
+      expect(await within(drawer).findByRole('button', { name: 'Send to SAO' })).toBeEnabled();
+      expect(within(drawer).queryByText(/Approved by the Department Head/)).not.toBeInTheDocument();
+    });
+  });
+
   it('offers the Admin one Edit proposal action before the proposal is submitted', async () => {
     useViewer('ADMIN', FIXTURES.not_submitted);
     renderPage();

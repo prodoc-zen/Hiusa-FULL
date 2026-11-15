@@ -255,10 +255,9 @@ class EventRequirementController extends Controller
                     ]);
                 }
 
-                // A replaced file has no Department Head mark, so unless the SAO already returned the files
-                // the event goes back to the Head; a returned event goes straight back to the SAO.
-                $replaced = array_intersect_key($documents, $existing->all()) !== [];
-                if (! $head || $head->status === 'rejected' || ($head->status === 'approved' && $replaced && $sao?->status !== 'rejected')) {
+                // A file the Department Head has not seen, added or replaced, has no Head mark, so unless the SAO
+                // already returned the files the event goes back to the Head; a returned event goes straight back to the SAO.
+                if (! $head || $head->status === 'rejected' || ($head->status === 'approved' && $documents !== [] && $sao?->status !== 'rejected')) {
                     $this->approvalChain->submitToHead($event, $request->user()->school_id);
                 } elseif ($head->status === 'approved') {
                     $this->approvalChain->openSaoReview($event, $request->user()->school_id);
