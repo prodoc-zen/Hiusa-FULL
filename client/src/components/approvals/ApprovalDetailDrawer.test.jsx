@@ -313,7 +313,7 @@ describe('ApprovalDetailDrawer step tracker', () => {
 
     expect(tracker.className).toContain('grid-cols-2');
     expect(tracker.className).not.toContain('md:flex-row');
-    expect(tracker.parentElement.className).toContain('sticky');
+    expect(tracker.parentElement.className.split(' ')).toEqual(expect.arrayContaining(['sticky', '-top-4', 'z-10', 'bg-surface', 'border-b', 'border-line']));
   });
 });
 

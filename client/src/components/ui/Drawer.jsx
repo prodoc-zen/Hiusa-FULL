@@ -64,7 +64,7 @@ export default function Drawer({ open, title, description, onClose, children, fo
           </header>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-subtle px-5 py-4">{footer}</footer>}
+        {footer && <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 [&>*]:whitespace-nowrap border-t border-line bg-subtle px-4 py-4 sm:px-5">{footer}</footer>}
       </div>
     </AccessibleOverlay>
   );
