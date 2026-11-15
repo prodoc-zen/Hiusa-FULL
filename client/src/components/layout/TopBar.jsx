@@ -18,7 +18,7 @@ import notify from '../../lib/notify';
 import { peso } from '../../lib/format';
 import { notificationAppearance } from '../../utils/notificationTone';
 import { organizationLabel } from '../../utils/collegeIdentity';
-import { PERIOD_EVENT, PERIOD_RESET_EVENT, readSelectedPeriod, writeSelectedPeriod } from '../../utils/academicPeriodStore';
+import { PERIOD_EVENT, PERIOD_RESET_EVENT, PERIODS_CHANGED_EVENT, readSelectedPeriod, writeSelectedPeriod } from '../../utils/academicPeriodStore';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import useWorkspaces from '../../hooks/useWorkspaces';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
@@ -66,7 +66,7 @@ export default function TopBar({ onMenuToggle }) {
   const cartRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadPeriods = useCallback(() => {
     getActiveAcademicPeriod().then((p) => {
       setActiveAcademicPeriod(p);
       const stored = readSelectedPeriod();
@@ -88,6 +88,12 @@ export default function TopBar({ onMenuToggle }) {
       }).catch(() => setAvailablePeriods([]));
     }
   }, []);
+
+  useEffect(() => {
+    loadPeriods();
+    window.addEventListener(PERIODS_CHANGED_EVENT, loadPeriods);
+    return () => window.removeEventListener(PERIODS_CHANGED_EVENT, loadPeriods);
+  }, [loadPeriods]);
 
   useEffect(() => {
     const header = headerRef.current;

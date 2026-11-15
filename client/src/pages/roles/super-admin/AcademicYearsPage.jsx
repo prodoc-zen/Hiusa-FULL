@@ -9,6 +9,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { announcePeriodsChanged } from '../../../utils/academicPeriodStore';
 import { activateAcademicSemester, archiveAcademicYear, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, reopenAcademicSemester, restoreAcademicYear, updateAcademicSemesterDates, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
@@ -289,6 +290,7 @@ export default function AcademicYearsPage() {
       await archiveAcademicYear(archiveTarget.id);
       notify.success(`AY ${archiveTarget.label} archived`, { description: 'It is read only now and has left the current views. Restore it from Archived years.' });
       setArchiveTarget(null);
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setArchiveError(getApiErrorMessage(cause, 'The academic year was not archived.'));
@@ -304,6 +306,7 @@ export default function AcademicYearsPage() {
     try {
       await restoreAcademicYear(year.id);
       notify.success(`AY ${year.label} restored`, { description: 'It is a past year again. It is not current, and no semester was reopened.' });
+      announcePeriodsChanged();
       await load();
     } catch (cause) {
       setRestoreError({ id: year.id, message: getApiErrorMessage(cause, 'The academic year was not restored.') });
