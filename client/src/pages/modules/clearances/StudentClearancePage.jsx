@@ -84,7 +84,12 @@ export default function StudentClearancePage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        meta={showing && <span className="text-xs font-semibold text-ink-muted-strong">{periodLabel(showing)}</span>}
+        meta={showing && (
+          <>
+            <span className="text-xs font-semibold text-ink-muted-strong">{periodLabel(showing)}</span>
+            {showing.archived && <StatusBadge tone="neutral" label="Archived" />}
+          </>
+        )}
         stepper={stage && <FlowStepper variant="full" steps={steps} ariaLabel="Clearance signatures" />}
         nextStep={nextStep && <NextStep {...nextStep} />}
       />
@@ -111,7 +116,6 @@ export default function StudentClearancePage() {
               ))}
             </Select>
           </div>
-          {showing.archived && <StatusBadge tone="neutral" label="Archived" />}
         </div>
       )}
 

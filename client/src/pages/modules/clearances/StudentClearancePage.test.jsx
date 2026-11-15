@@ -112,6 +112,8 @@ describe('StudentClearancePage', () => {
 
     renderPage();
     expect(await screen.findByText(/Waiting on the Student Affairs Office/)).toBeInTheDocument();
+    // The marker lives in the page header, so it shows even when there is no picker.
+    expect(screen.getByText('Archived')).toBeInTheDocument();
   });
 
   it('tells a student who owes money that the clearance is held for the same debt the Statement shows', async () => {
