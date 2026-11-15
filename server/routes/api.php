@@ -51,6 +51,7 @@ use App\Http\Controllers\PrivacyConsentController;
 use App\Http\Controllers\ProcessStatusController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SboPositionController;
+use App\Http\Controllers\SemesterNarrativeController;
 use App\Http\Controllers\StudentFeedController;
 use App\Http\Controllers\StudentFeeUsageController;
 use App\Http\Controllers\StudentRegistryController;
@@ -428,6 +429,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'uploadRequirementTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/compliance/requirement-types/{requirementType}/template-link', [ComplianceController::class, 'setRequirementTemplateLink'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'removeRequirementTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/compliance/semester-narrative', [SemesterNarrativeController::class, 'draft'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/organizations/{organization}/reminders', [ComplianceReminderController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);

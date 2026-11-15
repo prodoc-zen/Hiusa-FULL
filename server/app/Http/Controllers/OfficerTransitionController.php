@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
+use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Election;
 use App\Models\Notification;
@@ -10,6 +12,8 @@ use App\Models\OfficerHandover;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use App\Services\Ai\HandoverNoteDrafter;
+use App\Services\Records\TermDigest;
 use App\Support\NotFound;
 use App\Support\RenewalDeadline;
 use Illuminate\Http\Request;
@@ -74,13 +78,7 @@ class OfficerTransitionController extends Controller
     {
         $scope = $this->scope($request);
 
-        // The handover in force belongs to the election that closed last among those that have items.
-        $electionId = OfficerHandover::query()
-            ->join('elections', 'elections.id', '=', 'officer_handovers.election_id')
-            ->when($scope !== null, fn ($query) => $query->whereIn('officer_handovers.organization_id', $scope))
-            ->orderByDesc('elections.end_time')
-            ->orderByDesc('elections.id')
-            ->value('officer_handovers.election_id');
+        $electionId = $this->electionInForce($scope);
 
         if (! $electionId) {
             return response()->json(['election' => null, 'organization' => null, 'my_side' => null, 'can_prepare' => false, 'can_acknowledge' => false, 'items' => []]);
@@ -104,6 +102,51 @@ class OfficerTransitionController extends Controller
                 'acknowledged_by' => $this->personName($people->get($item->acknowledged_by)),
             ])->values(),
         ]);
+    }
+
+    /** Drafts the remarks of one handover item from what the system recorded; the officer edits it and saves it as usual. */
+    public function draftNote(Request $request, HandoverNoteDrafter $drafter)
+    {
+        $user = $request->user();
+        $data = $request->validate(['category' => ['required', 'string', 'in:'.implode(',', HandoverNoteDrafter::CATEGORIES)]]);
+
+        $electionId = $this->electionInForce($this->scope($request));
+        $item = $electionId ? OfficerHandover::where('election_id', $electionId)->where('category', $data['category'])->first() : null;
+        NotFound::unless($item !== null);
+
+        abort_unless($this->mayPrepare($user, $item->organization_id, $item->election_id), 403, 'Only the outgoing administration prepares a handover item.');
+        abort_if($item->status === 'acknowledged', 409, 'This item was acknowledged and is now read only.');
+
+        // The term being handed over is the one the election was held in; without one, the period the officer works in.
+        $semesterId = Election::whereKey($item->election_id)->value('academic_semester_id') ?? AcademicSemester::selected($request)?->id;
+        abort_unless($semesterId, 422, 'There is no semester to draft this note from.');
+
+        $draft = $drafter->draftFromFacts([
+            'category' => $item->category,
+            'digest' => TermDigest::forOrganization($item->organization_id, $semesterId),
+            'open_items' => TermDigest::openItems($item->organization_id, $semesterId),
+        ]);
+
+        $aiOutput = AiOutput::create([
+            'organization_id' => $item->organization_id,
+            'feature_type' => 'handover_note',
+            'reference_type' => 'officer_handover',
+            'reference_id' => $item->id,
+            'prompt_text' => 'Handover remarks: '.$item->category,
+            'output_text' => $draft['text'],
+            'model_name' => $draft['model'] ?? 'template-draft',
+            'context_version' => 'handover-note-v1',
+            'structured_input' => $draft['facts'],
+            'structured_output' => ['text' => $draft['text'], 'engine' => $draft['engine']],
+            'status' => 'completed',
+            'version' => ((int) AiOutput::where('organization_id', $item->organization_id)
+                ->where('feature_type', 'handover_note')->where('reference_id', $item->id)->max('version')) + 1,
+            'decision_status' => 'pending',
+            'requested_by' => $user->school_id,
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['text' => $draft['text'], 'engine' => $draft['engine'], 'ai_output_id' => $aiOutput->id]);
     }
 
     public function prepare(Request $request, $handover)
@@ -281,6 +324,17 @@ class OfficerTransitionController extends Controller
         }
 
         return $scope;
+    }
+
+    /** The handover in force belongs to the election that closed last among those that have items. */
+    private function electionInForce(?array $scope): ?int
+    {
+        return OfficerHandover::query()
+            ->join('elections', 'elections.id', '=', 'officer_handovers.election_id')
+            ->when($scope !== null, fn ($query) => $query->whereIn('officer_handovers.organization_id', $scope))
+            ->orderByDesc('elections.end_time')
+            ->orderByDesc('elections.id')
+            ->value('officer_handovers.election_id');
     }
 
     private function itemInScope(Request $request, $handover): OfficerHandover

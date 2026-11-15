@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import Modal from '../../../components/Modal';
+import EngineBadge from '../../../components/ai/EngineBadge';
+import { engineName } from '../../../components/ai/engineName';
 import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonTable, StatusBadge, Tabs, Textarea } from '../../../components/ui';
+import { draftHandoverNote, recordAiOutcome } from '../../../services/aiDraftService';
 import { acknowledgeHandover, getHandover, getOfficers, getRenewalTracker, prepareHandover } from '../../../services/officerTransitionService';
 import { getStoredRole } from '../../../lib/pageMeta';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -208,12 +212,18 @@ function PrepareModal({ item, onClose, onSaved }) {
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The drafted text now in the field: { id, engine }. A failed or unused draft never blocks saving the item.
+  const [draft, setDraft] = useState(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState('');
+  const [askReplace, setAskReplace] = useState(false);
 
   const save = async () => {
     setBusy(true);
     setError('');
     try {
       await prepareHandover(item.id, { remarks: remarks.trim(), reference_url: item.reference_url, attachmentFile });
+      if (draft) recordAiOutcome(draft.id, remarks.trim() || null).catch(() => {});
       await onSaved();
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, 'Unable to save this item.'));
@@ -221,16 +231,37 @@ function PrepareModal({ item, onClose, onSaved }) {
     }
   };
 
+  const cancel = () => {
+    if (draft) recordAiOutcome(draft.id, null).catch(() => {});
+    onClose();
+  };
+
+  const requestDraft = async () => {
+    setAskReplace(false);
+    setDrafting(true);
+    setDraftError('');
+    try {
+      const next = await draftHandoverNote(item.category);
+      if (draft) recordAiOutcome(draft.id, null).catch(() => {});
+      setRemarks(next.text);
+      setDraft({ id: next.ai_output_id, engine: next.engine });
+    } catch (draftFailure) {
+      setDraftError(getApiErrorMessage(draftFailure, 'Could not draft the remarks. Try again, or write them yourself.'));
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   return (
     <Modal
       open
       title={`Prepare ${item.label || HANDOVER_LABELS[item.category]}`}
-      onClose={busy ? undefined : onClose}
+      onClose={busy ? undefined : cancel}
       closeOnBackdrop={false}
       maxWidth="max-w-md"
       footer={(
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="secondary" onClick={cancel} disabled={busy}>Cancel</Button>
           <Button onClick={save} loading={busy}>Save as prepared</Button>
         </>
       )}
@@ -239,6 +270,23 @@ function PrepareModal({ item, onClose, onSaved }) {
         <Field label="Remarks" hint="Tell the incoming officers what to know.">
           <Textarea rows={4} maxLength={2000} value={remarks} onChange={(event) => setRemarks(event.target.value)} />
         </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" leftIcon={Sparkles} loading={drafting} disabled={busy} onClick={() => (remarks.trim() ? setAskReplace(true) : requestDraft())}>
+            Draft the remarks
+          </Button>
+          {draft && !drafting && <EngineBadge engine={engineName(draft.engine)} />}
+        </div>
+        {askReplace && (
+          <div role="alertdialog" aria-label="Replace your remarks" className="space-y-2 border-t border-line pt-3">
+            <p className="text-sm text-ink">Replace what you wrote with a new draft?</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={requestDraft}>Replace</Button>
+              <Button size="sm" variant="secondary" onClick={() => setAskReplace(false)}>Keep mine</Button>
+            </div>
+          </div>
+        )}
+        {draft && !drafting && <p className="text-xs text-ink-muted-strong">Draft. Read and edit before you send.</p>}
+        {draftError && <p role="alert" className={ALERT}>{draftError}</p>}
         <Field label="Attachment (optional)">
           <input type="file" className={FILE_INPUT} onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} />
         </Field>
