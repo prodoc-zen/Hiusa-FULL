@@ -65,10 +65,10 @@ class ComplianceController extends Controller
             // ADMIN only needs what it must act on: active requirements for
             // the current academic year, never past years or retired types.
             $selected = AcademicSemester::selected($request);
-            $query->where('is_active', true)->where('academic_year', $selected?->academicYear->label ?? $this->accreditation->currentAcademicYear())
+            $query->where('is_active', true)->inYear($selected?->academicYear->label ?? $this->accreditation->currentAcademicYear(), $selected?->academic_year_id)
                 ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id));
         } else {
-            $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
+            $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->inYear($year));
             if (empty($filters['academic_year']) && empty($filters['academic_semester_id'])) {
                 $selected = AcademicSemester::selected($request);
                 $query->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id));
@@ -211,7 +211,7 @@ class ComplianceController extends Controller
         $active = AcademicSemester::active();
         $semesterId ??= $active?->academicYear->label === $year ? $active->id : null;
         $canonical = RegistrationRequirementCatalog::canonicalName($name) ?? trim($name);
-        $duplicate = ComplianceRequirementType::where('academic_year', $year)->where('category', $category)->where('is_active', true)
+        $duplicate = ComplianceRequirementType::inYear($year)->where('category', $category)->where('is_active', true)
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
             ->when($except, fn ($query) => $query->where('id', '!=', $except))->get(['name'])
             ->contains(fn ($type) => strcasecmp(RegistrationRequirementCatalog::canonicalName($type->name) ?? trim($type->name), $canonical) === 0);
@@ -393,7 +393,7 @@ class ComplianceController extends Controller
 
         $selected = AcademicSemester::selected($request);
         $academicYear = $filters['academic_year'] ?? $selected?->academicYear->label ?? $this->accreditation->currentAcademicYear();
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
+        $requirementTypes = ComplianceRequirementType::inYear($academicYear, isset($filters['academic_year']) ? null : $selected?->academic_year_id)->where('is_active', true)
             ->where('category', $filters['category'] ?? 'organization')
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $selected?->id))->get();
 

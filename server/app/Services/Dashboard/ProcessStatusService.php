@@ -97,7 +97,7 @@ class ProcessStatusService
     {
         $colleges = College::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
         // The university-wide steps come first, in the order they unlock each other: nothing else works without a current year, an active semester and colleges.
-        $currentYear = DB::table('academic_years')->where('is_current', true)->first(['id']);
+        $currentYear = DB::table('academic_years')->whereNull('archived_at')->where('is_current', true)->first(['id']);
         $calendar = [
             ['key' => 'academic-year', 'label' => 'Academic year set', 'done' => $currentYear !== null, 'action' => ['Set the academic year', '/dashboard/super-admin/academic-years']],
             ['key' => 'semester', 'label' => 'Semesters added', 'done' => $currentYear !== null && DB::table('academic_semesters')->where('academic_year_id', $currentYear->id)->exists(), 'action' => ['Add the semesters', '/dashboard/super-admin/academic-years']],
@@ -255,7 +255,7 @@ class ProcessStatusService
     /** @return array{submitted: int, total: int} */
     private function requirementProgress(Organization $organization, AcademicSemester $semester, string $category): array
     {
-        $typeIds = ComplianceRequirementType::where('academic_year', $semester->academicYear->label)->where('is_active', true)
+        $typeIds = ComplianceRequirementType::inYear($semester->academicYear->label, $semester->academic_year_id)->where('is_active', true)
             ->where('category', $category)
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id))
             ->pluck('id');

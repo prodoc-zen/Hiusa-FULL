@@ -26,7 +26,7 @@ class ReconcileRegistrationRequirements extends Command
             if (! $semester) {
                 throw new RuntimeException('An active semester is required.');
             }
-            $types = ComplianceRequirementType::where('academic_year', $semester->academicYear->label)->where('category', 'organization')
+            $types = ComplianceRequirementType::inYear($semester->academicYear->label, $semester->academic_year_id)->where('category', 'organization')
                 ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semester->id))
                 ->orderByDesc('academic_semester_id')->orderBy('id')->lockForUpdate()->get();
             $canonical = collect(RegistrationRequirementCatalog::NAMES)->mapWithKeys(function ($name) use ($types) {

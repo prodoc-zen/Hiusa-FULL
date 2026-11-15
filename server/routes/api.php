@@ -216,6 +216,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::put('/system/academic-years/{academicYear}', [AcademicYearController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-years/{academicYear}/current', [AcademicYearController::class, 'makeCurrent'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-years/{academicYear}/close', [AcademicYearController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/academic-years/{academicYear}/archive', [AcademicYearController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/academic-years/{academicYear}/restore', [AcademicYearController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/academic-years/{academicYear}', [AcademicYearController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);

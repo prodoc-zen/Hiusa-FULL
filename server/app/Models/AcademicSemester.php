@@ -36,7 +36,7 @@ class AcademicSemester extends Model
     /**
      * The semester a request works in: the one named by the X-Academic-Semester header when the caller may pick
      * it, otherwise the active one. An unknown id, a semester the caller may not see, or a malformed header
-     * falls back to the active semester.
+     * falls back to the active semester. A semester of an archived year may be chosen; archiving completes it, so it is read only.
      */
     public static function selected(?Request $request = null): ?self
     {

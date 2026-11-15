@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -52,6 +53,23 @@ class ComplianceRequirementType extends Model
         static::creating(function (self $type) {
             $type->category ??= self::isSemestralName($type->name) ? 'semestral_report' : 'organization';
         });
+    }
+
+    /**
+     * Requirements carrying an academic year label. A label can belong to two years once the first is archived and the
+     * label is added again; then only the rows of the one year's semesters count (the live year unless a year is
+     * named), so nothing of the archived year reaches the new one. Rows with no semester predate both and drop out.
+     */
+    public function scopeInYear(Builder $query, ?string $label, ?int $academicYearId = null): Builder
+    {
+        $query->where('academic_year', $label);
+        $years = AcademicYear::where('label', $label)->get(['id', 'archived_at']);
+        if ($years->count() < 2) {
+            return $query;
+        }
+        $academicYearId ??= ($years->first(fn (AcademicYear $year) => $year->archived_at === null) ?? $years->sortByDesc('id')->first())->id;
+
+        return $query->whereIn('academic_semester_id', AcademicSemester::where('academic_year_id', $academicYearId)->select('id'));
     }
 
     protected function casts(): array

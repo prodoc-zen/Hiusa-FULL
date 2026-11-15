@@ -126,6 +126,19 @@ describe('TopBar school year picker', () => {
     expect(localStorage.getItem(PERIOD_KEY)).toBeNull();
   });
 
+  it('keeps a semester of an archived year in the picker marked Archived and still sends it to Records', async () => {
+    mocks.getAcademicPeriods.mockResolvedValue([{ ...closed, archived: true }, live, upcoming]);
+    renderTopBar('/dashboard/admin');
+    const list = await openPicker();
+
+    const row = within(list).getByRole('button', { name: /AY 2025-2026 · 2nd Semester/ });
+    expect(within(row).getByText('Archived')).toBeInTheDocument();
+    expect(within(within(list).getByRole('button', { name: /AY 2026-2027 · 1st Semester/ })).queryByText('Archived')).not.toBeInTheDocument();
+    fireEvent.click(row);
+
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard/records');
+  });
+
   it('sends a closed semester to Records instead of switching to it', async () => {
     renderTopBar('/dashboard/admin');
     const list = await openPicker();

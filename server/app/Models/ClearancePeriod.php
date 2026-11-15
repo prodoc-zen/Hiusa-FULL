@@ -9,6 +9,7 @@ class ClearancePeriod extends Model
 {
     protected $fillable = [
         'academic_year',
+        'academic_year_id',
         'title',
         'description',
         'required_roles',

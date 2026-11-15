@@ -52,6 +52,8 @@ export const updateAcademicYear = (id, payload) => unwrap(api.put(`/system/acade
 export const makeAcademicYearCurrent = (id) => unwrap(api.patch(`/system/academic-years/${id}/current`));
 export const closeAcademicYear = (id) => unwrap(api.patch(`/system/academic-years/${id}/close`));
 export const deleteAcademicYear = (id) => unwrap(api.delete(`/system/academic-years/${id}`));
+export const archiveAcademicYear = (id) => unwrap(api.post(`/system/academic-years/${id}/archive`));
+export const restoreAcademicYear = (id) => unwrap(api.post(`/system/academic-years/${id}/restore`));
 export const getGlobalAnnouncements = (params) => unwrap(api.get('/system/announcements', { params }));
 function announcementUpload(payload, updating = false) {
   const { image, ...fields } = payload;

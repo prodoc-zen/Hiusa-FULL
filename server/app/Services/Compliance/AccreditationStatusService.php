@@ -20,8 +20,8 @@ class AccreditationStatusService
 {
     public function currentAcademicYear(): ?string
     {
-        // The SAO's current year wins; before one is set, the newest requirement set stands in.
-        return AcademicYear::currentLabel() ?? ComplianceRequirementType::where('is_active', true)->max('academic_year');
+        // The SAO's current year wins; before one is set, the newest requirement set stands in, never one of an archived year.
+        return AcademicYear::currentLabel() ?? ComplianceRequirementType::where('is_active', true)->whereNotIn('academic_year', AcademicYear::archivedLabels())->max('academic_year');
     }
 
     /**
@@ -41,7 +41,7 @@ class AccreditationStatusService
             return $organizationIds->mapWithKeys(fn ($id) => [$id => 'not_applicable'])->all();
         }
 
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)->where('category', 'organization')
+        $requirementTypes = ComplianceRequirementType::inYear($academicYear, AcademicSemester::active()?->academic_year_id)->where('is_active', true)->where('category', 'organization')
             ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         if ($requirementTypes->isEmpty()) {

@@ -2368,7 +2368,7 @@ class AskAiService
             $semesterId = AcademicSemester::active()?->id;
 
             $requirementTypes = $academicYear
-                ? ComplianceRequirementType::where('academic_year', $academicYear)
+                ? ComplianceRequirementType::inYear($academicYear, AcademicSemester::active()?->academic_year_id)
                     ->where('is_active', true)
                     ->where('category', 'organization')
                     ->where(fn ($q) => $q->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
@@ -4333,7 +4333,7 @@ class AskAiService
         }
 
         $semesterId = AcademicSemester::active()?->id;
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)
+        $requirementTypes = ComplianceRequirementType::inYear($academicYear, AcademicSemester::active()?->academic_year_id)
             ->where('is_active', true)
             ->where('category', 'organization')
             ->where(fn ($q) => $q->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
