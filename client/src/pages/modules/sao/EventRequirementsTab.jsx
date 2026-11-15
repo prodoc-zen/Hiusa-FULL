@@ -589,7 +589,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
           {decision?.action === 'reject' && (
             <DraftNoteButton
               flow="event"
-              recordId={decision.approval.entity_id}
+              recordId={decision.approval.id}
               decision="returned"
               marks={draftMarks(filesOf(decision.approval), markedFiles(filesOf(decision.approval), marks, notes))}
               value={decisionRemarks}

@@ -497,7 +497,7 @@ describe('EventRequirementsTab', () => {
     await waitFor(() => expect(screen.getByLabelText(/Remarks for the return/)).toHaveValue('Please replace the Request Letter. The seal is missing.'));
     expect(mocks.draftReviewNote).toHaveBeenCalledWith({
       flow: 'event',
-      record_id: 9,
+      record_id: 41,
       decision: 'returned',
       marks: [{ requirement: 'Request Letter', mark: 'needs_changes', note: 'The seal is missing.' }],
       reviewer_notes: '',
