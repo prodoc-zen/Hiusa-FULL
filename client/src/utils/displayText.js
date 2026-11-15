@@ -41,9 +41,13 @@ export function signatoryLabel(role) {
   return SIGNATORY_LABELS[role] || humanizeIdentifier(role);
 }
 
+// Stored single-word statuses read as words, so a Changes row never prints a raw "rejected".
+const AUDIT_STATUS_WORDS = new Set(['pending', 'approved', 'rejected', 'returned', 'cancelled', 'completed', 'resolved', 'dismissed', 'active', 'inactive', 'open', 'closed', 'paid', 'unpaid', 'draft', 'published', 'upcoming', 'verified', 'declined', 'archived']);
+
 export function displayAuditValue(value) {
   if (value === null || value === undefined || value === '') return 'Not set';
   if (typeof value !== 'string') return String(value);
+  if (AUDIT_STATUS_WORDS.has(value)) return humanizeIdentifier(value);
   return /^[A-Za-z0-9]+(?:[_.][A-Za-z0-9]+)+$/.test(value)
     ? humanizeIdentifier(value)
     : value;

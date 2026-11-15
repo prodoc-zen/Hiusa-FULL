@@ -17,6 +17,7 @@ use App\Models\Organization;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\VenueBooking;
 use App\Services\OrderFulfillmentService;
 use App\Services\StudentAccountBalances;
 use App\Support\Csv;
@@ -618,20 +619,24 @@ class FinancialAccountabilityController extends Controller
         } elseif ($recordType === Budget::class) {
             $record = Budget::where('organization_id', $organizationId)->find($log->record_id);
             $subject = $record ? 'Budget: '.$record->title : 'Budget #'.$log->record_id;
+        } elseif ($recordType === VenueBooking::class) {
+            $record = VenueBooking::with('venue:id,name')->where('organization_id', $log->organization_id)->find($log->record_id);
+            $subject = $record ? 'Venue booking: '.($record->venue?->name ?? $record->off_campus_location ?? 'Venue') : 'Venue booking #'.$log->record_id;
         }
         $values = is_array($log->new_values) ? $log->new_values : (is_array($log->old_values) ? $log->old_values : []);
         if (! $subject && ! empty($values['entity_type'])) {
             $subject = Str::headline($values['entity_type']).' #'.($values['entity_id'] ?? $log->record_id);
         }
         $returned = $this->isReturnedReview($log);
-        $actionLabel = Str::headline(str_replace(['_', '.'], ' ', $returned ? 'reviewed_returned' : $log->action));
+        $venueDecision = in_array($log->action, ['booking_approved', 'booking_rejected'], true);
+        $actionLabel = $venueDecision ? 'Venue Booking Decision' : Str::headline(str_replace(['_', '.'], ' ', $returned ? 'reviewed_returned' : $log->action));
         $moduleLabel = Str::headline(str_replace('_', ' ', $log->module));
         $actor = $log->user ? $this->profileData($log->user) : ['name' => 'System'];
         $subject = $subject ?? Str::headline(class_basename((string) $recordType)).' #'.$log->record_id;
 
         $actionCategory = $this->actionCategory($log->action);
 
-        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $actionCategory, 'action_category_label' => $returned ? 'Return' : $this->identifierLabel($actionCategory), 'module_label' => $moduleLabel, 'record_type_label' => $this->identifierLabel(class_basename((string) $recordType)), 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.$this->descriptionVerb($returned ? 'reviewed_returned' : $log->action).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
+        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $actionCategory, 'action_category_label' => $returned ? 'Return' : $this->identifierLabel($actionCategory), 'module_label' => $moduleLabel, 'record_type_label' => $this->identifierLabel(class_basename((string) $recordType)), 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.($venueDecision ? ($log->action === 'booking_approved' ? 'approved' : 'rejected') : $this->descriptionVerb($returned ? 'reviewed_returned' : $log->action)).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
     }
 
     private function profileData(User $user): array
@@ -657,7 +662,8 @@ class FinancialAccountabilityController extends Controller
 
     /**
      * A send-back is stored as a rejected review but read as a return. A merch payment refusal and a final
-     * election refusal are the only reviews that keep the refusal word. The stored action never changes.
+     * election refusal are the only reviews that keep the refusal word. A venue booking_rejected row is a venue
+     * refusal, never a send-back: it is read as the venue booking decision. The stored action never changes.
      */
     private function isReturnedReview(AuditLog $log): bool
     {
