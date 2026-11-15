@@ -4,7 +4,7 @@ import EventRequirementsTab from './EventRequirementsTab';
 
 const mocks = vi.hoisted(() => ({
   getEventRequirements: vi.fn(), createEventRequirement: vi.fn(), updateEventRequirement: vi.fn(),
-  reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(), markApprovalFile: vi.fn(),
+  reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(), markApprovalFile: vi.fn(), markApprovalFiles: vi.fn(),
   uploadEventRequirementTemplate: vi.fn(), removeEventRequirementTemplate: vi.fn(), setEventRequirementTemplateLink: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
@@ -16,7 +16,7 @@ vi.mock('../../../services/eventService', () => ({
   removeEventRequirementTemplate: mocks.removeEventRequirementTemplate,
   setEventRequirementTemplateLink: mocks.setEventRequirementTemplateLink,
 }));
-vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest, markApprovalFile: mocks.markApprovalFile }));
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest, markApprovalFile: mocks.markApprovalFile, markApprovalFiles: mocks.markApprovalFiles }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 
 const FILES = [
@@ -337,6 +337,44 @@ describe('EventRequirementsTab', () => {
     expect(within(reloaded).queryByText('Not checked')).not.toBeInTheDocument();
     openMenu();
     expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeEnabled();
+  });
+
+  it('accepts every file with Select all and Accept selected in one call, which unlocks Approve', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.markApprovalFiles.mockResolvedValue({ data: { files: [] } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    const all = within(section).getByRole('checkbox', { name: 'Select all files' });
+    fireEvent.click(within(section).getByRole('checkbox', { name: 'Select Request Letter' }));
+    expect(all).toBePartiallyChecked();
+    fireEvent.click(all);
+    expect(all).toBeChecked();
+    fireEvent.click(within(section).getByRole('button', { name: 'Accept selected (2)' }));
+
+    await waitFor(() => expect(mocks.markApprovalFiles).toHaveBeenCalledWith(41, [{ id: 7, status: 'ok' }, { id: 8, status: 'ok' }]));
+    expect(mocks.markApprovalFile).not.toHaveBeenCalled();
+    await waitFor(() => expect(within(section).getAllByText('Accepted')).toHaveLength(2));
+    openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Approve' })).toBeEnabled();
+  });
+
+  it('leaves a file marked Needs changes out of Select all and puts every mark back when the bulk save fails', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.markApprovalFiles.mockRejectedValue(new Error('offline'));
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+
+    mark(section, 'Request Letter', 'needs_changes');
+    fireEvent.click(within(section).getByRole('checkbox', { name: 'Select all files' }));
+    expect(within(section).getByRole('checkbox', { name: 'Select Venue Reservation Letter' })).toBeChecked();
+    expect(within(section).getByRole('checkbox', { name: 'Select Request Letter' })).not.toBeChecked();
+    fireEvent.click(within(section).getByRole('button', { name: 'Accept selected (1)' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save those marks. Try again.');
+    expect(mocks.markApprovalFiles).toHaveBeenCalledWith(41, [{ id: 7, status: 'ok' }]);
+    expect(within(section).getByLabelText('Review of Request Letter')).toHaveValue('needs_changes');
+    expect(within(section).getAllByText('Not checked', { selector: 'span' })).toHaveLength(1);
   });
 
   it('puts a mark back and says so when it could not be saved', async () => {

@@ -414,4 +414,122 @@ class EventFileReviewTest extends TestCase
 
         $this->assertDatabaseCount('event_requirement_file_reviews', 0);
     }
+    private function markFiles(User $reviewer, ApprovalRequest $approval, array $files)
+    {
+        Sanctum::actingAs($reviewer);
+
+        return $this->patchJson('/api/approval-requests/'.$approval->id.'/files', ['files' => $files]);
+    }
+
+    public function test_several_files_can_be_accepted_in_one_call_and_the_request_can_then_be_approved(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+        $permitId = $this->fileId($eventId, $this->permit);
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+
+        $this->markFiles($this->head, $headRow, [
+            ['id' => $proposalId, 'status' => 'ok'],
+            ['id' => $permitId, 'status' => 'ok'],
+        ])
+            ->assertOk()
+            ->assertJsonCount(2, 'files')
+            ->assertJsonFragment(['stage' => 'dean', 'status' => 'ok', 'note' => null]);
+
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $proposalId, 'stage' => 'dean', 'status' => 'ok', 'reviewed_by' => $this->head->school_id]);
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'dean', 'status' => 'ok']);
+        $this->assertSame('pending', $this->row($eventId, 'DEPARTMENT_HEAD')->status);
+        $this->assertSame([['stage' => 'dean', 'status' => 'ok', 'note' => null]], $this->savedMarks($this->head, $eventId, $permitId));
+
+        $this->decide($this->head, $headRow, 'approved')->assertOk();
+        $this->assertSame('approved', $this->row($eventId, 'DEPARTMENT_HEAD')->fresh()->status);
+    }
+
+    public function test_a_bulk_call_can_clear_marks_and_never_removes_a_return(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $permitId = $this->fileId($eventId, $this->permit);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'rejected', [
+            ['id' => $permitId, 'status' => 'needs_changes', 'note' => 'Expired.'],
+        ], 'Fix the permit.')->assertOk();
+        $this->upload($eventId, $this->proposal)->assertOk();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+        $this->markFile($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), $proposalId)->assertOk();
+
+        $this->markFiles($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), [
+            ['id' => $proposalId, 'status' => 'none'],
+            ['id' => $permitId, 'status' => 'none'],
+        ])->assertOk()->assertJsonCount(2, 'files');
+
+        $this->assertDatabaseMissing('event_requirement_file_reviews', ['event_requirement_file_id' => $proposalId]);
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'dean', 'status' => 'needs_changes']);
+    }
+
+    public function test_the_sao_bulk_marks_are_saved_at_its_own_step(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $proposalId = $this->fileId($eventId, $this->proposal);
+        $permitId = $this->fileId($eventId, $this->permit);
+        $this->decide($this->head, $this->row($eventId, 'DEPARTMENT_HEAD'), 'approved', [
+            ['id' => $proposalId, 'status' => 'ok'],
+            ['id' => $permitId, 'status' => 'ok'],
+        ])->assertOk();
+
+        $this->markFiles($this->director, $this->row($eventId, 'SUPER_ADMIN'), [
+            ['id' => $proposalId, 'status' => 'ok'],
+            ['id' => $permitId, 'status' => 'ok'],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $proposalId, 'stage' => 'sao', 'status' => 'ok']);
+        $this->assertDatabaseHas('event_requirement_file_reviews', ['event_requirement_file_id' => $permitId, 'stage' => 'sao', 'status' => 'ok']);
+        $this->assertCount(2, $this->savedMarks($this->director, $eventId, $permitId));
+    }
+
+    public function test_someone_without_authority_cannot_save_bulk_marks(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $files = [['id' => $this->fileId($eventId, $this->proposal), 'status' => 'ok']];
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+        $outsider = $this->makeCollegeHead($this->makeCollege('CBA'));
+
+        $this->markFiles($outsider, $headRow, $files)->assertNotFound();
+        $this->markFiles($this->director, $headRow, $files)->assertForbidden();
+        $this->markFiles($this->admin, $headRow, $files)->assertForbidden();
+
+        $this->assertDatabaseCount('event_requirement_file_reviews', 0);
+    }
+
+    public function test_a_bulk_call_with_a_file_of_another_event_writes_nothing(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $otherEventId = $this->eventWithFiles();
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+
+        $this->markFiles($this->head, $headRow, [
+            ['id' => $this->fileId($eventId, $this->permit), 'status' => 'ok'],
+            ['id' => $this->fileId($otherEventId, $this->permit), 'status' => 'ok'],
+        ])->assertNotFound();
+
+        $this->assertDatabaseCount('event_requirement_file_reviews', 0);
+    }
+
+    public function test_a_bulk_call_is_refused_for_bad_input_a_decided_request_and_an_archived_organization(): void
+    {
+        $eventId = $this->eventWithFiles();
+        $headRow = $this->row($eventId, 'DEPARTMENT_HEAD');
+        $fileId = $this->fileId($eventId, $this->permit);
+
+        $this->markFiles($this->head, $headRow, [])->assertUnprocessable();
+        $this->markFiles($this->head, $headRow, [['id' => $fileId, 'status' => 'maybe']])->assertUnprocessable();
+        $this->markFiles($this->head, $headRow, [['id' => $fileId, 'status' => 'ok'], ['id' => $fileId, 'status' => 'none']])->assertUnprocessable();
+
+        $this->organization->update(['lifecycle_status' => 'archived']);
+        $this->markFiles($this->head, $headRow, [['id' => $fileId, 'status' => 'ok']])->assertConflict();
+        $this->organization->update(['lifecycle_status' => 'active']);
+
+        $this->decide($this->head, $headRow, 'rejected', [], 'Redo it.')->assertOk();
+        $this->markFiles($this->head, $headRow, [['id' => $fileId, 'status' => 'ok']])->assertConflict();
+
+        $this->assertDatabaseCount('event_requirement_file_reviews', 0);
+    }
 }

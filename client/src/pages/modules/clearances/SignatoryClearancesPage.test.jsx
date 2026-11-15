@@ -86,6 +86,31 @@ describe('SignatoryClearancesPage', () => {
     expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(11, { status: 'cleared' });
     expect(mocks.updateClearanceSignature).toHaveBeenCalledWith(12, { status: 'cleared' });
   });
+  it('shows select all in between while only some pending signatures are selected', async () => {
+    const second = { ...PENDING_ROW, id: 12, student: { first_name: 'Juan', last_name: 'Cruz' }, student_id: 502 };
+    mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW, second]));
+
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
+    await screen.findAllByText('Maria Santos');
+    const all = screen.getByRole('checkbox', { name: 'Select all pending (2)' });
+
+    expect(all).not.toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Select Maria Santos for bulk clear' })[0]);
+    expect(all).toBePartiallyChecked();
+    expect(all).not.toBeChecked();
+
+    fireEvent.click(all);
+    expect(all).toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+    expect(screen.getByRole('button', { name: 'Clear 2 selected' })).toBeInTheDocument();
+
+    fireEvent.click(all);
+    expect(all).not.toBeChecked();
+    expect(all).not.toBePartiallyChecked();
+    expect(screen.queryByRole('button', { name: /Clear \d+ selected/ })).not.toBeInTheDocument();
+  });
+
   it('reloads the queue and keeps only the failed signatures selected after a partial bulk failure', async () => {
     const second = { ...PENDING_ROW, id: 12, student: { first_name: 'Juan', last_name: 'Cruz' }, student_id: 502 };
     mocks.getClearanceSignatures.mockResolvedValueOnce(envelope([PENDING_ROW, second]));

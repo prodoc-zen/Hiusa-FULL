@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select, SelectAllCheckbox, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriods, getClearanceSignatures, updateClearanceSignature } from '../../../services/clearanceService';
@@ -153,10 +153,10 @@ export default function SignatoryClearancesPage() {
   }, [rows, search]);
 
   const selectablePendingIds = visibleRows.filter((row) => row.status === 'pending').map((row) => row.id);
-  const allSelected = selectablePendingIds.length > 0 && selectablePendingIds.every((id) => selectedIds.has(id));
+  const selectedPendingCount = selectablePendingIds.filter((id) => selectedIds.has(id)).length;
 
-  function toggleAll() {
-    setSelectedIds(allSelected ? new Set() : new Set(selectablePendingIds));
+  function toggleAll(checked) {
+    setSelectedIds(checked ? new Set(selectablePendingIds) : new Set());
   }
 
   function toggleRow(id) {
@@ -283,10 +283,7 @@ export default function SignatoryClearancesPage() {
                 <button type="button" onClick={clearFilters} className="inline-flex min-h-[42px] items-center rounded-control text-sm font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Clear</button>
               )}
               {selectablePendingIds.length > 0 && (
-                <label className="inline-flex min-h-[42px] items-center gap-2 text-sm text-ink">
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 accent-brand-700" />
-                  Select all pending ({selectablePendingIds.length})
-                </label>
+                <SelectAllCheckbox label={`Select all pending (${selectablePendingIds.length})`} selected={selectedPendingCount} total={selectablePendingIds.length} onChange={toggleAll} />
               )}
               {selectedIds.size > 0 && (
                 <Button size="sm" onClick={() => setBulkOpen(true)}>Clear {selectedIds.size} selected</Button>

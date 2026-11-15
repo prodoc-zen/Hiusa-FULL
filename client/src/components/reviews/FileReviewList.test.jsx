@@ -61,6 +61,75 @@ describe('FileReviewList', () => {
     await waitFor(() => expect(notifyMocks.error).toHaveBeenCalled());
   });
 
+  it('draws no checkbox and no select all unless the screen passes selection', () => {
+    render(<FileReviewList rows={rows()} />);
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  describe('with selection', () => {
+    const selection = (extra = {}) => ({
+      label: 'Select',
+      allLabel: 'Select all files',
+      checkedIds: new Set(),
+      selectableIds: [1, 2],
+      onToggle: vi.fn(),
+      onToggleAll: vi.fn(),
+      ...extra,
+    });
+
+    it('puts a box named after its row on every row, keeps the ul rows as they were and shows how many are ticked', () => {
+      const { container } = render(<FileReviewList rows={rows()} selection={selection({ checkedIds: new Set([1]), actions: <button type="button">Accept selected</button> })} />);
+
+      expect(screen.getByRole('checkbox', { name: 'Select Calendar of Activities (1st & 2nd Sem)' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Select VMGO' })).not.toBeChecked();
+      expect(screen.getAllByRole('listitem')).toHaveLength(2);
+      expect(container.querySelectorAll(':scope > ul > li')).toHaveLength(2);
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Accept selected' })).toBeInTheDocument();
+    });
+
+    it('shows select all unchecked, in-between and checked as rows are ticked', () => {
+      const { rerender } = render(<FileReviewList rows={rows()} selection={selection()} />);
+      const all = () => screen.getByRole('checkbox', { name: 'Select all files' });
+
+      expect(all()).not.toBeChecked();
+      expect(all()).not.toBePartiallyChecked();
+      rerender(<FileReviewList rows={rows()} selection={selection({ checkedIds: new Set([2]) })} />);
+      expect(all()).toBePartiallyChecked();
+      expect(all()).not.toBeChecked();
+      rerender(<FileReviewList rows={rows()} selection={selection({ checkedIds: new Set([1, 2]) })} />);
+      expect(all()).toBeChecked();
+      expect(all()).not.toBePartiallyChecked();
+    });
+
+    it('counts only the rows select all covers, so a row ticked on its own does not fake a full select all', () => {
+      render(<FileReviewList rows={rows()} selection={selection({ selectableIds: [2], checkedIds: new Set([1]) })} />);
+
+      const all = screen.getByRole('checkbox', { name: 'Select all files' });
+      expect(all).not.toBeChecked();
+      expect(all).not.toBePartiallyChecked();
+    });
+
+    it('reports a row toggle and a select all toggle, and cannot tick a disabled row', () => {
+      const props = selection({ disabledIds: new Set([2]) });
+      render(<FileReviewList rows={rows()} selection={props} />);
+
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Select Calendar of Activities (1st & 2nd Sem)' }));
+      expect(props.onToggle).toHaveBeenCalledWith(1);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Select all files' }));
+      expect(props.onToggleAll).toHaveBeenCalledWith(true);
+      expect(screen.getByRole('checkbox', { name: 'Select VMGO' })).toBeDisabled();
+    });
+
+    it('turns select all off when there is nothing to select', () => {
+      render(<FileReviewList rows={rows()} selection={selection({ selectableIds: [] })} />);
+
+      expect(screen.getByRole('checkbox', { name: 'Select all files' })).toBeDisabled();
+    });
+  });
+
   it('calls the action and shows the note and detail only while the row is expanded', () => {
     const onClick = vi.fn();
     const { rerender } = render(<FileReviewList rows={rows({ actions: [{ label: 'Review', ariaLabel: 'Review Calendar', expanded: false, onClick }], note: 'Sign it.', detail: <p>More</p> })} />);

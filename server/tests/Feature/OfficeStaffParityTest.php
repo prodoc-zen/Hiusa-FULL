@@ -124,6 +124,7 @@ class OfficeStaffParityTest extends TestCase
         'PATCH api/ai/assistant/conversations/{conversation}',
         'PATCH api/announcements/{id}/publish',
         'PATCH api/approval-requests/{id}',
+        'PATCH api/approval-requests/{id}/files',
         'PATCH api/approval-requests/{id}/files/{file}',
         'PATCH api/clearance-signatures/{clearanceSignature}',
         'PATCH api/notifications/read-all',

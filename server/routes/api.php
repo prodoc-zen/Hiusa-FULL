@@ -398,6 +398,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD,SBO_OFFICER']);
     Route::get('/approval-requests/{approvalRequest}', [ApprovalRequestController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD,SBO_OFFICER']);
     Route::patch('/approval-requests/{id}', [ApprovalRequestController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::patch('/approval-requests/{id}/files', [ApprovalRequestController::class, 'markFiles'])->whereNumber('id')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::patch('/approval-requests/{id}/files/{file}', [ApprovalRequestController::class, 'markFile'])->whereNumber(['id', 'file'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
 
     // Notification Routes

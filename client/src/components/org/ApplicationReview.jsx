@@ -138,11 +138,24 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const requirements = application?.requirements ?? [];
   const flagged = requirements.filter((requirement) => marks[requirement.id] === 'needs_changes');
   const allAccepted = requirements.length > 0 && requirements.every((requirement) => marks[requirement.id] === 'ok');
-  const notChecked = requirements.filter((requirement) => requirement.document && !marks[requirement.id]);
   const carriedCount = Object.keys(carriedMarks(application, stage)).length;
   const hasNote = remarks.trim() !== '' || flagged.some((requirement) => (notes[requirement.id] || '').trim() !== '');
 
-  const acceptNotChecked = () => setMarks((current) => ({ ...current, ...Object.fromEntries(notChecked.map((requirement) => [requirement.id, 'ok'])) }));
+  // A ticked box is an Accepted mark. A requirement without a file cannot be accepted, and select all leaves out
+  // one marked Needs changes, so a return is only replaced when the reviewer ticks that row on its own.
+  const withFile = requirements.filter((requirement) => requirement.document);
+  const selection = {
+    label: 'Accept',
+    allLabel: 'Accept all',
+    checkedIds: new Set(requirements.filter((requirement) => marks[requirement.id] === 'ok').map((requirement) => requirement.id)),
+    selectableIds: withFile.filter((requirement) => marks[requirement.id] !== 'needs_changes').map((requirement) => requirement.id),
+    disabledIds: new Set(requirements.filter((requirement) => !requirement.document).map((requirement) => requirement.id)),
+    onToggle: (id) => setMarks((current) => ({ ...current, [id]: current[id] === 'ok' ? '' : 'ok' })),
+    onToggleAll: (checked) => setMarks((current) => ({
+      ...current,
+      ...Object.fromEntries(withFile.filter((requirement) => current[requirement.id] !== 'needs_changes').map((requirement) => [requirement.id, checked ? 'ok' : ''])),
+    })),
+  };
 
   async function attach(file, requirementId) {
     setBusy('attach');
@@ -253,12 +266,9 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
           </section>
 
           <section aria-label="Requirements" className="border-t border-line pt-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-ink">Requirements</h2>
-              {actionable && notChecked.length > 0 && <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={acceptNotChecked}>Accept all not checked</Button>}
-            </div>
+            <h2 className="mb-3 text-base font-semibold text-ink">Requirements</h2>
             {actionable && carriedCount > 0 && <p className="mb-3 text-sm text-ink-muted-strong">{carriedCount === 1 ? '1 file is' : `${carriedCount} files are`} unchanged since {stage === 'dean' ? 'the Department Head stage' : 'the SAO'} accepted {carriedCount === 1 ? 'it' : 'them'}, so {carriedCount === 1 ? 'it starts' : 'they start'} as Accepted.</p>}
-            <FileReviewList rows={requirements.map((requirement) => {
+            <FileReviewList selection={actionable ? selection : null} rows={requirements.map((requirement) => {
                 const mark = marks[requirement.id] || '';
                 const priorReviews = requirement.reviews.filter((review) => !actionable || review.stage !== stage);
                 // One word per row. While deciding it is this reviewer's own mark, so an unmarked row reads

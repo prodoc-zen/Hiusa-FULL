@@ -17,6 +17,7 @@ export { default as PageHeader } from './PageHeader';
 export { default as ProgressMeter } from './ProgressMeter';
 export { default as SegmentedControl } from './SegmentedControl';
 export { default as Select } from './Select';
+export { default as SelectAllCheckbox } from './SelectAllCheckbox';
 export {
   default as Skeleton,
   SkeletonCard,

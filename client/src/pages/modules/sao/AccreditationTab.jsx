@@ -8,6 +8,7 @@ import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 import { manilaDate } from '../../../lib/format';
 import TableRowActions from '../../../components/TableRowActions';
 import { reviewSubmission } from '../../../services/complianceService';
+import approveSelected from './approveSelected';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
@@ -29,6 +30,26 @@ export default function AccreditationTab({ title = 'Organization accreditation',
   const [fileComments, setFileComments] = useState({});
   const [fileBusyId, setFileBusyId] = useState(null);
   const selected = rows.find((org) => org.organization_id === selectedId);
+  // The ticked submissions belong to the organization that was open, so another organization starts with none ticked.
+  const [ticked, setTicked] = useState({ organizationId: null, ids: new Set() });
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const tickedIds = ticked.organizationId === selectedId ? ticked.ids : new Set();
+  const canDecide = (requirement) => role === 'SUPER_ADMIN' && Boolean(requirement.submission_id) && requirement.status === 'submitted';
+  const decidable = (selected?.requirements || []).filter(canDecide);
+
+  function toggleTicked(update) {
+    setTicked({ organizationId: selectedId, ids: update(tickedIds) });
+  }
+
+  async function approveTicked() {
+    const items = decidable.filter((requirement) => tickedIds.has(requirement.requirement_type_id)).map((requirement) => ({ id: requirement.submission_id, submittedAt: requirement.submitted_at }));
+    setBulkBusy(true);
+    const failed = await approveSelected(items);
+    const failedIds = new Set(failed);
+    setTicked({ organizationId: selectedId, ids: new Set(decidable.filter((requirement) => failedIds.has(requirement.submission_id)).map((requirement) => requirement.requirement_type_id)) });
+    setBulkBusy(false);
+    onChanged?.();
+  }
 
   async function decideFile(requirement, status) {
     if (!requirement.submission_id) return;
@@ -87,7 +108,7 @@ export default function AccreditationTab({ title = 'Organization accreditation',
       requirement.submitted_at && `Submitted ${manilaDate(requirement.submitted_at, 'long')}`,
     ].filter(Boolean).join(' · ');
     const returnedRemarks = requirement.status === 'returned' && requirement.remarks;
-    const deciding = role === 'SUPER_ADMIN' && requirement.submission_id && requirement.status === 'submitted';
+    const deciding = canDecide(requirement);
     const busy = fileBusyId === requirement.submission_id;
     return {
       id: requirement.requirement_type_id,
@@ -161,7 +182,20 @@ export default function AccreditationTab({ title = 'Organization accreditation',
     <Drawer open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelectedId(null)} width="max-w-4xl">
       {requirementRows.length > 0 ? (
         <section aria-label={`Requirements for ${selected?.organization_name || 'organization'}`} className="overflow-hidden rounded-card border border-line">
-          <FileReviewList rows={requirementRows} />
+          <FileReviewList rows={requirementRows} selection={decidable.length > 0 ? {
+            label: 'Select',
+            allLabel: 'Select all submitted',
+            checkedIds: tickedIds,
+            selectableIds: decidable.map((requirement) => requirement.requirement_type_id),
+            disabledIds: new Set((selected?.requirements || []).filter((requirement) => !canDecide(requirement)).map((requirement) => requirement.requirement_type_id)),
+            onToggle: (id) => toggleTicked((current) => {
+              const next = new Set(current);
+              if (next.has(id)) next.delete(id); else next.add(id);
+              return next;
+            }),
+            onToggleAll: (checked) => toggleTicked(() => (checked ? new Set(decidable.map((requirement) => requirement.requirement_type_id)) : new Set())),
+            actions: <Button size="sm" leftIcon={Check} loading={bulkBusy} disabled={tickedIds.size === 0 || bulkBusy} onClick={approveTicked}>Approve selected{tickedIds.size > 0 ? ` (${tickedIds.size})` : ''}</Button>,
+          } : null} />
         </section>
       ) : (
         <EmptyState kind="first-run" title="No requirements yet" description="Requirements appear here once the SAO publishes them for this academic year." />
