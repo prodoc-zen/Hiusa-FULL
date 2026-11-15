@@ -6,6 +6,8 @@ import { formatDisplayText } from '../../utils/displayText.js';
 import { openProtectedFile } from '../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../utils/apiError';
 import TableRowActions from '../TableRowActions';
+import ReportChecksPanel from './ReportChecksPanel';
+import { recordAiOutcome } from '../../services/aiDraftService';
 
 export function withDraftDefault(report) {
   return { ...report, submission_status: report.submission_status || 'draft' };
@@ -43,10 +45,18 @@ function supportingFileProblem(picked) {
 export default function ReportDetailDrawer({ report, viewerRole, onClose, files = [], onFilesChange, onSubmit, submitting }) {
   const [fileError, setFileError] = useState('');
   const [pickError, setPickError] = useState('');
+  const [explained, setExplained] = useState(null);
   if (!report) return null;
   const lifecycle = financialReportLifecycle(withDraftDefault(report), viewerRole);
   const canSubmit = viewerRole === 'ADMIN' && ['draft', 'rejected'].includes(withDraftDefault(report).submission_status);
-  const nextStep = reportNextStepProps(report, viewerRole, { onSubmit: canSubmit ? onSubmit : undefined, submitting });
+  const showChecks = ['draft', 'rejected'].includes(withDraftDefault(report).submission_status) && ['ADMIN', 'SBO_OFFICER'].includes(viewerRole);
+
+  // The submit handler answers true once the report is sent; only then does the explanation count as used.
+  async function submitReport() {
+    const sent = await onSubmit?.();
+    if (sent === true && explained) recordAiOutcome(explained.aiOutputId, explained.text).catch(() => {});
+  }
+  const nextStep = reportNextStepProps(report, viewerRole, { onSubmit: canSubmit ? submitReport : undefined, submitting });
   const documentName = report.document_type === 'income_statement' ? 'Income statement' : 'Financial report';
   const generated = String(report.generated_at || '').slice(0, 10);
   const documents = report.supporting_documents || [];
@@ -66,6 +76,7 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
         <FlowStepper variant="full" steps={lifecycle.steps} ariaLabel="Financial report progress" />
         <NextStep {...nextStep} />
         {report.summary_text && <p className="border-t border-line pt-4 text-sm font-medium text-ink-muted-strong">{report.summary_text}</p>}
+        {showChecks && <ReportChecksPanel reportId={report.id} canIgnore={viewerRole === 'ADMIN'} onExplained={setExplained} />}
         <div className="border-t border-line pt-4">
           <h3 className="text-sm font-semibold text-ink">Submitted supporting files</h3>
           {fileError && <p role="alert" className="mt-2 text-sm font-medium text-danger-strong">{fileError}</p>}

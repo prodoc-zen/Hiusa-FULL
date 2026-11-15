@@ -1,13 +1,15 @@
 import { formatDisplayText, signatoryLabel } from '../../../utils/displayText.js';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Download, X } from 'lucide-react';
 import { Button, Drawer, EmptyState, ErrorState, Field, Input, Select, SkeletonTable, Textarea } from '../../../components/ui';
 import FileReviewList, { FileLink } from '../../../components/reviews/FileReviewList';
 import ConfirmModal from '../../../components/ConfirmModal';
+import ReportChecksPanel from '../../../components/finance/ReportChecksPanel';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
+import { recordAiOutcome } from '../../../services/aiDraftService';
 import {
   downloadFinancialReportPdf,
   getFinancialReport,
@@ -50,6 +52,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
   const [rejectionRemarks, setRejectionRemarks] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
+  const explained = useRef(null);
 
   const load = useCallback(async (page = 1) => {
     setLoading(true);
@@ -83,6 +86,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
   useEffect(() => { load(1); }, [load]);
 
   async function openReport(report) {
+    explained.current = null;
     try {
       setDetail((await getFinancialReport(report.id)).data);
     } catch (error) {
@@ -115,6 +119,8 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
       setReviewAction(null);
       setRejectionRemarks('');
       setDetail(null);
+      if (explained.current) recordAiOutcome(explained.current.aiOutputId, explained.current.text).catch(() => {});
+      explained.current = null;
       setFeedback({ open: true, type: 'success', message: `Financial report ${reviewAction.status}.` });
       await load(meta.current_page || 1);
     } catch (error) {
@@ -209,6 +215,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
       >
         {detail && <div className="space-y-4">
           <p className="text-sm text-ink-muted-strong">{detail.report.summary_text}</p>
+          <ReportChecksPanel reportId={detail.report.id} heading="Checks on this report" onExplained={(value) => { explained.current = value; }} />
           <div className="border-t border-line pt-4">
             <h3 className="text-sm font-semibold text-ink">Required signatories</h3>
             {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm text-ink-muted-strong">{signatoryLabel(role)}: <span className="font-medium text-ink">{formatDisplayText(name)}</span></p>)}

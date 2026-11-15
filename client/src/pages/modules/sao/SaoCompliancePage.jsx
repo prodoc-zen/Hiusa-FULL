@@ -10,6 +10,7 @@ import { fetchAllPages } from '../../../services/pagination';
 import * as systemAdminService from '../../../services/systemAdministrationService';
 import AccreditationTab from './AccreditationTab';
 import EventRequirementsTab from './EventRequirementsTab';
+import FinancialReportDeadlineField from './FinancialReportDeadlineField';
 import FinancialReportsTab from './FinancialReportsTab';
 import RequirementsTab from './RequirementsTab';
 import ReviewQueueTab from './ReviewQueueTab';
@@ -186,7 +187,10 @@ export default function SaoCompliancePage() {
           )}
           {activeTab === 'events' && <EventRequirementsTab noSemester={overview.noSemester} readOnly={readOnly} />}
           {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} initialEventId={searchParams.get('event') || ''} onEventOpen={changeOpenEvent} />}</OrganizationReviewFolders>}
-          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>}
+          {activeTab === 'financial' && <>
+            <FinancialReportDeadlineField />
+            <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Semestral and financial report" waiting={reportsWaiting}>{(organizationId, waiting) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} initialStatus={waiting > 0 ? 'pending_sao' : ''} />}</OrganizationReviewFolders>
+          </>}
         </div>
       </div>
     </div>

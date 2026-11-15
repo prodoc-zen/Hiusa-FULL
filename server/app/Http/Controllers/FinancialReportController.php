@@ -12,10 +12,13 @@ use App\Models\Collection;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
+use App\Models\FinancialReportDeadline;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
+use App\Services\Ai\ReportCheckExplainer;
 use App\Services\BudgetAdviceRules;
+use App\Services\Finance\FinancialReportChecks;
 use App\Services\FinancialReportPdfService;
 use App\Services\FinancialReportStatement;
 use App\Services\SubmissionStoragePolicy;
@@ -33,6 +36,8 @@ class FinancialReportController extends Controller
     public function __construct(
         private readonly TextGenerator $ai,
         private readonly FinancialReportPdfService $pdf,
+        private readonly FinancialReportChecks $checks,
+        private readonly ReportCheckExplainer $explainer,
     ) {}
 
     public function index(Request $request)
@@ -400,6 +405,111 @@ class FinancialReportController extends Controller
         return $response;
     }
 
+    /** The rule findings for a report the user can read, with the reason of any the Admin chose to ignore. */
+    public function checks(Request $request, FinancialReport $financialReport)
+    {
+        if (! $this->canAccessReport($request, $financialReport)) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        return response()->json(['findings' => $this->checkFindings($financialReport)]);
+    }
+
+    /** Orders and words the findings that are still open; the rules list stands when no model answers. */
+    public function explainChecks(Request $request, FinancialReport $financialReport)
+    {
+        if (! $this->canAccessReport($request, $financialReport)) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        $findings = array_values(array_filter($this->checkFindings($financialReport), fn (array $finding) => $finding['ignored'] === null));
+        $explained = $this->explainer->explainFromFindings($findings);
+        $text = $explained['text'];
+
+        $aiOutput = AiOutput::create([
+            'organization_id' => $financialReport->organization_id,
+            'feature_type' => 'report_check',
+            'reference_type' => FinancialReport::class,
+            'reference_id' => $financialReport->id,
+            'prompt_text' => 'Order and explain the checks on a financial report without adding or dropping a finding.',
+            'output_text' => $text,
+            'model_name' => $explained['model'],
+            'context_version' => 'report-check-v1',
+            'structured_input' => $explained['facts'],
+            'structured_output' => ['text' => $text, 'summary' => $explained['summary'], 'items' => $explained['items'], 'engine' => $explained['engine']],
+            'status' => 'completed',
+            'version' => ((int) AiOutput::where('organization_id', $financialReport->organization_id)->where('feature_type', 'report_check')->max('version')) + 1,
+            'decision_status' => 'pending',
+            'requested_by' => $request->user()->id,
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'text' => $text,
+            'summary' => $explained['summary'],
+            'items' => $explained['items'],
+            'engine' => $explained['engine'],
+            'ai_output_id' => $aiOutput->id,
+        ]);
+    }
+
+    /** The Admin sets a finding aside with a typed reason, which is kept in the audit log. */
+    public function ignoreCheck(Request $request, FinancialReport $financialReport)
+    {
+        if ($financialReport->organization_id !== $request->user()->organization_id) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        $data = $request->validate([
+            'key' => ['required', 'string', 'max:255'],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+        ], ['reason.required' => 'Type why this can be ignored.', 'reason.min' => 'Type why this can be ignored, in at least 5 characters.']);
+
+        $finding = collect($this->checkFindings($financialReport))->firstWhere('key', $data['key']);
+        if (! $finding) {
+            return response()->json(['message' => 'That check is no longer on this report.'], 422);
+        }
+
+        AuditLog::create([
+            'organization_id' => $financialReport->organization_id,
+            'user_id' => $request->user()->school_id,
+            'actor_role' => $request->user()->role,
+            'module' => 'financial_reports',
+            'action' => 'check_ignored',
+            'description' => 'Ignored a report check: '.$finding['message'],
+            'record_type' => FinancialReport::class,
+            'record_id' => $financialReport->id,
+            'old_values' => null,
+            'new_values' => ['key' => $finding['key'], 'code' => $finding['code'], 'reason' => trim($data['reason'])],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['findings' => $this->checkFindings($financialReport)]);
+    }
+
+    /**
+     * The findings as the panel shows them: a key, the plain sentence, and the reason when one was typed.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function checkFindings(FinancialReport $report): array
+    {
+        $ignored = AuditLog::where('module', 'financial_reports')
+            ->where('action', 'check_ignored')
+            ->where('record_type', FinancialReport::class)
+            ->where('record_id', $report->id)
+            ->orderBy('id')
+            ->get(['new_values', 'created_at'])
+            ->mapWithKeys(fn (AuditLog $log) => [(string) ($log->new_values['key'] ?? '') => ['reason' => $log->new_values['reason'] ?? '', 'at' => $log->created_at]]);
+
+        return array_map(function (array $finding) use ($ignored) {
+            $key = FinancialReportChecks::keyOf($finding);
+
+            return [...$finding, 'key' => $key, 'message' => FinancialReportChecks::describe($finding), 'ignored' => $ignored[$key] ?? null];
+        }, $this->checks->forReport($report));
+    }
+
     public function submit(Request $request, FinancialReport $financialReport)
     {
         if ($financialReport->organization_id !== $request->user()->organization_id) {
@@ -437,7 +547,7 @@ class FinancialReportController extends Controller
         }
 
         $stale = DB::transaction(function () use ($request, $financialReport, $documents) {
-            if ($this->ledgerChangedSinceGenerated($financialReport)) {
+            if ($this->checks->ledgerChangedSinceGenerated($financialReport, lock: true)) {
                 return true;
             }
 
@@ -451,6 +561,8 @@ class FinancialReportController extends Controller
             $financialReport->update([
                 'supporting_documents' => $documents->values()->all(),
                 'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
+                // The briefing counts a report as sent for the round it carries, so it stops asking once this lands.
+                'deadline_id' => $financialReport->deadline_id ?? FinancialReportDeadline::orderByDesc('id')->value('id'),
                 'submitted_at' => now(),
                 'department_head_approved_by' => null,
                 'department_head_approved_at' => null,
@@ -494,52 +606,6 @@ class FinancialReportController extends Controller
         }
 
         return response()->json($financialReport->fresh());
-    }
-
-    /**
-     * A draft or rejected report does not lock its entries, so what it lists can be edited
-     * or deleted before it is submitted. Reviewers approve the snapshot, so it must still
-     * match the live rows, and an entry added to the same organization, period and scope
-     * afterwards is a change too. A report from before snapshots existed has nothing to compare.
-     */
-    private function ledgerChangedSinceGenerated(FinancialReport $report): bool
-    {
-        if ($report->transactions_snapshot === null) {
-            return false;
-        }
-
-        $snapshot = collect($report->transactions_snapshot)->keyBy('id');
-
-        $live = Transaction::where('organization_id', $report->organization_id)
-            ->whereIn('id', $snapshot->keys()->all())
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id');
-
-        $nullableId = fn ($id) => $id === null ? null : (int) $id;
-        $money = fn ($amount) => number_format((float) $amount, 2, '.', '');
-
-        foreach ($snapshot as $id => $saved) {
-            $entry = $live->get($id);
-
-            if (! $entry
-                || $money($saved['amount'] ?? 0) !== $money($entry->amount)
-                || ($saved['type'] ?? null) !== $entry->type
-                || ($saved['category'] ?? null) !== $entry->category
-                || $nullableId($saved['budget_id'] ?? null) !== $nullableId($entry->budget_id)
-                || $nullableId($saved['event_id'] ?? null) !== $nullableId($entry->event_id)
-                || Carbon::parse($saved['transaction_date'])->getTimestamp() !== $entry->transaction_date->getTimestamp()) {
-                return true;
-            }
-        }
-
-        return Transaction::where('organization_id', $report->organization_id)
-            ->when($report->event_id, fn ($query) => $query->where('event_id', $report->event_id))
-            ->when(! $report->event_id, fn ($query) => $query
-                ->whereDate('transaction_date', '>=', $report->period_start)
-                ->whereDate('transaction_date', '<=', $report->period_end))
-            ->whereNotIn('id', $snapshot->keys()->all())
-            ->exists();
     }
 
     /** The reviewer's reason for returning a report, so the Admin can read what to fix. */
@@ -592,25 +658,12 @@ class FinancialReportController extends Controller
 
     private function openingBalanceFor(FinancialReport $report): float
     {
-        if ($report->opening_balance_snapshot !== null) {
-            return (float) $report->opening_balance_snapshot;
-        }
-
-        return $report->event_id || ! $report->period_start
-            ? 0.0
-            : $this->openingBalance($report->organization_id, $report->period_start->toDateString());
+        return $this->checks->openingBalanceFor($report);
     }
 
     private function openingBalance(int $organizationId, string $periodStart): float
     {
-        $totals = Transaction::query()
-            ->where('organization_id', $organizationId)
-            ->whereDate('transaction_date', '<', $periodStart)
-            ->selectRaw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income_total")
-            ->selectRaw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense_total")
-            ->first();
-
-        return (float) ($totals?->income_total ?? 0) - (float) ($totals?->expense_total ?? 0);
+        return FinancialReportChecks::ledgerOpeningBalance($organizationId, $periodStart);
     }
 
     private function summary(array $context): array

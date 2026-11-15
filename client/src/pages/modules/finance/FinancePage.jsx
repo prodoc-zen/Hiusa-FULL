@@ -977,8 +977,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       const response = await submitFinancialReport(report.id, reportFiles[report.id] || []);
       setReports((current) => current.map((item) => item.id === report.id ? response.data : item));
       showFeedback('success', 'Financial report submitted to the Department Head. SAO review follows Department Head approval.');
+      return true;
     } catch (err) {
       showFeedback('error', getApiErrorMessage(err, 'Failed to submit the financial report.'));
+      return false;
     } finally {
       setReportSubmitting(null);
     }

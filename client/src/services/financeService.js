@@ -102,3 +102,20 @@ export const submitFinancialReport = (id, files = []) => {
 
 export const downloadFinancialReportDocument = (reportId, index) =>
   api.get(`/financial-reports/${reportId}/documents/${index}`, { responseType: 'blob' });
+
+// Checks before a report is sent. The findings decide the next click, so they are never read from the short cache.
+export const getReportChecks = (id) =>
+  api.get(`/financial-reports/${id}/checks`, { cache: false });
+
+export const explainReportChecks = (id) =>
+  api.post(`/financial-reports/${id}/checks/explain`);
+
+export const ignoreReportCheck = (id, key, reason) =>
+  api.post(`/financial-reports/${id}/checks/ignore`, { key, reason });
+
+// The date the SAO asks every organization to send its financial report by.
+export const getFinancialReportDeadline = () =>
+  api.get('/financial-report-deadline', { cache: false });
+
+export const setFinancialReportDeadline = (deadlineAt, newRound = false) =>
+  api.put('/financial-report-deadline', { deadline_at: deadlineAt, new_round: newRound });
