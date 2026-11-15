@@ -52,6 +52,7 @@ class AcademicSemesterController extends Controller
     public function index(Request $request)
     {
         return response()->json(AcademicSemester::with('academicYear:id,label')
+            ->inLiveYear()
             ->when(! in_array($request->user()->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN'], true), fn ($query) => $query->where('status', '!=', 'upcoming'))
             ->orderByDesc('academic_year_id')->orderBy('number')->get());
     }
@@ -74,6 +75,8 @@ class AcademicSemesterController extends Controller
         }
 
         $semester = DB::transaction(function () use ($academicYear, $data, $request) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $this->assertNotArchived(AcademicYear::findOrFail($academicYear->id));
             $semester = $academicYear->semesters()->create([
                 ...$data,
                 'status' => 'upcoming',
@@ -176,6 +179,7 @@ class AcademicSemesterController extends Controller
         $semester = DB::transaction(function () use ($request, $academicSemester) {
             AcademicYear::orderBy('id')->lockForUpdate()->first();
             $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            $this->assertNotArchived($semester->academicYear);
             if ($semester->status === 'completed') {
                 throw ValidationException::withMessages(['semester' => ['A completed semester cannot be reopened.']]);
             }
@@ -242,6 +246,7 @@ class AcademicSemesterController extends Controller
         $semester = DB::transaction(function () use ($request, $academicSemester) {
             AcademicYear::orderBy('id')->lockForUpdate()->first();
             $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            $this->assertNotArchived($semester->academicYear);
             if ($semester->status !== 'completed') {
                 throw ValidationException::withMessages(['semester' => ['Only a completed semester can be reopened.']]);
             }
@@ -267,7 +272,15 @@ class AcademicSemesterController extends Controller
         return ($semester->number === 1 ? '1st' : '2nd').' semester, AY '.$semester->academicYear->label;
     }
 
-    private function openElections($semesterIds)
+    /** An archived year is read only until the SAO restores it, so none of its semesters can start, reopen or grow. */
+    private function assertNotArchived(AcademicYear $year): void
+    {
+        if ($year->archived_at !== null) {
+            throw ValidationException::withMessages(['semester' => ['Restore this year first.']]);
+        }
+    }
+
+    public function openElections($semesterIds)
     {
         return Election::with('organization:id,name')->whereIn('academic_semester_id', $semesterIds)
             ->where(fn ($query) => $query->where('status', 'active')->orWhere(fn ($upcoming) => $upcoming->where('status', 'upcoming')->whereNotNull('approved_at')))
@@ -278,7 +291,7 @@ class AcademicSemesterController extends Controller
      * Refuses with the elections named in the message and listed beside it, so the page can say which organization owns each one.
      * Only that organization's Admin can cancel an election, so the SAO is pointed to the organization, never to a screen it cannot open.
      */
-    private function refuseForElections($elections, string $before): never
+    public function refuseForElections($elections, string $before): never
     {
         $names = $elections->map(fn (Election $election) => $election->title.' ('.($election->organization?->name ?? 'no organization').')')->implode(', ');
         $message = $before.$names.'. The Admin of each organization can cancel its election, or you can wait for it to close.';
@@ -341,6 +354,7 @@ class AcademicSemesterController extends Controller
 
         return array_keys(array_filter([
             'the active semester' => $semester->status === 'active',
+            'an archived academic year' => $semester->academicYear->archived_at !== null,
             'events' => Event::where('academic_semester_id', $semester->id)->exists(),
             'elections' => Election::where('academic_semester_id', $semester->id)->exists(),
             'tasks' => Task::where('academic_semester_id', $semester->id)->exists(),

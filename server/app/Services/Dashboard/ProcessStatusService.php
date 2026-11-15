@@ -97,7 +97,7 @@ class ProcessStatusService
     {
         $colleges = College::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
         // The university-wide steps come first, in the order they unlock each other: nothing else works without a current year, an active semester and colleges.
-        $currentYear = DB::table('academic_years')->where('is_current', true)->first(['id']);
+        $currentYear = DB::table('academic_years')->whereNull('archived_at')->where('is_current', true)->first(['id']);
         $calendar = [
             ['key' => 'academic-year', 'label' => 'Academic year set', 'done' => $currentYear !== null, 'action' => ['Set the academic year', '/dashboard/super-admin/academic-years']],
             ['key' => 'semester', 'label' => 'Semesters added', 'done' => $currentYear !== null && DB::table('academic_semesters')->where('academic_year_id', $currentYear->id)->exists(), 'action' => ['Add the semesters', '/dashboard/super-admin/academic-years']],

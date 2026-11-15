@@ -32,7 +32,7 @@ final class RenewalDeadline
     {
         $semester = AcademicSemester::active();
         $academicYear = $semester?->academicYear?->label ?? AcademicYear::currentLabel()
-            ?? ComplianceRequirementType::where('is_active', true)->where('category', 'renewal')->max('academic_year');
+            ?? ComplianceRequirementType::where('is_active', true)->where('category', 'renewal')->whereNotIn('academic_year', AcademicYear::archivedLabels())->max('academic_year');
 
         return ComplianceRequirementType::query()
             ->where('category', 'renewal')

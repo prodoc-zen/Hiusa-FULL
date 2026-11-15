@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\Request;
@@ -28,6 +29,12 @@ class AcademicSemester extends Model
         return $this->belongsTo(AcademicYear::class);
     }
 
+    /** Semesters of years the SAO has not archived: the ones every picker and current view may offer. */
+    public function scopeInLiveYear(Builder $query): Builder
+    {
+        return $query->whereHas('academicYear', fn (Builder $year) => $year->whereNull('archived_at'));
+    }
+
     public static function active(): ?self
     {
         return static::with('academicYear')->where('status', 'active')->first();
@@ -36,7 +43,7 @@ class AcademicSemester extends Model
     /**
      * The semester a request works in: the one named by the X-Academic-Semester header when the caller may pick
      * it, otherwise the active one. An unknown id, a semester the caller may not see, or a malformed header
-     * falls back to the active semester.
+     * falls back to the active semester. A semester of an archived year is never offered, so a stale choice falls back too.
      */
     public static function selected(?Request $request = null): ?self
     {
@@ -46,7 +53,7 @@ class AcademicSemester extends Model
 
         if ($role !== null && in_array($role, self::PERIOD_ROLES, true) && is_string($id) && ctype_digit($id)) {
             $semester = static::with('academicYear')->find((int) $id);
-            if ($semester && ($semester->status !== 'upcoming' || in_array($role, self::PLANNING_ROLES, true))) {
+            if ($semester && $semester->academicYear?->archived_at === null && ($semester->status !== 'upcoming' || in_array($role, self::PLANNING_ROLES, true))) {
                 return $semester;
             }
         }

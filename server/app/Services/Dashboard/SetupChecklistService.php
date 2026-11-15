@@ -55,7 +55,7 @@ class SetupChecklistService
         $collegesWithRecords = (clone $colleges)->whereExists(fn ($query) => $query->selectRaw('1')->from('student_registry')
             ->whereColumn('student_registry.college_id', 'colleges.id')
             ->where('student_registry.record_type', StudentRegistryEntry::STUDENT))->count();
-        $currentYearId = DB::table('academic_years')->where('is_current', true)->value('id');
+        $currentYearId = DB::table('academic_years')->whereNull('archived_at')->where('is_current', true)->value('id');
 
         // The real order: the calendar, then the colleges, then the people and records that fill them, then what organizations need.
         return [

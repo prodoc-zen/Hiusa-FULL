@@ -20,8 +20,8 @@ class AccreditationStatusService
 {
     public function currentAcademicYear(): ?string
     {
-        // The SAO's current year wins; before one is set, the newest requirement set stands in.
-        return AcademicYear::currentLabel() ?? ComplianceRequirementType::where('is_active', true)->max('academic_year');
+        // The SAO's current year wins; before one is set, the newest requirement set stands in, never one of an archived year.
+        return AcademicYear::currentLabel() ?? ComplianceRequirementType::where('is_active', true)->whereNotIn('academic_year', AcademicYear::archivedLabels())->max('academic_year');
     }
 
     /**
