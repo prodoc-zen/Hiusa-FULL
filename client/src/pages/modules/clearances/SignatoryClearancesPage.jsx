@@ -45,7 +45,9 @@ function SignatureDetail({ row, role, onSign }) {
     <div className="flex flex-col gap-4">
       <FlowStepper variant="full" steps={stage.steps} ariaLabel="Clearance signature" />
       <NextStep {...next} />
-      <SignAction signatureId={row.id} status={row.status} remarks={row.remarks} roleLabel={humanizeRole(row.required_role)} onSign={onSign} />
+      {row.archived
+        ? <p className="text-sm text-ink-muted">This clearance belongs to an archived school year. It is read only.</p>
+        : <SignAction signatureId={row.id} status={row.status} remarks={row.remarks} roleLabel={humanizeRole(row.required_role)} onSign={onSign} />}
     </div>
   );
 }
@@ -91,7 +93,7 @@ export default function SignatoryClearancesPage() {
         setRows(fresh);
         setMeta(listMeta(res.data));
         // A line someone else already acted on is no longer selectable.
-        setSelectedIds((current) => (current.size === 0 ? current : new Set(fresh.filter((row) => row.status === 'pending' && current.has(row.id)).map((row) => row.id))));
+        setSelectedIds((current) => (current.size === 0 ? current : new Set(fresh.filter((row) => row.status === 'pending' && !row.archived && current.has(row.id)).map((row) => row.id))));
       })
       .catch(() => { if (ticket === loadCounter.current) setError('Failed to load your clearance signing queue.'); })
       .finally(() => { if (ticket === loadCounter.current) setLoading(false); });
@@ -152,7 +154,7 @@ export default function SignatoryClearancesPage() {
     return rows.filter((row) => `${row.student?.first_name || ''} ${row.student?.last_name || ''} ${row.student_id}`.toLowerCase().includes(term));
   }, [rows, search]);
 
-  const selectablePendingIds = visibleRows.filter((row) => row.status === 'pending').map((row) => row.id);
+  const selectablePendingIds = visibleRows.filter((row) => row.status === 'pending' && !row.archived).map((row) => row.id);
   const selectedPendingCount = selectablePendingIds.filter((id) => selectedIds.has(id)).length;
 
   function toggleAll(checked) {
@@ -197,7 +199,7 @@ export default function SignatoryClearancesPage() {
       className: 'whitespace-nowrap',
       render: (row) => (
         <div className="flex items-center gap-1">
-          {row.status === 'pending' ? (
+          {row.status === 'pending' && !row.archived ? (
             <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
               <input type="checkbox" aria-label={`Select ${studentName(row)} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-brand-700" />
             </label>
@@ -216,6 +218,7 @@ export default function SignatoryClearancesPage() {
       header: 'Status',
       render: (row) => (
         <div className="flex flex-col items-start gap-1">
+          {row.archived && <StatusBadge tone="neutral" label="Archived" />}
           {row.status !== 'pending' && <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} />}
           {(row.remarks || row.status === 'pending') && (
             <p className={`text-xs ${row.status === 'held' ? 'text-ink' : 'text-ink-muted'}`}>{row.remarks || `Waiting for ${humanizeRole(row.required_role)} signature`}</p>
@@ -229,14 +232,16 @@ export default function SignatoryClearancesPage() {
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end">
-          <SignAction
-            showStatus={false}
-            signatureId={row.id}
-            status={row.status}
-            remarks={row.remarks}
-            roleLabel={humanizeRole(row.required_role)}
-            onSign={(nextStatus, remarks) => sign(row, nextStatus, remarks)}
-          />
+          {!row.archived && (
+            <SignAction
+              showStatus={false}
+              signatureId={row.id}
+              status={row.status}
+              remarks={row.remarks}
+              roleLabel={humanizeRole(row.required_role)}
+              onSign={(nextStatus, remarks) => sign(row, nextStatus, remarks)}
+            />
+          )}
         </div>
       ),
     },
@@ -271,7 +276,7 @@ export default function SignatoryClearancesPage() {
               <div className="w-full sm:w-48">
                 <Select filter aria-label="Filter by clearance period" value={periodId} onChange={changeFilter(setPeriodId)}>
                   <option value="">All periods</option>
-                  {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}</option>)}
+                  {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}{period.archived ? ' (Archived)' : ''}</option>)}
                 </Select>
               </div>
               <div className="w-full sm:w-40">

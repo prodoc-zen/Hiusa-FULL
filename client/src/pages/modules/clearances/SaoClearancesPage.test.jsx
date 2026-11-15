@@ -66,6 +66,19 @@ describe('SaoClearancesPage', () => {
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
   });
 
+  it('marks a period of an archived year with an Archived badge and leaves the live one unmarked', async () => {
+    mocks.getClearancePeriods.mockResolvedValue(envelope([
+      { ...PERIOD, id: 2, title: 'New finals', archived: false },
+      { ...PERIOD, id: 1, title: 'Old finals', archived: true },
+    ]));
+    mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
+
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
+    const oldCard = (await screen.findByText('Old finals')).closest('.flex-wrap');
+    expect(within(oldCard).getByText('Archived')).toBeInTheDocument();
+    expect(within(screen.getByText('New finals').closest('.flex-wrap')).queryByText('Archived')).not.toBeInTheDocument();
+  });
+
   describe('deleting a period', () => {
     async function openDeleteDialog() {
       mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));

@@ -233,7 +233,7 @@ class AcademicYearArchiveTest extends TestCase
         return ComplianceRequirementType::create(['academic_year' => '2024-2025', 'academic_semester_id' => $semester?->id, 'category' => 'organization', 'name' => $name, 'allowed_extensions' => ['pdf'], 'deadline_at' => now()->addYear(), 'is_active' => true, 'created_by' => $this->director->school_id]);
     }
 
-    public function test_the_new_year_with_a_repeated_label_sees_none_of_the_archived_years_requirements_and_clearance_periods(): void
+    public function test_the_new_year_with_a_repeated_label_sees_none_of_the_archived_years_requirements_and_owns_only_its_own_clearance_period(): void
     {
         $this->requirement($this->first, 'Old constitution');
         $this->requirement(null, 'Loose');
@@ -261,6 +261,11 @@ class AcademicYearArchiveTest extends TestCase
         $newPeriod = $this->postJson('/api/clearance-periods', ['academic_year' => '2024-2025', 'title' => 'New finals', 'required_roles' => ['organization']])->assertCreated()->json('id');
         $this->assertSame($newYear->id, ClearancePeriod::findOrFail($newPeriod)->academic_year_id);
         $this->assertSame($this->year->id, ClearancePeriod::findOrFail($oldPeriod)->academic_year_id);
+
+        // Both periods carry the same label, so the list marks which one belongs to the archived year.
+        $periods = collect($this->getJson('/api/clearance-periods?per_page=100')->assertOk()->json('data'))->keyBy('id');
+        $this->assertTrue($periods[$oldPeriod]['archived']);
+        $this->assertFalse($periods[$newPeriod]['archived']);
     }
 
     public function test_the_archived_years_records_do_not_lock_or_block_the_new_years_label_and_removal(): void

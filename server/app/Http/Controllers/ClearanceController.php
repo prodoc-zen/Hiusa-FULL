@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsurePeriodWritable;
 use App\Models\AcademicYear;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
@@ -27,7 +28,11 @@ class ClearanceController extends Controller
     {
         $filters = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
 
-        return response()->json(ClearancePeriod::orderByDesc('id')->paginate($filters['per_page'] ?? 20));
+        $page = ClearancePeriod::orderByDesc('id')->paginate($filters['per_page'] ?? 20);
+        $archived = ClearancePeriod::inArchivedYear()->whereIn('id', $page->pluck('id'))->pluck('id')->flip();
+        $page->getCollection()->each(fn (ClearancePeriod $period) => $period->setAttribute('archived', $archived->has($period->id)));
+
+        return response()->json($page);
     }
 
     public function periodsStore(Request $request)
@@ -65,7 +70,7 @@ class ClearanceController extends Controller
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'clearances',
                 'action' => 'clearance_period_created',
                 'record_type' => ClearancePeriod::class,
@@ -126,7 +131,7 @@ class ClearanceController extends Controller
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'clearances',
                 'action' => 'clearance_period_updated',
                 'record_type' => ClearancePeriod::class,
@@ -162,7 +167,7 @@ class ClearanceController extends Controller
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'clearances',
                 'action' => 'clearance_period_closed',
                 'record_type' => ClearancePeriod::class,
@@ -200,7 +205,7 @@ class ClearanceController extends Controller
                 AuditLog::create([
                     'organization_id' => null,
                     'user_id' => $request->user()->school_id,
-                    'actor_role' => $request->user()->role,
+                    'actor_role' => $request->user()->profileRole(),
                     'module' => 'clearances',
                     'action' => 'clearance_period_students_added',
                     'record_type' => ClearancePeriod::class,
@@ -245,7 +250,7 @@ class ClearanceController extends Controller
             AuditLog::create([
                 'organization_id' => null,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'clearances',
                 'action' => 'clearance_period_deleted',
                 'record_type' => ClearancePeriod::class,
@@ -367,19 +372,29 @@ class ClearanceController extends Controller
         }
         $query
             ->when($filters['clearance_period_id'] ?? null, fn ($q, $id) => $q->whereIn('clearance_period_id', FilterValues::values($id)))
+            // Lines of an archived year stay out of the queue and its counts; naming their period still opens them, read only.
+            ->when(! ($filters['clearance_period_id'] ?? null), fn ($q) => $q->whereIn('clearance_period_id', ClearancePeriod::notInArchivedYear()->select('id')))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->whereIn('status', FilterValues::values($status)));
         if ($search = trim($filters['q'] ?? '')) {
             $query->whereHas('student', fn ($student) => $student->where('school_id', 'like', "%{$search}%")
                 ->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%"));
         }
 
-        return response()->json($query->orderBy('id')->paginate($filters['per_page'] ?? 20));
+        $page = $query->orderBy('id')->paginate($filters['per_page'] ?? 20);
+        $archived = ClearancePeriod::inArchivedYear()->whereIn('id', $page->pluck('clearance_period_id')->unique())->pluck('id')->flip();
+        $page->getCollection()->each(fn (ClearanceSignature $row) => $row->setAttribute('archived', $archived->has($row->clearance_period_id)));
+
+        return response()->json($page);
     }
 
     public function sign(Request $request, ClearanceSignature $clearanceSignature)
     {
         if (! $this->canSign($clearanceSignature, $request->user())) {
             return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        // Sign, hold and reopen all land here: an archived year's lines are read only.
+        if ($clearanceSignature->clearancePeriod?->isInArchivedYear()) {
+            return response()->json(['message' => EnsurePeriodWritable::CLOSED], 409);
         }
 
         $data = $request->validate([
@@ -409,7 +424,7 @@ class ClearanceController extends Controller
             AuditLog::create([
                 'organization_id' => $signature->organization_id,
                 'user_id' => $request->user()->school_id,
-                'actor_role' => $request->user()->role,
+                'actor_role' => $request->user()->profileRole(),
                 'module' => 'clearances',
                 'action' => match ($data['status']) {
                     'cleared' => 'signature_cleared', 'held' => 'signature_held', default => 'signature_reopened'
