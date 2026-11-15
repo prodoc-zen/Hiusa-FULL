@@ -349,3 +349,21 @@ describe('DashboardLayout desktop sidebar width', () => {
     expect(localStorage.getItem('hiusa_tour_seen_ADMIN')).toBeNull();
   });
 });
+
+describe('DashboardLayout consent', () => {
+  it('asks a signed in person with no agreement on record to agree before using the page', () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 2600101, role: 'STUDENT', privacy_accepted_at: null }));
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<p>Home page</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Before you continue' })).toBeInTheDocument();
+    localStorage.clear();
+  });
+});

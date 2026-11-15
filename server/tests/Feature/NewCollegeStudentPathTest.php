@@ -60,7 +60,7 @@ class NewCollegeStudentPathTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->postJson('/api/register', [
             'school_id' => 2609001, 'birth_date' => '2007-04-02', 'email' => 'tessa@example.edu',
-            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase',
+            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true,
         ])->assertCreated();
 
         $home = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->firstOrFail();

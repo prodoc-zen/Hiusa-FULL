@@ -73,6 +73,7 @@ function fillForm(overrides = {}) {
   type(/^Email/, values.email);
   type(/^Password/, values.password);
   type(/^Confirm password/, values.confirm);
+  if (values.agree !== false) fireEvent.click(screen.getByLabelText(/agree to the processing of my personal data/));
 }
 
 describe('AcceptInvitationPage', () => {
@@ -181,6 +182,7 @@ describe('AcceptInvitationPage', () => {
       email: 'arthur.dent@example.edu',
       password: 'Password123!',
       password_confirmation: 'Password123!',
+      privacy_accepted: true,
     }));
     expect(mocks.login).toHaveBeenCalledWith({ identifier: 'arthur.dent@example.edu', password: 'Password123!' });
     expect(await screen.findByText('Dean home')).toBeInTheDocument();
@@ -204,12 +206,14 @@ describe('AcceptInvitationPage', () => {
     type(/^Email/, 'Marites@Example.edu');
     type(/^Password/, 'Password123!');
     type(/^Confirm password/, 'Password123!');
+    fireEvent.click(screen.getByLabelText(/agree to the processing of my personal data/));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
     await waitFor(() => expect(mocks.acceptDepartmentHeadInvitation).toHaveBeenCalledWith('valid-secret-token', {
       email: 'marites@example.edu',
       password: 'Password123!',
       password_confirmation: 'Password123!',
+      privacy_accepted: true,
     }));
     expect(await screen.findByText('Staff home')).toBeInTheDocument();
   });
@@ -266,6 +270,26 @@ describe('AcceptInvitationPage', () => {
       expect(screen.getByLabelText(label)).not.toHaveAttribute('readonly');
     });
     expect(screen.getByLabelText(/^Email/)).not.toHaveAttribute('readonly');
+  });
+
+  it('does not send the form until the Data Privacy Notice is agreed to, and links to the notice', async () => {
+    mocks.getDepartmentHeadInvitation.mockResolvedValue(deanInvite);
+    renderPage();
+    await screen.findByRole('heading', { name: /You're invited to lead/ });
+
+    const link = screen.getByRole('link', { name: 'Data Privacy Notice' });
+    expect(link).toHaveAttribute('href', '/privacy');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.getByLabelText(/agree to the processing of my personal data/)).not.toBeChecked();
+
+    fillForm({ agree: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await within(summary()).findByText('Read the Data Privacy Notice and tick the box to agree.')).toBeInTheDocument();
+    expect(mocks.acceptDepartmentHeadInvitation).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByLabelText(/agree to the processing of my personal data/));
+    expect(screen.queryByText('Read the Data Privacy Notice and tick the box to agree.')).not.toBeInTheDocument();
   });
 
   it('validates the form before sending anything', async () => {

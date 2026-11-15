@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import WorkspaceBanner from './WorkspaceBanner';
+import PrivacyConsentDialog from './PrivacyConsentDialog';
 import RouteLoadingFallback from './RouteLoadingFallback';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import { PageHeaderView } from '../ui/PageHeader';
@@ -152,6 +153,7 @@ export default function DashboardLayout() {
           </PageHeaderRegistryContext>
         </main>
       </div>
+      <PrivacyConsentDialog />
     </div>
   );
 }

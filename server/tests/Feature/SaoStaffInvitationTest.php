@@ -37,7 +37,7 @@ class SaoStaffInvitationTest extends TestCase
     {
         return [
             'first_name' => 'Ford', 'last_name' => 'Prefect', 'school_id' => 20265551, 'email' => 'ford@example.edu',
-            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
             ...$overrides,
         ];
     }

@@ -72,6 +72,7 @@ async function acceptInvitation(page, token, person, landing) {
   else await expect(email).toHaveValue(person.email);
   await page.getByLabel('Password', { exact: true }).fill(person.password);
   await page.getByLabel('Confirm password').fill(person.password);
+  await page.getByLabel(/agree to the processing of my personal data/).check();
   await retryWhileThrottled(
     page,
     () => page.getByRole('button', { name: 'Create account' }).click(),
@@ -98,6 +99,7 @@ for (const { label, viewport } of WIDTHS) {
       await page.getByLabel('Email').fill(email);
       await page.getByLabel('Password', { exact: true }).fill(password);
       await page.getByLabel('Confirm password').fill(password);
+      await page.getByLabel(/agree to the processing of my personal data/).check();
       const found = page.getByRole('region', { name: 'Your school record' });
       await retryWhileThrottled(
         page,
@@ -123,6 +125,7 @@ for (const { label, viewport } of WIDTHS) {
       const password = randomPassword();
       await page.getByLabel('Password', { exact: true }).fill(password);
       await page.getByLabel('Confirm password').fill(password);
+      await page.getByLabel(/agree to the processing of my personal data/).check();
       await page.getByRole('button', { name: 'Create account' }).click();
       await expect(page.getByRole('alert').filter({ hasText: "We couldn't match that school ID and birth date with the school records." })).toBeVisible();
       await expect(page.getByRole('region', { name: 'Your school record' })).toHaveCount(0);

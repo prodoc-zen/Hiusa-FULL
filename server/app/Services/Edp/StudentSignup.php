@@ -71,7 +71,7 @@ class StudentSignup
                 throw ValidationException::withMessages(['school_id' => ['This school ID already has an account. Sign in, or reset your password.']]);
             }
 
-            $user = User::create([
+            $user = new User([
                 'organization_id' => $home->id,
                 'school_id' => $record->schoolId,
                 'first_name' => $record->firstName,
@@ -87,6 +87,8 @@ class StudentSignup
                 'year_level' => $record->yearLevel,
                 'section' => $record->section,
             ]);
+            // The route validated that the student accepted the Data Privacy Notice; the time and version are ours to write.
+            $user->forceFill(User::privacyConsentAttributes())->save();
 
             AuditLog::create([
                 'organization_id' => $home->id, 'user_id' => $user->school_id,

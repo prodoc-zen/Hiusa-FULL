@@ -50,7 +50,7 @@ class HierarchyFlowTest extends TestCase
     {
         $this->postJson('/api/register', [
             'school_id' => 2600101, 'birth_date' => '2007-03-14', 'email' => 'hannah@example.edu',
-            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase',
+            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true,
         ])->assertCreated();
     }
 

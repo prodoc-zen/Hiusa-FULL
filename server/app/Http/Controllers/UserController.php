@@ -847,6 +847,9 @@ class UserController extends Controller
             'birth_date' => ['required', 'date_format:Y-m-d'],
             'email' => ['required', 'string', 'email', 'max:100', Rule::unique('users', 'email')],
             'password' => 'required|string|min:8|confirmed',
+            'privacy_accepted' => ['accepted'],
+        ], [
+            'privacy_accepted.accepted' => 'Read the Data Privacy Notice and tick the box to agree.',
         ]);
 
         $user = $signup->register($data['school_id'], $data['birth_date'], $data['email'], $data['password'], $request);

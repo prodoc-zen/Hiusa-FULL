@@ -29,12 +29,13 @@ function renderPage() {
   );
 }
 
-function fillForm({ birthDate = '2007-03-14', password = 'a-long-passphrase', confirmation = 'a-long-passphrase' } = {}) {
+function fillForm({ birthDate = '2007-03-14', password = 'a-long-passphrase', confirmation = 'a-long-passphrase', agree = true } = {}) {
   fireEvent.change(screen.getByLabelText(/School ID/), { target: { value: '2600101' } });
   fireEvent.change(screen.getByLabelText(/Birth date/), { target: { value: birthDate } });
   fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'hannah@example.edu' } });
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: password } });
   fireEvent.change(screen.getByLabelText(/Confirm password/), { target: { value: confirmation } });
+  if (agree) fireEvent.click(screen.getByLabelText(/agree to the processing of my personal data/));
 }
 
 const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
@@ -143,7 +144,27 @@ describe('StudentSignUpPage', () => {
       email: 'hannah@example.edu',
       password: 'a-long-passphrase',
       password_confirmation: 'a-long-passphrase',
+      privacy_accepted: true,
     });
+  });
+
+  it('does not create the account until the Data Privacy Notice is agreed to, and links to the notice', async () => {
+    renderPage();
+
+    const link = screen.getByRole('link', { name: 'Data Privacy Notice' });
+    expect(link).toHaveAttribute('href', '/privacy');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.getByLabelText(/agree to the processing of my personal data/)).not.toBeChecked();
+
+    fillForm({ agree: false });
+    submit();
+
+    expect(await within(await summary()).findByText('Read the Data Privacy Notice and tick the box to agree.')).toBeInTheDocument();
+    expect(authMocks.lookupStudentRecord).not.toHaveBeenCalled();
+    expect(authMocks.register).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByLabelText(/agree to the processing of my personal data/));
+    expect(screen.queryByText('Read the Data Privacy Notice and tick the box to agree.')).not.toBeInTheDocument();
   });
 
   it('ends on a confirmation that says who was matched and what happens next, then opens the dashboard', async () => {

@@ -38,7 +38,7 @@ class AuthRoutesTest extends TestCase
             'birth_date' => '2005-12-10',
             'email' => 'ada@example.com',
             'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password_confirmation' => 'password123', 'privacy_accepted' => true,
         ]);
 
         $response

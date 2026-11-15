@@ -4,12 +4,13 @@ import AuthLayout from '../../components/auth/AuthLayout';
 import AuthField from '../../components/auth/AuthField';
 import ErrorSummary from '../../components/auth/ErrorSummary';
 import PasswordField from '../../components/auth/PasswordField';
+import PrivacyAgreement from '../../components/auth/PrivacyAgreement';
 import { Button } from '../../components/ui';
 import { lookupStudentRecord, register } from '../../services/authService';
 import { startAuthSession } from '../../utils/authSession';
 import { getApiErrorMessage } from '../../utils/apiError';
 
-const FIELD_KEYS = ['school_id', 'birth_date', 'email', 'password', 'password_confirmation'];
+const FIELD_KEYS = ['school_id', 'birth_date', 'email', 'password', 'password_confirmation', 'privacy_accepted'];
 const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `sign-up-${key}`]));
 
 const fieldErrors = (error) => Object.fromEntries(
@@ -25,6 +26,7 @@ export default function StudentSignUpPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [recordAnswered, setRecordAnswered] = useState(false);
@@ -59,6 +61,7 @@ export default function StudentSignUpPage() {
     if (password.length < 8) next.password = 'Use at least 8 characters.';
     if (!confirmation) next.password_confirmation = 'Type the password again.';
     else if (password !== confirmation) next.password_confirmation = 'The two passwords do not match.';
+    if (!privacyAccepted) next.privacy_accepted = 'Read the Data Privacy Notice and tick the box to agree.';
     setErrors(next);
     setFormError('');
     setRecordAnswered(false);
@@ -76,6 +79,7 @@ export default function StudentSignUpPage() {
         email: email.trim(),
         password,
         password_confirmation: confirmation,
+        privacy_accepted: true,
       });
       setCreated({ record: record.data, session: response.data });
     } catch (error) {
@@ -176,6 +180,15 @@ export default function StudentSignUpPage() {
           onChange={bind('password_confirmation', setConfirmation)}
           error={errors.password_confirmation}
           required
+        />
+        <PrivacyAgreement
+          id={FIELD_IDS.privacy_accepted}
+          checked={privacyAccepted}
+          onChange={(checked) => {
+            setPrivacyAccepted(checked);
+            setErrors((existing) => ({ ...existing, privacy_accepted: undefined }));
+          }}
+          error={errors.privacy_accepted}
         />
         <Button type="submit" loading={loading} className="w-full">Create account</Button>
       </form>

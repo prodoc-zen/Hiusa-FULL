@@ -53,15 +53,15 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($users as $u) {
-            User::updateOrCreate(
+            User::unguarded(fn () => User::updateOrCreate(
                 ['school_id' => $u['school_id']],
                 array_merge($u, [
                     'organization_id' => $defaultOrganizationId,
                     'password_hash' => 'Demo@12345',
                     'must_change_password' => $mustChange,
                     'is_member' => true,
-                ])
-            );
+                ], User::privacyConsentAttributes())
+            ));
         }
 
         $sampleOtherOrgUsers = [
@@ -71,15 +71,15 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($sampleOtherOrgUsers as $index => $u) {
-            User::updateOrCreate(
+            User::unguarded(fn () => User::updateOrCreate(
                 ['school_id' => $u['school_id']],
                 array_merge($u, [
                     'organization_id' => $otherOrganizationIds[$index] ?? $defaultOrganizationId,
                     'password_hash' => 'Demo@12345',
                     'must_change_password' => $mustChange,
                     'is_member' => true,
-                ])
-            );
+                ], User::privacyConsentAttributes())
+            ));
         }
     }
 }

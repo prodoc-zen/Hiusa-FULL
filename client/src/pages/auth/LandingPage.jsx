@@ -83,7 +83,7 @@ export default function LandingPage() {
     </main>
 
     <footer className="border-t border-line bg-page px-4 py-6 text-center text-xs leading-6 text-ink-muted-strong">
-      <p>HIUSA · Student organization management</p>
+      <p>HIUSA · Student organization management · <Link to="/privacy" className="underline hover:text-brand-700">Data Privacy Notice</Link></p>
       <p>Campus imagery is illustrative. Photos by <a href="https://www.pexels.com/photo/group-of-students-at-university-campus-in-mexico-33265685/" className="underline hover:text-brand-700">Raúl Sotomayor</a> and <a href="https://www.pexels.com/photo/asian-student-discussing-project-with-classmate-5553639/" className="underline hover:text-brand-700">Armin Rimoldi</a> on Pexels.</p>
     </footer>
   </div>;

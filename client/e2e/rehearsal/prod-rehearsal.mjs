@@ -462,6 +462,7 @@ await step('dean_invite', 'SAO creates the dean invite link (link only), the dea
   await dp.getByLabel('Email').fill(dean.email);
   await dp.getByLabel('Password', { exact: true }).fill(dean.password);
   await dp.getByLabel('Confirm password').fill(dean.password);
+  await dp.getByLabel(/agree to the processing of my personal data/).check();
   await dp.getByRole('button', { name: 'Create account' }).click();
   await dp.waitForURL(/\/dashboard\/department-head/, { timeout: 30000 });
   await waitSettled(dp);
@@ -621,6 +622,7 @@ await step('staff_add', 'Dean adds office staff from the employee records (link 
   else rec.evidence.push(`the invitation locked the email to ${await acceptEmail.inputValue()}`);
   await sp.getByLabel('Password', { exact: true }).fill(staff.password);
   await sp.getByLabel('Confirm password').fill(staff.password);
+  await sp.getByLabel(/agree to the processing of my personal data/).check();
   await sp.getByRole('button', { name: 'Create account' }).click();
   await sp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await waitSettled(sp);
@@ -771,6 +773,7 @@ async function studentSignUp(rec, key) {
   await emailField.fill(student.email);
   await page.getByLabel('Password', { exact: true }).fill(student.password);
   await page.getByLabel('Confirm password').fill(student.password);
+  await page.getByLabel(/agree to the processing of my personal data/).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByText('Your account is ready').waitFor({ state: 'visible', timeout: 25000 });
   const ready = await bodyText(page);

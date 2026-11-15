@@ -799,7 +799,7 @@ class SyncCollegesCommandTest extends TestCase
             'last_name' => 'Castillo',
             'email' => 'ramon.castillo@example.edu',
             'password' => 'Dean2026!Pass',
-            'password_confirmation' => 'Dean2026!Pass',
+            'password_confirmation' => 'Dean2026!Pass', 'privacy_accepted' => true,
         ])->assertOk();
 
         $this->assertSame($this->homeOf($college)->id, User::findOrFail(20269001)->organization_id);

@@ -44,7 +44,7 @@ class StudentRegistrationTest extends TestCase
     {
         return [
             'school_id' => 2600101, 'birth_date' => '2007-03-14', 'email' => 'Hannah.Reyes@example.edu',
-            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', ...$overrides,
+            'password' => 'a-long-passphrase', 'password_confirmation' => 'a-long-passphrase', 'privacy_accepted' => true, ...$overrides,
         ];
     }
 

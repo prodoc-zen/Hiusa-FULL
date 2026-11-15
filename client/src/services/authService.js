@@ -40,6 +40,9 @@ export const getCurrentUser = async () => {
   return user;
 };
 
+// The signed-in person agrees to the Data Privacy Notice; the server writes the time and the notice version.
+export const acceptPrivacyNotice = () => api.post('/user/privacy-consent', { privacy_accepted: true });
+
 export const getAccountProfiles = () => api.get('/user/profiles');
 
 export const switchAccountProfile = (profileId) => api.post(`/user/profiles/${profileId}/switch`);

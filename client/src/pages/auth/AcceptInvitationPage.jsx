@@ -4,6 +4,7 @@ import AuthLayout from '../../components/auth/AuthLayout';
 import AuthField from '../../components/auth/AuthField';
 import ErrorSummary from '../../components/auth/ErrorSummary';
 import PasswordField from '../../components/auth/PasswordField';
+import PrivacyAgreement from '../../components/auth/PrivacyAgreement';
 import { Button, ErrorState, Skeleton } from '../../components/ui';
 import { acceptDepartmentHeadInvitation, claimStaffInvitation, getDepartmentHeadInvitation } from '../../services/systemAdministrationService';
 import { login, switchAccountProfile } from '../../services/authService';
@@ -14,7 +15,7 @@ import { formatDisplayText } from '../../utils/displayText.js';
 import { INTERNAL_ID_START } from '../../utils/schoolId';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMPTY = { first_name: '', last_name: '', school_id: '', email: '', password: '', password_confirmation: '' };
+const EMPTY = { first_name: '', last_name: '', school_id: '', email: '', password: '', password_confirmation: '', privacy_accepted: false };
 const FIELD_KEYS = Object.keys(EMPTY);
 const FIELD_IDS = Object.fromEntries(FIELD_KEYS.map((key) => [key, `invite-${key}`]));
 
@@ -63,6 +64,7 @@ function validate(values, fromRecord) {
   else if (values.password.length < 8) found.password = 'Use at least 8 characters.';
   if (!values.password_confirmation) found.password_confirmation = 'Type the password again.';
   else if (values.password !== values.password_confirmation) found.password_confirmation = 'The two passwords do not match.';
+  if (!values.privacy_accepted) found.privacy_accepted = 'Read the Data Privacy Notice and tick the box to agree.';
   return found;
 }
 
@@ -140,6 +142,7 @@ export default function AcceptInvitationPage() {
         email,
         password: values.password,
         password_confirmation: values.password_confirmation,
+        privacy_accepted: true,
       };
       await acceptDepartmentHeadInvitation(token, body);
 
@@ -259,6 +262,7 @@ export default function AcceptInvitationPage() {
             <AuthField id={FIELD_IDS.email} label="Email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} readOnly={lockedEmail} hint={lockedEmail ? 'The invitation was made for this email.' : undefined} value={values.email} error={errors.email} onChange={(event) => setField('email', event.target.value)} required />
             <PasswordField id={FIELD_IDS.password} label="Password" autoComplete="new-password" value={values.password} error={errors.password} hint="At least 8 characters." onChange={(event) => setField('password', event.target.value)} required />
             <PasswordField id={FIELD_IDS.password_confirmation} label="Confirm password" autoComplete="new-password" value={values.password_confirmation} error={errors.password_confirmation} onChange={(event) => setField('password_confirmation', event.target.value)} required />
+            <PrivacyAgreement id={FIELD_IDS.privacy_accepted} checked={values.privacy_accepted} error={errors.privacy_accepted} onChange={(checked) => setField('privacy_accepted', checked)} />
 
             <Button type="submit" loading={submitting} className="w-full">Create account</Button>
           </form>

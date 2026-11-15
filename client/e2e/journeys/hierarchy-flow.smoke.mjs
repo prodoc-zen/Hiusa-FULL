@@ -343,6 +343,7 @@ async function runJourney(cfg) {
     await page.getByLabel('Email').fill(dean.email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByLabel('Confirm password').fill(PASSWORD);
+    await page.getByLabel(/agree to the processing of my personal data/).check();
     await page.getByRole('button', { name: 'Create account' }).click();
     await page.waitForURL(/\/dashboard\/department-head/, { timeout: 30000 });
     await waitSettled();
@@ -392,6 +393,7 @@ async function runJourney(cfg) {
     await page.getByLabel('Email').fill(applicant.email);
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByLabel('Confirm password').fill(PASSWORD);
+    await page.getByLabel(/agree to the processing of my personal data/).check();
     await snap('sign-up-form');
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page.getByText('Your account is ready')).toBeVisible({ timeout: 20000 });
@@ -545,7 +547,7 @@ async function runJourney(cfg) {
     apply.append('confirm', '1');
     const applied = await deanCall('POST', '/students/registry/apply', apply);
     if (!applied.ok) throw new Error(`registry apply ${applied.status}`);
-    const registered = await apiCall('', 'POST', '/register', { school_id: record.schoolId, birth_date: record.birthDate, email: person.email, password: PASSWORD, password_confirmation: PASSWORD });
+    const registered = await apiCall('', 'POST', '/register', { school_id: record.schoolId, birth_date: record.birthDate, email: person.email, password: PASSWORD, password_confirmation: PASSWORD, privacy_accepted: true });
     if (registered.status !== 201) throw new Error(`register ${registered.status} ${JSON.stringify(registered.body).slice(0, 160)}`);
     return record.schoolId;
   }

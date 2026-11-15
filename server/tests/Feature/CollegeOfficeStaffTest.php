@@ -502,7 +502,7 @@ class CollegeOfficeStaffTest extends TestCase
 
         $this->postJson("/api/department-head-invitations/{$token}/accept", [
             'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent', 'school_id' => 70000099,
-            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
         ])->assertUnprocessable()->assertJsonValidationErrors(['school_id']);
 
         $this->assertDatabaseMissing('users', ['school_id' => 70000099]);
@@ -510,7 +510,7 @@ class CollegeOfficeStaffTest extends TestCase
 
         $this->postJson("/api/department-head-invitations/{$token}/accept", [
             'email' => 'stu@example.edu', 'first_name' => 'Stu', 'last_name' => 'Dent', 'school_id' => 70000098,
-            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
         ])->assertOk();
         $this->assertSame(70000098, User::where('email', 'stu@example.edu')->value('school_id'));
     }
@@ -522,13 +522,13 @@ class CollegeOfficeStaffTest extends TestCase
 
         $this->postJson("/api/department-head-invitations/{$plain}/accept", [
             'email' => 'squatter@example.edu', 'first_name' => 'Sam', 'last_name' => 'Squatter', 'school_id' => 70000097,
-            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
         ])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That number is in the employee records. Ask for a link made from your record.');
         $this->assertDatabaseMissing('users', ['school_id' => 70000097]);
 
         $own = $this->token($this->invite(['registry_school_id' => 70000097])->assertCreated()->json());
         $this->postJson("/api/department-head-invitations/{$own}/accept", [
-            'email' => 'elena@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+            'email' => 'elena@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
         ])->assertOk();
         $this->assertSame('Elena', User::whereKey(70000097)->value('first_name'));
     }
@@ -540,7 +540,7 @@ class CollegeOfficeStaffTest extends TestCase
         foreach ([95000000, 99999999] as $schoolId) {
             $this->postJson("/api/department-head-invitations/{$token}/accept", [
                 'email' => 'reserved@example.edu', 'first_name' => 'Rey', 'last_name' => 'Served', 'school_id' => $schoolId,
-                'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!',
+                'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true,
             ])->assertUnprocessable()->assertJsonPath('errors.school_id.0', 'That school ID cannot be used. Check the number the school gave you.');
         }
         $this->assertDatabaseMissing('users', ['email' => 'reserved@example.edu']);
@@ -592,7 +592,7 @@ class CollegeOfficeStaffTest extends TestCase
         $this->employee(70000032);
         $token = $this->token($this->invite(['registry_school_id' => 70000032])->assertCreated()->json());
 
-        $this->postJson("/api/department-head-invitations/{$token}/accept", ['email' => 'new@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!'])
+        $this->postJson("/api/department-head-invitations/{$token}/accept", ['email' => 'new@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true])
             ->assertStatus(409);
     }
 
@@ -602,7 +602,7 @@ class CollegeOfficeStaffTest extends TestCase
         $token = $this->token($this->invite(['registry_school_id' => 70000033, 'position_title' => 'Records Clerk'])->assertCreated()->json());
 
         $this->getJson("/api/department-head-invitations/{$token}")->assertOk()->assertJsonPath('invitation.existing_account', false);
-        $this->postJson("/api/department-head-invitations/{$token}/accept", ['email' => 'nora@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!'])->assertOk();
+        $this->postJson("/api/department-head-invitations/{$token}/accept", ['email' => 'nora@example.edu', 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true])->assertOk();
 
         $this->assertDatabaseHas('users', ['school_id' => 70000033, 'role' => 'ADMIN', 'position_title' => 'Records Clerk', 'organization_id' => $this->home->id]);
     }
@@ -623,7 +623,7 @@ class CollegeOfficeStaffTest extends TestCase
             ->assertJsonPath('invitation.existing_account', false)
             ->assertJsonPath('invitation.prefill.email', 'ramon@example.edu');
 
-        $body = ['first_name' => 'Ramon', 'last_name' => 'Cruz', 'school_id' => 70000077, 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!'];
+        $body = ['first_name' => 'Ramon', 'last_name' => 'Cruz', 'school_id' => 70000077, 'password' => 'SecurePass123!', 'password_confirmation' => 'SecurePass123!', 'privacy_accepted' => true];
         $this->postJson("/api/department-head-invitations/{$token}/accept", [...$body, 'email' => 'someone.else@example.edu'])->assertUnprocessable()->assertJsonValidationErrors('email');
         $this->postJson("/api/department-head-invitations/{$token}/accept", [...$body, 'email' => 'ramon@example.edu'])->assertOk();
         $this->assertDatabaseHas('users', ['school_id' => 70000077, 'email' => 'ramon@example.edu', 'role' => 'ADMIN', 'position_title' => 'Lab Technician']);

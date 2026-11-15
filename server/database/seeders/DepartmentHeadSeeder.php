@@ -34,7 +34,7 @@ class DepartmentHeadSeeder extends Seeder
                 continue;
             }
 
-            User::updateOrCreate(
+            User::unguarded(fn () => User::updateOrCreate(
                 ['school_id' => $head['school_id']],
                 [
                     'organization_id' => $organizationId,
@@ -46,8 +46,9 @@ class DepartmentHeadSeeder extends Seeder
                     'role' => 'DEPARTMENT_HEAD',
                     'department' => $head['college'],
                     'is_member' => true,
+                    ...User::privacyConsentAttributes(),
                 ]
-            );
+            ));
         }
     }
 }

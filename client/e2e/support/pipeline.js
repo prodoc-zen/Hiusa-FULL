@@ -94,7 +94,7 @@ export async function newStudent(label = 'Journey', collegeCode = null) {
   const { schoolId, birthDate, firstName, lastName } = record;
   const password = randomPassword();
   const email = `${firstName}.${runTag}@journey.test`.toLowerCase();
-  const registered = await throttled(() => apiCall('', 'POST', '/register', { school_id: schoolId, birth_date: birthDate, email, password, password_confirmation: password }));
+  const registered = await throttled(() => apiCall('', 'POST', '/register', { school_id: schoolId, birth_date: birthDate, email, password, password_confirmation: password, privacy_accepted: true }));
   expect(registered.status, JSON.stringify(registered.body).slice(0, 300)).toBe(201);
   return { schoolId, password, email, firstName, lastName, name: `${firstName} ${lastName}`, role: 'STUDENT', home: '/dashboard/student' };
 }

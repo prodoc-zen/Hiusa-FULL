@@ -26,7 +26,15 @@ class UserFactory extends Factory
             'role' => fake()->randomElement(['STUDENT', 'SBO_OFFICER', 'ADMIN']),
             'account_status' => 'active',
             'biometric_template' => null,
+            'privacy_accepted_at' => now(),
+            'privacy_notice_version' => config('hiusa.privacy_notice_version'),
         ];
+    }
+
+    /** A person who has not yet agreed to the Data Privacy Notice, so the consent dialog appears after sign-in. */
+    public function withoutPrivacyConsent(): static
+    {
+        return $this->state(fn () => ['privacy_accepted_at' => null, 'privacy_notice_version' => null]);
     }
 
     public function student(): static
