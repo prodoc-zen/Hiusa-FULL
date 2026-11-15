@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { Button, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { clearanceStatusTone } from './clearanceLabels';
 
 export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, showStatus = true }) {
   const [mode, setMode] = useState(null);
   const [remarksDraft, setRemarksDraft] = useState('');
+  const [draftId, setDraftId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -13,6 +16,7 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
     if (submitting) return;
     setMode(null);
     setRemarksDraft('');
+    setDraftId(null);
     setError('');
   }
 
@@ -21,8 +25,10 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
     setError('');
     try {
       await onSign(mode === 'hold' ? 'held' : mode === 'reopen' ? 'pending' : 'cleared', mode === 'hold' || mode === 'reopen' ? remarksDraft.trim() : undefined);
+      recordDraftOutcome(draftId, remarksDraft.trim() || null);
       setMode(null);
       setRemarksDraft('');
+      setDraftId(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save this signature. Try again.');
     } finally {
@@ -71,6 +77,17 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
           <Field label="Reason" required hint="Tell the student what needs to be resolved.">
             <Textarea value={remarksDraft} onChange={(event) => setRemarksDraft(event.target.value)} rows={3} placeholder="e.g. Unpaid organization dues" />
           </Field>
+        )}
+        {(mode === 'hold' || mode === 'reopen') && signatureId && (
+          <DraftNoteButton
+            className="mt-3"
+            flow="clearance_hold"
+            recordId={signatureId}
+            decision="hold"
+            value={remarksDraft}
+            onDraft={({ text, aiOutputId }) => { setRemarksDraft(text); setDraftId(aiOutputId); }}
+            disabled={submitting}
+          />
         )}
         {mode === 'clear' && signatureId && (
           <p className="text-sm font-medium text-ink-muted">Signing as the {roleLabel} signatory for this student.</p>

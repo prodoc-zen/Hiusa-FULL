@@ -10,3 +10,14 @@ export const draftSemesterNarrative = async (semesterId) => (await api.post('/co
 
 // The remarks of one handover item (finance, events, tasks, organization, election or compliance): { text, engine, ai_output_id }.
 export const draftHandoverNote = async (category) => (await api.post('/officer-handovers/draft-note', { category })).data;
+
+// Asks for remarks to a reviewer's decision. The body is { flow, record_id, decision, marks, reviewer_notes, current_text? };
+// the answer carries the text, the engine that wrote it and the ai_output_id to report the outcome against.
+export const draftReviewNote = (payload) => api.post('/ai/review-notes/draft', payload);
+
+// What became of a draft once the person's own action succeeded. A screen with no draft passes no id, and a failed
+// write is dropped, so neither can hold up the decision the person just made.
+export const recordDraftOutcome = (aiOutputId, finalText) => {
+  if (!aiOutputId) return;
+  Promise.resolve(recordAiOutcome(aiOutputId, finalText)).catch(() => {});
+};

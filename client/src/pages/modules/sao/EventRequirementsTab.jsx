@@ -9,7 +9,9 @@ import { createEventRequirement, deleteEventRequirement, getEventRequirements, r
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import { deanApprovalLine } from '../../../components/events/eventStage';
 import ChangesSinceReturn from '../../../components/reviews/ChangesSinceReturn';
-import EventFilesReview, { allAccepted, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks } from '../../../components/approvals/EventFilesReview';
+import EventFilesReview, { allAccepted, draftMarks, filesOf, initialMarks, markedFiles, missingNote, saveFileMark, saveFileMarks } from '../../../components/approvals/EventFilesReview';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
@@ -69,6 +71,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
   const [decision, setDecision] = useState(null);
   const [decisionRemarks, setDecisionRemarks] = useState('');
   const [remarksError, setRemarksError] = useState(null);
+  const [draftId, setDraftId] = useState(null);
   const remarksRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -261,6 +264,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setActionError('');
     setDecisionRemarks('');
     setRemarksError(null);
+    setDraftId(null);
     setDecision({ approval, action });
   }
 
@@ -268,6 +272,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     setDecision(null);
     setDecisionRemarks('');
     setRemarksError(null);
+    setDraftId(null);
   }
 
   async function submitDecision() {
@@ -282,6 +287,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
     try {
       await reviewApprovalRequest(approval.id, { status, remarks: decisionRemarks.trim() || undefined, files: markedFiles(filesOf(approval), marks, notes) });
       chooseEvent(null);
+      recordDraftOutcome(draftId, decisionRemarks.trim() || null);
       notify.success(status === 'approved' ? 'Event approved.' : 'Event returned.');
       closeDecision();
       await load();
@@ -576,9 +582,22 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
           </>
         )}
       >
-        <Field label="Remarks for the return" required error={remarksError} hint="Explain what the organization needs to change.">
-          <Textarea ref={remarksRef} data-autofocus value={decisionRemarks} onChange={(event) => { setDecisionRemarks(event.target.value); setRemarksError(null); }} />
-        </Field>
+        <div className="space-y-3">
+          <Field label="Remarks for the return" required error={remarksError} hint="Explain what the organization needs to change.">
+            <Textarea ref={remarksRef} data-autofocus value={decisionRemarks} onChange={(event) => { setDecisionRemarks(event.target.value); setRemarksError(null); }} />
+          </Field>
+          {decision?.action === 'reject' && (
+            <DraftNoteButton
+              flow="event"
+              recordId={decision.approval.entity_id}
+              decision="returned"
+              marks={draftMarks(filesOf(decision.approval), markedFiles(filesOf(decision.approval), marks, notes))}
+              value={decisionRemarks}
+              onDraft={({ text, aiOutputId }) => { setDecisionRemarks(text); setDraftId(aiOutputId); setRemarksError(null); }}
+              disabled={busy}
+            />
+          )}
+        </div>
       </Modal>
     </div>
   );

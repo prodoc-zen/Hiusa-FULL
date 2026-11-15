@@ -16,6 +16,7 @@ const approvalMocks = vi.hoisted(() => ({
   reviewApprovalRequest: vi.fn(),
 }));
 const systemMocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn() }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
@@ -23,6 +24,7 @@ vi.mock('../../../services/financeService', () => financeMocks);
 vi.mock('../../../services/approvalService', () => approvalMocks);
 vi.mock('../../../services/aiDraftService', () => draftMocks);
 vi.mock('../../../services/systemAdministrationService', () => systemMocks);
+vi.mock('../../../services/aiDraftService', () => aiMocks);
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
 
@@ -188,6 +190,48 @@ describe('FinancialReportsTab', () => {
     fireEvent.click(confirm);
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'rejected', remarks: 'Totals do not match the ledger' }));
+  });
+
+  it('drafts the reason for returning a report, keeps Return off until there is a reason, and reports the final text', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'The totals do not match the ledger.', engine: 'template', ai_output_id: 60 } });
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+    await viewReportFromMenu();
+    await screen.findByText('Income and expenses were calculated from the saved ledger.');
+    fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+    expect(await screen.findByRole('button', { name: 'Return report' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(screen.getByLabelText('Reason for returning')).toHaveValue('The totals do not match the ledger.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'financial_report', record_id: 8, decision: 'returned', marks: [], reviewer_notes: '' });
+    expect(screen.getByText('Built-in rules')).toBeInTheDocument();
+    expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Reason for returning'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Return report' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Reason for returning'), { target: { value: 'The totals do not match.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return report' }));
+
+    await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'rejected', remarks: 'The totals do not match.' }));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(60, 'The totals do not match.'));
+  });
+
+  it('asks before it rewords a reason already typed for a report', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded reason.', engine: 'claude', ai_output_id: 61 } });
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+    await viewReportFromMenu();
+    await screen.findByText('Income and expenses were calculated from the saved ledger.');
+    fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+    fireEvent.change(await screen.findByLabelText('Reason for returning'), { target: { value: 'totals wrong' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Improve my wording' }));
+    expect(screen.getByLabelText('Reason for returning')).toHaveValue('totals wrong');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(screen.getByLabelText('Reason for returning')).toHaveValue('Reworded reason.'));
   });
 
   it('opens supporting documents through the authenticated open_url', async () => {

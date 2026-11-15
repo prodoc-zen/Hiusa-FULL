@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import EventFilesReview from './EventFilesReview';
+import EventFilesReview, { draftMarks } from './EventFilesReview';
 import EventSubmissionPanel from '../events/EventSubmissionPanel';
 
 const mocks = vi.hoisted(() => ({
@@ -37,5 +37,23 @@ describe('per-file SAO notes', () => {
 
     expect(await screen.findByText('SAO: Needs changes. The seal is missing.')).toHaveClass('bg-warning-tint', 'text-warning-strong');
     expect(screen.getByText('SAO: Accepted. Clear scan.')).not.toHaveClass('bg-warning-tint');
+  });
+});
+
+describe('draftMarks', () => {
+  const files = [{ id: 7, requirement: 'Venue Reservation Letter', original_name: 'Juan Dela Cruz COC.pdf' }, { id: 8, requirement: 'Request Letter', original_name: 'request.pdf' }];
+
+  it('names each marked file by its requirement and never by the uploaded file name', () => {
+    const marks = draftMarks(files, [{ id: 7, status: 'ok' }, { id: 8, status: 'needs_changes', note: 'The seal is missing.' }]);
+
+    expect(marks).toEqual([
+      { requirement: 'Venue Reservation Letter', mark: 'accepted', note: '' },
+      { requirement: 'Request Letter', mark: 'needs_changes', note: 'The seal is missing.' },
+    ]);
+    expect(JSON.stringify(marks)).not.toContain('Juan');
+  });
+
+  it('is empty when nothing was marked', () => {
+    expect(draftMarks(files, undefined)).toEqual([]);
   });
 });

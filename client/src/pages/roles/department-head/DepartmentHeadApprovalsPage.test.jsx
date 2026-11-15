@@ -15,6 +15,8 @@ vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.op
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
 vi.mock('../../../services/financeService', () => ({ downloadFinancialReportPdf: mocks.downloadFinancialReportPdf }));
 vi.mock('../../../services/electionService', () => ({ getApprovalHistory: mocks.getApprovalHistory }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../../services/aiDraftService', () => aiMocks);
 const refetchHook = vi.hoisted(() => ({ current: null }));
 vi.mock('../../../hooks/useRefetchOnReturn', () => ({ useRefetchOnReturn: (refetch) => { refetchHook.current = refetch; } }));
 
@@ -584,6 +586,58 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
       remarks: 'Fix the form.',
       files: [{ id: 7, status: 'needs_changes', note: 'The seal is missing.' }],
     }));
+  });
+
+  it('drafts the return remarks from the marked files by requirement name, and reports the final text after the return', async () => {
+    const files = [{ id: 7, requirement: 'Venue form', original_name: 'venue.pdf', open_url: '/events/101/submission/files/7', reviews: [] }];
+    const withFiles = { ...eventRow, summary: { ...eventRow.summary, requirement_files: files } };
+    serve({ review: [withFiles, budgetRow] });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: { ...withFiles, status: 'rejected', remarks: 'Please fix the Venue form.' } });
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please fix the Venue form. The seal is missing.', engine: 'groq', ai_output_id: 90 } });
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Review Venue form' }));
+    fireEvent.change(within(drawer).getByLabelText('Review of Venue form'), { target: { value: 'needs_changes' } });
+    fireEvent.change(within(drawer).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return request' });
+    expect(within(confirm).getByRole('button', { name: 'Return' })).toBeDisabled();
+
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(within(confirm).getByLabelText(/Remarks/)).toHaveValue('Please fix the Venue form. The seal is missing.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({
+      flow: 'approval',
+      record_id: 41,
+      decision: 'returned',
+      marks: [{ requirement: 'Venue form', mark: 'needs_changes', note: 'The seal is missing.' }],
+      reviewer_notes: '',
+    });
+    expect(within(confirm).getByText('Groq')).toBeInTheDocument();
+    expect(within(confirm).getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+    fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'Please fix the Venue form.' } });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Return' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, expect.objectContaining({ status: 'rejected', remarks: 'Please fix the Venue form.' })));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(90, 'Please fix the Venue form.'));
+  });
+
+  it('asks before it rewords the remarks already typed in the decision dialog', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded.', engine: 'template', ai_output_id: 91 } });
+    renderPage('/dashboard/department-head/approvals?record=41');
+    const drawer = await screen.findByRole('dialog', { name: 'Foundation Day' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return request' });
+    fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'pick another date' } });
+
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Improve my wording' }));
+    expect(within(confirm).getByLabelText(/Remarks/)).toHaveValue('pick another date');
+    expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(within(confirm).getByLabelText(/Remarks/)).toHaveValue('Reworded.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ current_text: 'pick another date', decision: 'returned' }));
   });
 
   it('keeps Reject for a payment, because rejecting it cancels the order', async () => {

@@ -15,6 +15,8 @@ vi.mock('../../services/electionService', () => ({
 }));
 vi.mock('../../services/approvalService', () => ({ markApprovalFile: mocks.markApprovalFile, markApprovalFiles: mocks.markApprovalFiles }));
 vi.mock('../../services/financeService', () => ({ downloadFinancialReportPdf: vi.fn() }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
+vi.mock('../../services/aiDraftService', () => aiMocks);
 
 const FILES = [
   { id: 7, requirement: 'Venue Reservation Letter', original_name: 'venue.pdf', open_url: '/events/9/submission/files/7', reviews: [] },
@@ -434,6 +436,42 @@ describe('ApprovalDetailDrawer election proposal', () => {
     fireEvent.click(ask);
     expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 31 }), { status: 'rejected', remarks: 'Move voting later.' });
     expect(onDecide.mock.calls[0][1]).not.toHaveProperty('final');
+  });
+
+  it('drafts the election remarks, shows the engine, keeps Return off without remarks, and reports the final text', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please move voting later in the semester.', engine: 'claude', ai_output_id: 80 } });
+    const { drawer, onDecide } = await openDrawer({ request: proposal() });
+    expect(within(drawer).getByRole('button', { name: 'Return' })).toBeDisabled();
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(within(drawer).getByLabelText('Remarks for the Admin')).toHaveValue('Please move voting later in the semester.'));
+    expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'approval', record_id: 31, decision: 'returned', marks: [], reviewer_notes: '' });
+    expect(within(drawer).getByText('Claude')).toBeInTheDocument();
+    expect(within(drawer).getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+    expect(onDecide).not.toHaveBeenCalled();
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+
+    await waitFor(() => expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 31 }), { status: 'rejected', remarks: 'Please move voting later in the semester.' }));
+    await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(80, 'Please move voting later in the semester.'));
+  });
+
+  it('does not report an outcome when the decision fails, and asks before it rewords typed remarks', async () => {
+    aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded.', engine: 'template', ai_output_id: 81 } });
+    const { drawer, onDecide } = await openDrawer({ request: proposal() });
+    onDecide.mockRejectedValue({ response: { status: 409, data: { message: 'This request was already decided.' } } });
+    fireEvent.change(within(drawer).getByLabelText('Remarks for the Admin'), { target: { value: 'later pls' } });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Improve my wording' }));
+    expect(within(drawer).getByLabelText('Remarks for the Admin')).toHaveValue('later pls');
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Replace my text' }));
+    await waitFor(() => expect(within(drawer).getByLabelText('Remarks for the Admin')).toHaveValue('Reworded.'));
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+
+    expect(await within(drawer).findByText('This request was already decided.')).toBeInTheDocument();
+    expect(aiMocks.recordDraftOutcome).not.toHaveBeenCalled();
   });
 
   it('needs a reason and a confirmation before rejecting for good, and says it cannot be resubmitted', async () => {

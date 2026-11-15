@@ -17,12 +17,14 @@ const mocks = vi.hoisted(() => ({
   getApprovalRequest: vi.fn(),
   getSystemOrganizations: vi.fn(),
 }));
+const aiMocks = vi.hoisted(() => ({ draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn() }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock('../../../services/complianceService', () => mocks);
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getAcademicPeriods: mocks.getAcademicPeriods, getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../../services/aiDraftService', () => aiMocks);
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequest: mocks.getApprovalRequest }));
 vi.mock('../../../lib/notify', () => ({ default: toasts }));
 vi.mock('./EventRequirementsTab', () => ({ default: ({ noSemester, readOnly, mode, organizationId, initialEventId, onEventOpen }) => <div><p data-no-semester={String(Boolean(noSemester))} data-read-only={String(Boolean(readOnly))} data-mode={mode || 'settings'} data-organization={organizationId || ''} data-event={initialEventId || ''}>Event requirements content</p><button type="button" onClick={() => onEventOpen?.(31)}>Open event 31</button><button type="button" onClick={() => onEventOpen?.(null)}>Close event</button></div> }));
@@ -705,6 +707,44 @@ describe('SaoCompliancePage', () => {
       fireEvent.click(confirm);
 
       await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledWith(12, { status: 'returned', remarks: 'Unsigned', submitted_at: submission.submitted_at }));
+    });
+
+    it('drafts the return remarks for a submission, names the engine, keeps the remarks rule, and reports the final text', async () => {
+      aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please sign the report and send it again.', engine: 'groq', ai_output_id: 52 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Draft the remarks' }));
+
+      await waitFor(() => expect(screen.getByLabelText(/Remarks/)).toHaveValue('Please sign the report and send it again.'));
+      expect(aiMocks.draftReviewNote).toHaveBeenCalledWith({ flow: 'compliance_submission', record_id: 12, decision: 'returned', marks: [], reviewer_notes: '' });
+      expect(screen.getByText('Groq')).toBeInTheDocument();
+      expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText(/Remarks/), { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Return submission' }));
+      expect(await screen.findByText(/Write what the organization needs to correct/)).toBeInTheDocument();
+      expect(mocks.reviewSubmission).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByLabelText(/Remarks/), { target: { value: 'Please sign the report.' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Return submission' }));
+      await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledWith(12, { status: 'returned', remarks: 'Please sign the report.', submitted_at: submission.submitted_at }));
+      await waitFor(() => expect(aiMocks.recordDraftOutcome).toHaveBeenCalledWith(52, 'Please sign the report.'));
+    });
+
+    it('asks before it rewords the remarks a reviewer already typed', async () => {
+      aiMocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded.', engine: 'claude', ai_output_id: 53 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
+      fireEvent.change(await screen.findByLabelText(/Remarks/), { target: { value: 'unsigned' } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Improve my wording' }));
+      expect(screen.getByLabelText(/Remarks/)).toHaveValue('unsigned');
+      expect(aiMocks.draftReviewNote).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Replace my text' }));
+
+      await waitFor(() => expect(screen.getByLabelText(/Remarks/)).toHaveValue('Reworded.'));
+      expect(aiMocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ current_text: 'unsigned' }));
     });
 
     it('shows the archived-organization message inline', async () => {

@@ -6,6 +6,8 @@ import notify from '../../lib/notify';
 import { manilaDate } from '../../lib/format';
 import { attachReviewFile, getOrganizationApplication, removeReviewFile, reviewOrganizationApplication } from '../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import DraftNoteButton from '../ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../services/aiDraftService';
 import FileReviewList, { FileLink } from '../reviews/FileReviewList';
 import ChangesSinceReturn from '../reviews/ChangesSinceReturn';
 import { APPLICATION_LABELS } from './applicationStatus';
@@ -99,6 +101,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
   const [openId, setOpenId] = useState(null);
   const [notes, setNotes] = useState({});
   const [remarks, setRemarks] = useState('');
+  const [draftId, setDraftId] = useState(null);
   const [busy, setBusy] = useState('');
   const [problem, setProblem] = useState('');
   const [commenting, setCommenting] = useState(false);
@@ -127,6 +130,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
     setOpenId(null);
     setNotes({});
     setRemarks('');
+    setDraftId(null);
     setProblem('');
     setCommenting(false);
     setComment('');
@@ -198,6 +202,8 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
         })),
       });
       notify.success(message);
+      recordDraftOutcome(draftId, remarks.trim() || null);
+      setDraftId(null);
       await load(true);
     } catch (err) {
       setProblem(getApiErrorMessage(err, 'Could not save this decision.'));
@@ -355,6 +361,19 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
               <Field label="Comments for the applicant" hint={stage === 'sao' ? 'Add a comment to return the application or to reject it.' : 'Add a comment to return the application.'}>
                 <Textarea rows={3} maxLength={2000} value={remarks} onChange={(event) => setRemarks(event.target.value)} />
               </Field>
+              <DraftNoteButton
+                flow="org_application"
+                recordId={application.id}
+                decision={allAccepted ? 'approved' : 'returned'}
+                marks={requirements.filter((requirement) => marks[requirement.id]).map((requirement) => ({
+                  requirement: requirement.name,
+                  mark: marks[requirement.id] === 'ok' ? 'accepted' : 'needs_changes',
+                  note: marks[requirement.id] === 'needs_changes' ? (notes[requirement.id] || '').trim() : '',
+                }))}
+                value={remarks}
+                onDraft={({ text, aiOutputId }) => { setRemarks(text); setDraftId(aiOutputId); }}
+                disabled={Boolean(busy)}
+              />
               <div className="flex flex-wrap items-center gap-3">
                 <Button loading={busy === passAction} disabled={Boolean(busy) || !allAccepted} onClick={() => decide(passAction, passMessage)}>{passLabel}</Button>
                 <Button variant="secondary" loading={busy === 'return'} disabled={Boolean(busy) || !hasNote} onClick={() => decide('return', 'Returned to the applicant.')}>Return with comments</Button>

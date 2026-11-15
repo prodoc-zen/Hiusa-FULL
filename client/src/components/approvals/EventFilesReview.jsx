@@ -67,6 +67,13 @@ export function markedFiles(files, marks, notes) {
   return sent.length ? sent : undefined;
 }
 
+// The marks the remarks drafter reads: one per marked file, named by its requirement, never by the uploaded file's own name.
+export const draftMarks = (files, marked) => (marked ?? []).map((mark) => ({
+  requirement: files.find((file) => file.id === mark.id)?.requirement ?? 'Requirement',
+  mark: mark.status === 'ok' ? 'accepted' : 'needs_changes',
+  note: mark.note ?? '',
+}));
+
 function worst(reviews) {
   if (reviews.some((review) => review.status === 'needs_changes')) return 'needs_changes';
   return reviews.length > 0 && reviews.every((review) => review.status === 'ok') ? 'ok' : '';

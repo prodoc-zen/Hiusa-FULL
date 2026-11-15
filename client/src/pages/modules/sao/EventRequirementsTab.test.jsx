@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getEventRequirements: vi.fn(), createEventRequirement: vi.fn(), updateEventRequirement: vi.fn(),
   reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(), markApprovalFile: vi.fn(), markApprovalFiles: vi.fn(),
   uploadEventRequirementTemplate: vi.fn(), removeEventRequirementTemplate: vi.fn(), setEventRequirementTemplateLink: vi.fn(),
+  draftReviewNote: vi.fn(), recordDraftOutcome: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../services/eventService', () => ({
@@ -19,6 +20,7 @@ vi.mock('../../../services/eventService', () => ({
 }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest, markApprovalFile: mocks.markApprovalFile, markApprovalFiles: mocks.markApprovalFiles }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../../services/aiDraftService', () => ({ draftReviewNote: mocks.draftReviewNote, recordDraftOutcome: mocks.recordDraftOutcome }));
 
 const FILES = [
   { id: 7, requirement: 'Venue Reservation Letter', original_name: 'venue.pdf', open_url: '/events/9/submission/files/7', reviews: [] },
@@ -477,6 +479,61 @@ describe('EventRequirementsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Missing budget' }));
+  });
+
+  it('drafts the return remarks from the reviewer marks, shows the engine, and reports the final text after the return', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [waiting()] } });
+    mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
+    mocks.draftReviewNote.mockResolvedValue({ data: { text: 'Please replace the Request Letter. The seal is missing.', engine: 'claude', ai_output_id: 88 } });
+    render(<EventRequirementsTab mode="reviews" />);
+    const section = await openFiles();
+    mark(section, 'Request Letter', 'needs_changes');
+    fireEvent.change(within(section).getByLabelText('Note for the organization'), { target: { value: 'The seal is missing.' } });
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/Remarks for the return/)).toHaveValue('Please replace the Request Letter. The seal is missing.'));
+    expect(mocks.draftReviewNote).toHaveBeenCalledWith({
+      flow: 'event',
+      record_id: 9,
+      decision: 'returned',
+      marks: [{ requirement: 'Request Letter', mark: 'needs_changes', note: 'The seal is missing.' }],
+      reviewer_notes: '',
+    });
+    expect(screen.getByText('Claude')).toBeInTheDocument();
+    expect(screen.getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Remarks for the return/), { target: { value: 'Please replace the Request Letter.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
+
+    await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, expect.objectContaining({ status: 'rejected', remarks: 'Please replace the Request Letter.' })));
+    await waitFor(() => expect(mocks.recordDraftOutcome).toHaveBeenCalledWith(88, 'Please replace the Request Letter.'));
+  });
+
+  it('asks before it rewords remarks already typed, and still needs remarks to return', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
+    mocks.draftReviewNote.mockResolvedValue({ data: { text: 'Reworded remarks.', engine: 'template', ai_output_id: 90 } });
+    render(<EventRequirementsTab mode="reviews" />);
+    await screen.findByText('Foundation Day');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Return' }));
+    fireEvent.change(await screen.findByLabelText(/Remarks for the return/), { target: { value: 'pls fix' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Improve my wording' }));
+    expect(screen.getByLabelText(/Remarks for the return/)).toHaveValue('pls fix');
+    expect(mocks.draftReviewNote).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace my text' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/Remarks for the return/)).toHaveValue('Reworded remarks.'));
+    expect(mocks.draftReviewNote).toHaveBeenCalledWith(expect.objectContaining({ current_text: 'pls fix' }));
+    expect(screen.getByText('Built-in rules')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Remarks for the return/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Return event' }));
+    expect(await screen.findByText('Write why this event is returned so the organization can respond.')).toBeInTheDocument();
+    expect(mocks.reviewApprovalRequest).not.toHaveBeenCalled();
   });
 
   it('shows the empty queue message', async () => {

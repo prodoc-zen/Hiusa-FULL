@@ -4,6 +4,8 @@ import { deleteGrievance } from '../../../services/grievanceService';
 import { ShieldCheck, UserRound } from 'lucide-react';
 import { Button, Drawer, Field, FlowStepper, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { toNextStepProps } from '../../../lib/lifecycle';
 import Modal from '../../../components/Modal';
 import { RichTextBody } from '../../../components/RichText';
@@ -129,8 +131,9 @@ function ClassificationSection({ grievance, viewerRole, onClassify }) {
   );
 }
 
-function TransitionModal({ transition, onCancel, onConfirm, submitting, error }) {
+function TransitionModal({ grievanceId, transition, onCancel, onConfirm, submitting, error }) {
   const [remarks, setRemarks] = useState('');
+  const [draftId, setDraftId] = useState(null);
   if (!transition) return null;
 
   const label = TRANSITION_ACTION_LABEL[transition] || transition;
@@ -150,7 +153,7 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
           <Button variant="secondary" onClick={onCancel} disabled={submitting}>Cancel</Button>
           <Button
             variant={transition === 'dismissed' ? 'danger' : 'primary'}
-            onClick={() => onConfirm(transition, remarks)}
+            onClick={() => onConfirm(transition, remarks, draftId)}
             loading={submitting}
             disabled={!remarks.trim()}
           >
@@ -162,6 +165,17 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
       <Field label="Remarks" required hint={reopening ? 'Say why it is being reopened.' : 'Explain the outcome in plain language.'}>
         <Textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} placeholder={reopening ? 'What changed, and what will be looked at again...' : 'What was found, and what happens next...'} />
       </Field>
+      {!reopening && (
+        <DraftNoteButton
+          className="mt-3"
+          flow="grievance"
+          recordId={grievanceId}
+          decision={transition === 'dismissed' ? 'dismissed' : 'resolved'}
+          value={remarks}
+          onDraft={({ text, aiOutputId }) => { setRemarks(text); setDraftId(aiOutputId); }}
+          disabled={submitting}
+        />
+      )}
       {error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error}</p>}
     </Modal>
   );
@@ -201,11 +215,12 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
     setPendingTransition(status);
   }
 
-  async function confirmTransition(status, remarks) {
+  async function confirmTransition(status, remarks, draftId) {
     setSubmitting(true);
     setError('');
     try {
       await onTransition(grievance.id, { status: status === 'reopen' ? 'under_review' : status, remarks: remarks || undefined });
+      recordDraftOutcome(draftId, remarks?.trim() || null);
       setPendingTransition(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not update this grievance. Try again.');
@@ -290,6 +305,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
 
       <TransitionModal
         key={`${grievance?.id ?? 'none'}-${pendingTransition ?? 'closed'}`}
+        grievanceId={grievance?.id}
         transition={pendingTransition}
         onCancel={closeTransition}
         onConfirm={confirmTransition}

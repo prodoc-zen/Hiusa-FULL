@@ -9,7 +9,8 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
-import { recordAiOutcome } from '../../../services/aiDraftService';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordAiOutcome, recordDraftOutcome } from '../../../services/aiDraftService';
 import {
   downloadFinancialReportPdf,
   getFinancialReport,
@@ -50,6 +51,7 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
   const [downloadingId, setDownloadingId] = useState(null);
   const [reviewAction, setReviewAction] = useState(null);
   const [rejectionRemarks, setRejectionRemarks] = useState('');
+  const [draftId, setDraftId] = useState(null);
   const [reviewing, setReviewing] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const explained = useRef(null);
@@ -116,8 +118,10 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         status: reviewAction.status,
         ...(reviewAction.status === 'rejected' ? { remarks: rejectionRemarks.trim() } : {}),
       });
+      recordDraftOutcome(draftId, rejectionRemarks.trim() || null);
       setReviewAction(null);
       setRejectionRemarks('');
+      setDraftId(null);
       setDetail(null);
       if (explained.current) recordAiOutcome(explained.current.aiOutputId, explained.current.text).catch(() => {});
       explained.current = null;
@@ -244,18 +248,30 @@ export default function FinancialReportsTab({ initialOrganizationId = '', initia
         open={reviewAction?.status === 'rejected'}
         title="Return financial report"
         description="The organization sees your reason."
-        onClose={reviewing ? undefined : () => { setReviewAction(null); setRejectionRemarks(''); }}
+        onClose={reviewing ? undefined : () => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); }}
         closeOnBackdrop={!reviewing}
         closeOnEscape={!reviewing}
         maxWidth="max-w-md"
         footer={<>
-          <Button variant="secondary" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }}>Cancel</Button>
+          <Button variant="secondary" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); setDraftId(null); }}>Cancel</Button>
           <Button variant="danger" loading={reviewing} disabled={!rejectionRemarks.trim()} onClick={submitReview}>Return report</Button>
         </>}
       >
-        <Field label="Reason for returning">
-          <Textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} placeholder="Say what is missing or incorrect." />
-        </Field>
+        <div className="space-y-3">
+          <Field label="Reason for returning">
+            <Textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} placeholder="Say what is missing or incorrect." />
+          </Field>
+          {reviewAction?.status === 'rejected' && (
+            <DraftNoteButton
+              flow="financial_report"
+              recordId={reviewAction.report.id}
+              decision="returned"
+              value={rejectionRemarks}
+              onDraft={({ text, aiOutputId }) => { setRejectionRemarks(text); setDraftId(aiOutputId); }}
+              disabled={reviewing}
+            />
+          )}
+        </div>
       </Modal>
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback((value) => ({ ...value, open: false }))} />

@@ -12,6 +12,8 @@ import HiusaSelect from '../../../components/ui/Select';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import Textarea from '../../../components/ui/Textarea';
 import { getApplications, reviewApplication } from '../../../services/electionService';
+import DraftNoteButton from '../../../components/ai/DraftNoteButton';
+import { recordDraftOutcome } from '../../../services/aiDraftService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDateTime } from '../../../utils/dateTime';
@@ -52,6 +54,7 @@ export default function ElectionApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [pending, setPending] = useState(null);
   const [notes, setNotes] = useState('');
+  const [draftId, setDraftId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fileError, setFileError] = useState('');
@@ -107,12 +110,14 @@ export default function ElectionApplicationsPage() {
     if (busy) return;
     setPending(null);
     setNotes('');
+    setDraftId(null);
     setError('');
   };
 
   const openReview = (application, decision) => {
     setPending({ application, decision });
     setNotes('');
+    setDraftId(null);
     setError('');
   };
 
@@ -123,8 +128,10 @@ export default function ElectionApplicationsPage() {
     setError('');
     try {
       await reviewApplication(election.id, application.id, decision === 'approve' ? { decision } : { decision, notes: notes.trim() });
+      recordDraftOutcome(draftId, notes.trim() || null);
       setPending(null);
       setNotes('');
+      setDraftId(null);
       setRows(await load());
       await refreshElection?.();
     } catch (reviewError) {
@@ -283,6 +290,16 @@ export default function ElectionApplicationsPage() {
           <Field label={written?.label || ''} required hint={written?.hint}>
             <Textarea rows={4} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </Field>
+          {written && (
+            <DraftNoteButton
+              flow="election_application"
+              recordId={pending.application.id}
+              decision={pending.decision === 'reject' ? 'rejected' : 'returned'}
+              value={notes}
+              onDraft={({ text, aiOutputId }) => { setNotes(text); setDraftId(aiOutputId); }}
+              disabled={busy}
+            />
+          )}
           {error && <p role="alert" className={ALERT}>{error}</p>}
         </div>
       </Modal>
