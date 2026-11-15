@@ -6,6 +6,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import AddStaffModal from '../../../components/people/AddStaffModal';
 import ApplicantGrantModal from '../../../components/org/ApplicantGrantModal';
 import PaginationControls from '../../../components/PaginationControls';
+import StudentRecordAddModal from '../../../components/students/StudentRecordAddModal';
 import StudentRecordsPanel from '../../../components/students/StudentRecordsPanel';
 import StudentRecordsUpload from '../../../components/students/StudentRecordsUpload';
 import notify from '../../../lib/notify';
@@ -103,6 +104,7 @@ export default function CollegePeoplePage() {
   const requested = params.get('show');
   const show = SHOW_OPTIONS.some((option) => option.value === requested) ? requested : 'all';
   const [uploading, setUploading] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [granting, setGranting] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
@@ -216,7 +218,10 @@ export default function CollegePeoplePage() {
                 <button type="button" onClick={clearSearch} className="inline-flex min-h-11 items-center rounded-control text-sm font-medium text-brand-700 hover:underline">Clear</button>
               )}
               {tab === 'students' && collegeId && (
-                <Button variant="secondary" leftIcon={Upload} className="sm:ml-auto" onClick={() => setUploading(true)}>Upload student records</Button>
+                <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                  <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student record</Button>
+                  <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button>
+                </span>
               )}
             </div>
             <div role="tabpanel">
@@ -235,7 +240,12 @@ export default function CollegePeoplePage() {
                   <EmptyState
                     title={EMPTY[tab].title}
                     description={EMPTY[tab].description}
-                    action={tab === 'students' && collegeId ? <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button> : undefined}
+                    action={tab === 'students' && collegeId ? (
+                      <span className="flex flex-wrap items-center justify-center gap-2">
+                        <Button variant="secondary" leftIcon={UserPlus} onClick={() => setAdding(true)}>Add a student record</Button>
+                        <Button variant="secondary" leftIcon={Upload} onClick={() => setUploading(true)}>Upload student records</Button>
+                      </span>
+                    ) : undefined}
                   />
                 )}
                 actions={tab === 'staff' ? staffActions : undefined}
@@ -259,6 +269,13 @@ export default function CollegePeoplePage() {
       >
         <StudentRecordsUpload collegeId={collegeId} onSaved={recordsSaved} />
       </Drawer>
+      {adding && collegeId && (
+        <StudentRecordAddModal
+          collegeId={collegeId}
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); notify.success('Student added to the records.'); recordsSaved(); }}
+        />
+      )}
       <AddStaffModal open={inviting} onClose={() => setInviting(false)} />
       <ApplicantGrantModal open={granting} onClose={() => setGranting(false)} onGranted={() => setReload((value) => value + 1)} />
       <ConfirmModal

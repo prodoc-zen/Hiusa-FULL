@@ -21,6 +21,14 @@ vi.mock('../../../components/students/StudentRecordsUpload', () => ({
     </div>
   ),
 }));
+vi.mock('../../../components/students/StudentRecordAddModal', () => ({
+  default: ({ collegeId, onSaved }) => (
+    <div role="dialog" aria-label="Add a student">
+      <p>{`add for college ${collegeId}`}</p>
+      <button type="button" onClick={onSaved}>Finish add</button>
+    </div>
+  ),
+}));
 vi.mock('../../../components/students/StudentRecordsPanel', () => ({
   default: ({ collegeId }) => <div data-testid="records-panel">{`records panel for college ${collegeId}`}</div>,
 }));
@@ -201,6 +209,21 @@ describe('College people page', () => {
     tab('Office staff');
     await screen.findAllByText('Sol Secretary');
     expect(screen.queryByRole('button', { name: 'Upload student records' })).not.toBeInTheDocument();
+  });
+
+  it('lets the dean add one student record from the students toolbar and reloads the list after', async () => {
+    renderPage();
+    await screen.findAllByText('Ana Alvarez');
+    fireEvent.click(screen.getByRole('button', { name: 'Add a student record' }));
+    expect(await screen.findByRole('dialog', { name: 'Add a student' })).toHaveTextContent('add for college 5');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish add' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a student' })).not.toBeInTheDocument());
+    await waitFor(() => expect(people.getCollegePeople.mock.calls.filter(([params]) => params.tab === 'students').length).toBe(2));
+    tab('Office staff');
+    await screen.findAllByText('Sol Secretary');
+    expect(screen.queryByRole('button', { name: 'Add a student record' })).not.toBeInTheDocument();
   });
 
   it('gives the dean a School records tab that mounts the records panel for the own college', async () => {

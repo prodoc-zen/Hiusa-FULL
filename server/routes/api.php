@@ -84,6 +84,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::post('/department-head-invitations/{token}/claim', [DepartmentHeadInvitationController::class, 'claim'])->middleware('throttle:registration');
     Route::get('/people/search', [PeopleSearchController::class, 'search'])->middleware(['throttle:people-search', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
     Route::get('/students/registry', [StudentRegistryController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/students/registry', [StudentRegistryController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/preview', [StudentRegistryController::class, 'preview'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::post('/students/registry/apply', [StudentRegistryController::class, 'apply'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::patch('/students/registry/{entry}', [StudentRegistryController::class, 'update'])->whereNumber('entry')->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
