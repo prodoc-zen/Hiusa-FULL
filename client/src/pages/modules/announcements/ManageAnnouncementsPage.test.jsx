@@ -26,6 +26,23 @@ describe('ManageAnnouncementsPage', () => {
     announcementMocks.getAnnouncements.mockResolvedValue({ data: list });
   });
 
+  it('shows the poster and the Admin how many members have seen a published announcement', async () => {
+    announcementMocks.getAnnouncements.mockResolvedValue(listOf(
+      { ...record, seen_by_count: 3 },
+      { ...record, id: 8, title: 'Draft notice', is_published: false, approval_status: 'draft', seen_by_count: 0 },
+    ));
+    renderPage();
+    expect((await screen.findAllByText('Seen by 3')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Seen by 0')).not.toBeInTheDocument();
+  });
+
+  it('shows no count to someone the server sent none to', async () => {
+    announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...record, views_count: 5 }));
+    renderPage();
+    await titleButton('Campus update');
+    expect(screen.queryByText(/Seen by/)).not.toBeInTheDocument();
+  });
+
   it('opens a drawer with the announcement details and keeps management actions in the row menu', async () => {
     renderPage();
     fireEvent.click(await titleButton('Campus update'));

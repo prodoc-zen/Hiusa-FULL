@@ -1,15 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AnnouncementsFeedPage from './AnnouncementsFeedPage';
 
 const mocks = vi.hoisted(() => ({
   getAnnouncements: vi.fn(),
+  recordAnnouncementView: vi.fn(),
   getNotifications: vi.fn(),
   markRead: vi.fn(),
 }));
 
-vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mocks.getAnnouncements }));
+vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mocks.getAnnouncements, recordAnnouncementView: mocks.recordAnnouncementView }));
 vi.mock('../../../services/notificationService', () => ({ getNotifications: mocks.getNotifications, markRead: mocks.markRead }));
 
 const renderFeed = () => render(<MemoryRouter initialEntries={['/dashboard/announcements/view-announcements']}><AnnouncementsFeedPage /></MemoryRouter>);
@@ -19,6 +20,7 @@ describe('AnnouncementsFeedPage', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
     mocks.getNotifications.mockResolvedValue({ data: { notifications: [] } });
+    mocks.recordAnnouncementView.mockResolvedValue({ data: {} });
   });
 
   it('lists posts full width with the date, no repeated organization header and no Like button', async () => {
@@ -80,6 +82,32 @@ describe('AnnouncementsFeedPage', () => {
     expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
     expect(screen.queryByText('Join an organization to see its announcements.')).not.toBeInTheDocument();
     expect(screen.getByText('Announcements show here once your organization or the university posts them.')).toBeInTheDocument();
+  });
+
+  it('reports each announcement as read once, even when the filters reload the list', async () => {
+    mocks.getAnnouncements.mockResolvedValue({ data: [
+      { id: 1, title: 'General Assembly', body: 'Everyone is invited.', created_at: '2026-09-01T08:00:00Z', organization: { name: 'HIUSA Council' } },
+      { id: 2, title: 'Election Schedule', body: 'Voting opens next week.', created_at: '2026-08-30T08:00:00Z', organization: { name: 'HIUSA Council' } },
+    ] });
+    renderFeed();
+    await screen.findByRole('heading', { name: 'General Assembly' });
+    await waitFor(() => expect(mocks.recordAnnouncementView).toHaveBeenCalledTimes(2));
+    expect(mocks.recordAnnouncementView).toHaveBeenCalledWith(1);
+    expect(mocks.recordAnnouncementView).toHaveBeenCalledWith(2);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search announcements' }), { target: { value: 'Assembly' } });
+    await waitFor(() => expect(mocks.getAnnouncements).toHaveBeenCalledTimes(2));
+    await screen.findByRole('heading', { name: 'General Assembly' });
+    expect(mocks.recordAnnouncementView).toHaveBeenCalledTimes(2);
+  });
+
+  it('still shows the feed when recording a read fails', async () => {
+    mocks.recordAnnouncementView.mockRejectedValue({ response: { status: 500 } });
+    mocks.getAnnouncements.mockResolvedValue({ data: [{ id: 1, title: 'General Assembly', body: 'Everyone is invited.', created_at: '2026-09-01T08:00:00Z' }] });
+    renderFeed();
+    expect(await screen.findByRole('heading', { name: 'General Assembly' })).toBeInTheDocument();
+    await waitFor(() => expect(mocks.recordAnnouncementView).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Could not load announcements')).not.toBeInTheDocument();
   });
 
   it('offers Clear filters when a search finds nothing', async () => {

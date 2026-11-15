@@ -189,7 +189,7 @@ class AnnouncementController extends Controller
             'reviewer:school_id,first_name,last_name,email,role,position_title',
             'sourceOrganization:id,name,acronym',
             'organization:id,name,acronym',
-        ])->withCount('reactions')
+        ])->withCount(['reactions', 'views as seen_by_count'])
             ->withExists(['reactions as is_liked' => fn ($reactions) => $reactions->where('user_id', $user->school_id)])
             ->where(function ($scope) use ($user, $readableOrgIds) {
                 $scope->whereIn('organization_id', $readableOrgIds)
@@ -284,6 +284,13 @@ class AnnouncementController extends Controller
         if (! $canManageAnnouncements) {
             $announcements->getCollection()->each->makeHidden('views_count');
         }
+
+        // Who has read a notice is for the person who posted it and the Admin, not every officer who can list it.
+        $announcements->getCollection()->each(function (Announcement $row) use ($user) {
+            if ($user->role !== 'ADMIN' && (int) $row->created_by !== (int) $user->school_id) {
+                $row->makeHidden('seen_by_count');
+            }
+        });
 
         $approvalIds = $canManageAnnouncements ? $this->latestApprovalIds($announcements->getCollection()->pluck('id')) : [];
         $announcements->getCollection()->each(fn (Announcement $row) => $row->setAttribute('approval_id', $approvalIds[$row->id] ?? null));

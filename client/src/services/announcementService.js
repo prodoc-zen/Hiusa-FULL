@@ -38,5 +38,9 @@ export const deleteAnnouncement = (id) =>
 export const togglePublish = (id) =>
   api.patch(`/announcements/${id}/publish`);
 
+// The server keeps one row per member and announcement, so calling this again is harmless.
+export const recordAnnouncementView = (id) =>
+  api.post(`/announcements/${id}/view`);
+
 export const setAnnouncementReaction = (id, liked) =>
   liked ? api.put(`/announcements/${id}/reaction`) : api.delete(`/announcements/${id}/reaction`);

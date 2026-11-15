@@ -1,9 +1,9 @@
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Megaphone, Search } from 'lucide-react';
 import { EmptyState, ErrorState, Input, PageHeader, SkeletonCard } from '../../../components/ui';
-import { getAnnouncements } from '../../../services/announcementService';
+import { getAnnouncements, recordAnnouncementView } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 import PaginationControls from '../../../components/PaginationControls';
 import { listMeta, unwrapList } from '../../../services/pagination';
@@ -45,6 +45,7 @@ export default function AnnouncementsFeedPage() {
   const [category, setCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const viewedIds = useRef(new Set());
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -64,6 +65,14 @@ export default function AnnouncementsFeedPage() {
     }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
+  // Each announcement is reported as read once per visit to this page, however the filters change.
+  useEffect(() => {
+    announcements.forEach((item) => {
+      if (viewedIds.current.has(item.id)) return;
+      viewedIds.current.add(item.id);
+      recordAnnouncementView(item.id).catch(() => {});
+    });
+  }, [announcements]);
   const showSource = new Set(announcements.map(organizationName)).size > 1;
   const hasFilters = Boolean(search.trim()) || category !== 'all';
   const clearFilters = () => { setSearch(''); setCategory('all'); };
