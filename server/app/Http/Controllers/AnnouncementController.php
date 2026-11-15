@@ -856,6 +856,7 @@ class AnnouncementController extends Controller
         return [
             'id' => $announcement->id,
             'title' => $announcement->title,
+            'body' => $announcement->body,
             'target_role' => $announcement->target_role,
             'category' => $announcement->category,
             'is_published' => $announcement->is_published,

@@ -18,6 +18,7 @@ use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
+use App\Services\ChangesSinceReturn;
 use App\Services\EventApprovalChain;
 use App\Services\EventFileReview;
 use App\Services\FinancialReportStatement;
@@ -43,6 +44,7 @@ class ApprovalRequestController extends Controller
         private readonly EventApprovalChain $eventChain,
         private readonly EventFileReview $eventFileReview,
         private readonly OrganizationRecipients $recipients,
+        private readonly ChangesSinceReturn $changesSinceReturn,
     ) {}
 
     public function index(Request $request)
@@ -642,6 +644,14 @@ class ApprovalRequestController extends Controller
             $entity = $entity && (int) $entity->organization_id === (int) $approval->organization_id ? $entity : null;
             $approval->title = $this->entityTitle($approval, $entity);
             $approval->summary = $this->entitySummary($approval, $entity, $extras[$approval->entity_type][$approval->entity_id] ?? []);
+        }
+
+        // Only the people who decide are told what changed since they returned it, never the organization that changed it.
+        $role = request()->user()?->approvalRole();
+        $changes = $this->changesSinceReturn->forApprovals(collect($approvals->all())
+            ->filter(fn (ApprovalRequest $approval) => $role === 'SUPER_ADMIN' || ($role !== null && $approval->required_role === $role)));
+        foreach ($approvals as $approval) {
+            $approval->changes_since_return = $changes[$approval->id] ?? [];
         }
     }
 

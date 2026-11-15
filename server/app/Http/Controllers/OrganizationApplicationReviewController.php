@@ -14,6 +14,7 @@ use App\Models\OrganizationApplicationReviewFile;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Services\ChangesSinceReturn;
 use App\Services\OrganizationApplicationPresenter;
 use App\Services\SubmissionStoragePolicy;
 use App\Support\FilterValues;
@@ -41,7 +42,7 @@ class OrganizationApplicationReviewController extends Controller
     /** The word the history uses for each status a decision leaves behind. */
     private const DECISION_LABEL = ['pending_sao' => 'Endorsed', 'approved' => 'Approved', 'returned' => 'Returned', 'rejected' => 'Not approved'];
 
-    public function __construct(private readonly OrganizationApplicationPresenter $presenter) {}
+    public function __construct(private readonly OrganizationApplicationPresenter $presenter, private readonly ChangesSinceReturn $changesSinceReturn) {}
 
     public function index(Request $request)
     {
@@ -244,7 +245,11 @@ class OrganizationApplicationReviewController extends Controller
     /** The shared application detail plus the reviewers' history. */
     private function detail(OrganizationApplication $application, User $actor): array
     {
-        return [...$this->presenter->detail($application, self::PREFIX, false, null, $this->stageOf($actor)), 'history' => $this->history($application)];
+        return [
+            ...$this->presenter->detail($application, self::PREFIX, false, null, $this->stageOf($actor)),
+            'changes_since_return' => $this->changesSinceReturn->forApplication($application),
+            'history' => $this->history($application),
+        ];
     }
 
     /** Notes and decisions, oldest first, read from the audit log so no second record of them exists. */

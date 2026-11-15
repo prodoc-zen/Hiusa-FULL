@@ -148,3 +148,23 @@ describe('Requirements of one organization', () => {
     expect(screen.getByLabelText(/Requirement/)).toHaveValue('5');
   });
 });
+
+describe('Accreditation requirements changed since the return', () => {
+  it('tells the SAO what the organization replaced on a file it returned earlier', () => {
+    const resent = { ...club, requirements: [{
+      ...club.requirements[0],
+      changes_since_return: [{ field: 'file:', label: 'constitution-v2.pdf replaced constitution.pdf' }],
+    }] };
+    render(<AccreditationTab role="SUPER_ADMIN" overview={{ loading: false, error: '', academicYear: '2026-2027', organizations: [resent] }} />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Computing Club' })[0]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View requirements' }));
+
+    const note = within(screen.getByRole('dialog', { name: 'Computing Club' })).getByRole('region', { name: 'Changed since you returned it' });
+    expect(within(note).getByText('constitution-v2.pdf replaced constitution.pdf')).toBeInTheDocument();
+  });
+
+  it('shows no note on a file that was never returned', () => {
+    const dialog = openRequirements('SUPER_ADMIN');
+    expect(within(dialog).queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+});

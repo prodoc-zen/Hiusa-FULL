@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
@@ -237,6 +238,13 @@ class EventRequirementController extends Controller
                         'path' => $path,
                         'original_name' => $file->getClientOriginalName(),
                         'uploaded_by' => $request->user()->school_id,
+                    ]);
+                    AuditLog::create([
+                        'organization_id' => $event->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role,
+                        'module' => 'events', 'action' => $old ? 'event_file_replaced' : 'event_file_added', 'record_type' => Event::class, 'record_id' => $event->id,
+                        'old_values' => $old ? ['requirement' => $requirement->name, 'original_name' => $old->original_name] : null,
+                        'new_values' => ['requirement' => $requirement->name, 'original_name' => $file->getClientOriginalName()],
+                        'ip_address' => $request->ip(), 'created_at' => now(),
                     ]);
                 }
 

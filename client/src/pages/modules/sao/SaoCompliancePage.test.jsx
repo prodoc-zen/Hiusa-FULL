@@ -683,3 +683,31 @@ describe('SaoCompliancePage', () => {
     });
   });
 });
+
+describe('SaoCompliancePage changes since the return', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN' }));
+    mocks.getComplianceStatus.mockResolvedValue({ data: status });
+    mocks.getRequirementTypes.mockResolvedValue({ data: { data: [requirementType] } });
+    mocks.getAcademicYears.mockResolvedValue([{ id: 1, label: '2026-2027', is_current: true }]);
+    mocks.getAcademicPeriods.mockResolvedValue([{ id: 9, number: 1, is_active: true, academic_year: { label: '2026-2027' } }]);
+    mocks.getSystemOrganizations.mockResolvedValue({ data: [], current_page: 1, last_page: 1 });
+  });
+
+  it('tells the reviewer which file replaced the one they returned, in the submission drawer', async () => {
+    mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, changes_since_return: [{ field: 'file:', label: 'report-v2.pdf replaced report.pdf' }] }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+    renderPage('/dashboard/super-admin/compliance?tab=review&record=12');
+
+    const note = await screen.findByRole('region', { name: 'Changed since you returned it' });
+    expect(within(note).getByText('report-v2.pdf replaced report.pdf')).toBeInTheDocument();
+  });
+
+  it('shows no note for a submission that was not returned before', async () => {
+    mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, changes_since_return: [] }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+    renderPage('/dashboard/super-admin/compliance?tab=review&record=12');
+
+    await screen.findByRole('button', { name: 'Open document' });
+    expect(screen.queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+});

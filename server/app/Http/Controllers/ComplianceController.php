@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use App\Services\ChangesSinceReturn;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Compliance\ComplianceDocumentService;
 use App\Services\Compliance\RegistrationRequirementCatalog;
@@ -46,6 +47,7 @@ class ComplianceController extends Controller
     public function __construct(
         private readonly AccreditationStatusService $accreditation,
         private readonly OrganizationRecipients $recipients,
+        private readonly ChangesSinceReturn $changesSinceReturn,
     ) {}
 
     public function requirementTypes(Request $request)
@@ -409,9 +411,12 @@ class ComplianceController extends Controller
         $awaitingReports = FinancialReport::whereIn('organization_id', $organizationIds)->where('submission_status', 'pending_sao')->whereNotNull('department_head_approved_at')
             ->select('organization_id')->selectRaw('COUNT(*) as total')->groupBy('organization_id')->pluck('total', 'organization_id');
 
-        $result = $organizations->map(function (Organization $organization) use ($requirementTypes, $submissions, $awaitingReview, $awaitingReports) {
+        // The people who decide are shown what changed since they returned a file; the organization is not.
+        $changes = $request->user()->isOrganizationAdmin() ? [] : $this->changesSinceReturn->forSubmissions($submissions->flatten(1));
+
+        $result = $organizations->map(function (Organization $organization) use ($requirementTypes, $submissions, $awaitingReview, $awaitingReports, $changes) {
             $bySubmission = ($submissions->get($organization->id) ?? collect())->keyBy('requirement_type_id');
-            $breakdown = $requirementTypes->map(function (ComplianceRequirementType $type) use ($bySubmission) {
+            $breakdown = $requirementTypes->map(function (ComplianceRequirementType $type) use ($bySubmission, $changes) {
                 $submission = $bySubmission->get($type->id);
 
                 return [
@@ -424,6 +429,7 @@ class ComplianceController extends Controller
                     'file_name' => $submission->file_original_name ?? null,
                     'submitted_at' => $submission->submitted_at ?? null,
                     'remarks' => $submission->remarks ?? null,
+                    'changes_since_return' => $changes[$submission->id ?? 0] ?? [],
                 ];
             });
 
@@ -485,6 +491,9 @@ class ComplianceController extends Controller
         }
 
         $page = $query->orderByDesc('submitted_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20);
+        // The people who decide are shown what the organization changed since they returned a file; the organization is not.
+        $changes = $user->isOrganizationAdmin() ? [] : $this->changesSinceReturn->forSubmissions($page->getCollection());
+        $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute('changes_since_return', $changes[$submission->id] ?? []));
         // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
         $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
             'is_registration',
@@ -534,6 +543,7 @@ class ComplianceController extends Controller
 
             $isResubmission = $existing !== null;
             $oldPath = $existing?->file_path;
+            $oldName = $existing?->file_original_name;
 
             $file = $request->file('document');
             $path = $file->store('compliance-submissions/'.$organizationId, 'local');
@@ -565,7 +575,7 @@ class ComplianceController extends Controller
                 ]);
             }
 
-            return ['submission' => $submission, 'is_resubmission' => $isResubmission, 'old_path' => $isResubmission ? $oldPath : null];
+            return ['submission' => $submission, 'is_resubmission' => $isResubmission, 'old_path' => $isResubmission ? $oldPath : null, 'old_name' => $oldName];
         });
 
         if (isset($result['conflict'])) {
@@ -590,6 +600,7 @@ class ComplianceController extends Controller
             'action' => $isResubmission ? 'submission_resubmitted' : 'submission_submitted',
             'record_type' => OrganizationComplianceSubmission::class,
             'record_id' => $submission->id,
+            'old_values' => $isResubmission ? ['file_original_name' => $result['old_name']] : null,
             'new_values' => ['requirement_type_id' => $data['requirement_type_id'], 'file_original_name' => $submission->file_original_name],
             'ip_address' => $request->ip(),
             'created_at' => now(),
@@ -632,6 +643,7 @@ class ComplianceController extends Controller
                 $newPath = $file->store('compliance-submissions/'.$locked->organization_id, 'local');
                 abort_unless($newPath, 500, 'Could not store the replacement file.');
                 $oldPath = $locked->file_path;
+                $oldName = $locked->file_original_name;
                 $submittedAt = now()->startOfSecond();
                 if ($locked->submitted_at && $submittedAt->lessThanOrEqualTo($locked->submitted_at)) {
                     $submittedAt = $locked->submitted_at->copy()->addSecond();
@@ -643,7 +655,7 @@ class ComplianceController extends Controller
                     'submitted_by' => $request->user()->school_id, 'reviewed_by' => null, 'reviewed_at' => null,
                 ]);
 
-                $this->notifySubmissionChange($request, $locked, 'replaced');
+                $this->notifySubmissionChange($request, $locked, 'replaced', ['file_original_name' => $oldName], ['file_original_name' => $locked->file_original_name]);
                 app(RequirementSampleService::class)->deleteAfterCommit($oldPath);
             });
         } catch (\Throwable $exception) {
@@ -684,7 +696,7 @@ class ComplianceController extends Controller
         return $organization;
     }
 
-    private function notifySubmissionChange(Request $request, OrganizationComplianceSubmission $submission, string $action): void
+    private function notifySubmissionChange(Request $request, OrganizationComplianceSubmission $submission, string $action, ?array $old = null, ?array $new = null): void
     {
         $organization = Organization::findOrFail($submission->organization_id);
         $requirement = $submission->requirementType?->name ?? 'a requirement';
@@ -692,7 +704,7 @@ class ComplianceController extends Controller
             'organization_id' => $organization->id, 'user_id' => $request->user()->school_id,
             'actor_role' => $request->user()->role, 'module' => 'compliance', 'action' => 'submission_document_'.$action,
             'record_type' => OrganizationComplianceSubmission::class, 'record_id' => $submission->id,
-            'description' => "Document for {$requirement} {$action}.", 'ip_address' => $request->ip(), 'created_at' => now(),
+            'description' => "Document for {$requirement} {$action}.", 'old_values' => $old, 'new_values' => $new, 'ip_address' => $request->ip(), 'created_at' => now(),
         ]);
         $reviewers = User::where('account_status', 'active')->where(function ($query) use ($organization) {
             $query->where('role', 'SUPER_ADMIN')

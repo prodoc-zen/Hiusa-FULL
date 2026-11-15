@@ -7,6 +7,7 @@ import { manilaDate } from '../../lib/format';
 import { attachReviewFile, getOrganizationApplication, removeReviewFile, reviewOrganizationApplication } from '../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import FileReviewList, { FileLink } from '../reviews/FileReviewList';
+import ChangesSinceReturn from '../reviews/ChangesSinceReturn';
 import { APPLICATION_LABELS } from './applicationStatus';
 
 // A comment-only note: it saves without a decision and the applicant does not see it.
@@ -243,6 +244,7 @@ export default function ApplicationReview({ applicationId, viewerRole }) {
                 {application.round > 1 && `Sent again, round ${application.round}`}
               </p>
             )}
+            <ChangesSinceReturn changes={application.changes_since_return} />
             {application.description && <p className="whitespace-pre-wrap text-sm text-ink-muted-strong">{application.description}</p>}
             {application.endorsement_note && (
               <div className="border-t border-line pt-3">
