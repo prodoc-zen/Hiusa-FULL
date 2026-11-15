@@ -108,7 +108,7 @@ class ElectionReportController extends Controller
         AuditLog::create([
             'organization_id' => $election->organization_id,
             'user_id' => $user->school_id,
-            'actor_role' => $user->role,
+            'actor_role' => $user->profileRole(),
             'module' => 'elections',
             'action' => 'report_exported',
             'description' => 'Election report exported.',

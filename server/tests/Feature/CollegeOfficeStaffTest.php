@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Mail\DeanInvitationMail;
 use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\DepartmentHeadInvitation;
@@ -131,6 +132,24 @@ class CollegeOfficeStaffTest extends TestCase
         $this->patchJson('/api/approval-requests/'.$foreign->id, ['status' => 'approved'])->assertNotFound();
         $this->patchJson('/api/approval-requests/'.$deanStep->id, ['status' => 'approved'])->assertOk();
         $this->assertSame('planning', $event->fresh()->status, 'the dean never finalizes an event, it goes on to the organization and then the SAO');
+
+        $audit = AuditLog::where('module', 'approvals')->where('action', 'reviewed_approved')->where('record_id', $deanStep->id)->sole();
+        $this->assertSame($staff->school_id, $audit->user_id);
+        $this->assertSame('ADMIN', $audit->actor_role, 'the audit trail names what the staff member is, not the dean they stand in for');
+    }
+
+    public function test_a_deans_own_approval_decision_is_audited_as_department_head(): void
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->psits->id]);
+        $event = Event::factory()->create(['organization_id' => $this->psits->id, 'created_by' => $officer->id, 'status' => 'planning']);
+        $deanStep = $this->approval($this->psits, $event->id, $officer, 'DEPARTMENT_HEAD');
+
+        Sanctum::actingAs($this->dean);
+        $this->patchJson('/api/approval-requests/'.$deanStep->id, ['status' => 'approved'])->assertOk();
+
+        $audit = AuditLog::where('module', 'approvals')->where('action', 'reviewed_approved')->where('record_id', $deanStep->id)->sole();
+        $this->assertSame($this->dean->school_id, $audit->user_id);
+        $this->assertSame('DEPARTMENT_HEAD', $audit->actor_role);
     }
 
     private function approval(Organization $organization, int $entityId, User $requester, string $role): ApprovalRequest
