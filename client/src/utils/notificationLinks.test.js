@@ -18,6 +18,7 @@ const REFERENCE_TYPES = [
   'election', 'announcement', 'task', 'order', 'payment', 'transaction', 'clearance_period',
   'clearance_signature', 'compliance_requirement_type', 'organization_compliance_submission',
   'venue_booking', 'grievance', 'evaluation_window', 'organization_application', 'organization_applicant_grant',
+  'cash_advance', 'invoice', 'merchandise',
 ];
 
 function readAllowedRoutes() {
@@ -182,6 +183,27 @@ const EXPECTED = {
   evaluation_window: {
     SUPER_ADMIN: null, ADMIN: null, SBO_OFFICER: null, DEPARTMENT_HEAD: null, STUDENT: null,
   },
+  cash_advance: {
+    SUPER_ADMIN: null,
+    ADMIN: '/dashboard/finance/collections',
+    SBO_OFFICER: null,
+    DEPARTMENT_HEAD: null,
+    STUDENT: null,
+  },
+  invoice: {
+    SUPER_ADMIN: null,
+    ADMIN: '/dashboard/finance/statement-of-account',
+    SBO_OFFICER: '/dashboard/finance/statement-of-account',
+    DEPARTMENT_HEAD: null,
+    STUDENT: '/dashboard/finance/statement-of-account',
+  },
+  merchandise: {
+    SUPER_ADMIN: null,
+    ADMIN: '/dashboard/merchandise/manage-inventory',
+    SBO_OFFICER: null,
+    DEPARTMENT_HEAD: null,
+    STUDENT: null,
+  },
 };
 
 describe('getNotificationDestination table', () => {
@@ -251,6 +273,9 @@ describe('getNotificationDestination rules', () => {
     expect(getNotificationDestination({ reference_type: 'App\\Models\\Task', reference_id: 4 }, 'ADMIN')).toBe('/dashboard/tasks/task-board?record=4');
     expect(getNotificationDestination({ reference_type: 'App\\Models\\FinancialReport', reference_id: 4 }, 'ADMIN')).toBe('/dashboard/finance/transaction-history?record=4');
     expect(getNotificationDestination({ reference_type: 'App\\Models\\EvaluationWindow', reference_id: 4 }, 'SUPER_ADMIN')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'App\\Models\\CashAdvance', reference_id: 4 }, 'ADMIN')).toBe('/dashboard/finance/collections');
+    expect(getNotificationDestination({ reference_type: 'App\\Models\\Invoice', reference_id: 4 }, 'STUDENT')).toBe('/dashboard/finance/statement-of-account');
+    expect(getNotificationDestination({ reference_type: 'App\\Models\\Merchandise', reference_id: 4 }, 'ADMIN')).toBe('/dashboard/merchandise/manage-inventory');
   });
 
   it('does not let the title change the destination', () => {

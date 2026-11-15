@@ -1,10 +1,12 @@
 <?php
 
+use App\Console\Commands\ExpireUnpaidOrders;
 use App\Console\Commands\MarkEventNoShows;
 use App\Console\Commands\MarkOverdueTasks;
 use App\Console\Commands\OpsCheck;
 use App\Console\Commands\PruneExpiredCache;
 use App\Console\Commands\SendEventReminders;
+use App\Console\Commands\SendLowStockNotices;
 use App\Console\Commands\SendRenewalReminders;
 use App\Console\Commands\SyncElectionStatuses;
 use App\Http\Controllers\GlobalAnnouncementController;
@@ -22,6 +24,8 @@ Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
 Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping(70);
 Schedule::command(SendRenewalReminders::class)->dailyAt('07:00')->withoutOverlapping(120);
 Schedule::command(MarkEventNoShows::class)->hourly()->withoutOverlapping(70);
+Schedule::command(ExpireUnpaidOrders::class)->hourly()->withoutOverlapping(70);
+Schedule::command(SendLowStockNotices::class)->dailyAt('08:00')->withoutOverlapping(120);
 Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlapping(5);
 Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping(120);
 Schedule::call(fn () => app(OrganizationDeletionService::class)->cleanup())->name('retry-deleted-organization-files')->hourly()->withoutOverlapping(70);

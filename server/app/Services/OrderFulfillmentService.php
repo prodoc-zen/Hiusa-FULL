@@ -66,7 +66,7 @@ class OrderFulfillmentService
      *
      * @throws DomainException when the charge is closed already or a payment was approved on it
      */
-    public function closeInvoice(Invoice $invoice, string $status, string $reason, User $actor, ?string $ipAddress = null): Invoice
+    public function closeInvoice(Invoice $invoice, string $status, string $reason, ?User $actor, ?string $ipAddress = null): Invoice
     {
         return DB::transaction(function () use ($invoice, $status, $reason, $actor, $ipAddress) {
             $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
@@ -77,7 +77,7 @@ class OrderFulfillmentService
 
             $locked->update(['status' => $status, 'status_reason' => $reason]);
             AuditLog::create([
-                'organization_id' => $locked->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+                'organization_id' => $locked->organization_id, 'user_id' => $actor?->school_id, 'actor_role' => $actor?->role,
                 'module' => 'invoices', 'action' => $status, 'description' => 'Invoice '.$locked->reference.' was '.$status.'.',
                 'record_type' => Invoice::class, 'record_id' => $locked->id, 'new_values' => $locked->getAttributes(),
                 'ip_address' => $ipAddress, 'created_at' => now(),
@@ -92,7 +92,7 @@ class OrderFulfillmentService
      *
      * @throws InvoiceSettlementRequired when a payment was already approved on the invoice: cancelling the order would strand the money and the balance
      */
-    public function cancelInvoiceOfClosedOrder(Order $order, User $actor, string $reason): void
+    public function cancelInvoiceOfClosedOrder(Order $order, ?User $actor, string $reason): void
     {
         $invoice = Invoice::where('organization_id', $order->organization_id)->where('order_id', $order->id)->first();
 

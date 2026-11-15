@@ -12,6 +12,7 @@ use App\Models\Collection;
 use App\Models\Event;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Remittance;
@@ -25,6 +26,7 @@ use App\Support\FilterValues;
 use App\Support\SemesterScope;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -207,6 +209,7 @@ class FinancialAccountabilityController extends Controller
             return response()->json(['message' => 'Only pending cash advances can be approved.'], 409);
         } $advance->update(['status' => 'approved', 'approved_by' => $request->user()->school_id, 'approved_at' => now()]);
         $this->audit($request, 'cash_advances', 'approved', $advance, $advance->organization_id);
+        $this->notifyPerson($request, $advance->borrower_id, $advance->organization_id, 'Cash Advance Approved', 'Your cash advance '.$advance->reference.' of PHP '.$this->money($advance->amount).' was approved. It can now be released to you.', $advance);
 
         return response()->json($this->advanceData($advance->fresh()));
     }
@@ -222,6 +225,7 @@ class FinancialAccountabilityController extends Controller
             }$tx = $this->ledger($request, 'expense', $locked->amount, 'Cash Advance', 'Cash advance '.$locked->reference, $locked->borrower_id, $locked->id, null, $locked->event_id);
             $locked->update(['status' => 'released', 'released_by' => $request->user()->school_id, 'released_at' => now(), 'release_transaction_id' => $tx->id]);
             $this->audit($request, 'cash_advances', 'released', $locked);
+            $this->notifyPerson($request, $locked->borrower_id, $locked->organization_id, 'Cash Advance Released', 'Your cash advance '.$locked->reference.' of PHP '.$this->money($locked->amount).' was released.', $locked);
 
             return response()->json($this->advanceData($locked->fresh()));
         });
@@ -245,6 +249,7 @@ class FinancialAccountabilityController extends Controller
             $remaining = (float) $locked->amount - $repaid - (float) $data['amount'];
             $locked->update(['status' => $remaining < 0.005 ? 'fully_repaid' : 'partially_repaid']);
             $this->audit($request, 'cash_advances', 'repaid', $locked);
+            $this->notifyPerson($request, $locked->approved_by, $locked->organization_id, $remaining < 0.005 ? 'Cash Advance Repaid' : 'Cash Advance Repayment', 'A repayment of PHP '.$this->money($data['amount']).' was recorded on cash advance '.$locked->reference.($remaining < 0.005 ? '. It is now fully repaid.' : '. PHP '.$this->money($remaining).' is still outstanding.'), $locked);
 
             return response()->json($this->advanceData($locked->fresh()));
         });
@@ -391,6 +396,7 @@ class FinancialAccountabilityController extends Controller
             foreach ($found['owed'] as $studentId) {
                 $row = Invoice::create([...Arr::only($data, ['amount_due', 'due_date', 'event_id']), 'description' => $description, 'student_id' => $studentId, 'organization_id' => $organizationId, 'reference' => 'INV-'.strtoupper(Str::random(10))]);
                 $this->audit($request, 'invoices', 'created', $row);
+                $this->notifyInvoiceIssued($request, $row);
             }
             AuditLog::create(['organization_id' => $organizationId, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'invoices', 'action' => 'created_for_all_members', 'description' => 'Invoices Created For All Members.', 'record_type' => Organization::class, 'record_id' => $organizationId, 'new_values' => ['entity_type' => 'organization', 'entity_id' => $organizationId, 'description' => $description, 'amount_due' => $data['amount_due'], 'charged' => $found['owed']->count(), 'skipped' => $found['skipped'], 'already_paid' => $found['already_paid'], 'charged_already_paid' => $chargeAlreadyPaid, 'total' => $found['total']], 'ip_address' => $request->ip(), 'created_at' => now()]);
 
@@ -437,6 +443,7 @@ class FinancialAccountabilityController extends Controller
             } throw $exception;
         }
         $this->audit($request, 'invoices', 'created', $row);
+        $this->notifyInvoiceIssued($request, $row);
 
         return response()->json($this->balances->invoiceData($row), 201);
     }
@@ -460,6 +467,7 @@ class FinancialAccountabilityController extends Controller
                 $remaining = (float) $locked->amount_due - $paid - (float) $data['amount'];
                 $locked->update(['status' => $remaining < 0.005 ? 'paid' : ($remaining < (float) $locked->amount_due ? 'partially_paid' : 'unpaid')]);
                 $this->audit($request, 'invoices', 'payment_approved', $locked);
+                $this->notifyPerson($request, $locked->student_id, $locked->organization_id, 'Invoice Payment Recorded', 'A payment of PHP '.$this->money($data['amount']).' was recorded on invoice '.$locked->reference.($remaining < 0.005 ? '. It is now paid in full.' : '. PHP '.$this->money($remaining).' is still due.'), $locked);
                 if ($locked->status === 'paid' && $locked->order_id) {
                     $this->fulfillmentService->settleOrderPaidByInvoice($locked, $request->user());
                 }
@@ -569,6 +577,36 @@ class FinancialAccountabilityController extends Controller
     private function audit(Request $r, string $module, string $action, $model, ?int $organizationId = null): void
     {
         AuditLog::create(['organization_id' => $organizationId ?? $r->user()->organization_id, 'user_id' => $r->user()->school_id, 'actor_role' => $r->user()->role, 'module' => $module, 'action' => $action, 'description' => Str::headline($module).' '.Str::headline($action).'.', 'record_type' => $model::class, 'record_id' => $model->id, 'new_values' => $model->getAttributes(), 'ip_address' => $r->ip(), 'created_at' => now()]);
+    }
+
+    private function money(mixed $amount): string
+    {
+        return number_format((float) $amount, 2);
+    }
+
+    private function notifyInvoiceIssued(Request $r, Invoice $invoice): void
+    {
+        $due = $invoice->due_date ? ' It is due on '.$invoice->due_date->format('M j, Y').'.' : '';
+        $this->notifyPerson($r, $invoice->student_id, $invoice->organization_id, 'New Invoice', 'Invoice '.$invoice->reference.' for '.$invoice->description.' of PHP '.$this->money($invoice->amount_due).' was issued to you.'.$due, $invoice);
+    }
+
+    /** A financial notice for the person a record is about. The person who just made the change is not told about their own action. */
+    private function notifyPerson(Request $r, ?int $schoolId, int $organizationId, string $title, string $message, Model $record): void
+    {
+        if (! $schoolId || (int) $schoolId === (int) $r->user()->school_id) {
+            return;
+        }
+        Notification::create([
+            'organization_id' => $organizationId,
+            'user_id' => $schoolId,
+            'title' => $title,
+            'message' => $message,
+            'notification_type' => 'financial',
+            'reference_type' => $record::class,
+            'reference_id' => $record->id,
+            'is_read' => false,
+            'sent_at' => now(),
+        ]);
     }
 
     private function sameOrganization(Request $r, int $organizationId): void
