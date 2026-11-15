@@ -79,6 +79,27 @@ describe('SaoClearancesPage', () => {
     expect(within(screen.getByText('New finals').closest('.flex-wrap')).queryByText('Archived')).not.toBeInTheDocument();
   });
 
+  it('keeps only viewing for a period of an archived year and the full menu for a live one', async () => {
+    mocks.getClearancePeriods.mockResolvedValue(envelope([
+      { ...PERIOD, id: 2, title: 'New finals', archived: false },
+      { ...PERIOD, id: 1, title: 'Old finals', archived: true },
+    ]));
+    mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
+
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Old finals' }));
+    expect(screen.getByRole('menuitem', { name: 'View students' })).toBeInTheDocument();
+    for (const name of ['Edit period', 'Close period', 'Delete period', 'Add students who joined since']) {
+      expect(screen.queryByRole('menuitem', { name })).not.toBeInTheDocument();
+    }
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for New finals' }));
+    for (const name of ['View students', 'Edit period', 'Close period', 'Delete period', 'Add students who joined since']) {
+      expect(screen.getByRole('menuitem', { name })).toBeInTheDocument();
+    }
+  });
+
   describe('deleting a period', () => {
     async function openDeleteDialog() {
       mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));

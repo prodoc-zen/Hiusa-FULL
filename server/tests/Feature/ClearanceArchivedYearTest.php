@@ -147,4 +147,66 @@ class ClearanceArchivedYearTest extends TestCase
         $this->assertSame('ADMIN', $audit->actor_role);
         $this->assertSame($staff->school_id, $audit->user_id);
     }
+
+    public function test_an_archived_years_period_cannot_be_edited(): void
+    {
+        $oldPeriod = $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+
+        $this->patchJson("/api/clearance-periods/{$oldPeriod}", ['title' => 'Renamed', 'required_roles' => ['sao', 'department_head']])
+            ->assertStatus(409)->assertJsonPath('message', EnsurePeriodWritable::CLOSED);
+
+        $this->assertSame('Old finals', ClearancePeriod::findOrFail($oldPeriod)->title);
+        $this->assertSame(0, AuditLog::where('action', 'clearance_period_updated')->where('record_id', $oldPeriod)->count());
+    }
+
+    public function test_an_archived_years_period_cannot_be_closed(): void
+    {
+        $oldPeriod = $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+
+        $this->postJson("/api/clearance-periods/{$oldPeriod}/close")
+            ->assertStatus(409)->assertJsonPath('message', EnsurePeriodWritable::CLOSED);
+
+        $this->assertNull(ClearancePeriod::findOrFail($oldPeriod)->deadline_at);
+        $this->assertSame(0, AuditLog::where('action', 'clearance_period_closed')->where('record_id', $oldPeriod)->count());
+    }
+
+    public function test_an_archived_years_period_gets_no_new_students_from_a_sync(): void
+    {
+        $oldPeriod = $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+        $late = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+
+        $this->postJson("/api/clearance-periods/{$oldPeriod}/sync")
+            ->assertStatus(409)->assertJsonPath('message', EnsurePeriodWritable::CLOSED);
+
+        $this->assertSame(0, ClearanceSignature::where('clearance_period_id', $oldPeriod)->where('student_id', $late->school_id)->count());
+        $this->assertSame(0, AuditLog::where('action', 'clearance_period_students_added')->where('record_id', $oldPeriod)->count());
+    }
+
+    public function test_an_archived_years_period_cannot_be_deleted(): void
+    {
+        $oldPeriod = $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+
+        $this->deleteJson("/api/clearance-periods/{$oldPeriod}")
+            ->assertStatus(409)->assertJsonPath('message', EnsurePeriodWritable::CLOSED);
+
+        $this->assertNotNull(ClearancePeriod::find($oldPeriod));
+        $this->assertGreaterThan(0, ClearanceSignature::where('clearance_period_id', $oldPeriod)->count());
+    }
+
+    public function test_a_live_period_with_the_same_label_still_updates_and_syncs(): void
+    {
+        $this->openPeriod('Old finals');
+        $this->archiveAndReAddLabel();
+        $newPeriod = $this->openPeriod('New finals');
+        $late = User::factory()->student()->create(['organization_id' => $this->organization->id]);
+
+        $this->patchJson("/api/clearance-periods/{$newPeriod}", ['title' => 'Renamed finals'])->assertOk()->assertJsonPath('title', 'Renamed finals');
+        $this->postJson("/api/clearance-periods/{$newPeriod}/sync")->assertOk()->assertJsonPath('students_added', 1);
+
+        $this->assertSame(1, ClearanceSignature::where('clearance_period_id', $newPeriod)->where('student_id', $late->school_id)->count());
+    }
 }

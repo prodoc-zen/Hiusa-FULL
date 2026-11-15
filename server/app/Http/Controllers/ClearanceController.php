@@ -11,6 +11,7 @@ use App\Models\ClearanceSignature;
 use App\Models\Notification;
 use App\Models\User;
 use App\Support\FilterValues;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -88,8 +89,18 @@ class ClearanceController extends Controller
         return response()->json($period, 201);
     }
 
+    /** An archived year's periods are read only, whichever way the SAO tries to change one. */
+    private function refuseArchivedPeriod(ClearancePeriod $period): ?JsonResponse
+    {
+        return $period->isInArchivedYear() ? response()->json(['message' => EnsurePeriodWritable::CLOSED], 409) : null;
+    }
+
     public function periodsUpdate(Request $request, ClearancePeriod $clearancePeriod)
     {
+        if ($refused = $this->refuseArchivedPeriod($clearancePeriod)) {
+            return $refused;
+        }
+
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string', 'max:3000'],
@@ -156,6 +167,10 @@ class ClearanceController extends Controller
     // closing it now moves the deadline to this moment.
     public function periodsClose(Request $request, ClearancePeriod $clearancePeriod)
     {
+        if ($refused = $this->refuseArchivedPeriod($clearancePeriod)) {
+            return $refused;
+        }
+
         $closed = DB::transaction(function () use ($request, $clearancePeriod) {
             $period = ClearancePeriod::whereKey($clearancePeriod->id)->lockForUpdate()->firstOrFail();
             if ($this->isClosed($period)) {
@@ -192,6 +207,10 @@ class ClearanceController extends Controller
     // Students already in the period are skipped, so running it again adds nothing.
     public function periodsSync(Request $request, ClearancePeriod $clearancePeriod)
     {
+        if ($refused = $this->refuseArchivedPeriod($clearancePeriod)) {
+            return $refused;
+        }
+
         $count = DB::transaction(function () use ($request, $clearancePeriod) {
             $period = ClearancePeriod::whereKey($clearancePeriod->id)->lockForUpdate()->firstOrFail();
             if ($this->isClosed($period)) {
@@ -235,6 +254,10 @@ class ClearanceController extends Controller
 
     public function periodsDestroy(Request $request, ClearancePeriod $clearancePeriod)
     {
+        if ($refused = $this->refuseArchivedPeriod($clearancePeriod)) {
+            return $refused;
+        }
+
         $deleted = DB::transaction(function () use ($request, $clearancePeriod) {
             $statuses = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)->lockForUpdate()->pluck('status');
             $hasHistory = AuditLog::where('record_type', ClearanceSignature::class)
