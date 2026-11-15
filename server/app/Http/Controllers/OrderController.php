@@ -50,7 +50,7 @@ class OrderController extends Controller
         $summary = $personalView ? null : $this->orderSummary($request, $filters);
         $orders = $query->paginate(10)->withQueryString();
 
-        $orders->getCollection()->each(fn (Order $order) => $this->hideUnreleasedClaimToken($order));
+        $orders->getCollection()->each(fn (Order $order) => $this->shapeOrderRow($order));
 
         return response()->json([
             ...$orders->toArray(),
@@ -74,7 +74,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order not found.'], 404);
         }
 
-        $this->hideUnreleasedClaimToken($order);
+        $this->shapeOrderRow($order);
 
         return response()->json($order);
     }
@@ -97,14 +97,16 @@ class OrderController extends Controller
             'approver:school_id,first_name,last_name,role,position_title',
             'claimVerifier:school_id,first_name,last_name,role,position_title',
             'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
-        ]);
+        ])->withExists(['billingInvoice as invoice_payment_recorded' => fn (Builder $invoice) => $invoice->whereHas('payments', fn (Builder $payment) => $payment->where('status', 'approved'))]);
     }
 
-    private function hideUnreleasedClaimToken(Order $order): void
+    /** Hides a claim token until the order is paid, and tells the buyer when an unpaid order lapses. */
+    private function shapeOrderRow(Order $order): void
     {
         if (! in_array($order->status, ['paid', 'claimed'], true)) {
             $order->setAttribute('claim_token', null);
         }
+        $order->setAttribute('lapses_at', $order->lapsesAt()?->toIso8601String());
     }
 
     public function analyticsUsers(Request $request)
@@ -781,7 +783,7 @@ class OrderController extends Controller
         }
 
         $row = $this->orderRowQuery()->findOrFail($order->id);
-        $this->hideUnreleasedClaimToken($row);
+        $this->shapeOrderRow($row);
 
         return response()->json($row);
     }

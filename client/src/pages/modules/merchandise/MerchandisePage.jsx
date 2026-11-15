@@ -2452,6 +2452,11 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="mt-1 text-xs text-ink-muted">
                             {fmtDate(o.created_at)}
                           </p>
+                          {o.lapses_at && (
+                            <p className="text-xs font-medium text-warning-strong">
+                              Lapses on {fmtDate(o.lapses_at)} if not paid
+                            </p>
+                          )}
                         </div>
                       </div>
                       <OrderStatus status={o.status} />

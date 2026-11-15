@@ -21,6 +21,7 @@ const CLEARANCE = {
 const TYPE_ALIASES = {
   approval: 'approval_request',
   financialreport: 'financial_report',
+  cashadvance: 'cash_advance',
   evaluationwindow: 'evaluation_window',
 };
 
@@ -128,6 +129,11 @@ const DESTINATIONS = {
   payment: (role, id) => (['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role) ? record('/dashboard/merchandise/my-orders', id) : null),
 
   transaction: (role) => (['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role) ? '/dashboard/finance/personal-receipts' : null),
+
+  // Cash advances are requested, approved and repaid on the Admin's Collections page.
+  cash_advance: (role) => (role === 'ADMIN' ? '/dashboard/finance/collections' : null),
+  invoice: (role) => (['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role) ? '/dashboard/finance/statement-of-account' : null),
+  merchandise: (role) => (role === 'ADMIN' ? '/dashboard/merchandise/manage-inventory' : null),
 
   clearance_period: (role) => pick(CLEARANCE, role),
   clearance_signature: (role) => pick(CLEARANCE, role),

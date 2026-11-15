@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Database\Factories\OrderFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -64,6 +66,33 @@ class Order extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    /** How many days an order may sit with no payment and no payment proof before it lapses. */
+    public static function unpaidExpiryDays(): int
+    {
+        return max(1, (int) config('hiusa.orders.unpaid_expiry_days', 5));
+    }
+
+    /** Pending orders nobody has paid on or sent proof for: no proof, no review begun, no receipt, no payment approved on the invoice that bills them. */
+    public function scopeAwaitingFirstPayment(Builder $query): Builder
+    {
+        return $query->where('status', 'pending')
+            ->whereNull('payment_proof_url')
+            ->whereNull('transaction_id')
+            ->where('officer_review_status', 'pending')
+            ->where('admin_review_status', 'pending')
+            ->whereDoesntHave('billingInvoice', fn (Builder $invoice) => $invoice->whereHas('payments', fn (Builder $payment) => $payment->where('status', 'approved')));
+    }
+
+    /** When this order lapses if it stays unpaid, or null once it has any payment activity. Reads `invoice_payment_recorded` when the row query loaded it. */
+    public function lapsesAt(): ?CarbonInterface
+    {
+        $untouched = $this->status === 'pending' && ! $this->payment_proof_url && ! $this->transaction_id
+            && $this->officer_review_status === 'pending' && $this->admin_review_status === 'pending'
+            && ! ($this->getAttribute('invoice_payment_recorded') ?? false);
+
+        return $untouched && $this->created_at ? $this->created_at->copy()->addDays(self::unpaidExpiryDays()) : null;
     }
 
     /** The student charge that bills this order; a cancelled or waived one no longer does. */

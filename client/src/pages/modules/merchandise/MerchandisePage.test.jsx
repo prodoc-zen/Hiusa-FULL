@@ -704,6 +704,18 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByText("Out of stock.")).toBeInTheDocument();
   });
 
+  it("shows the date an unpaid order lapses only when the server sends one", async () => {
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([
+        buyerOrder({ id: 1, lapses_at: "2026-09-18T10:00:00Z" }),
+        buyerOrder({ id: 2, payment_method: "gcash", payment_proof_url: "proofs/2.jpg", payment_reference: "1234567890123", lapses_at: null }),
+      ]),
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    expect(await screen.findAllByText(/^Lapses on .* if not paid$/)).toHaveLength(1);
+  });
+
   it("tells a buyer an officer verified the payment and that the Admin approves before the token is issued", async () => {
     orderMocks.getOrders.mockResolvedValue({
       data: paginatedOrders([buyerOrder({ id: 6, officer_review_status: "approved" })]),
