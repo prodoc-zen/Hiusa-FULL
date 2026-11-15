@@ -15,6 +15,8 @@ use App\Services\Ai\ClaudeMessagesService;
 use App\Services\Ai\Evaluation\GroundingCheck;
 use App\Services\Ai\Evaluation\RecordingTextGenerator;
 use App\Services\Ai\Evaluation\TemplateOnlyTextGenerator;
+use App\Services\Ai\HandoverNoteDrafter;
+use App\Services\Ai\SemesterNarrativeDrafter;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
@@ -60,6 +62,10 @@ class AiLiveEval extends Command
      * @var array<string, string>
      */
     protected const HELDOUT_RUNNERS = [
+        'semester_narrative' => 'heldoutSemesterNarrative',
+        'semester-narrative' => 'heldoutSemesterNarrative',
+        'handover_note' => 'heldoutHandoverNote',
+        'handover-notes' => 'heldoutHandoverNote',
     ];
 
     private RecordingTextGenerator $recorder;
@@ -423,6 +429,78 @@ class AiLiveEval extends Command
             'chars' => array_sum(array_column($calls, 'output_characters')),
             'checked' => $checked,
             'violations' => $violations,
+        ];
+    }
+
+    /**
+     * One semester-narrative case: the case's own facts go to the drafter exactly as the endpoint would send a digest.
+     *
+     * @param  array<string, mixed>  $case
+     * @return array<string, mixed>
+     */
+    private function heldoutSemesterNarrative(array $case): array
+    {
+        $digest = [
+            'organization' => $case['organization'] ?? '',
+            'semester' => $case['semester'] ?? '',
+            'events' => $case['events'] ?? [],
+            'tasks' => $case['tasks'] ?? ['completed' => 0, 'overdue' => 0, 'open' => 0],
+            'elections' => $case['elections'] ?? [],
+            'merchandise' => $case['merchandise'] ?? ['orders' => 0, 'claimed' => 0],
+            'announcements' => $case['announcements'] ?? ['posted' => 0],
+            'finance' => $case['finance'] ?? ['income' => 0, 'expense' => 0, 'closing_balance' => 0],
+            'upcoming_events' => $case['upcoming_events'] ?? [],
+            'officers' => $case['officers'] ?? [],
+        ];
+        $expect = $case['expect'] ?? [];
+
+        $draft = $this->laravel->make(SemesterNarrativeDrafter::class)->draftFromDigest($digest);
+        $text = implode("\n\n", $draft['sections']);
+
+        // Titles the case promises plus the ones its facts carry: a quoted phrase outside both is an invented title.
+        $known = ['events' => array_map(fn ($title) => ['title' => $title], [...SemesterNarrativeDrafter::suppliedTitles($digest), ...($expect['titles'] ?? [])])];
+        $checks = [
+            'no_unsupplied_number' => GroundingCheck::check($text, (string) json_encode($digest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))['violations'] === [],
+            'titles_subset' => SemesterNarrativeDrafter::quotesOnlySuppliedTitles($text, $known),
+            'max_length' => ! in_array(true, array_map(fn (string $section) => SemesterNarrativeDrafter::words($section) > SemesterNarrativeDrafter::MAX_WORDS, $draft['sections']), true),
+        ];
+        if (($expect['cancelled_titles'] ?? []) !== []) {
+            $checks['cancelled_not_held'] = ! SemesterNarrativeDrafter::describesCancelledAsHeld($text, $expect['cancelled_titles']);
+        }
+        if (($expect['empty'] ?? false) === true) {
+            $checks['empty_semester_says_none'] = preg_match('/\bno events?\b/iu', $draft['sections']['accomplishments']) === 1;
+        }
+
+        return ['facts' => $digest, 'text' => $text, 'engine' => $draft['engine'], 'checks' => $checks];
+    }
+
+    /**
+     * One handover-note case: the case's digest and open items go to the drafter, which narrows them to its category.
+     *
+     * @param  array<string, mixed>  $case
+     * @return array<string, mixed>
+     */
+    private function heldoutHandoverNote(array $case): array
+    {
+        $expect = $case['expect'] ?? [];
+        $draft = $this->laravel->make(HandoverNoteDrafter::class)->draftFromFacts([
+            'category' => $case['category'] ?? '',
+            'digest' => $case['digest'] ?? [],
+            'open_items' => $case['open_items'] ?? [],
+        ]);
+        $text = $draft['text'];
+        $mentions = fn (string $phrase) => mb_stripos($text, $phrase) !== false;
+
+        return [
+            'facts' => $draft['facts'],
+            'text' => $text,
+            'engine' => $draft['engine'],
+            'checks' => [
+                'no_unsupplied_number' => GroundingCheck::check($text, (string) json_encode($draft['facts'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))['violations'] === [],
+                'category_only' => ! in_array(true, array_map($mentions, $expect['must_not_mention'] ?? []), true),
+                'must_mention' => ! in_array(false, array_map($mentions, $expect['must_mention'] ?? []), true),
+                'max_length' => mb_strlen($text) <= HandoverNoteDrafter::MAX_CHARACTERS,
+            ],
         ];
     }
 

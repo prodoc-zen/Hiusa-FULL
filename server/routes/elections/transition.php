@@ -12,3 +12,5 @@ Route::match(['put', 'post'], '/officer-transition/handover/{handover}', [Office
 Route::post('/officer-transition/handover/{handover}/acknowledge', [OfficerTransitionController::class, 'acknowledge'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
 Route::get('/officer-transition/handover/{handover}/attachment', [OfficerTransitionController::class, 'attachment'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,SUPER_ADMIN']);
 Route::get('/officer-transition/renewal', [OfficerTransitionController::class, 'renewal'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,SUPER_ADMIN']);
+// Drafts the remarks of one item for the outgoing officers who may prepare it; the officer edits and saves it through the route above.
+Route::post('/officer-handovers/draft-note', [OfficerTransitionController::class, 'draftNote'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER']);

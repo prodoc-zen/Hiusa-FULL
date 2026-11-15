@@ -88,6 +88,25 @@ final class AiInstructions
             .self::GROUNDING.' '.self::MONEY.' Write every text field as plain words without Markdown or emojis.';
     }
 
+    public static function semesterNarrative(): string
+    {
+        return 'You help an Admin or officer of a student organization in the Philippines write the narrative parts of the Semestral Accomplishment Report. The JSON holds everything the system recorded for one organization and one semester; use nothing else. The officer edits and copies each section into the official template. '
+            .'Return exactly four sections: accomplishments (what the organization did), implementation (how it was carried out: tasks, announcements, merchandise, budgets used), evaluation (how it went: attendance, election turnout, money in and out, overdue work) and next_semester_plan (what is coming: the upcoming events listed, and what the officers still have to decide). '
+            .'Each section is at most 120 words of plain sentences, in the past tense for what happened and the future tense for the plan. '
+            .'Write every event, election and upcoming event title exactly as supplied inside double quotes, and never put anything else in double quotes. Only events with status completed were held; status approved means scheduled and ongoing means under way. An event with status cancelled was never held: say it was cancelled and never describe it as held, attended or successful. '
+            .'When a fact you would need is null or absent (attendance, budget used, budget allocated), write a short bracketed placeholder for the officer to fill in, such as [number of attendees not recorded] or [budget used not recorded], and never estimate it. When events is empty, say plainly in accomplishments that no events were recorded for the semester, and do not invent activities, outcomes or beneficiaries. '
+            .'Write dates as in a report, for example September 12, 2026. For next_semester_plan, use the upcoming events; where the JSON has none, say no events are scheduled yet and add a placeholder such as [objectives and activities to be decided by the officers]. Name officers only as given. '
+            .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
+    }
+
+    public static function handoverNote(): string
+    {
+        return 'You help the outgoing officers of a student organization in the Philippines write the remarks of one handover item for the incoming officers. The JSON holds the item (category) and the only facts you may use; everything else about the organization is deliberately left out, so write about this category only and never mention another one. '
+            .'Write what the incoming officers should know: what was done this term, then what is still open, such as pending tasks and who holds them, unsettled money, events already scheduled, the election state or requirements still missing, whichever the facts hold. Put the open items last and say plainly when there are none. '
+            .'Use short lines that start with "- ", at most 180 words and at most 1,800 characters in all. Write every title exactly as supplied. When a fact you would need is null or absent, write a short bracketed placeholder such as [amount not recorded] for the officers to fill in, and never estimate it. '
+            .self::GROUNDING.' '.self::MONEY.' '.self::PLAIN;
+    }
+
     public static function askAi(): string
     {
         return 'You are the HIUSA assistant. A signed-in user asked a question about their student organization or school; role tells you who they are. '

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, File, Pencil, ShieldCheck, Upload } from 'lucide-react';
+import { Eye, File, Pencil, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonTable, StatusBadge } from '../../../components/ui';
 import ResponsiveTabs from './ResponsiveTabs';
 import { accreditationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
@@ -16,6 +16,7 @@ import PaginationControls from '../../../components/PaginationControls';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { openRequirementSample } from '../../../utils/requirementSample';
 import RequirementSample from '../../../components/requirements/RequirementSample';
+import SemesterNarrativeDrawer from '../../../components/ai/SemesterNarrativeDrawer';
 
 function getCurrentRole() {
   try {
@@ -47,7 +48,8 @@ export default function OrganizationCompliancePage() {
   const role = useMemo(() => getCurrentRole(), []);
   const [category, setCategory] = useState('organization');
   const [page, setPage] = useState(1);
-  const [state, setState] = useState({ loading: true, error: null, academicYear: null, accreditationStatus: null, requirements: [] });
+  const [state, setState] = useState({ loading: true, error: null, academicYear: null, semesterId: null, accreditationStatus: null, requirements: [] });
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState(null);
@@ -66,6 +68,7 @@ export default function OrganizationCompliancePage() {
           loading: false,
           error: null,
           academicYear: statusRes.data?.academic_year ?? null,
+          semesterId: statusRes.data?.academic_semester_id ?? null,
           accreditationStatus: org?.accreditation_status ?? null,
           requirements: org ? mergeRequirements(org.requirements || [], types, submissions) : [],
         });
@@ -226,10 +229,13 @@ export default function OrganizationCompliancePage() {
               (requirement.template_url || requirement.template_original_name) && { label: 'View sample format', icon: Eye, onClick: () => viewSample(requirement) },
               requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
               requirement.status !== 'approved' && { label: requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document', icon: requirement.status === 'not_submitted' ? Upload : Pencil, onClick: () => openUpload(requirement) },
+              category === 'semestral_report' && state.semesterId && requirement.status !== 'approved' && { label: 'Draft the narrative', icon: Sparkles, onClick: () => setNarrativeOpen(true) },
             ]} />}
           />
         </Card>
       )}
+
+      <SemesterNarrativeDrawer open={narrativeOpen} semesterId={state.semesterId} onClose={() => setNarrativeOpen(false)} />
 
       <Drawer
         open={Boolean(uploadTarget)}

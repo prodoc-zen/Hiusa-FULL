@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OfficerTransitionPage from './OfficerTransitionPage';
 
-const { service, file } = vi.hoisted(() => ({
+const { service, file, ai } = vi.hoisted(() => ({
   service: {
     getOfficers: vi.fn(),
     getHandover: vi.fn(),
@@ -12,9 +12,11 @@ const { service, file } = vi.hoisted(() => ({
     getRenewalTracker: vi.fn(),
   },
   file: { openProtectedFile: vi.fn() },
+  ai: { draftHandoverNote: vi.fn(), recordAiOutcome: vi.fn() },
 }));
 
 vi.mock('../../../services/officerTransitionService', () => service);
+vi.mock('../../../services/aiDraftService', () => ai);
 vi.mock('../../../utils/openProtectedFile', () => file);
 
 const officers = [
@@ -82,6 +84,8 @@ describe('OfficerTransitionPage', () => {
     service.getRenewalTracker.mockResolvedValue(tracker);
     service.prepareHandover.mockResolvedValue({ success: true });
     service.acknowledgeHandover.mockResolvedValue({ success: true });
+    ai.draftHandoverNote.mockResolvedValue({ text: '- Closing balance is PHP 11,600.00.', engine: 'claude', ai_output_id: 77 });
+    ai.recordAiOutcome.mockResolvedValue({});
   });
 
   it('shows one heading and the three tabs', async () => {
@@ -195,6 +199,116 @@ describe('OfficerTransitionPage', () => {
 
     await waitFor(() => expect(service.prepareHandover).toHaveBeenCalledWith(1, { remarks: 'Ledger is balanced.', reference_url: '/dashboard/finance', attachmentFile: attachment }));
     await waitFor(() => expect(service.getHandover).toHaveBeenCalledTimes(2));
+  });
+
+  async function openPrepare(index = 0) {
+    service.getHandover.mockResolvedValue(handover('outgoing', defaultItems));
+    renderPage('ADMIN');
+    openTab('Handover');
+    const list = await screen.findByRole('list', { name: 'Handover items' });
+    fireEvent.click(within(within(list).getAllByRole('listitem')[index]).getByRole('button', { name: 'Prepare' }));
+
+    return screen.findByRole('dialog');
+  }
+
+  it('fills an empty Remarks field with a draft for that item, shows who wrote it and does not save', async () => {
+    const dialog = await openPrepare(0);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+    expect(ai.draftHandoverNote).toHaveBeenCalledWith('finance');
+    expect(within(dialog).getByText('Claude')).toBeInTheDocument();
+    expect(within(dialog).getByText('Draft. Read and edit before you send.')).toBeInTheDocument();
+    expect(service.prepareHandover).not.toHaveBeenCalled();
+    expect(ai.recordAiOutcome).not.toHaveBeenCalled();
+  });
+
+  it('asks before it replaces remarks that were already typed, and keeps them on Keep mine', async () => {
+    const dialog = await openPrepare(0);
+    fireEvent.change(within(dialog).getByLabelText('Remarks'), { target: { value: 'My own words.' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    expect(ai.draftHandoverNote).not.toHaveBeenCalled();
+    expect(within(dialog).getByText('Replace what you wrote with a new draft?')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep mine' }));
+    expect(within(dialog).getByLabelText('Remarks')).toHaveValue('My own words.');
+    expect(within(dialog).queryByText('Replace what you wrote with a new draft?')).not.toBeInTheDocument();
+    expect(ai.draftHandoverNote).not.toHaveBeenCalled();
+  });
+
+  it('replaces typed remarks only after Replace is chosen', async () => {
+    const dialog = await openPrepare(0);
+    fireEvent.change(within(dialog).getByLabelText('Remarks'), { target: { value: 'My own words.' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+    expect(ai.draftHandoverNote).toHaveBeenCalledWith('finance');
+  });
+
+  it('records the saved text as the outcome after the item is saved', async () => {
+    const dialog = await openPrepare(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+    fireEvent.change(within(dialog).getByLabelText('Remarks'), { target: { value: '- Closing balance is PHP 11,600.00. Receipts are in the blue folder.' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save as prepared' }));
+
+    await waitFor(() => expect(service.prepareHandover).toHaveBeenCalled());
+    await waitFor(() => expect(ai.recordAiOutcome).toHaveBeenCalledWith(77, '- Closing balance is PHP 11,600.00. Receipts are in the blue folder.'));
+  });
+
+  it('does not record an outcome when saving the item fails', async () => {
+    service.prepareHandover.mockRejectedValue({ response: { data: { message: 'Only an outgoing officer can prepare this.' } } });
+    const dialog = await openPrepare(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save as prepared' }));
+
+    expect(await within(dialog).findByText('Only an outgoing officer can prepare this.')).toBeInTheDocument();
+    expect(ai.recordAiOutcome).not.toHaveBeenCalled();
+  });
+
+  it('counts the draft as discarded when the dialog is cancelled', async () => {
+    const dialog = await openPrepare(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(ai.recordAiOutcome).toHaveBeenCalledWith(77, null);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('counts the earlier draft as discarded when a new one replaces it', async () => {
+    const dialog = await openPrepare(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Closing balance is PHP 11,600.00.'));
+    ai.draftHandoverNote.mockResolvedValue({ text: '- Second draft.', engine: 'template', ai_output_id: 78 });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace' }));
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Remarks')).toHaveValue('- Second draft.'));
+    expect(ai.recordAiOutcome).toHaveBeenCalledWith(77, null);
+    expect(within(dialog).getByText('Built-in rules')).toBeInTheDocument();
+  });
+
+  it('leaves the field as it was and says so when the draft fails', async () => {
+    ai.draftHandoverNote.mockRejectedValue({ response: { data: { message: 'There is no semester to draft this note from.' } } });
+    const dialog = await openPrepare(0);
+    fireEvent.change(within(dialog).getByLabelText('Remarks'), { target: { value: '' } });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Draft the remarks' }));
+
+    expect(await within(dialog).findByText('There is no semester to draft this note from.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Remarks')).toHaveValue('');
+    expect(within(dialog).queryByText('Draft. Read and edit before you send.')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save as prepared' })).toBeEnabled();
   });
 
   it('keeps the dialog open and shows the message when preparing fails', async () => {

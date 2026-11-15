@@ -2,7 +2,6 @@
 
 namespace App\Services\Dashboard;
 
-use App\Models\AccountProfile;
 use App\Models\ApprovalRequest;
 use App\Models\ClearancePeriod;
 use App\Models\Election;
@@ -12,6 +11,7 @@ use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\NotificationVisibility;
+use App\Services\Records\TermDigest;
 use App\Services\StudentAccountBalances;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -864,8 +864,7 @@ class DashboardBriefingService
     {
         $approved = DB::table('budgets')->whereIn('organization_id', collect($organizationIds)->all())->where('submission_status', 'approved')->select('id');
 
-        return DB::table('transactions')->whereIn('budget_id', $approved)->where('type', 'expense')
-            ->select('budget_id')->selectRaw('SUM(amount) as spent')->groupBy('budget_id')->pluck('spent', 'budget_id');
+        return TermDigest::expenseByBudget($approved);
     }
 
     private function budgetContext(float $allocated, float $remaining, float $spent, float $income, string $scope): string
@@ -904,9 +903,7 @@ class DashboardBriefingService
         $now = now();
         $upcoming = DB::table('events')->where('organization_id', $organizationId)
             ->whereIn('status', ['approved', 'ongoing'])->where('end_time', '>=', $now)->count();
-        $next = DB::table('events')->where('organization_id', $organizationId)
-            ->whereIn('status', ['approved', 'ongoing'])->where('start_time', '>=', $now)
-            ->orderBy('start_time')->first(['title', 'start_time']);
+        $next = TermDigest::upcomingEvents($organizationId, 1)->first();
 
         $lastCompleted = DB::table('events')->where('organization_id', $organizationId)
             ->where('status', 'completed')->orderByDesc('end_time')->first(['id']);
@@ -932,14 +929,7 @@ class DashboardBriefingService
 
     private function tasksPillar(int $organizationId, ?int $assignedTo = null): array
     {
-        $base = DB::table('tasks')->where('organization_id', $organizationId);
-        if ($assignedTo !== null) {
-            $base->where('assigned_to', $assignedTo);
-        }
-
-        $open = (clone $base)->whereIn('status', ['pending', 'in_progress'])->count();
-        $overdue = (clone $base)->where('status', 'overdue')->count();
-        $completedThisWeek = (clone $base)->where('status', 'completed')->where('completed_at', '>=', now()->startOfWeek())->count();
+        ['open' => $open, 'overdue' => $overdue, 'completed' => $completedThisWeek] = TermDigest::taskCounts($organizationId, $assignedTo, null, now()->startOfWeek());
 
         return [
             'value' => $open,
@@ -966,8 +956,7 @@ class DashboardBriefingService
             ];
         }
 
-        $eligibleTotal = AccountProfile::onVoterRoll($election->finalized_at)->where('account_profiles.organization_id', $election->organization_id)->count();
-        $votedCount = DB::table('election_ballots')->where('election_id', $election->id)->where('round', 1)->count();
+        ['voters' => $eligibleTotal, 'ballots' => $votedCount] = TermDigest::electionTurnout($election);
         $turnout = $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0;
 
         return [
