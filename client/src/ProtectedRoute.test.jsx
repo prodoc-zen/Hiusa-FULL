@@ -46,6 +46,19 @@ describe('ProtectedRoute venue booking guard', () => {
     expect(screen.queryByText('Venue booking page')).not.toBeInTheDocument();
   });
 
+  it('tells the officer dashboard which page was refused, so it can say why', () => {
+    signIn({ role: 'SBO_OFFICER', can_book_venues: false });
+    render(
+      <MemoryRouter initialEntries={['/dashboard/venues?tab=mine']}>
+        <Routes>
+          <Route path="/dashboard/venues" element={<ProtectedRoute allowedRoles={['ADMIN', 'SBO_OFFICER']} requireVenueBooking><p>Venue booking page</p></ProtectedRoute>} />
+          <Route path="/dashboard/officer" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/officer|{"accessDenied":{"path":"/dashboard/venues?tab=mine","allowedRoles":["ADMIN","SBO_OFFICER"]}}');
+  });
+
   it.each([
     ['an officer whose position can book', { role: 'SBO_OFFICER', can_book_venues: true }],
     ['an officer signed in before the flag existed', { role: 'SBO_OFFICER' }],

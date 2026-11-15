@@ -105,7 +105,7 @@ const ELECTION_MANAGE_PAGE_ROLES = {
   'manage-elections': ['ADMIN'],
   'manage-candidates': ['ADMIN', 'SBO_OFFICER'],
   'manage-partylists': ['ADMIN'],
-  'manage-voters': ['SBO_OFFICER'],
+  'manage-voters': ['ADMIN', 'SBO_OFFICER'],
   applications: ['ADMIN', 'SBO_OFFICER'],
   'election-info': ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
 };
@@ -354,7 +354,7 @@ function App() {
 
           <Route path="merchandise">
             <Route index element={<MerchandiseIndexRedirect />} />
-            <Route path="manage-inventory" element={<ProtectedRoute allowedRoles={["ADMIN"]}><MerchandisePage initialTab="inventory" /></ProtectedRoute>} />
+            <Route path="manage-inventory" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><MerchandisePage initialTab="inventory" /></ProtectedRoute>} />
             <Route path="gcash-payment" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/merchandise/manage-orders" replace /></ProtectedRoute>} />
             <Route path="manage-orders" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><MerchandisePage initialTab="orders" /></ProtectedRoute>} />
             <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><MerchandiseClaimTokensRoute /></ProtectedRoute>} />
@@ -388,7 +388,7 @@ function App() {
             <Route path="manage-elections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionDetailPage /></ProtectedRoute>} />
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
             <Route path="manage-partylists" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManagePartylistsPage /></ProtectedRoute>} />
-            <Route path="manage-voters" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><ManageVotersPage /></ProtectedRoute>} />
+            <Route path="manage-voters" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageVotersPage /></ProtectedRoute>} />
             <Route path="applications" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ElectionApplicationsPage /></ProtectedRoute>} />
             <Route path="election-info" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><ElectionInfoPage /></ProtectedRoute>} />
             <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />

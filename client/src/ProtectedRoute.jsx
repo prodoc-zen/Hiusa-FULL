@@ -68,7 +68,7 @@ export default function ProtectedRoute({ allowedRoles = null, requireVenueBookin
   }
 
   if (requireVenueBooking && role === "SBO_OFFICER" && user?.can_book_venues === false) {
-    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace />;
+    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 
   return children || <Outlet />;

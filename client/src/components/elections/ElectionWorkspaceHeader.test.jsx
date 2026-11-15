@@ -94,7 +94,7 @@ describe('ElectionWorkspaceHeader step strip', () => {
     const items = within(strip).getAllByRole('listitem');
     expect(items.map((item) => item.textContent.replace(/^\d\.\s*/, '').replace(/:.*$/, ''))).toEqual(['Overview', 'Party lists', 'Candidates', 'Voters', 'Results']);
     expect(within(strip).getByRole('link', { name: /Party lists/ })).toHaveAttribute('href', '/dashboard/elections/manage-partylists?record=7');
-    expect(within(strip).getByRole('link', { name: /Voters/ })).toHaveAttribute('href', '/dashboard/elections/manage-elections?record=7&view=voters');
+    expect(within(strip).getByRole('link', { name: /Voters/ })).toHaveAttribute('href', '/dashboard/elections/manage-voters?record=7');
   });
 
   it('adds the Applications step for a filing election', () => {

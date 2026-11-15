@@ -31,11 +31,12 @@ describe('workspaceSteps', () => {
     expect(steps.find((step) => step.key === 'candidates').to).toBe('/dashboard/elections/manage-candidates?record=12');
   });
 
-  it('opens the Admin voters step on the overview route, because the voters route is Officer only', () => {
-    const admin = workspaceSteps('ADMIN', election).find((step) => step.key === 'voters');
-    expect(admin.to).toBe('/dashboard/elections/manage-elections?record=12&view=voters');
-    const officer = workspaceSteps('SBO_OFFICER', election).find((step) => step.key === 'voters');
-    expect(officer.to).toBe('/dashboard/elections/manage-voters?record=12');
+  it('opens the voters step on the voters page for the Admin and the Officer alike', () => {
+    ['ADMIN', 'SBO_OFFICER'].forEach((role) => {
+      const voters = workspaceSteps(role, election, '/dashboard/elections/manage-voters').find((step) => step.key === 'voters');
+      expect(voters.to).toBe('/dashboard/elections/manage-voters?record=12');
+      expect(voters.active).toBe(true);
+    });
   });
 
   it('shows each role only the steps it can open', () => {
