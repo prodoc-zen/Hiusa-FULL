@@ -793,7 +793,9 @@ export default function MerchandisePage({ initialTab }) {
     error: "",
   });
 
+  // Every successful orders read, inside load() or outside it, clears a load error left by an earlier failed one.
   function extractOrders(oRes) {
+    setLoadError(null);
     const arr = Array.isArray(oRes.data?.data)
       ? oRes.data.data
       : Array.isArray(oRes.data)

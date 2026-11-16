@@ -1849,4 +1849,16 @@ describe("MerchandisePage when the data does not load", () => {
     expect(await screen.findByText("No items yet")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
+
+  it("drops Orders did not load once a filter change reads the orders successfully", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "SBO_OFFICER" }));
+    failFirstThenLoad();
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    expect(await screen.findByText("Orders did not load")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search merchandise orders" }), { target: { value: "Rafael" } });
+
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, search: "Rafael" })));
+    await waitFor(() => expect(screen.queryByText("Orders did not load")).not.toBeInTheDocument());
+  });
 });

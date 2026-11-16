@@ -20,7 +20,7 @@ export default function PrivacyAgreement({ id, checked, onChange, error }) {
         />
         <span>
           I have read the{' '}
-          <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="py-3 font-semibold text-brand-700 underline hover:text-brand-800">Data Privacy Notice</Link>
+          <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 underline hover:text-brand-800">Data Privacy Notice</Link>
           {' '}and agree to the processing of my personal data
         </span>
       </label>
