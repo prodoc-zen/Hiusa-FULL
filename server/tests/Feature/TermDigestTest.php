@@ -190,8 +190,8 @@ class TermDigestTest extends TestCase
     public function test_an_open_task_is_held_by_a_position_and_no_name_is_in_the_open_items(): void
     {
         $this->admin->accountProfiles()->update(['position_title' => null]);
-        $this->task('pending', ['title' => 'Count the stock']);
-        $this->task('in_progress', ['title' => 'Nobody has it', 'assigned_to' => null]);
+        $this->task('pending', ['title' => 'Count the stock', 'deadline' => now()->addDays(1)]);
+        $this->task('in_progress', ['title' => 'Nobody has it', 'assigned_to' => null, 'deadline' => now()->addDays(2)]);
 
         $open = TermDigest::openItems($this->organization->id, $this->semester->id);
 

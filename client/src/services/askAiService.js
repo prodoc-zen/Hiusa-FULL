@@ -1,6 +1,7 @@
 import api, { API_BASE_URL, clearApiCache } from './api';
 import { clearAuthSession, rememberSignOutNotice } from '../utils/authSession';
 import { readSelectedPeriod } from '../utils/academicPeriodStore';
+import { PRIVACY_CONSENT_EVENT, PRIVACY_CONSENT_REQUIRED } from '../utils/privacyNotice';
 
 export const getAiAssistantOverview = () => api.get('/ai/assistant');
 
@@ -143,6 +144,10 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
 
   if (!response.ok) {
     const data = await response.json().catch(() => null);
+    // Mirrors the Axios interceptor in api.js: not a missing permission, so the consent dialog opens.
+    if (response.status === 403 && [data?.code, data?.error_code].includes(PRIVACY_CONSENT_REQUIRED)) {
+      window.dispatchEvent(new Event(PRIVACY_CONSENT_EVENT));
+    }
     throw streamError(data?.message, response.status, data);
   }
 

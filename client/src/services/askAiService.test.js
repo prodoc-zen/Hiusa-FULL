@@ -161,6 +161,28 @@ describe('streamAiChat', () => {
     await expect(streamAiChat({ message: 'hi' })).rejects.toMatchObject({ status: 429, message: 'Too many requests.' });
   });
 
+  it('opens the consent dialog when the server asks for the privacy notice to be agreed', async () => {
+    const opened = vi.fn();
+    window.addEventListener('hiusa-privacy-consent-required', opened);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: false, code: 'privacy_consent_required', message: 'Please accept the privacy notice first.' }, 403)));
+
+    await expect(streamAiChat({ message: 'hi' })).rejects.toMatchObject({ status: 403 });
+
+    expect(opened).toHaveBeenCalledTimes(1);
+    window.removeEventListener('hiusa-privacy-consent-required', opened);
+  });
+
+  it('does not open the consent dialog for another 403', async () => {
+    const opened = vi.fn();
+    window.addEventListener('hiusa-privacy-consent-required', opened);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ message: 'Forbidden.' }, 403)));
+
+    await expect(streamAiChat({ message: 'hi' })).rejects.toMatchObject({ status: 403 });
+
+    expect(opened).not.toHaveBeenCalled();
+    window.removeEventListener('hiusa-privacy-consent-required', opened);
+  });
+
   it('rejects with the message of an error event', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       streamResponse([sse('error', { message: 'Could not answer that right now. Try again.' })]),
