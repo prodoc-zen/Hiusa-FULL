@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Services\FinancialReportStatement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The rules a financial report is read against before it is sent: plain queries over the organization's ledger,
@@ -411,32 +412,28 @@ class FinancialReportChecks
 
     /**
      * Entries that match another entry on type, date, amount and category; each group is one finding naming all of them.
-     * Plans are UNMEASURED: the aggregate groups the ledger rows of the period, then member rows are read in batches of 50 groups.
+     * One query: the ledger joined to its own GROUP BY ... HAVING COUNT(*) > 1 aggregate, so each side reads the same ledger fragment.
      */
     private function possibleDuplicates(int $organizationId, string $from, string $to, ?int $eventId): array
     {
-        // One aggregate over the same ledger the other rules read, so the event scope and the cash advance exclusion apply to both sides of a pair.
+        // The aggregate reads the same ledger the other rules read, so the event scope and the cash advance exclusion apply to both sides of a pair.
         $groups = $this->ledger($organizationId, $from, $to, $eventId)
             ->selectRaw('transactions.type, transactions.category, transactions.amount, DATE(transactions.transaction_date) as entry_day')
             ->groupByRaw('transactions.type, transactions.category, transactions.amount, DATE(transactions.transaction_date)')
             ->havingRaw('COUNT(*) > 1')
-            ->toBase()
-            ->get();
+            ->toBase();
 
-        $entries = collect();
-        foreach ($groups->chunk(50) as $chunk) {
-            $entries = $entries->concat($this->ledger($organizationId, $from, $to, $eventId)
-                ->where(fn (Builder $query) => $chunk->each(fn ($group) => $query->orWhere(fn (Builder $match) => $match
-                    ->where('transactions.type', $group->type)
-                    ->where('transactions.category', $group->category)
-                    ->where('transactions.amount', $group->amount)
-                    ->whereDate('transactions.transaction_date', $group->entry_day))))
-                ->orderBy('transactions.id')
-                ->get(['transactions.id', 'transactions.type', 'transactions.category', 'transactions.amount', 'transactions.transaction_date']));
-        }
-
-        return $entries->sortBy('id')
+        return $this->ledger($organizationId, $from, $to, $eventId)
+            ->joinSub($groups, 'dup', fn ($join) => $join
+                ->on('transactions.type', '=', 'dup.type')
+                ->on('transactions.category', '=', 'dup.category')
+                ->on('transactions.amount', '=', 'dup.amount')
+                ->on(DB::raw('DATE(transactions.transaction_date)'), '=', 'dup.entry_day'))
+            ->orderBy('transactions.id')
+            ->get(['transactions.id', 'transactions.type', 'transactions.category', 'transactions.amount', 'transactions.transaction_date'])
             ->groupBy(fn (Transaction $entry) => implode('|', [$entry->type, $entry->category, number_format((float) $entry->amount, 2, '.', ''), $entry->transaction_date->toDateString()]))
+            // MySQL groups categories case-insensitively; the key above does not, so a group can come back as a single entry.
+            ->filter(fn ($group) => $group->count() > 1)
             ->map(fn ($group) => $this->finding('possible_duplicate', $this->entryFacts($group->first()) + ['copies' => $group->count()], $group->pluck('id')->sort()->all(), (float) $group->first()->amount))
             ->values()
             ->all();

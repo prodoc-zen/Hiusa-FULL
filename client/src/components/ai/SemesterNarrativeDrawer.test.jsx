@@ -32,7 +32,7 @@ const draft = {
     announcements: { posted: 12 },
     finance: { income: 30000, expense: 18400, closing_balance: 11600 },
     upcoming_events: [{ title: 'Hackathon', date: '2026-12-05' }],
-    officers: [{ name: 'Juan Dela Cruz', position: 'President' }],
+    officers: [{ position: 'President' }],
   },
 };
 
@@ -90,7 +90,8 @@ describe('SemesterNarrativeDrawer', () => {
     expect(screen.getByText('Tasks: 14 completed, 2 overdue, 3 open')).toBeInTheDocument();
     expect(screen.getByText('Election SBO Election: 266 ballots from 412 voters')).toBeInTheDocument();
     expect(screen.getByText(/Money: income ₱30,000.00, expenses ₱18,400.00, closing balance ₱11,600.00/)).toBeInTheDocument();
-    expect(screen.getByText('Officers: Juan Dela Cruz (President)')).toBeInTheDocument();
+    expect(screen.getByText('Officer positions: President')).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
   });
 
   it('says a budget used that was never recorded is not recorded, not zero', async () => {

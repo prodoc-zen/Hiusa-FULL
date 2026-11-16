@@ -32,7 +32,7 @@ function factLines(facts) {
   if (facts?.announcements) lines.push(`Announcements posted: ${facts.announcements.posted}`);
   if (facts?.finance) lines.push(`Money: income ${peso(facts.finance.income)}, expenses ${peso(facts.finance.expense)}, closing balance ${peso(facts.finance.closing_balance)}`);
   (facts?.upcoming_events || []).forEach((event) => lines.push(`Upcoming: ${event.title}, ${manilaDate(event.date, 'long')}`));
-  if (Array.isArray(facts?.officers) && facts.officers.length > 0) lines.push(`Officers: ${facts.officers.map((officer) => `${officer.name} (${officer.position})`).join(', ')}`);
+  if (Array.isArray(facts?.officers) && facts.officers.length > 0) lines.push(`Officer positions: ${facts.officers.map((officer) => officer.position).join(', ')}`);
 
   return lines;
 }
