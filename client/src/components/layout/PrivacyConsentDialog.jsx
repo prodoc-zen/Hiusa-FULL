@@ -6,7 +6,7 @@ import { Button } from '../ui';
 import { acceptPrivacyNotice, logout } from '../../services/authService';
 import { storedUser } from '../../utils/collegeIdentity';
 import { getApiErrorMessage } from '../../utils/apiError';
-import { PRIVACY_CONSENT_EVENT, PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
+import { PRIVACY_CONSENT_EVENT, PRIVACY_CONSENT_RECORDED_EVENT, PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
 
 // Accounts made before the notice, and accounts someone else made for the person, have no agreement on record, and
 // an agreement to an older version of the notice no longer counts. The person agrees after signing in or signs out;
@@ -50,6 +50,7 @@ export default function PrivacyConsentDialog() {
       setRefused(false);
       setAgreed(false);
       setBusy(false);
+      window.dispatchEvent(new Event(PRIVACY_CONSENT_RECORDED_EVENT));
     } catch (cause) {
       setError(getApiErrorMessage(cause, 'We could not record your agreement. Try again.'));
       setBusy(false);

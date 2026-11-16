@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PrivacyConsentDialog from './PrivacyConsentDialog';
-import { PRIVACY_CONSENT_EVENT, PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
+import { PRIVACY_CONSENT_EVENT, PRIVACY_CONSENT_RECORDED_EVENT, PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
 
 const mocks = vi.hoisted(() => ({
   acceptPrivacyNotice: vi.fn(),
@@ -83,6 +83,19 @@ describe('PrivacyConsentDialog', () => {
     act(() => { window.dispatchEvent(new Event(PRIVACY_CONSENT_EVENT)); });
     expect(screen.getByRole('dialog', { name: 'Before you continue' })).toBeInTheDocument();
     expect(agreeBox()).not.toBeChecked();
+  });
+
+  it('tells the rest of the page once the agreement is recorded, so a stale refusal can clear', async () => {
+    const recorded = vi.fn();
+    window.addEventListener(PRIVACY_CONSENT_RECORDED_EVENT, recorded);
+    renderDialog({ school_id: 1, role: 'STUDENT', privacy_accepted_at: null });
+
+    fireEvent.click(agreeBox());
+    fireEvent.click(screen.getByRole('button', { name: 'Agree and continue' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    window.removeEventListener(PRIVACY_CONSENT_RECORDED_EVENT, recorded);
+    expect(recorded).toHaveBeenCalledTimes(1);
   });
 
   it('asks for the box to be ticked before anything is sent', () => {

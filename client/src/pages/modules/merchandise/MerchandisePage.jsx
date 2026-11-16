@@ -3,12 +3,12 @@ import { peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
-import { getApiErrorMessage } from '../../../utils/apiError';
+import { getApiErrorMessage, getLoadErrorDescription } from '../../../utils/apiError';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRefetchOnReturn } from "../../../hooks/useRefetchOnReturn";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Button, DataTable, Drawer, EmptyState, FlowStepper, Field, Input, NextStep, PageHeader, SkeletonCard, SkeletonTable, StatusBadge, Textarea } from "../../../components/ui";
+import { Button, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, Field, Input, NextStep, PageHeader, SkeletonCard, SkeletonTable, StatusBadge, Textarea } from "../../../components/ui";
 import { orderLifecycle, toNextStepProps } from "../../../lib/lifecycle";
 import useRecordParam from "../../../lib/useRecordParam";
 import TableRowActions from "../../../components/TableRowActions";
@@ -614,6 +614,8 @@ export default function MerchandisePage({ initialTab }) {
   const [placedOrderIds, setPlacedOrderIds] = useState(() => location.state?.placedOrderIds ?? []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Set when the merchandise and orders read fails, so each tab says so and offers Retry instead of an empty state.
+  const [loadError, setLoadError] = useState(null);
   const [inventorySearch, setInventorySearch] = useState("");
   const [inventoryCategory, setInventoryCategory] = useState("all");
   const [orderFilters, setOrderFilters] = useState(EMPTY_ORDER_FILTERS);
@@ -815,6 +817,7 @@ export default function MerchandisePage({ initialTab }) {
     ordersEpoch.current += 1;
     setLoading(true);
     setError(null);
+    setLoadError(null);
     const personalSearch = isPersonalShoppingView ? studentOrderSearch.trim() : "";
     if (isPersonalShoppingView) appliedOrderSearch.current = personalSearch;
     const managerOrderFilters = activeTab === "tokens"
@@ -852,7 +855,7 @@ export default function MerchandisePage({ initialTab }) {
           setMineOrders(allMineOrders);
         }
       })
-      .catch(() => setError("Failed to load merchandise data."))
+      .catch((requestError) => setLoadError(getLoadErrorDescription(requestError)))
       .finally(() => setLoading(false));
   }
 
@@ -2126,6 +2129,8 @@ export default function MerchandisePage({ initialTab }) {
                   <SkeletonCard key={i} className="h-72" />
                 ))}
               </div>
+            ) : loadError ? (
+              <ErrorState title="The shop did not load" description={loadError} onRetry={load} />
             ) : filteredStudentItems.length === 0 ? (
               items.some((item) => item.is_active) ? (
                 <EmptyState
@@ -2405,6 +2410,8 @@ export default function MerchandisePage({ initialTab }) {
 
             {loading ? (
               <SkeletonTable columns={4} rows={3} />
+            ) : loadError ? (
+              <ErrorState title="Your orders did not load" description={loadError} onRetry={load} />
             ) : orders.length === 0 ? (
               studentOrderSearch.trim() ? (
                 <EmptyState
@@ -2984,6 +2991,8 @@ export default function MerchandisePage({ initialTab }) {
             rows={filteredInventoryItems}
             rowKey={(item) => item.id}
             loading={loading}
+            error={loadError}
+            onRetry={load}
             pageSize={20}
             emptyState={items.length > 0 ? (
               <EmptyState
@@ -3280,6 +3289,10 @@ export default function MerchandisePage({ initialTab }) {
             {loading ? (
               <div className="px-4 py-3">
                 <SkeletonTable columns={6} rows={5} />
+              </div>
+            ) : loadError ? (
+              <div className="px-4">
+                <ErrorState title="Orders did not load" description={loadError} onRetry={load} />
               </div>
             ) : filteredOfficerOrders.length === 0 ? (
               <div className="px-4">
@@ -3618,6 +3631,8 @@ export default function MerchandisePage({ initialTab }) {
               rows={tokenOrders}
               rowKey={(o) => o.id}
               loading={loading}
+              error={loadError}
+              onRetry={load}
               pagination={
                 <PaginationControls
                   currentPage={ordersMeta.current_page}

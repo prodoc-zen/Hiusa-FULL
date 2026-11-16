@@ -40,6 +40,14 @@ describe('PrivacyNoticePage', () => {
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   });
 
+  it('gives the back to sign in link a hit area of at least 42px', () => {
+    renderPage();
+
+    const link = screen.getByRole('link', { name: 'Back to sign in' });
+    expect(link).toHaveAttribute('href', '/login');
+    expect(link).toHaveClass('inline-flex', 'items-center', 'min-h-[42px]');
+  });
+
   it('uses no em dash or en dash', () => {
     const { container } = renderPage();
 

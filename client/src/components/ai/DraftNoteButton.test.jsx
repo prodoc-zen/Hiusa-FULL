@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DraftNoteButton from './DraftNoteButton';
 import { draftReviewNote } from '../../services/aiDraftService';
+import { PRIVACY_CONSENT_RECORDED_EVENT } from '../../utils/privacyNotice';
 
 vi.mock('../../services/aiDraftService', () => ({ draftReviewNote: vi.fn() }));
 
@@ -110,5 +111,40 @@ describe('DraftNoteButton', () => {
   it('does not call the service while disabled', () => {
     renderButton({ disabled: true });
     expect(screen.getByRole('button', { name: 'Draft the remarks' })).toBeDisabled();
+  });
+
+  it('shows words with the spinner while it drafts, and keeps the button marked busy', async () => {
+    let finish;
+    draftReviewNote.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+
+    const busy = screen.getByRole('button', { name: 'Drafting...' });
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    expect(busy).toBeDisabled();
+    expect(busy).toHaveTextContent('Drafting...');
+    expect(busy.querySelector('.opacity-0')).toBeNull();
+
+    await act(async () => { finish(answer()); });
+    expect(screen.getByRole('button', { name: 'Draft the remarks' })).not.toHaveAttribute('aria-busy');
+  });
+
+  it('drops the consent error once the person has agreed, and keeps other errors', async () => {
+    draftReviewNote.mockRejectedValue({ isPrivacyConsentRequired: true, response: { status: 403, data: { code: 'privacy_consent_required', message: 'Agree to the privacy notice first.' } } });
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Agree to the privacy notice first.');
+
+    act(() => { window.dispatchEvent(new Event(PRIVACY_CONSENT_RECORDED_EVENT)); });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    draftReviewNote.mockRejectedValue({ response: { status: 500, data: { message: 'boom' } } });
+    fireEvent.click(screen.getByRole('button', { name: 'Draft the remarks' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    act(() => { window.dispatchEvent(new Event(PRIVACY_CONSENT_RECORDED_EVENT)); });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 });

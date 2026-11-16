@@ -127,7 +127,7 @@ export default function PrivacyNoticePage() {
         </Section>
 
         <p className="mt-10 border-t border-line pt-4 text-sm text-ink-muted">
-          <Link to="/login" className="font-semibold text-brand-700 underline hover:text-brand-800">Back to sign in</Link>
+          <Link to="/login" className="inline-flex min-h-[42px] items-center font-semibold text-brand-700 underline hover:text-brand-800">Back to sign in</Link>
         </p>
       </main>
     </div>

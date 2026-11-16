@@ -1799,3 +1799,54 @@ describe("MerchandisePage promo pricing and plain refusals", () => {
     expect(screen.getAllByText("This item has pending or paid orders, so it cannot be stopped.")).toHaveLength(1);
   });
 });
+
+describe("MerchandisePage when the data does not load", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    merchandiseMocks.getGcashQrImage.mockResolvedValue({ data: new Blob(["qr"]) });
+    URL.createObjectURL = vi.fn(() => "blob:qr");
+    URL.revokeObjectURL = vi.fn();
+    localStorage.clear();
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+  });
+
+  function failFirstThenLoad() {
+    merchandiseMocks.getMerchandise
+      .mockRejectedValueOnce({ response: { status: 500, data: { message: "boom" } } })
+      .mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
+  }
+
+  it.each([
+    ["the officer inventory", "ADMIN", "/dashboard/merchandise/manage-inventory", "inventory"],
+    ["the officer claim desk", "ADMIN", "/dashboard/merchandise/claim-tokens", "tokens"],
+    ["the officer orders", "SBO_OFFICER", "/dashboard/merchandise/manage-orders", "orders"],
+    ["the buyer shop", "STUDENT", "/dashboard/merchandise/order-merchandise", "order"],
+    ["the buyer orders", "STUDENT", "/dashboard/merchandise/my-orders", "my-orders"],
+  ])("shows an error with Retry, not the empty state, when %s fails to load, and Retry loads it again", async (_name, role, path, tab) => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role }));
+    failFirstThenLoad();
+    renderAt(path, tab);
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByText("The server had a problem. Please try again in a moment.")).toBeInTheDocument();
+    expect(screen.queryByText("No items yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No orders yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing to buy yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No claim tokens yet")).not.toBeInTheDocument();
+
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument());
+    expect(merchandiseMocks.getMerchandise).toHaveBeenCalledTimes(2);
+  });
+
+  it("still shows No items yet when the inventory loaded and is simply empty", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  });
+});
