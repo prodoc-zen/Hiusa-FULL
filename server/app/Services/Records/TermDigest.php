@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * What an organization recorded in one semester, as plain counts, dates and amounts: the single source behind the
  * dashboard briefing's pillars and the language drafters that write the semester narrative and the handover notes.
- * Nothing here carries a person's contact details, an attendee, a payer or an uploaded file; officer names and
- * positions are the only people in it.
+ * Nothing here carries a person's name or contact details, an attendee, a payer or an uploaded file; the people in it
+ * are positions only.
  */
 final class TermDigest
 {
@@ -41,7 +41,7 @@ final class TermDigest
      *     announcements: array{posted: int},
      *     finance: array{income: float, expense: float, closing_balance: float},
      *     upcoming_events: list<array{title: string, date: string}>,
-     *     officers: list<array{name: string, position: string}>
+     *     officers: list<array{position: string}>
      * }
      */
     public static function forOrganization(int $organizationId, int $semesterId): array
@@ -68,7 +68,8 @@ final class TermDigest
     /**
      * What an outgoing administration still owes the incoming one, as of now: open tasks and who holds them, money not
      * yet settled, events already scheduled, where the election stands and the semester's requirements not yet submitted.
-     * Payers, borrowers and notes typed on a record never appear; an unsettled item carries a fixed description.
+     * Payers, borrowers, names and notes typed on a record never appear; a task is held by a position, and an unsettled
+     * item carries a fixed description.
      *
      * @return array{
      *     pending_tasks: list<array{title: string, owner: string, deadline: string}>,
@@ -83,13 +84,16 @@ final class TermDigest
         $election = DB::table('elections')->where('organization_id', $organizationId)->orderByDesc('end_time')->orderByDesc('id')->first(['status', 'finalized_at']);
 
         return [
-            'pending_tasks' => DB::table('tasks')->leftJoin('users', 'users.school_id', '=', 'tasks.assigned_to')
+            'pending_tasks' => DB::table('tasks')
                 ->where('tasks.organization_id', $organizationId)->whereIn('tasks.status', ['pending', 'in_progress', 'overdue'])
                 ->orderBy('tasks.deadline')->orderBy('tasks.id')->limit(self::OPEN_LIMIT)
-                ->get(['tasks.title', 'tasks.deadline', 'users.first_name', 'users.last_name'])
+                ->select(['tasks.title', 'tasks.deadline', 'tasks.assigned_to'])
+                ->selectSub(DB::table('account_profiles')->select('position_title')->whereColumn('account_profiles.user_school_id', 'tasks.assigned_to')
+                    ->whereColumn('account_profiles.organization_id', 'tasks.organization_id')->where('account_profiles.account_status', 'active')->limit(1), 'owner_position')
+                ->get()
                 ->map(fn ($task) => [
                     'title' => $task->title,
-                    'owner' => trim($task->first_name.' '.$task->last_name) ?: 'not assigned',
+                    'owner' => $task->assigned_to === null ? 'not assigned' : (trim((string) $task->owner_position) ?: 'an officer'),
                     'deadline' => Carbon::parse($task->deadline)->format('Y-m-d'),
                 ])->values()->all(),
             'unsettled' => self::unsettled($organizationId),
@@ -274,7 +278,7 @@ final class TermDigest
      * Who led the organization that semester: the frozen record when the semester was snapshotted, otherwise the
      * organization's active Admin and officers now.
      *
-     * @return list<array{name: string, position: string}>
+     * @return list<array{position: string}>
      */
     private static function officers(int $organizationId, AcademicSemester $semester): array
     {
@@ -285,7 +289,6 @@ final class TermDigest
         );
 
         return collect($rows)->take(self::OFFICER_LIMIT)->map(fn (array $row) => [
-            'name' => (string) $row['name'],
             'position' => (string) (($row['position_title'] ?? null) ?: (($row['role'] ?? null) === 'ADMIN' ? 'Admin' : 'Officer')),
         ])->values()->all();
     }

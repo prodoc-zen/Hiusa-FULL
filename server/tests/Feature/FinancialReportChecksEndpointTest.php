@@ -189,7 +189,7 @@ class FinancialReportChecksEndpointTest extends TestCase
         $response = $this->postJson("/api/financial-reports/{$fixture->report->id}/checks/explain")->assertOk();
 
         $this->assertCount(1, $response->json('items'));
-        $this->assertCount(1, $generator->calls[0]['input']['findings']);
+        $this->assertCount(1, $generator->calls[0]['input']['facts']['findings']);
     }
 
     public function test_only_an_admin_of_the_organization_can_ignore(): void

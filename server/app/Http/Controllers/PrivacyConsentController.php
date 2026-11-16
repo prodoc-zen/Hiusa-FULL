@@ -21,11 +21,15 @@ class PrivacyConsentController extends Controller
 
         $user = $request->user();
 
-        if ($user->privacy_accepted_at === null) {
+        $current = (string) config('hiusa.privacy_notice_version');
+
+        if ($user->privacy_accepted_at === null || $user->privacy_notice_version !== $current) {
             $attributes = User::privacyConsentAttributes();
 
-            // Guarded on the column still being empty, so a second tab cannot move the time the person first agreed.
-            $changed = User::whereKey($user->school_id)->whereNull('privacy_accepted_at')->update($attributes);
+            // Guarded on the agreement still being missing or out of date, so a second tab cannot move the time the person agreed to this version.
+            $changed = User::whereKey($user->school_id)
+                ->where(fn ($query) => $query->whereNull('privacy_accepted_at')->orWhereNull('privacy_notice_version')->orWhere('privacy_notice_version', '!=', $current))
+                ->update($attributes);
 
             if ($changed > 0) {
                 AuditLog::create([

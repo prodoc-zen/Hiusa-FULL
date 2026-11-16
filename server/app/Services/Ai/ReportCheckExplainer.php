@@ -41,7 +41,7 @@ class ReportCheckExplainer
 
         $generated = $findings === [] || count($findings) > self::MAX_EXPLAINED ? null : $this->ai->generateStructured(
             AiInstructions::reportCheck(),
-            $facts,
+            ReviewNoteDrafter::noticedFacts($facts),
             'hiusa_report_check',
             [
                 'type' => 'object',

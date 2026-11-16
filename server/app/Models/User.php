@@ -101,6 +101,8 @@ class User extends Authenticatable
         'password_hash',
         'biometric_template',
         'photo_path',
+        'privacy_accepted_at',
+        'privacy_notice_version',
     ];
 
     public function getPhotoUrlAttribute(): ?string
@@ -156,11 +158,6 @@ class User extends Authenticatable
         if ($this->activeAccountProfile && ! $this->listedAmongOthers) {
             $attributes['can_book_venues'] = $this->canBookVenues();
             $attributes['in_student_organization'] = $this->inStudentOrganization();
-        }
-
-        // Whether someone agreed to the privacy notice is theirs to see, not a column in a member list.
-        if ($this->listedAmongOthers) {
-            unset($attributes['privacy_accepted_at'], $attributes['privacy_notice_version']);
         }
 
         return $attributes;
@@ -292,6 +289,12 @@ class User extends Authenticatable
             'privacy_accepted_at' => now(),
             'privacy_notice_version' => (string) config('hiusa.privacy_notice_version'),
         ];
+    }
+
+    /** Whether someone agreed to the privacy notice is theirs to see: hidden on every serialization, shown only on the payload a person gets about themselves. */
+    public function asOwnPayload(): static
+    {
+        return $this->makeVisible(['privacy_accepted_at', 'privacy_notice_version']);
     }
 
     /** Marks this instance as one row of a list, so serializing it skips the fields only the signed-in person's payload carries. */

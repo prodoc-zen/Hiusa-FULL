@@ -377,7 +377,7 @@ class DepartmentHeadInvitationController extends Controller
         return response()->json([
             'message' => 'Your account is ready.',
             'token' => $sanctumToken->plainTextToken,
-            'user' => $user->load('organization:id,name,acronym,organization_type'),
+            'user' => $user->load('organization:id,name,acronym,organization_type')->asOwnPayload(),
         ], 200);
     }
 

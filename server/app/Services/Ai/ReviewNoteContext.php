@@ -216,19 +216,18 @@ class ReviewNoteContext
         ];
     }
 
-    /** A grievance the caller may move on. Only its title and category are read: never the filer, the story or an attachment. */
+    /** A grievance the caller may move on. Only its category and filing date are read: never the title, the filer, the story or an attachment. */
     private function forGrievance(User $user, int $id): array
     {
         $grievance = Grievance::find($id);
-        NotFound::unless($grievance !== null);
-        abort_unless($user->role === 'SUPER_ADMIN' || ($grievance->organization_id !== null && $grievance->organization_id === $user->organization_id), 403, 'Forbidden.');
+        NotFound::unless($grievance !== null && ($user->role === 'SUPER_ADMIN' || ($grievance->organization_id !== null && $grievance->organization_id === $user->organization_id)));
 
         return [
             'subject' => [
                 'organization' => $grievance->organization_id ? $this->organizationName($grievance->organization_id) : 'Student Affairs Office',
-                // A student can type a student number into a title, so long digit runs are not sent.
-                'title' => (string) preg_replace('/\d{6,}/', '[number]', (string) $grievance->title),
-                'dates' => 'Filed '.$grievance->created_at?->format('F j, Y'),
+                // The title is typed by a student, so only the category the server assigned is sent.
+                'title' => (string) ($grievance->category ?: 'Grievance'),
+                'dates' => 'Grievance filed on '.$grievance->created_at?->format('F j, Y'),
             ],
             'prior_remarks' => (string) $grievance->remarks,
         ];
@@ -238,14 +237,13 @@ class ReviewNoteContext
     private function forClearance(User $user, int $id): array
     {
         $signature = ClearanceSignature::with('clearancePeriod')->find($id);
-        NotFound::unless($signature !== null);
-        $allowed = match ($signature->required_role) {
+        $allowed = $signature !== null && match ($signature->required_role) {
             'sao' => $user->role === 'SUPER_ADMIN',
             'department_head' => $user->role === 'DEPARTMENT_HEAD' && in_array($signature->organization_id, $user->scopedOrganizationIds(), true),
             'organization' => in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) && $user->organization_id === $signature->organization_id,
             default => false,
         };
-        abort_unless($allowed, 403, 'Forbidden.');
+        NotFound::unless($allowed);
         abort_if($signature->status === 'cleared', 409, 'This clearance line has already been cleared.');
 
         $period = $signature->clearancePeriod;

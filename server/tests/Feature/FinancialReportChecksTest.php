@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CashAdvance;
 use App\Models\FinancialReport;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -159,6 +160,52 @@ class FinancialReportChecksTest extends TestCase
         $found = app(FinancialReportChecks::class)->forReport($report->fresh());
 
         $this->assertSame(['event_expense_no_budget|t1', 'missing_receipt|t1'], $fixture->signatures($found));
+    }
+
+    public function test_an_event_report_does_not_pair_an_entry_with_a_twin_in_another_event(): void
+    {
+        $fixture = ReportCheckFixture::seed(['id' => 'twin', 'period' => ['from' => '2026-08-01', 'to' => '2026-12-31'], 'opening_balance' => 0, 'events' => [['key' => 'e1', 'title' => 'Foundation Day'], ['key' => 'e2', 'title' => 'Sports Fest']],
+            'transactions' => [
+                ['key' => 't1', 'type' => 'expense', 'amount' => 90, 'category' => 'Supplies', 'transaction_date' => '2026-09-02', 'receipt_reference' => 'OR-1', 'budget_key' => null, 'event_key' => 'e1'],
+                ['key' => 't2', 'type' => 'expense', 'amount' => 90, 'category' => 'Supplies', 'transaction_date' => '2026-09-02', 'receipt_reference' => 'OR-2', 'budget_key' => null, 'event_key' => 'e2'],
+            ]]);
+        $report = $fixture->report;
+        $report->forceFill(['event_id' => Transaction::find($report->source_transaction_ids[0])->event_id])->save();
+
+        $found = app(FinancialReportChecks::class)->forReport($report->fresh());
+
+        $this->assertNotContains('possible_duplicate', array_column($found, 'code'));
+    }
+
+    public function test_a_cash_advance_movement_matching_an_entry_is_not_a_duplicate(): void
+    {
+        $fixture = ReportCheckFixture::seed(['id' => 'ca', 'period' => ['from' => '2026-08-01', 'to' => '2026-12-31'], 'opening_balance' => 0,
+            'transactions' => [['key' => 't1', 'type' => 'expense', 'amount' => 2000, 'category' => 'Cash advance', 'transaction_date' => '2026-09-10', 'receipt_reference' => 'OR-1', 'budget_key' => null, 'event_key' => null]]]);
+        $entry = Transaction::findOrFail($fixture->report->source_transaction_ids[0]);
+        $release = Transaction::create(['organization_id' => $entry->organization_id, 'recorded_by' => $entry->recorded_by, 'type' => 'expense', 'amount' => 2000, 'category' => 'Cash advance',
+            'description' => 'Cash advance release', 'receipt_reference' => 'OR-CA', 'transaction_date' => '2026-09-10 10:00:00']);
+        CashAdvance::create(['organization_id' => $entry->organization_id, 'reference' => 'CA-TWIN', 'borrower_id' => $entry->recorded_by, 'amount' => 2000, 'purpose' => 'Supplies', 'status' => 'fully_repaid',
+            'approved_by' => $entry->recorded_by, 'approved_at' => '2026-09-09 09:00:00', 'released_by' => $entry->recorded_by, 'released_at' => '2026-09-10 10:00:00', 'release_transaction_id' => $release->id]);
+
+        $found = app(FinancialReportChecks::class)->forPeriod($entry->organization_id, '2026-08-01', '2026-12-31');
+
+        $this->assertNotContains('possible_duplicate', array_column($found, 'code'));
+    }
+
+    public function test_a_real_pair_is_found_once_with_both_entries_named(): void
+    {
+        $fixture = ReportCheckFixture::seed(['id' => 'pair', 'period' => ['from' => '2026-08-01', 'to' => '2026-12-31'], 'opening_balance' => 0,
+            'transactions' => [
+                ['key' => 't1', 'type' => 'expense', 'amount' => 90, 'category' => 'Supplies', 'transaction_date' => '2026-09-02', 'receipt_reference' => 'OR-1', 'budget_key' => null, 'event_key' => null],
+                ['key' => 't2', 'type' => 'expense', 'amount' => 90, 'category' => 'Supplies', 'transaction_date' => '2026-09-02', 'receipt_reference' => 'OR-2', 'budget_key' => null, 'event_key' => null],
+                ['key' => 't3', 'type' => 'expense', 'amount' => 75, 'category' => 'Supplies', 'transaction_date' => '2026-09-02', 'receipt_reference' => 'OR-3', 'budget_key' => null, 'event_key' => null],
+            ]]);
+
+        $found = collect(app(FinancialReportChecks::class)->forReport($fixture->report))->where('code', 'possible_duplicate')->values();
+
+        $this->assertCount(1, $found);
+        $this->assertSame(2, $found[0]['facts']['copies']);
+        $this->assertCount(2, $found[0]['refs']);
     }
 
     public function test_a_report_without_a_period_has_nothing_to_check(): void

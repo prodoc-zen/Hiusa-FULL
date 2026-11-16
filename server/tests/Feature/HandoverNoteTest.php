@@ -15,6 +15,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Ai\Evaluation\GroundingCheck;
 use App\Services\Ai\HandoverNoteDrafter;
+use App\Services\Ai\ReviewNoteDrafter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Laravel\Sanctum\Sanctum;
@@ -47,10 +48,10 @@ class HandoverNoteTest extends TestCase
                 'announcements' => ['posted' => 12],
                 'finance' => ['income' => 30000.0, 'expense' => 18400.0, 'closing_balance' => 11600.0],
                 'upcoming_events' => [['title' => 'Hackathon', 'date' => '2027-04-05']],
-                'officers' => [['name' => 'Juan Dela Cruz', 'position' => 'President']],
+                'officers' => [['position' => 'President']],
             ],
             'open_items' => [
-                'pending_tasks' => [['title' => 'Liquidate the fund', 'owner' => 'Ana Reyes', 'deadline' => '2027-04-10']],
+                'pending_tasks' => [['title' => 'Liquidate the fund', 'owner' => 'Treasurer', 'deadline' => '2027-04-10']],
                 'unsettled' => [['kind' => 'cash_advance', 'amount' => 1500.0, 'note' => 'A cash advance is not fully repaid.']],
                 'scheduled_events' => [['title' => 'Hackathon', 'date' => '2027-04-05']],
                 'election_state' => 'closed',
@@ -62,13 +63,13 @@ class HandoverNoteTest extends TestCase
     /** What each item may be told, and a word from every other item that it must never be shown. */
     public static function categories(): array
     {
-        $everything = ['Programming Contest', 'Hackathon', 'Liquidate the fund', 'SBO Election', 'Accomplishment Report', 'PHP 11,600.00', '1500', 'Juan Dela Cruz', '"posted":12', '"claimed":30'];
+        $everything = ['Programming Contest', 'Hackathon', 'Liquidate the fund', 'SBO Election', 'Accomplishment Report', 'PHP 11,600.00', '1500', 'President', '"posted":12', '"claimed":30'];
 
         return [
             'finance' => ['finance', ['11600', '1500'], array_values(array_diff($everything, ['PHP 11,600.00', '1500']))],
             'events' => ['events', ['Programming Contest', 'Foundation Day', 'Hackathon'], array_values(array_diff($everything, ['Programming Contest', 'Hackathon']))],
-            'tasks' => ['tasks', ['Liquidate the fund', 'Ana Reyes'], array_values(array_diff($everything, ['Liquidate the fund']))],
-            'organization' => ['organization', ['Juan Dela Cruz', '"posted":12', '"claimed":30'], array_values(array_diff($everything, ['Juan Dela Cruz', '"posted":12', '"claimed":30']))],
+            'tasks' => ['tasks', ['Liquidate the fund', 'Treasurer'], array_values(array_diff($everything, ['Liquidate the fund']))],
+            'organization' => ['organization', ['President', '"posted":12', '"claimed":30'], array_values(array_diff($everything, ['President', '"posted":12', '"claimed":30']))],
             'election' => ['election', ['SBO Election', '"election_state":"closed"'], array_values(array_diff($everything, ['SBO Election']))],
             'compliance' => ['compliance', ['Accomplishment Report'], array_values(array_diff($everything, ['Accomplishment Report']))],
         ];
@@ -79,6 +80,14 @@ class HandoverNoteTest extends TestCase
         return (new HandoverNoteDrafter($fake))->draftFromFacts($facts ?? $this->facts($category));
     }
 
+    /** @return array<string, mixed> */
+    private function sentFacts(NarrativeFakeGenerator $fake): array
+    {
+        preg_match('/<facts>\n(.*)\n<\/facts>/s', $fake->calls[0]['input'], $match);
+
+        return json_decode($match[1], true);
+    }
+
     #[DataProvider('categories')]
     public function test_the_model_is_shown_the_facts_of_its_own_item_only(string $category, array $shown, array $hidden): void
     {
@@ -87,7 +96,8 @@ class HandoverNoteTest extends TestCase
         $this->draft($fake, $category);
 
         $sent = $fake->sent();
-        $this->assertSame("{$category}", json_decode($fake->calls[0]['input'], true)['category']);
+        $this->assertStringStartsWith(ReviewNoteDrafter::FACTS_NOTICE."\n<facts>\n", $fake->calls[0]['input']);
+        $this->assertSame("{$category}", $this->sentFacts($fake)['category']);
         foreach ($shown as $fact) {
             $this->assertStringContainsString($fact, $sent, "the {$category} item is told {$fact}");
         }
@@ -120,11 +130,41 @@ class HandoverNoteTest extends TestCase
         $this->assertStringContainsString('"Foundation Day" was cancelled and was not held (March 2, 2027).', $text('events'));
         $this->assertStringContainsString('Still scheduled: "Hackathon" on April 5, 2027.', $text('events'));
         $this->assertStringContainsString('Tasks this term: 14 completed, 2 overdue, 3 still open.', $text('tasks'));
-        $this->assertStringContainsString('"Liquidate the fund" is with Ana Reyes, due 2027-04-10.', $text('tasks'));
-        $this->assertStringContainsString('Officers this term: Juan Dela Cruz (President).', $text('organization'));
+        $this->assertStringContainsString('"Liquidate the fund" is with Treasurer, due 2027-04-10.', $text('tasks'));
+        $this->assertStringContainsString('Organization: Computer Science Society.', $text('organization'));
+        $this->assertStringContainsString('Officer positions this term: President.', $text('organization'));
         $this->assertStringContainsString('The election is closed and its results are not finalized yet.', $text('election'));
         $this->assertStringContainsString('Election "SBO Election": 266 ballots cast by 412 eligible voters.', $text('election'));
         $this->assertStringContainsString('Still missing: Accomplishment Report.', $text('compliance'));
+    }
+
+    public function test_no_person_is_named_to_the_model_or_in_the_stored_facts(): void
+    {
+        foreach (['organization', 'tasks'] as $category) {
+            $facts = $this->facts($category);
+            $facts['digest']['officers'] = [['name' => 'Juan Dela Cruz', 'position' => 'President'], ['name' => 'Ana Reyes', 'position' => 'Treasurer']];
+            $fake = new NarrativeFakeGenerator(text: '- Nothing to add.');
+
+            $draft = $this->draft($fake, $category, $facts);
+
+            foreach ([$fake->sent(), json_encode($draft['facts']), $this->draft(new NarrativeFakeGenerator, $category, $facts)['text']] as $shown) {
+                $this->assertStringNotContainsString('Juan', $shown);
+                $this->assertStringNotContainsString('Dela Cruz', $shown);
+                $this->assertStringNotContainsString('Reyes', $shown);
+            }
+        }
+    }
+
+    public function test_a_scheduled_event_the_events_already_list_is_not_repeated(): void
+    {
+        $facts = $this->facts('events');
+        $facts['digest']['events'][] = ['title' => 'Hackathon', 'date' => '2027-04-05', 'status' => 'approved', 'attendance' => null, 'budget_allocated' => null, 'budget_used' => null];
+        $fake = new NarrativeFakeGenerator(text: '- Nothing to add.');
+
+        $this->draft($fake, 'events', $facts);
+
+        $this->assertSame([], $this->sentFacts($fake)['scheduled_events']);
+        $this->assertStringNotContainsString('Still scheduled', $this->draft(new NarrativeFakeGenerator, 'events', $facts)['text']);
     }
 
     public function test_an_item_with_nothing_open_says_so(): void
@@ -184,7 +224,7 @@ class HandoverNoteTest extends TestCase
     public function test_a_long_template_is_trimmed_to_the_remarks_limit(): void
     {
         $facts = $this->facts('tasks');
-        $facts['open_items']['pending_tasks'] = array_map(fn (int $n) => ['title' => "Prepare the long named report number {$n} for the audit", 'owner' => 'Ana Reyes', 'deadline' => '2027-04-10'], range(1, 80));
+        $facts['open_items']['pending_tasks'] = array_map(fn (int $n) => ['title' => "Prepare the long named report number {$n} for the audit", 'owner' => 'Treasurer', 'deadline' => '2027-04-10'], range(1, 80));
 
         $draft = $this->draft(new NarrativeFakeGenerator, 'tasks', $facts);
 
@@ -225,19 +265,23 @@ class HandoverNoteTest extends TestCase
         [$organization, $election, $outgoing, $semester] = $this->world();
         $contest = Event::factory()->create(['organization_id' => $organization->id, 'created_by' => $outgoing->school_id, 'academic_semester_id' => $semester->id, 'title' => 'Programming Contest', 'status' => 'completed', 'start_time' => now()->subDays(20), 'end_time' => now()->subDays(20)->addHours(2)]);
         Task::factory()->create(['event_id' => null, 'organization_id' => $organization->id, 'created_by' => $outgoing->school_id, 'assigned_to' => $outgoing->school_id, 'academic_semester_id' => $semester->id, 'status' => 'pending', 'title' => 'Liquidate the fund', 'deadline' => now()->addDays(5)]);
-        $fake = new NarrativeFakeGenerator(text: '- One task, Liquidate the fund, is with Ana Reyes.');
+        $fake = new NarrativeFakeGenerator(text: '- One task, Liquidate the fund, is with an officer.');
         $this->app->instance(TextGenerator::class, $fake);
         Sanctum::actingAs($outgoing);
 
         $response = $this->postJson('/api/officer-handovers/draft-note', ['category' => 'tasks'])->assertOk();
 
         $response->assertJsonPath('engine', 'claude');
-        $response->assertJsonPath('text', '- One task, Liquidate the fund, is with Ana Reyes.');
+        $response->assertJsonPath('text', '- One task, Liquidate the fund, is with an officer.');
         $row = AiOutput::findOrFail($response->json('ai_output_id'));
         $item = OfficerHandover::where('election_id', $election->id)->where('category', 'tasks')->sole();
         $this->assertSame(['handover_note', 'officer_handover', $item->id, 'pending', $outgoing->school_id, $organization->id], [$row->feature_type, $row->reference_type, (int) $row->reference_id, $row->decision_status, (int) $row->requested_by, $row->organization_id]);
         $this->assertSame('tasks', $row->structured_input['category']);
         $this->assertStringContainsString('Liquidate the fund', $fake->sent());
+        foreach (['Ana', 'Reyes'] as $name) {
+            $this->assertStringNotContainsString($name, $fake->sent(), 'the owner of a task is a position, never a student');
+            $this->assertStringNotContainsString($name, json_encode($row->structured_input));
+        }
         $this->assertStringNotContainsString('Programming Contest', $fake->sent(), 'events belong to another item');
         $this->assertNull($item->fresh()->remarks, 'drafting saves nothing');
         $this->assertSame($contest->title, 'Programming Contest');

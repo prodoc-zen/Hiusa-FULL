@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Services\OrderFulfillmentService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ExpireUnpaidOrders extends Command
 {
@@ -26,38 +27,44 @@ class ExpireUnpaidOrders extends Command
             ->where('created_at', '<=', $cutoff)
             ->pluck('id')
             ->each(function (int $id) use ($fulfillment, $cutoff, $days, &$expired) {
-                $done = DB::transaction(function () use ($fulfillment, $cutoff, $days, $id) {
-                    // Checked again under the lock: the buyer may have sent proof or staff may have started a review since the list was read.
-                    $order = Order::query()->awaitingFirstPayment()->where('created_at', '<=', $cutoff)->lockForUpdate()->find($id);
-                    if (! $order) {
-                        return false;
-                    }
+                try {
+                    $done = DB::transaction(function () use ($fulfillment, $cutoff, $days, $id) {
+                        // Checked again under the lock: the buyer may have sent proof or staff may have started a review since the list was read.
+                        $order = Order::query()->awaitingFirstPayment()->where('created_at', '<=', $cutoff)->lockForUpdate()->find($id);
+                        if (! $order) {
+                            return false;
+                        }
 
-                    $remarks = "Cancelled because no payment was received within {$days} days.";
-                    $order->update(['status' => 'cancelled', 'review_remarks' => $remarks]);
-                    $fulfillment->releaseStock($order);
-                    $fulfillment->cancelInvoiceOfClosedOrder($order, null, "Order ORD-{$order->id} lapsed unpaid.");
-                    AuditLog::create([
-                        'organization_id' => $order->organization_id, 'module' => 'orders', 'action' => 'expired_unpaid',
-                        'description' => 'Merchandise order ORD-'.$order->id.' was cancelled because no payment was received.',
-                        'record_type' => Order::class, 'record_id' => $order->id,
-                        'old_values' => ['status' => 'pending'], 'new_values' => ['status' => 'cancelled', 'review_remarks' => $remarks, 'expiry_days' => $days],
-                        'created_at' => now(),
-                    ]);
-                    Notification::create([
-                        'organization_id' => $order->organization_id,
-                        'user_id' => $order->student_id,
-                        'title' => 'Order Cancelled',
-                        'message' => 'Order ORD-'.$order->id." was cancelled because no payment was received within {$days} days. The stock was returned.",
-                        'notification_type' => 'financial',
-                        'reference_type' => Order::class,
-                        'reference_id' => $order->id,
-                        'is_read' => false,
-                        'sent_at' => now(),
-                    ]);
+                        $remarks = "Cancelled because no payment was received within {$days} days.";
+                        $order->update(['status' => 'cancelled', 'review_remarks' => $remarks]);
+                        $fulfillment->releaseStock($order);
+                        $fulfillment->cancelInvoiceOfClosedOrder($order, null, "Order ORD-{$order->id} lapsed unpaid.");
+                        AuditLog::create([
+                            'organization_id' => $order->organization_id, 'module' => 'orders', 'action' => 'expired_unpaid',
+                            'description' => 'Merchandise order ORD-'.$order->id.' was cancelled because no payment was received.',
+                            'record_type' => Order::class, 'record_id' => $order->id,
+                            'old_values' => ['status' => 'pending'], 'new_values' => ['status' => 'cancelled', 'review_remarks' => $remarks, 'expiry_days' => $days],
+                            'created_at' => now(),
+                        ]);
+                        Notification::create([
+                            'organization_id' => $order->organization_id,
+                            'user_id' => $order->student_id,
+                            'title' => 'Order Cancelled',
+                            'message' => 'Order ORD-'.$order->id." was cancelled because no payment was received within {$days} days. The stock was returned.",
+                            'notification_type' => 'financial',
+                            'reference_type' => Order::class,
+                            'reference_id' => $order->id,
+                            'is_read' => false,
+                            'sent_at' => now(),
+                        ]);
 
-                    return true;
-                });
+                        return true;
+                    });
+                } catch (Throwable $e) {
+                    report($e);
+
+                    return;
+                }
 
                 if ($done) {
                     $expired++;

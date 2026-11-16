@@ -29,9 +29,10 @@ class SemesterNarrativeDrafter
      */
     public function draftFromDigest(array $digest): array
     {
+        $digest = $this->withoutNames($digest);
         $generated = $this->ai->generateStructured(
             AiInstructions::semesterNarrative(),
-            $digest,
+            ReviewNoteDrafter::noticedFacts($digest),
             'hiusa_semester_narrative',
             $this->schema(),
             1400,
@@ -46,6 +47,14 @@ class SemesterNarrativeDrafter
         $model = (string) ($generated['model'] ?? '');
 
         return ['sections' => $sections, 'engine' => str_starts_with($model, 'claude') ? 'claude' : 'groq', 'model' => $model];
+    }
+
+    /** A person is named by position only, so a student's name never reaches the model. */
+    private function withoutNames(array $digest): array
+    {
+        $digest['officers'] = array_map(fn ($officer) => ['position' => (string) ($officer['position'] ?? 'Officer')], array_values($digest['officers'] ?? []));
+
+        return $digest;
     }
 
     /** The titles the digest names: the only words that may sit inside double quotes in a draft. */
@@ -179,7 +188,7 @@ class SemesterNarrativeDrafter
                 continue;
             }
             if ($event['budget_allocated'] !== null) {
-                $implementation[] = "- \"{$event['title']}\": budget used {$money($event['budget_used'] ?? 0)} of {$money($event['budget_allocated'])}.";
+                $implementation[] = "- \"{$event['title']}\": budget used ".(($event['budget_used'] ?? null) === null ? '[not recorded]' : $money($event['budget_used']))." of {$money($event['budget_allocated'])}.";
             } elseif ($event['status'] === 'completed') {
                 $implementation[] = "- \"{$event['title']}\": [budget used not recorded].";
             }
@@ -208,7 +217,7 @@ class SemesterNarrativeDrafter
         }
         $plan[] = '- [objectives and activities to be decided by the officers]';
         if (($digest['officers'] ?? []) !== []) {
-            $plan[] = '- Officers: '.implode(', ', array_map(fn (array $officer) => "{$officer['name']} ({$officer['position']})", $digest['officers'])).'.';
+            $plan[] = '- Officer positions: '.implode(', ', array_column($digest['officers'], 'position')).'.';
         }
 
         return [

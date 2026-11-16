@@ -11,8 +11,12 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\OrderFulfillmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
 use Laravel\Sanctum\Sanctum;
+use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 /** The daily low stock notice to Admins, and the hourly lapse of orders nobody paid for. */
@@ -168,6 +172,28 @@ class StoreNoticesTest extends TestCase
         $this->assertSame('cancelled', $order->fresh()->status);
         $this->assertSame('cancelled', $invoice->fresh()->status);
         $this->assertDatabaseHas('audit_logs', ['module' => 'invoices', 'action' => 'cancelled', 'record_id' => $invoice->id, 'user_id' => null]);
+    }
+
+    public function test_one_order_that_throws_does_not_stop_the_others_from_lapsing(): void
+    {
+        Exceptions::fake();
+        $bad = $this->placeOrder($this->item());
+        $good = $this->placeOrder($this->item());
+        $this->age($bad, 9);
+        $this->age($good, 9);
+        $this->partialMock(OrderFulfillmentService::class, function (MockInterface $mock) use ($bad) {
+            $mock->shouldReceive('releaseStock')->andReturnUsing(function (Order $order) use ($bad) {
+                if ($order->id === $bad->id) {
+                    throw new RuntimeException('stock release failed');
+                }
+            });
+        });
+
+        $this->artisan('orders:expire-unpaid')->expectsOutput('Cancelled 1 unpaid order(s).')->assertSuccessful();
+
+        $this->assertSame('cancelled', $good->fresh()->status);
+        $this->assertNotSame('cancelled', $bad->fresh()->status);
+        Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'stock release failed');
     }
 
     public function test_the_allowed_days_come_from_configuration(): void

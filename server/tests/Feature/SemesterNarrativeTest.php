@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Ai\Evaluation\GroundingCheck;
+use App\Services\Ai\ReviewNoteDrafter;
 use App\Services\Ai\SemesterNarrativeDrafter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -39,7 +40,7 @@ class SemesterNarrativeTest extends TestCase
             'announcements' => ['posted' => 12],
             'finance' => ['income' => 30000.0, 'expense' => 18400.0, 'closing_balance' => 11600.0],
             'upcoming_events' => [['title' => 'Hackathon', 'date' => '2026-12-05']],
-            'officers' => [['name' => 'Juan Dela Cruz', 'position' => 'President']],
+            'officers' => [['position' => 'President']],
             ...$overrides,
         ];
     }
@@ -74,6 +75,31 @@ class SemesterNarrativeTest extends TestCase
         $this->assertStringContainsString('Programming Contest', $fake->calls[0]['input']);
     }
 
+    public function test_the_facts_travel_under_the_data_notice_and_no_student_is_named(): void
+    {
+        $fake = new NarrativeFakeGenerator(structured: $this->goodSections());
+        $digest = $this->digest(['officers' => [['name' => 'Juan Dela Cruz', 'position' => 'President']]]);
+
+        $this->draft($fake, $digest);
+
+        $sent = json_decode($fake->calls[0]['input'], true);
+        $this->assertSame(ReviewNoteDrafter::FACTS_NOTICE, $sent['notice']);
+        $this->assertSame('Computer Science Society', $sent['facts']['organization']);
+        $this->assertStringNotContainsString('Juan', $fake->calls[0]['input']);
+        $this->assertStringNotContainsString('Dela Cruz', json_encode($this->draft(new NarrativeFakeGenerator, $digest)['sections']));
+    }
+
+    public function test_an_unrecorded_budget_is_a_placeholder_and_never_zero_pesos(): void
+    {
+        $digest = $this->digest();
+        $digest['events'][0]['budget_used'] = null;
+
+        $implementation = $this->draft(new NarrativeFakeGenerator, $digest)['sections']['implementation'];
+
+        $this->assertStringContainsString('budget used [not recorded] of PHP 25,000.00', $implementation);
+        $this->assertStringNotContainsString('PHP 0.00', $implementation);
+    }
+
     public function test_a_provider_that_is_not_claude_is_reported_as_groq(): void
     {
         $draft = $this->draft(new NarrativeFakeGenerator(structured: $this->goodSections(), model: 'llama-test'));
@@ -101,7 +127,7 @@ class SemesterNarrativeTest extends TestCase
         $this->assertStringContainsString('- "Programming Contest": 120 attended.', $draft['sections']['evaluation']);
         $this->assertStringContainsString('266 ballots cast by 412 eligible voters', $draft['sections']['evaluation']);
         $this->assertStringContainsString('- "Hackathon" on December 5, 2026.', $draft['sections']['next_semester_plan']);
-        $this->assertStringContainsString('Juan Dela Cruz (President)', $draft['sections']['next_semester_plan']);
+        $this->assertStringContainsString('Officer positions: President.', $draft['sections']['next_semester_plan']);
 
         $facts = json_encode($this->digest());
         foreach ($draft['sections'] as $text) {

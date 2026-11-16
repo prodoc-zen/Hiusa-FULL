@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureOrganizationModule;
 use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsurePeriodWritable;
+use App\Http\Middleware\EnsurePrivacyConsent;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'account.profile' => UseAccountProfile::class,
             'password.changed' => EnsurePasswordChanged::class,
             'period.writable' => EnsurePeriodWritable::class,
+            'privacy.consent' => EnsurePrivacyConsent::class,
         ]);
 
         // Route model binding would otherwise answer 404 for a missing record

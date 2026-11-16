@@ -47,7 +47,7 @@ class ReportCheckExplainerTest extends TestCase
         $this->assertStringContainsString('Fix the overspent budget first.', $explained['text']);
         $this->assertStringContainsString("\n- Add the receipt reference", $explained['text']);
         $this->assertCount(1, $generator->calls);
-        $this->assertSame(['total' => 2, 'high' => 1, 'medium' => 1, 'low' => 0], $generator->calls[0]['input']['counts']);
+        $this->assertSame(['total' => 2, 'high' => 1, 'medium' => 1, 'low' => 0], $generator->calls[0]['input']['facts']['counts']);
     }
 
     public function test_no_model_answer_gives_the_rules_list_itself(): void

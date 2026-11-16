@@ -326,7 +326,7 @@ class ReviewNoteDraftTest extends TestCase
         $this->draft($this->admin, $body)->assertStatus(409);
     }
 
-    public function test_a_grievance_is_drafted_from_its_title_only_and_stays_inside_the_admins_organization(): void
+    public function test_a_grievance_is_drafted_from_its_category_and_filing_date_only_and_stays_inside_the_admins_organization(): void
     {
         $fake = $this->model('Thank you for reporting this. The matter has been looked into and is closed.');
         $filer = User::factory()->student()->create(['organization_id' => $this->organization->id, 'first_name' => 'Imelda', 'last_name' => 'Racaza']);
@@ -338,13 +338,14 @@ class ReviewNoteDraftTest extends TestCase
 
         $this->draft($this->admin, $body)->assertOk()->assertJsonPath('engine', 'claude');
         $sent = $fake->sent();
-        $this->assertStringContainsString('Locker fee charged twice for [number]', $sent);
-        foreach (['20241234', 'Imelda', 'Racaza', 'pocketed', (string) $filer->school_id] as $forbidden) {
+        $this->assertStringContainsString('Fees', $sent);
+        $this->assertStringContainsString('Grievance filed on '.$grievance->created_at->format('F j, Y'), $sent);
+        foreach (['Locker fee', 'charged twice', '20241234', 'Imelda', 'Racaza', 'pocketed', (string) $filer->school_id] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $sent);
         }
         $this->draft($this->director, $body)->assertOk();
         $otherAdmin = User::factory()->admin()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->makeCollege('CBE'))->id]);
-        $this->draft($otherAdmin, $body)->assertForbidden();
+        $this->draft($otherAdmin, $body)->assertNotFound();
         $this->draft($this->head, $body)->assertForbidden();
     }
 
@@ -362,10 +363,10 @@ class ReviewNoteDraftTest extends TestCase
             $this->assertStringNotContainsString($forbidden, $fake->sent());
         }
         $this->assertStringContainsString('First Semester Clearance', $fake->sent());
-        $this->draft($this->director, $body)->assertForbidden();
-        $this->draft($this->head, $body)->assertForbidden();
+        $this->draft($this->director, $body)->assertNotFound();
+        $this->draft($this->head, $body)->assertNotFound();
         $otherAdmin = User::factory()->admin()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->makeCollege('CBE'))->id]);
-        $this->draft($otherAdmin, $body)->assertForbidden();
+        $this->draft($otherAdmin, $body)->assertNotFound();
         $line->update(['status' => 'cleared']);
         $this->draft($this->admin, $body)->assertStatus(409);
     }

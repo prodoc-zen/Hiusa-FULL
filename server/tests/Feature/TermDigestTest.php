@@ -124,7 +124,7 @@ class TermDigestTest extends TestCase
         $this->assertSame(['orders' => 2, 'claimed' => 1], $digest['merchandise'], 'a cancelled order is not an order');
         $this->assertSame([['title' => 'SBO Election', 'voters' => $digest['elections'][0]['voters'], 'ballots' => 2]], $digest['elections'], 'only an election that opened is reported');
         $this->assertSame(['Foam Party'], array_column($digest['upcoming_events'], 'title'));
-        $this->assertSame([['name' => 'Maria Santos', 'position' => 'Admin Adviser']], $digest['officers']);
+        $this->assertSame([['position' => 'Admin Adviser']], $digest['officers']);
         $this->assertSame(['income' => 6000.0, 'expense' => 18500.5, 'closing_balance' => -11800.5], $digest['finance'], 'income and expense are this semester only, the closing balance runs to its last day');
     }
 
@@ -165,7 +165,7 @@ class TermDigestTest extends TestCase
 
         $digest = TermDigest::forOrganization($this->organization->id, $this->semester->id);
 
-        $this->assertSame([['name' => 'Former Treasurer', 'position' => 'Treasurer'], ['name' => 'Former Admin', 'position' => 'Admin']], $digest['officers']);
+        $this->assertSame([['position' => 'Treasurer'], ['position' => 'Admin']], $digest['officers']);
     }
 
     public function test_open_items_list_what_is_still_owed(): void
@@ -179,12 +179,26 @@ class TermDigestTest extends TestCase
 
         $open = TermDigest::openItems($this->organization->id, $this->semester->id);
 
-        $this->assertSame([['title' => 'Liquidate the fund', 'owner' => 'Maria Santos', 'deadline' => now()->addDays(5)->format('Y-m-d')]], $open['pending_tasks']);
+        $this->assertSame([['title' => 'Liquidate the fund', 'owner' => 'Admin Adviser', 'deadline' => now()->addDays(5)->format('Y-m-d')]], $open['pending_tasks']);
         $this->assertSame([['kind' => 'cash_advance', 'amount' => 1500.0, 'note' => 'A cash advance is not fully repaid.']], $open['unsettled']);
         $this->assertStringNotContainsString('Secret purpose', json_encode($open));
         $this->assertSame(['Foam Party'], array_column($open['scheduled_events'], 'title'));
         $this->assertSame('open', $open['election_state']);
         $this->assertSame([], $open['missing_compliance']);
+    }
+
+    public function test_an_open_task_is_held_by_a_position_and_no_name_is_in_the_open_items(): void
+    {
+        $this->admin->accountProfiles()->update(['position_title' => null]);
+        $this->task('pending', ['title' => 'Count the stock']);
+        $this->task('in_progress', ['title' => 'Nobody has it', 'assigned_to' => null]);
+
+        $open = TermDigest::openItems($this->organization->id, $this->semester->id);
+
+        $this->assertSame(['an officer', 'not assigned'], array_column($open['pending_tasks'], 'owner'));
+        $this->assertStringNotContainsString('Maria', json_encode($open));
+        $this->assertStringNotContainsString('Santos', json_encode($open));
+        $this->assertStringNotContainsString('Maria', json_encode(TermDigest::forOrganization($this->organization->id, $this->semester->id)));
     }
 
     public function test_requirements_not_yet_submitted_are_missing(): void

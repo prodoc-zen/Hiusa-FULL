@@ -51,7 +51,7 @@ class AccountProfileController extends Controller
         $token->forceFill(['account_profile_id' => $profile->id])->save();
         $user->activateProfile($profile->load('organization'));
 
-        return response()->json(['user' => $user, 'active_profile_id' => $profile->id]);
+        return response()->json(['user' => $user->asOwnPayload(), 'active_profile_id' => $profile->id]);
     }
 
     private function managedOrganizations(User $actor, bool $activeOnly = true): Builder

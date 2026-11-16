@@ -855,7 +855,7 @@ class UserController extends Controller
         $user = $signup->register($data['school_id'], $data['birth_date'], $data['email'], $data['password'], $request);
 
         return response()->json([
-            'user' => $user->fresh(),
+            'user' => $user->fresh()->asOwnPayload(),
             'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
             'session_expires_in_seconds' => config('sanctum.expiration') * 60,
@@ -951,7 +951,7 @@ class UserController extends Controller
         }
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->asOwnPayload(),
             'access_token' => $this->issueProfileToken($user, $profile),
             'token_type' => 'Bearer',
             'session_expires_in_seconds' => config('sanctum.expiration') * 60,
@@ -1109,7 +1109,7 @@ class UserController extends Controller
 
         $user->update($data);
 
-        return response()->json($user->fresh());
+        return response()->json($user->fresh()->asOwnPayload());
     }
 
     public function updatePassword(Request $request)
@@ -1132,7 +1132,7 @@ class UserController extends Controller
         $user->update(['password_hash' => $request->password, 'must_change_password' => false]);
         $user->tokens()->whereKeyNot($user->currentAccessToken()->getKey())->delete();
 
-        return response()->json(['message' => 'Password updated successfully.', 'user' => $user->fresh()]);
+        return response()->json(['message' => 'Password updated successfully.', 'user' => $user->fresh()->asOwnPayload()]);
     }
 
     private function activeOrganizationUser(int $organizationId, string $email): ?User

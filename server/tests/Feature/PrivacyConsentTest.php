@@ -196,6 +196,21 @@ class PrivacyConsentTest extends TestCase
         $this->assertSame(0, User::where('privacy_notice_version', '!=', self::VERSION)->count());
     }
 
+    public function test_the_two_columns_are_hidden_by_default_and_added_back_only_for_the_signed_in_payload(): void
+    {
+        $this->assertContains('privacy_accepted_at', (new User)->getHidden());
+        $this->assertContains('privacy_notice_version', (new User)->getHidden());
+
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $other = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        $own = $this->actingAs($admin)->getJson('/api/user')->assertOk()->assertJsonPath('privacy_notice_version', self::VERSION);
+        $this->assertNotNull($own->json('privacy_accepted_at'));
+        $this->assertArrayNotHasKey('privacy_accepted_at', $other->toArray());
+        $this->assertArrayNotHasKey('privacy_notice_version', $other->toArray());
+    }
+
     public function test_another_persons_agreement_never_appears_in_a_member_list(): void
     {
         $organization = Organization::factory()->create();

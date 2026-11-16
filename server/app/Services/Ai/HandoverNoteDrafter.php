@@ -43,7 +43,7 @@ class HandoverNoteDrafter
         }
 
         $scoped = $this->scoped($category, $facts['digest'] ?? [], $facts['open_items'] ?? []);
-        $generated = $this->ai->generate(AiInstructions::handoverNote(), (string) json_encode($scoped, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 700, 0.2);
+        $generated = $this->ai->generate(AiInstructions::handoverNote(), ReviewNoteDrafter::wrapFacts($scoped), 700, 0.2);
         $text = is_array($generated) ? $this->ai->plainText((string) ($generated['text'] ?? '')) : '';
 
         if ($text !== '' && $this->acceptable($text, $category, $scoped, $facts)) {
@@ -66,12 +66,30 @@ class HandoverNoteDrafter
 
         return $scope + match ($category) {
             'finance' => ['finance' => $digest['finance'] ?? null, 'unsettled' => $openItems['unsettled'] ?? []],
-            'events' => ['events' => $digest['events'] ?? [], 'scheduled_events' => $openItems['scheduled_events'] ?? []],
+            'events' => ['events' => $digest['events'] ?? [], 'scheduled_events' => $this->notAlreadyListed($openItems['scheduled_events'] ?? [], $digest['events'] ?? [])],
             'tasks' => ['tasks' => $digest['tasks'] ?? null, 'pending_tasks' => $openItems['pending_tasks'] ?? []],
-            'organization' => ['officers' => $digest['officers'] ?? [], 'announcements' => $digest['announcements'] ?? null, 'merchandise' => $digest['merchandise'] ?? null],
+            'organization' => ['officers' => $this->positionsOnly($digest['officers'] ?? []), 'announcements' => $digest['announcements'] ?? null, 'merchandise' => $digest['merchandise'] ?? null],
             'election' => ['elections' => $digest['elections'] ?? [], 'election_state' => $openItems['election_state'] ?? 'none'],
             'compliance' => ['missing_compliance' => $openItems['missing_compliance'] ?? []],
         };
+    }
+
+    /**
+     * A person is named by position only, so a student's name never reaches the model or the stored facts.
+     *
+     * @return list<array{position: string}>
+     */
+    private function positionsOnly(array $officers): array
+    {
+        return array_map(fn ($officer) => ['position' => (string) ($officer['position'] ?? 'Officer')], array_values($officers));
+    }
+
+    /** A scheduled event the semester's events already list, by title and date, is not said twice. */
+    private function notAlreadyListed(array $scheduled, array $events): array
+    {
+        $listed = array_map(fn ($event) => mb_strtolower(($event['title'] ?? '').'|'.($event['date'] ?? '')), $events);
+
+        return array_values(array_filter($scheduled, fn ($event) => ! in_array(mb_strtolower(($event['title'] ?? '').'|'.($event['date'] ?? '')), $listed, true)));
     }
 
     private function acceptable(string $text, string $category, array $scoped, array $facts): bool
@@ -179,8 +197,11 @@ class HandoverNoteDrafter
                 }
                 break;
             case 'organization':
+                if ($scoped['organization']) {
+                    $lines[] = "- Organization: {$scoped['organization']}.";
+                }
                 if ($scoped['officers'] !== []) {
-                    $lines[] = '- Officers this term: '.implode(', ', array_map(fn (array $officer) => "{$officer['name']} ({$officer['position']})", $scoped['officers'])).'.';
+                    $lines[] = '- Officer positions this term: '.implode(', ', array_column($scoped['officers'], 'position')).'.';
                 }
                 if ($scoped['announcements']) {
                     $lines[] = "- Announcements posted: {$scoped['announcements']['posted']}.";
