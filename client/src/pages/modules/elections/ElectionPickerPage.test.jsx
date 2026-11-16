@@ -2,6 +2,7 @@ import { findRowAction } from '../../../test/rowActions';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ElectionPickerPage from './ElectionPickerPage';
+import notify from '../../../lib/notify';
 import { PERIOD_KEY } from '../../../utils/academicPeriodStore';
 import { isoToLocalDateTimeInput } from '../../../utils/dateTime';
 
@@ -544,6 +545,8 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
   });
 
   it('saves a draft with only a title and marks it as a draft', async () => {
+    // The toast removes itself after a few seconds, so this reads what was announced, not what is still on screen.
+    const notifySuccess = vi.spyOn(notify, 'success');
     render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
     setValue('Election title', 'Half done');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
@@ -553,7 +556,7 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
     expect(payload.title).toBe('Half done');
     ['start_time', 'end_time', 'filing_starts_at', 'rules', 'tie_break_rule', 'positions'].forEach((key) => expect(payload).not.toHaveProperty(key));
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
-    expect(await screen.findByText('Draft saved.')).toBeInTheDocument();
+    await waitFor(() => expect(notifySuccess).toHaveBeenCalledWith('Draft saved.', expect.anything()));
   });
 
   it('keeps Save draft and Submit unusable without a title', async () => {
@@ -563,6 +566,8 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
   });
 
   it('submits the full payload for approval', async () => {
+    // The toast removes itself after a few seconds, so this reads what was announced, not what is still on screen.
+    const notifySuccess = vi.spyOn(notify, 'success');
     render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
     await screen.findByLabelText('Filing opens');
     fillFullForm();
@@ -601,7 +606,7 @@ describe('ElectionPickerPage create form: students file their own candidacy', ()
     });
     expect(payload.draft).toBeFalsy();
     expect(electionMocks.submitElection).not.toHaveBeenCalled();
-    expect(await screen.findByText('Election submitted for approval.', {}, { timeout: 5000 })).toBeInTheDocument();
+    await waitFor(() => expect(notifySuccess).toHaveBeenCalledWith('Election submitted for approval.', expect.anything()));
   });
 
   it('defaults the voter limit to the seats and never lets it pass them', async () => {

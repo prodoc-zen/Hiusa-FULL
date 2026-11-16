@@ -10,7 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Drafts the narrative sections of the Semestral Accomplishment Report for the signed-in Admin's or officer's own
+ * Drafts the narrative sections of the Semestral Accomplishment Report for the signed-in Admin's own
  * organization from what the system recorded that semester. The draft is returned, never saved to a requirement.
  */
 class SemesterNarrativeController extends Controller

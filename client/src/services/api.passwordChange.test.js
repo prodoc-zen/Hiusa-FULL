@@ -57,6 +57,21 @@ describe('api interceptor password change handling', () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it('opens the consent dialog instead of reporting a missing permission when the privacy notice is not accepted', async () => {
+    const opened = vi.fn();
+    window.addEventListener('hiusa-privacy-consent-required', opened);
+    failWith(403, { message: 'Agree to the Data Privacy Notice first.', code: 'privacy_consent_required' });
+
+    const error = await api.post('/ai/review-notes/draft').catch((caught) => caught);
+    window.removeEventListener('hiusa-privacy-consent-required', opened);
+
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(error.isPrivacyConsentRequired).toBe(true);
+    expect(error.isForbidden).toBeUndefined();
+    expect(assign).not.toHaveBeenCalled();
+    expect(localStorage.getItem('auth_token')).toBe('token');
+  });
+
   it('leaves every other 403 alone', async () => {
     failWith(403, { message: 'Forbidden.' });
 

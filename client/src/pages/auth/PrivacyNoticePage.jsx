@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom';
 import logo from '../../assets/Hiusa Logo.png';
-
-// Keep in step with server/config/hiusa.php (privacy_notice_version): that is the version stored when someone agrees.
-const PRIVACY_NOTICE_VERSION = '2026-11';
+import { PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
 
 function Section({ id, title, children }) {
   return (

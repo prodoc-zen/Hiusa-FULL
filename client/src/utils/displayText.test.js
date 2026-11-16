@@ -60,4 +60,10 @@ describe('display text formatting', () => {
     expect(displayAuditValue('returned')).toBe('Returned');
     expect(displayAuditValue('gymnasium')).toBe('gymnasium');
   });
+
+  it('words a stored rejected as Returned only for a row that was a return', () => {
+    expect(displayAuditValue('rejected', { returned: true })).toBe('Returned');
+    expect(displayAuditValue('rejected', { returned: false })).toBe('Rejected');
+    expect(displayAuditValue('approved', { returned: true })).toBe('Approved');
+  });
 });

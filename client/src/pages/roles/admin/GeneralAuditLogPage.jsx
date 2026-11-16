@@ -56,11 +56,15 @@ const EMPTY_FILTERS = {
   per_page: 10,
 };
 
-const CHANGE_COLUMNS = [
-  { key: 'field', header: 'Field', render: (change) => <span className="font-medium">{change.field}</span> },
-  { key: 'from', header: 'Before', render: (change) => (change.from === null || change.from === undefined ? "" : displayAuditValue(change.from)) },
-  { key: 'to', header: 'After', render: (change) => displayAuditValue(change.to) },
-];
+// A return is stored as 'rejected', so the row's own action label decides which word the changes show.
+const changeColumns = (log) => {
+  const returned = log?.action_category_label === 'Return';
+  return [
+    { key: 'field', header: 'Field', render: (change) => <span className="font-medium">{change.field}</span> },
+    { key: 'from', header: 'Before', render: (change) => (change.from === null || change.from === undefined ? "" : displayAuditValue(change.from, { returned })) },
+    { key: 'to', header: 'After', render: (change) => displayAuditValue(change.to, { returned }) },
+  ];
+};
 
 export default function GeneralAuditLogPage() {
   const [logs, setLogs] = useState([]);
@@ -266,7 +270,7 @@ export default function GeneralAuditLogPage() {
               <h3 id="audit-changes-title" className="text-sm font-semibold text-ink">Before and after</h3>
               {selectedLog.changes?.length ? (
                 <div className="mt-2">
-                  <DataTable caption="Field changes" columns={CHANGE_COLUMNS} rows={selectedLog.changes} rowKey={(change) => change.field} pageSize={10} />
+                  <DataTable caption="Field changes" columns={changeColumns(selectedLog)} rows={selectedLog.changes} rowKey={(change) => change.field} pageSize={10} />
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-ink-muted">No field-level change was recorded for this action.</p>

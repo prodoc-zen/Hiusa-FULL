@@ -4,6 +4,7 @@ import { resolveRuntimeApiUrl } from '../utils/runtimeApiUrl';
 import { clearAuthSession, rememberSignOutNotice } from '../utils/authSession';
 import { readSelectedPeriod } from '../utils/academicPeriodStore';
 import { readActiveSubAccount } from '../utils/subAccountStore';
+import { PRIVACY_CONSENT_EVENT, PRIVACY_CONSENT_REQUIRED } from '../utils/privacyNotice';
 
 export const API_BASE_URL = resolveRuntimeApiUrl(import.meta.env.VITE_API_URL);
 
@@ -138,6 +139,14 @@ api.interceptors.response.use(
         if (hadSession) rememberSignOutNotice('Your session ended. Sign in again to continue.');
         window.location.assign(hadSession ? '/login' : '/');
       }
+      return Promise.reject(error);
+    }
+
+    // Not a missing permission: the person has not agreed to the current privacy notice. The consent dialog opens;
+    // once they agree, they can send the request again.
+    if (status === 403 && [error.response.data?.code, error.response.data?.error_code].includes(PRIVACY_CONSENT_REQUIRED)) {
+      error.isPrivacyConsentRequired = true;
+      window.dispatchEvent(new Event(PRIVACY_CONSENT_EVENT));
       return Promise.reject(error);
     }
 

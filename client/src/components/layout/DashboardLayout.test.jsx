@@ -1,3 +1,4 @@
+import { PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
@@ -328,7 +329,7 @@ describe('DashboardLayout desktop sidebar width', () => {
 
   it('shows no welcome banner or tour entry on a first visit, and stores nothing about one', () => {
     localStorage.clear();
-    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'President', last_name: 'Admin' }));
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'President', last_name: 'Admin', privacy_accepted_at: '2026-11-01T00:00:00.000000Z', privacy_notice_version: PRIVACY_NOTICE_VERSION }));
 
     render(
       <MemoryRouter initialEntries={['/dashboard/admin']}>

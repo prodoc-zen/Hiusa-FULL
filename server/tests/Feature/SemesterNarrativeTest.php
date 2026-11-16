@@ -328,14 +328,15 @@ class SemesterNarrativeTest extends TestCase
         $this->assertStringNotContainsString('Rival Club', $fake->sent());
     }
 
-    public function test_an_sbo_officer_may_draft_too(): void
+    public function test_an_sbo_officer_cannot_draft_it_belongs_to_the_admin(): void
     {
         [$organization, , $semester] = $this->world();
         $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
         $this->app->instance(TextGenerator::class, new NarrativeFakeGenerator);
         Sanctum::actingAs($officer);
 
-        $this->postJson('/api/compliance/semester-narrative', ['semester_id' => $semester->id])->assertOk();
+        $this->postJson('/api/compliance/semester-narrative', ['semester_id' => $semester->id])->assertForbidden();
+        $this->assertSame(0, AiOutput::count());
     }
 
     public function test_students_and_deans_cannot_draft(): void

@@ -23,7 +23,7 @@ function factLines(facts) {
   events.forEach((event) => {
     const parts = [event.status, manilaDate(event.date, 'long')];
     if (event.attendance != null) parts.push(`${event.attendance} attended`);
-    if (event.budget_allocated != null) parts.push(`budget used ${peso(event.budget_used)} of ${peso(event.budget_allocated)}`);
+    if (event.budget_allocated != null) parts.push(`budget used ${event.budget_used != null ? peso(event.budget_used) : 'not recorded'} of ${peso(event.budget_allocated)}`);
     lines.push(`${event.title}: ${parts.join(', ')}`);
   });
   if (facts?.tasks) lines.push(`Tasks: ${facts.tasks.completed} completed, ${facts.tasks.overdue} overdue, ${facts.tasks.open} open`);

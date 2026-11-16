@@ -93,6 +93,19 @@ describe('SemesterNarrativeDrawer', () => {
     expect(screen.getByText('Officers: Juan Dela Cruz (President)')).toBeInTheDocument();
   });
 
+  it('says a budget used that was never recorded is not recorded, not zero', async () => {
+    service.draftSemesterNarrative.mockResolvedValue({
+      ...draft,
+      facts: { ...draft.facts, events: [{ title: 'Quiz Bee', date: '2026-09-20', status: 'completed', attendance: 40, budget_allocated: 5000, budget_used: null }] },
+    });
+    renderDrawer();
+
+    fireEvent.click(await screen.findByText('Facts used'));
+
+    expect(screen.getByText(/Quiz Bee: completed, .*40 attended, budget used not recorded of ₱5,000.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/budget used ₱0.00/)).not.toBeInTheDocument();
+  });
+
   it('says plainly when the semester had no events', async () => {
     service.draftSemesterNarrative.mockResolvedValue({ ...draft, facts: { ...draft.facts, events: [], elections: [], upcoming_events: [] } });
     renderDrawer();

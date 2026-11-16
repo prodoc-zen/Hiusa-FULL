@@ -103,6 +103,19 @@ describe('GeneralAuditLogPage', () => {
     expect(screen.queryByRole('option', { name: /rejected/i })).not.toBeInTheDocument();
   });
 
+  it('shows a stored rejected in the changes of a return as Returned', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    vi.mocked(getAuditLogs).mockResolvedValue({ data: { data: [{ id: 5, created_at: '2026-10-01T08:00:00Z', module: 'approvals', module_label: 'Approvals', action: 'reviewed_rejected', action_category_label: 'Return', subject: 'Event #5', description: 'SAO Director reviewed returned Event #5.', changes: [{ field: 'Status', from: 'pending', to: 'rejected' }] }], total: 1, per_page: 10, current_page: 1 } });
+    render(<GeneralAuditLogPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Audit record 5' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View details' }));
+
+    const changes = within(await screen.findByRole('table', { name: 'Field changes' }));
+    expect(changes.getByText('Returned')).toBeInTheDocument();
+    expect(changes.queryByText('Rejected')).not.toBeInTheDocument();
+  });
+
   it('prints a stored status in the changes as a word, not the raw value', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN' }));
     vi.mocked(getAuditLogs).mockResolvedValue({ data: { data: [{ id: 7, created_at: '2026-10-01T08:00:00Z', module: 'venue_bookings', module_label: 'Venue Bookings', action: 'booking_rejected', action_label: 'Venue Booking Decision', action_category_label: 'Reject', subject: 'Venue booking: Gymnasium', description: 'SAO Director rejected Venue booking: Gymnasium.', changes: [{ field: 'Status', from: 'pending', to: 'rejected' }] }], total: 1, per_page: 10, current_page: 1 } });

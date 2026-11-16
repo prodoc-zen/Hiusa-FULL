@@ -43,18 +43,24 @@ class ReviewNoteDrafter
 
         $generated = $this->generator->generate(AiInstructions::reviewNote($facts['current_text'] !== ''), $this->input($facts), 400, 0.2);
         if (! $generated) {
-            return ['text' => $template, 'engine' => 'template', 'model' => null, 'rejection' => 'unavailable', 'facts' => $facts];
+            return ['text' => $this->fallback($template, $facts), 'engine' => 'template', 'model' => null, 'rejection' => 'unavailable', 'facts' => $facts];
         }
 
         $text = $this->generator->plainText((string) $generated['text']);
         $rejection = $this->rejection($text, $facts);
         if ($rejection !== null) {
-            return ['text' => $template, 'engine' => 'template', 'model' => null, 'rejection' => $rejection, 'facts' => $facts];
+            return ['text' => $this->fallback($template, $facts), 'engine' => 'template', 'model' => null, 'rejection' => $rejection, 'facts' => $facts];
         }
 
         $model = (string) ($generated['model'] ?? '');
 
         return ['text' => $text, 'engine' => str_starts_with($model, 'claude') ? 'claude' : 'groq', 'model' => $model, 'rejection' => null, 'facts' => $facts];
+    }
+
+    /** "Improve my wording" never wipes the reviewer's text: with no model text to use, their own wording comes back unchanged. */
+    private function fallback(string $template, array $facts): string
+    {
+        return $facts['current_text'] !== '' ? $facts['current_text'] : $template;
     }
 
     /** Why a model text may not be used, or null when it may. */
@@ -135,7 +141,12 @@ class ReviewNoteDrafter
         return true;
     }
 
-    /** The reviewer's marks as plain lines; with nothing flagged, one neutral sentence asking for the reason. */
+    /**
+     * What the reviewer typed, as plain lines. Flagged marks come first; with none, the reviewer's own notes as one
+     * paragraph and then one line per check the system ran. A sentence that states the opposite decision is dropped,
+     * so a note that says "approve this" never turns a return into an approval. Only with nothing typed at all is
+     * there a neutral sentence.
+     */
     private function template(array $facts): string
     {
         $lines = [];
@@ -144,13 +155,32 @@ class ReviewNoteDrafter
                 if ($mark['mark'] === 'accepted') {
                     continue;
                 }
-                $note = $mark['note'] !== '' ? $mark['note'] : ($mark['mark'] === 'missing' ? 'not provided' : '');
+                $note = self::sentencesAgreeing($mark['note'], $facts);
+                $note = $note !== '' ? $note : ($mark['mark'] === 'missing' && $mark['note'] === '' ? 'not provided' : '');
                 $line = 'Needs correction: '.$mark['requirement'].($note !== '' ? ': '.$note : '');
-                $lines[] = preg_match('/[.!?]$/u', $line) === 1 ? $line : $line.'.';
+                $lines[] = self::endSentence($line);
             }
         }
+
         if ($lines === []) {
-            return self::NEUTRAL_LINE;
+            $notes = self::sentencesAgreeing($facts['reviewer_notes'], $facts);
+            if ($notes !== '') {
+                $lines[] = self::endSentence($notes);
+            }
+            foreach ($facts['findings'] as $finding) {
+                $finding = self::endSentence($finding);
+                if (! str_contains($notes, rtrim($finding, '.!?'))) {
+                    $lines[] = $finding;
+                }
+            }
+        }
+
+        // The finished text is held to the same rule as the model's: a line that still disagrees is left out.
+        $lines = array_values(array_filter($lines, fn (string $line) => self::decisionWordsAgree($line, $facts)));
+        if ($lines === []) {
+            return in_array($facts['decision'], self::POSITIVE, true) && $facts['marks'] === []
+                ? ucfirst($facts['decision']).'. Add any remarks for the organization.'
+                : self::NEUTRAL_LINE;
         }
 
         $text = implode("\n", $lines);
@@ -162,6 +192,32 @@ class ReviewNoteDrafter
         $words = preg_split('/\s+/u', $text, self::MAX_WORDS + 1, PREG_SPLIT_NO_EMPTY) ?: [];
 
         return implode(' ', array_slice($words, 0, self::MAX_WORDS));
+    }
+
+    private static function endSentence(string $line): string
+    {
+        return preg_match('/[.!?]$/u', $line) === 1 ? $line : $line.'.';
+    }
+
+    /** The typed text without any sentence that states the opposite decision, whitespace made plain. */
+    private static function sentencesAgreeing(string $text, array $facts): string
+    {
+        $kept = [];
+        foreach (preg_split('/(?<=[.!?])\s+|\R+/u', $text, 100, PREG_SPLIT_NO_EMPTY) ?: [] as $sentence) {
+            $sentence = trim(preg_replace('/\s+/u', ' ', $sentence) ?? '');
+            if ($sentence === '') {
+                continue;
+            }
+            $bare = self::withoutSupplied($sentence, $facts);
+            $pattern = in_array($facts['decision'], self::NEGATIVE, true) ? '/\b(approved?|accept(ed)?|cleared)\b/iu'
+                : (in_array($facts['decision'], self::POSITIVE, true) ? '/\b(returned|rejected)\b/iu' : null);
+            if ($pattern !== null && preg_match($pattern, $bare) === 1) {
+                continue;
+            }
+            $kept[] = $sentence;
+        }
+
+        return implode(' ', $kept);
     }
 
     /** What the model is shown: every fact the drafter reads except the names it must not use. */

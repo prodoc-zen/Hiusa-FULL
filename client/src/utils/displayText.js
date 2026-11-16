@@ -44,9 +44,12 @@ export function signatoryLabel(role) {
 // Stored single-word statuses read as words, so a Changes row never prints a raw "rejected".
 const AUDIT_STATUS_WORDS = new Set(['pending', 'approved', 'rejected', 'returned', 'cancelled', 'completed', 'resolved', 'dismissed', 'active', 'inactive', 'open', 'closed', 'paid', 'unpaid', 'draft', 'published', 'upcoming', 'verified', 'declined', 'archived']);
 
-export function displayAuditValue(value) {
+// An approval sent back for changes is stored as 'rejected'. When the log row says it was a return, the stored word
+// reads as Returned, so the page never calls a return a rejection.
+export function displayAuditValue(value, { returned = false } = {}) {
   if (value === null || value === undefined || value === '') return 'Not set';
   if (typeof value !== 'string') return String(value);
+  if (returned && value === 'rejected') return 'Returned';
   if (AUDIT_STATUS_WORDS.has(value)) return humanizeIdentifier(value);
   return /^[A-Za-z0-9]+(?:[_.][A-Za-z0-9]+)+$/.test(value)
     ? humanizeIdentifier(value)

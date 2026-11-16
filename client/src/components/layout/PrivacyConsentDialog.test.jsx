@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PrivacyConsentDialog from './PrivacyConsentDialog';
+import { PRIVACY_CONSENT_EVENT, PRIVACY_NOTICE_VERSION } from '../../utils/privacyNotice';
 
 const mocks = vi.hoisted(() => ({
   acceptPrivacyNotice: vi.fn(),
@@ -48,13 +49,40 @@ describe('PrivacyConsentDialog', () => {
   });
 
   it.each([
-    ['has agreed', { school_id: 1, role: 'STUDENT', privacy_accepted_at: '2026-11-01T00:00:00.000000Z' }],
-    ['has a stored sign in from before the notice', { school_id: 1, role: 'STUDENT' }],
+    ['has agreed to the current notice', { school_id: 1, role: 'STUDENT', privacy_accepted_at: '2026-11-01T00:00:00.000000Z', privacy_notice_version: PRIVACY_NOTICE_VERSION }],
     ['must change the password first', { school_id: 1, role: 'STUDENT', privacy_accepted_at: null, must_change_password: true }],
   ])('stays away for someone who %s', (_name, user) => {
     renderDialog(user);
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['has a stored sign in from before the notice', { school_id: 1, role: 'STUDENT' }],
+    ['agreed to an older version of the notice', { school_id: 1, role: 'STUDENT', privacy_accepted_at: '2026-01-01T00:00:00.000000Z', privacy_notice_version: '2026-01' }],
+    ['agreed before notice versions were kept', { school_id: 1, role: 'STUDENT', privacy_accepted_at: '2026-01-01T00:00:00.000000Z', privacy_notice_version: null }],
+  ])('appears for someone who %s', (_name, user) => {
+    renderDialog(user);
+
+    expect(screen.getByRole('dialog', { name: 'Before you continue' })).toBeInTheDocument();
+  });
+
+  it('opens when the server refuses a request for want of an agreement, and closes after agreeing', async () => {
+    renderDialog({ school_id: 1, role: 'STUDENT', privacy_accepted_at: '2026-11-01T00:00:00.000000Z', privacy_notice_version: PRIVACY_NOTICE_VERSION });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    act(() => { window.dispatchEvent(new Event(PRIVACY_CONSENT_EVENT)); });
+    expect(screen.getByRole('dialog', { name: 'Before you continue' })).toBeInTheDocument();
+
+    fireEvent.click(agreeBox());
+    fireEvent.click(screen.getByRole('button', { name: 'Agree and continue' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mocks.acceptPrivacyNotice).toHaveBeenCalledTimes(1);
+
+    act(() => { window.dispatchEvent(new Event(PRIVACY_CONSENT_EVENT)); });
+    expect(screen.getByRole('dialog', { name: 'Before you continue' })).toBeInTheDocument();
+    expect(agreeBox()).not.toBeChecked();
   });
 
   it('asks for the box to be ticked before anything is sent', () => {
