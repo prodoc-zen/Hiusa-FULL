@@ -19,7 +19,7 @@ class AccountProfile extends Model
 
     protected function casts(): array
     {
-        return ['modules' => 'array'];
+        return ['modules' => 'array', 'view_only' => 'boolean'];
     }
 
     public const UNAVAILABLE_MESSAGE = 'This account profile is unavailable.';

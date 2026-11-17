@@ -132,7 +132,7 @@ class AccountProfileController extends Controller
             'school_id' => $profile->user_school_id, 'first_name' => $profile->user->first_name,
             'last_name' => $profile->user->last_name, 'email' => $profile->user->email,
             'role' => $profile->role, 'account_status' => $profile->account_status,
-            'position_title' => $profile->position_title, 'modules' => $profile->modules,
+            'position_title' => $profile->position_title, 'modules' => $profile->modules, 'view_only' => (bool) $profile->view_only,
             'profiles_count' => $profile->user->account_profiles_count,
             'is_primary' => (int) $profile->organization_id === (int) $profile->user->getRawOriginal('organization_id'),
             'deletion_block_reason' => $this->profileDeletion->permissionFailure($request->user(), $profile),
@@ -286,7 +286,7 @@ class AccountProfileController extends Controller
     public function update(Request $request, AccountProfile $profile)
     {
         $actor = $request->user();
-        $data = $request->validate($this->grantRules($actor));
+        $data = $request->validate([...$this->grantRules($actor), 'view_only' => ['sometimes', 'boolean']]);
 
         $profile = DB::transaction(function () use ($request, $actor, $data, $profile) {
             $organization = $this->targetOrganization($request, $profile->organization_id, true);
@@ -301,12 +301,20 @@ class AccountProfileController extends Controller
                     ->whereHas('user', fn ($query) => $query->where('account_status', 'active'))->exists();
                 abort_unless($otherAdmin, 422, 'Assign another active Admin before changing the last one.');
             }
-            $before = $profile->only(['role', 'position_title', 'modules']);
-            $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization)]);
+            // View only is a seat of oversight on an organization head, set by the Department Head or the SAO and never by the head themself.
+            $viewOnly = array_key_exists('view_only', $data) ? (bool) $data['view_only'] : (bool) $profile->view_only;
+            if ($viewOnly !== (bool) $profile->view_only) {
+                abort_if($actor->role === 'ADMIN', 403, 'Only the Department Head or the SAO can make a seat view only.');
+            }
+            if ($viewOnly && $data['role'] !== 'ADMIN') {
+                throw ValidationException::withMessages(['view_only' => ['Only an organization head seat can be view only.']]);
+            }
+            $before = $profile->only(['role', 'position_title', 'modules', 'view_only']);
+            $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization), 'view_only' => $viewOnly]);
             AuditLog::create([
                 'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
                 'module' => 'users', 'action' => 'organization_access_changed', 'record_type' => AccountProfile::class,
-                'record_id' => $profile->id, 'old_values' => $before, 'new_values' => $profile->only(['role', 'position_title', 'modules']),
+                'record_id' => $profile->id, 'old_values' => $before, 'new_values' => $profile->only(['role', 'position_title', 'modules', 'view_only']),
                 'ip_address' => $request->ip(), 'created_at' => now(),
             ]);
             if ($before['role'] === 'STUDENT' && in_array($data['role'], ['SBO_OFFICER', 'ADMIN'], true)) {
@@ -316,7 +324,7 @@ class AccountProfileController extends Controller
             return $profile;
         });
 
-        return response()->json($profile->only(['id', 'organization_id', 'role', 'position_title', 'modules', 'account_status']));
+        return response()->json($profile->only(['id', 'organization_id', 'role', 'position_title', 'modules', 'view_only', 'account_status']));
     }
 
     /**

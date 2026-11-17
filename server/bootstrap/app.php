@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsurePeriodWritable;
 use App\Http\Middleware\EnsurePrivacyConsent;
+use App\Http\Middleware\EnsureProfileCanWrite;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
@@ -57,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'org.writable' => EnsureOrganizationWritable::class,
             'org.module' => EnsureOrganizationModule::class,
+            'view.only' => EnsureProfileCanWrite::class,
             'account.profile' => UseAccountProfile::class,
             'password.changed' => EnsurePasswordChanged::class,
             'period.writable' => EnsurePeriodWritable::class,

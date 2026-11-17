@@ -14,6 +14,7 @@ function renderPage(role) {
       <Routes>
         <Route path="/dashboard/approval-requests/new" element={<SubmitApprovalRequestPage />} />
         <Route path="/dashboard/approval-requests/new/:type" element={<Destination />} />
+        <Route path="/dashboard/finance/transaction-history" element={<p>Financial reports page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -29,6 +30,7 @@ describe('SubmitApprovalRequestPage', () => {
     expect(screen.getByText('Budget proposal')).toBeInTheDocument();
     expect(screen.getByText('Event proposal')).toBeInTheDocument();
     expect(screen.getByText('Election')).toBeInTheDocument();
+    expect(screen.getByText('Financial report')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: /Election/ }));
     fireEvent.click(screen.getByRole('button', { name: /Continue to request form/ }));
@@ -56,6 +58,24 @@ describe('SubmitApprovalRequestPage', () => {
       expect(screen.getByText('Destination request form')).toBeInTheDocument();
       expect(screen.getByTestId('where')).toHaveTextContent(`/dashboard/approval-requests/new/${type}`);
     });
+  });
+
+  it('offers the financial report and opens Finance, where the report is built and sent', () => {
+    renderPage('ADMIN');
+
+    const card = within(screen.getByRole('radio', { name: /Financial report/ }).closest('label'));
+    expect(card.getByText('The Department Head approves it.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Financial report/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continue to request form/ }));
+    expect(screen.getByText('Financial reports page')).toBeInTheDocument();
+  });
+
+  it('offers a view-only seat nothing to send', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', view_only: true }));
+    render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new']}><Routes><Route path="/dashboard/approval-requests/new" element={<SubmitApprovalRequestPage />} /></Routes></MemoryRouter>);
+
+    expect(screen.getByText('This seat is view only, so it cannot send requests for approval.')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
   it('links an Admin to what they already submitted', () => {

@@ -16,6 +16,7 @@ import useAccessDeniedNotice from '../../hooks/useAccessDeniedNotice';
 import useProfileSync from '../../hooks/useProfileSync';
 import useWorkspaceTitle from '../../hooks/useWorkspaceTitle';
 import { PERIOD_EVENT, PERIOD_RESET_EVENT, readSelectedPeriod } from '../../utils/academicPeriodStore';
+import { readViewOnly } from '../../utils/userModules';
 
 // A page that was not moved to PageHeader yet still writes its own h1. Watching the content for one
 // keeps the default header from adding a second title above it.
@@ -124,6 +125,11 @@ export default function DashboardLayout() {
       <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
         <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
         <WorkspaceBanner />
+        {readViewOnly() && (
+          <aside aria-label="View only" className="border-b border-line bg-page px-4 py-2 text-sm text-ink sm:px-6">
+            <p className="min-w-0 break-words"><strong className="font-semibold">View only.</strong> You can see this organization's records but not change them.</p>
+          </aside>
+        )}
         {isPlanningMode && (
           <aside aria-label="Planning" className="flex flex-wrap items-center justify-between gap-2 border-b border-warning/40 bg-warning-tint px-4 py-2 text-sm text-ink sm:px-6">
             <p className="min-w-0 break-words">
