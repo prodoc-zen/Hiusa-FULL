@@ -53,6 +53,9 @@ return [
         '/dashboard/super-admin/clearances',
         '/dashboard/super-admin/audit-logs',
         '/dashboard/super-admin/academic-years',
+        // The SAO reads only the university-wide elections, to settle a tie the runoff left.
+        '/dashboard/elections',
+        '/dashboard/elections/election-results',
         '/dashboard/profile',
     ],
 

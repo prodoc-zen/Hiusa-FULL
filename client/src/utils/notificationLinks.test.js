@@ -97,7 +97,7 @@ const EXPECTED = {
     STUDENT: null,
   },
   election: {
-    SUPER_ADMIN: null,
+    SUPER_ADMIN: '/dashboard/elections/election-results',
     ADMIN: '/dashboard/elections/manage-elections?record=7',
     SBO_OFFICER: '/dashboard/elections/cast-vote',
     DEPARTMENT_HEAD: '/dashboard/elections/election-results',

@@ -126,6 +126,7 @@ const SPEC = {
         ['Venues', '/dashboard/super-admin/venues'],
         ['Grievances', '/dashboard/super-admin/grievances'],
         ['Clearances', '/dashboard/super-admin/clearances'],
+        ['Election results', '/dashboard/elections/election-results'],
       ],
     },
     { label: 'Files', children: [['Submitted files', '/dashboard/super-admin/documents'], ['Storage and limits', '/dashboard/super-admin/file-storage']] },
@@ -159,7 +160,7 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     ['SBO_OFFICER', 12, 27],
     ['DEPARTMENT_HEAD', 14, 18],
     ['STUDENT', 8, 13],
-    ['SUPER_ADMIN', 8, 20],
+    ['SUPER_ADMIN', 8, 21],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -263,7 +264,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records' || page.path === '/dashboard/records/officer-transition')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications' || page.path === '/dashboard/ask-ai' || page.path === '/dashboard/records' || page.path === '/dashboard/records/officer-transition' || page.path === '/dashboard/elections/election-results')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {

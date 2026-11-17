@@ -187,4 +187,10 @@ describe('ElectionsHub', () => {
     expect(await screen.findByText('Results destination')).toBeInTheDocument();
     expect(getElections).not.toHaveBeenCalled();
   });
+
+  it('sends the SAO asking for the voting route to the results page too', async () => {
+    renderHub('/dashboard/elections/cast-vote', { role: 'SUPER_ADMIN' });
+    expect(await screen.findByText('Results destination')).toBeInTheDocument();
+    expect(getElections).not.toHaveBeenCalled();
+  });
 });

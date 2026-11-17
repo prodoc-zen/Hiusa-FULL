@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -226,6 +228,27 @@ describe('ProtectedRoute office staff guard', () => {
     render(dean);
     expect(screen.queryByText('College compliance')).not.toBeInTheDocument();
     expect(screen.getByTestId('landed')).toHaveTextContent('/dashboard/admin|{"accessDenied":{"path":"/dashboard/department-head/compliance","allowedRoles":["DEPARTMENT_HEAD"]}}');
+  });
+
+  it('lets office staff open every page the Department Head is allowed, so a link the dean opens is not refused to them', () => {
+    const source = readFileSync(resolve(import.meta.dirname, '../../server/config/client_routes.php'), 'utf8');
+    const dean = source.match(/'DEPARTMENT_HEAD' => \[([\s\S]*?)\n {4}\],/)[1];
+    // Office staff work from /dashboard/admin, so the dean's own home is the only page they do not open.
+    const paths = [...dean.matchAll(/'(\/dashboard[^']*)'/g)].map((match) => match[1].replace(/:\w+/g, '7')).filter((path) => path !== '/dashboard/department-head');
+    expect(paths).toContain('/dashboard/elections');
+    paths.forEach((path) => {
+      localStorage.clear();
+      signIn(officeStaff);
+      const { unmount } = renderGuarded(path);
+      expect(screen.getByText(`at ${path}`)).toBeInTheDocument();
+      unmount();
+    });
+  });
+
+  it('opens only the elections root for office staff, never the organization Admin pages beneath it', () => {
+    signIn(officeStaff);
+    renderGuarded('/dashboard/elections');
+    expect(screen.getByText('at /dashboard/elections')).toBeInTheDocument();
   });
 
   it('leaves a real organization Admin free to open the finance, task and voting pages', () => {

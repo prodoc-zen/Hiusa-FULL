@@ -377,11 +377,11 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
     Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
 
     // Election Module Routes
-    Route::get('/elections', [ElectionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::get('/elections/{id}', [ElectionController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/elections', [ElectionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD,SUPER_ADMIN']);
+    Route::get('/elections/{id}', [ElectionController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD,SUPER_ADMIN']);
     Route::get('/elections/{id}/informative-letter', [ElectionController::class, 'informativeLetter'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::get('/elections/{id}/results', [ElectionResultsController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/elections/{id}/results', [ElectionResultsController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD,SUPER_ADMIN']);
     Route::get('/elections/{id}/voters', [ElectionBallotController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/elections/{id}/vote', [ElectionBallotController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);
 

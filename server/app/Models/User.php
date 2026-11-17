@@ -469,6 +469,21 @@ class User extends Authenticatable
         return $this->role === 'STUDENT' ? $this->votingOrganizationIds() : $this->scopedOrganizationIds();
     }
 
+    /**
+     * Organizations whose elections this account may read. The SAO has no organization of its own to vote or manage in:
+     * it reads only the university-wide organizations, whose elections it reviews (the dean's reach is the college's).
+     *
+     * @return array<int, int>
+     */
+    public function electionReadOrganizationIds(): array
+    {
+        if ($this->role === 'SUPER_ADMIN') {
+            return Organization::where('is_university_wide', true)->pluck('id')->all();
+        }
+
+        return $this->electionOrganizationIds();
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(Event::class, 'created_by', 'school_id');
