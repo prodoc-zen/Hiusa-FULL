@@ -1,6 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, EmptyState, ErrorState, Input, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { Button, Card, EmptyState, ErrorState, Input, SelectAllCheckbox, SkeletonTable, StatusBadge } from '../../../components/ui';
+import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriodStudents, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
@@ -16,6 +17,9 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(() => {
     if (!period) return undefined;
@@ -48,6 +52,54 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
     return signature ? <StatusBadge status={signature.status} tone={clearanceStatusTone(signature.status)} /> : <span className="text-xs text-ink-muted">Not required</span>;
   }
 
+  // The roster is paged, so select all covers the pending SAO lines on this page; a selection never reaches a row the SAO cannot see.
+  const selectablePendingIds = students.map((student) => signatureFor(student, SAO_ROLE)).filter((signature) => signature?.status === 'pending').map((signature) => signature.id);
+  const selectedPendingIds = selectablePendingIds.filter((id) => selectedIds.has(id));
+
+  function toggleAll(checked) {
+    setSelectedIds(checked ? new Set(selectablePendingIds) : new Set());
+  }
+
+  function toggleRow(id) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmBulkClear() {
+    setBulkBusy(true);
+    const ids = selectedPendingIds;
+    const results = await Promise.allSettled(ids.map((id) => updateClearanceSignature(id, { status: 'cleared' })));
+    const failed = results.map((result, index) => ({ result, id: ids[index] })).filter(({ result }) => result.status === 'rejected');
+    const clearedCount = ids.length - failed.length;
+    if (failed.length === 0) {
+      notify.success(`Cleared ${clearedCount} signature${clearedCount === 1 ? '' : 's'}.`);
+    } else {
+      const reason = failed[0].result.reason?.response?.data?.message;
+      notify.error(`Cleared ${clearedCount} of ${ids.length} signatures. ${failed.length} could not be cleared${reason ? `: ${reason}` : '.'} The roster is up to date, so you can try the rest again.`);
+    }
+    setSelectedIds(new Set(failed.map(({ id }) => id)));
+    setBulkOpen(false);
+    setBulkBusy(false);
+    load();
+    if (clearedCount > 0) onSignatureChanged?.();
+  }
+
+  function studentCheckbox(student) {
+    const signature = signatureFor(student, SAO_ROLE);
+    const name = student.student_name || `Student ${student.student_id}`;
+    if (signature?.status === 'pending') {
+      return (
+        <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
+          <input type="checkbox" aria-label={`Select ${name} for bulk clear`} checked={selectedIds.has(signature.id)} onChange={() => toggleRow(signature.id)} className="h-4 w-4 accent-brand-700" />
+        </label>
+      );
+    }
+    return selectablePendingIds.length > 0 ? <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 md:block" /> : null;
+  }
+
   function saoAction(student) {
     const signature = signatureFor(student, SAO_ROLE);
     return signature ? <SignAction signatureId={signature.id} status={signature.status} remarks={signature.remarks} roleLabel={humanizeRole(SAO_ROLE)} showStatus={false} onSign={(status, remarks) => handleSign(signature.id, status, remarks)} /> : null;
@@ -59,6 +111,13 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
       {period && (
         <div className="flex flex-col gap-4">
           <div className="p-4"><Input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Name or school ID" aria-label="Search students" /></div>
+
+          {!loading && !error && selectablePendingIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 px-4">
+              <SelectAllCheckbox label={`Select all pending (${selectablePendingIds.length})`} selected={selectedPendingIds.length} total={selectablePendingIds.length} onChange={toggleAll} />
+              {selectedPendingIds.length > 0 && <Button size="sm" onClick={() => setBulkOpen(true)}>Clear {selectedPendingIds.length} selected</Button>}
+            </div>
+          )}
 
           {loading && <SkeletonTable rows={5} columns={4} className="mx-4" />}
           {!loading && error && <ErrorState description={error} onRetry={load} />}
@@ -76,7 +135,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
                 <th scope="col" className={`${TH} text-right`}>Actions</th>
               </tr></thead>
               <tbody className={TBODY}>{students.map((student) => <tr key={student.student_id} className={TR}>
-                <td data-label="Student" className={TD}><div><span className="block font-medium text-ink">{student.student_name || `Student ${student.student_id}`}</span><span className="block text-xs text-ink-muted">{student.student_id}</span></div></td>
+                <td data-label="Student" className={TD}><div className="flex items-center gap-1">{studentCheckbox(student)}<div><span className="block font-medium text-ink">{student.student_name || `Student ${student.student_id}`}</span><span className="block text-xs text-ink-muted">{student.student_id}</span></div></div></td>
                 <td data-label="Progress" className={TD}><div><span className="block text-ink">{student.signatures.filter((signature) => signature.status === 'cleared').length} of {student.signatures.length}</span><span className="block text-xs text-ink-muted">{clearanceStageText(student)}</span></div></td>
                 {(period.required_roles || []).map((role) => <td key={role} data-label={humanizeRole(role)} className={TD}>{signatureStatus(signatureFor(student, role))}</td>)}
                 <td data-label="Actions" className={`${TD} md:text-right`}>{saoAction(student)}</td>
@@ -89,6 +148,19 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
           )}
         </div>
       )}
+      <Modal
+        open={bulkOpen}
+        title="Clear selected signatures"
+        description={`Clear ${selectedPendingIds.length} pending signature${selectedPendingIds.length === 1 ? '' : 's'}? Every student affected will be notified.`}
+        onClose={bulkBusy ? undefined : () => setBulkOpen(false)}
+        maxWidth="max-w-md"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setBulkOpen(false)} disabled={bulkBusy}>Cancel</Button>
+            <Button onClick={confirmBulkClear} loading={bulkBusy}>Clear selected</Button>
+          </>
+        )}
+      />
     </Card>
   );
 }
