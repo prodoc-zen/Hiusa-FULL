@@ -15,6 +15,7 @@ import {
 } from '../../../services/askAiService';
 import { actionOf, liveActionId } from '../../../components/ai/actionState';
 import isSafePageHref from '../../../components/ai/safeHref';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 import ChatComposer from './ChatComposer';
 import ChatMessage from './ChatMessage';
 import ConversationList from './ConversationList';
@@ -176,14 +177,15 @@ function BriefingCard({ briefing, priorities }) {
 
 function NewConversation({ overview, loading, error, onRetry, onAsk }) {
   const user = storedUser();
+  const role = effectiveRole(user);
   const briefing = overview?.daily_briefing;
   const priorities = Array.isArray(briefing?.priorities) ? briefing.priorities.slice(0, 4) : [];
   const served = Array.isArray(overview?.starter_prompts) && overview.starter_prompts.length > 0
     ? overview.starter_prompts
     : (overview?.suggested_questions || []);
-  const starters = overview ? served : (FALLBACK_STARTERS[user.role] || NEUTRAL_STARTERS);
+  const starters = overview ? served : (FALLBACK_STARTERS[role] || NEUTRAL_STARTERS);
   const firstName = overview?.user_first_name || user.first_name;
-  const examples = ACTION_EXAMPLES[user.role];
+  const examples = ACTION_EXAMPLES[role];
 
   return (
     <div className="space-y-5 pt-4 sm:pt-8">

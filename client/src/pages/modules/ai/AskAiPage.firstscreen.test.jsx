@@ -104,6 +104,12 @@ describe('Ask AI first screen', () => {
     expect(chipLabels()).toEqual(labels);
   });
 
+  it('offers the dean office staff the dean starter questions', () => {
+    signIn({ role: 'ADMIN', first_name: 'Sam', organization: { id: 9, organization_type: 'COLLEGE' } });
+    renderPage();
+    expect(chipLabels()).toEqual(["What's on my desk today", 'Waiting for my approval', 'Which organizations need a head']);
+  });
+
   it('offers a single neutral question when the role is not known', () => {
     signIn({ role: 'SOMETHING_NEW', first_name: 'Sam' });
     renderPage();

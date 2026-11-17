@@ -89,6 +89,16 @@ describe('ElectionPickerPage', () => {
     localStorage.removeItem(PERIOD_KEY);
   });
 
+  it('gives the dean office staff the dean view: no election management, whatever the stored ADMIN profile', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { id: 9, organization_type: 'COLLEGE' } }));
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    await screen.findAllByText('HIUSA General Election 2026');
+
+    expect(screen.queryByRole('button', { name: 'Create election' })).not.toBeInTheDocument();
+    const row = await rowFor('HIUSA General Election 2026');
+    expect(within(row).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+  });
+
   it('opens the creation form when launched from the approval-request selector', async () => {
     render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
 
