@@ -206,7 +206,8 @@ function FingerprintScanPanel({ eventId, onRecorded, users = [], department = ''
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
 
-  const scopedUsers = users.filter((user) => user.role === 'STUDENT' && (!department || user.department === department));
+  // An officer without the Members area gets a roster of students with names and class only, so a missing role or department is not a mismatch.
+  const scopedUsers = users.filter((user) => (user.role ?? 'STUDENT') === 'STUDENT' && (!department || !user.department || user.department === department));
   const configuredPrograms = Array.isArray(academicStructure?.programs) ? academicStructure.programs : null;
   const programOptions = configuredPrograms
     ? configuredPrograms.map((program) => program.name).filter(Boolean).sort()
