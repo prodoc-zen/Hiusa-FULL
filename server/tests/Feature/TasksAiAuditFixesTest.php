@@ -6,6 +6,7 @@ use App\Console\Commands\MarkOverdueTasks;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Event;
+use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\Task;
@@ -138,6 +139,26 @@ class TasksAiAuditFixesTest extends TestCase
 
         $this->putJson('/api/tasks/'.$task->id, ['deadline' => now()->subDay()->format('Y-m-d\TH:i')])
             ->assertUnprocessable()->assertJsonValidationErrors('deadline');
+    }
+
+    public function test_the_officer_is_notified_when_a_task_is_created_for_them_or_reassigned_to_them(): void
+    {
+        $first = $this->officer('Secretary');
+        $second = $this->officer('Treasurer');
+
+        $created = $this->postJson('/api/tasks', ['title' => 'Prepare minutes', 'deadline' => now()->addWeek(), 'status' => 'pending', 'task_kind' => 'standalone', 'category' => 'documentation', 'assigned_to' => $first->school_id])
+            ->assertCreated()->json();
+        $note = Notification::where('user_id', $first->school_id)->where('notification_type', 'task')->firstOrFail();
+        $this->assertSame($created['id'], $note->reference_id);
+        $this->assertSame(Task::class, $note->reference_type);
+        $this->assertStringContainsString('Prepare minutes', $note->message);
+
+        $this->putJson('/api/tasks/'.$created['id'], ['title' => 'Prepare the minutes'])->assertOk();
+        $this->assertSame(0, Notification::where('user_id', $second->school_id)->count());
+
+        $this->putJson('/api/tasks/'.$created['id'], ['assigned_to' => $second->school_id])->assertOk();
+        $this->assertSame(1, Notification::where('user_id', $second->school_id)->where('notification_type', 'task')->where('reference_id', $created['id'])->count());
+        $this->assertSame(1, Notification::where('user_id', $first->school_id)->count());
     }
 
     public function test_editing_a_workflow_task_keeps_its_time_and_the_phase_window(): void

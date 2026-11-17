@@ -279,3 +279,74 @@ describe('useWorkspaces when the role changes while the person is signed in', ()
     expect(assign).not.toHaveBeenCalled();
   });
 });
+
+describe('useWorkspaces when the Admin changes an officer\'s access while they are signed in', () => {
+  const reload = vi.fn();
+  const originalLocation = window.location;
+  const signedIn = (extra) => localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'SBO_OFFICER', ...extra }));
+  const returnsUser = (user) => getCurrentUser.mockImplementation(async () => {
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
+  });
+
+  beforeEach(() => {
+    getAccountProfiles.mockReset();
+    getCurrentUser.mockReset();
+    reload.mockReset();
+    getAccountProfiles.mockResolvedValue({ data: { profiles: [], active_profile_id: null } });
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, reload, assign: vi.fn() } });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+    localStorage.clear();
+    delete document.visibilityState;
+  });
+
+  it('reloads the tab when the modules differ on the next return to it', async () => {
+    signedIn({ modules: ['events'], can_book_venues: true });
+    returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: ['events', 'finance'], can_book_venues: true });
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getCurrentUser).not.toHaveBeenCalled();
+
+    fire(focus);
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+  });
+
+  it('reloads the tab when the venue booking switch differs', async () => {
+    signedIn({ modules: null, can_book_venues: false });
+    returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: null, can_book_venues: true });
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    fire(focus);
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+  });
+
+  it('leaves the tab alone when nothing changed', async () => {
+    signedIn({ modules: ['events'], can_book_venues: true });
+    returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: ['events'], can_book_venues: true });
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    fire(focus);
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('does not read the user again for someone who is not an officer', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 5, role: 'STUDENT' }));
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    fire(focus);
+    await act(async () => {});
+
+    expect(getCurrentUser).not.toHaveBeenCalled();
+  });
+});

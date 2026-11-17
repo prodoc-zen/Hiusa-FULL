@@ -127,6 +127,16 @@ class SetupChecklistTest extends TestCase
         $this->assertSame('/dashboard/events/activity-calendar', $steps['event']['href']);
     }
 
+    public function test_an_officer_is_told_to_ask_the_admin_to_enroll_their_fingerprint(): void
+    {
+        $organization = Organization::factory()->create();
+        $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']);
+        $student = User::factory()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $this->assertStringContainsString('Ask your organization Admin', $this->steps($this->checklistFor($officer))['fingerprint']['detail']);
+        $this->assertStringContainsString('Visit your SBO officers', $this->steps($this->checklistFor($student))['fingerprint']['detail']);
+    }
+
     public function test_the_sao_checklist_asks_for_a_department_head_in_every_college(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);

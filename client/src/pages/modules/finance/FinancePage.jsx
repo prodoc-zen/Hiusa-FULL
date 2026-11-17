@@ -68,6 +68,7 @@ import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, 
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { effectiveRole } from '../../../utils/collegeIdentity';
+import { readUserModules } from '../../../utils/userModules';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
 
@@ -502,8 +503,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const isDepartmentHead = currentUserRole === 'DEPARTMENT_HEAD';
   const [collegeOrganizations, setCollegeOrganizations] = useState([]);
   const [organizationFilter, setOrganizationFilter] = useState('');
-  // Officers and department heads review the organization's finances; only the ADMIN changes them.
-  const canReadFinance = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  // Officers and department heads review the organization's finances; only the ADMIN changes them. An officer
+  // whose profile leaves out the Finance module still opens their own receipts and statement, and the server
+  // refuses them the ledger, the budgets and the forecasts, so those are not asked for.
+  const officerModules = currentUserRole === 'SBO_OFFICER' ? readUserModules() : null;
+  const officerHasFinance = officerModules === null || officerModules.includes('finance');
+  const canReadFinance = ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole) || (currentUserRole === 'SBO_OFFICER' && officerHasFinance);
   const canViewTransactions = canReadFinance;
   const canViewForecasts = canReadFinance;
   const canViewBudgets = canReadFinance;
@@ -607,7 +612,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       ledgerSummary,
       allTimeSummary,
       canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
-      canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
+      // The events only fill the event dropdown, and an officer ticked for Finance but not Events is refused them.
+      canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)).catch(() => []) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),

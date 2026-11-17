@@ -30,7 +30,16 @@ class EnsureOrganizationModule
         'announcements' => 'announcements',
     ];
 
-    private const OWN_ROUTES = ['api/transactions/personal-receipts'];
+    // personal-receipts and invoices are limited to the officer's own records by their controllers.
+    private const OWN_ROUTES = ['api/transactions/personal-receipts', 'api/invoices'];
+
+    /**
+     * The member roster and the academic structure are what the event check-in, the task assignee and the finance
+     * pickers read, so an officer ticked for any of these areas may read them without also holding Members.
+     */
+    private const ROSTER_READS = ['api/users', 'api/academic-structure'];
+
+    private const ROSTER_READERS = ['events', 'tasks', 'finance'];
 
     private const PARTICIPATION_ROUTES = [
         'GET' => [
@@ -62,6 +71,10 @@ class EnsureOrganizationModule
 
         $module ??= $this->moduleFor($request);
 
+        if ($module === 'members' && $this->isRosterRead($request) && $this->allowsAnyRosterReader($profile)) {
+            return $next($request);
+        }
+
         if ($module !== null && in_array($module, AccountProfile::MODULES, true) && ! $profile->allowsModule($module)) {
             return response()->json(['message' => 'You do not have access to this part of the organization.'], 403);
         }
@@ -78,6 +91,22 @@ class EnsureOrganizationModule
         }
 
         return self::SEGMENT_MODULES[explode('/', $uri)[1] ?? ''] ?? null;
+    }
+
+    private function isRosterRead(Request $request): bool
+    {
+        return $request->method() === 'GET' && in_array($request->route()?->uri() ?? '', self::ROSTER_READS, true);
+    }
+
+    private function allowsAnyRosterReader(AccountProfile $profile): bool
+    {
+        foreach (self::ROSTER_READERS as $module) {
+            if ($profile->allowsModule($module)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isParticipation(Request $request, string $uri): bool

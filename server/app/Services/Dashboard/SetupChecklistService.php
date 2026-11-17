@@ -179,7 +179,9 @@ class SetupChecklistService
         return [
             $this->step('contact', 'Add your contact number', 'Officers can reach you about events, orders and clearances.', filled($user->contact_number), '/dashboard/profile'),
             in_array($user->role, ['STUDENT', 'SBO_OFFICER'], true)
-                ? $this->step('fingerprint', 'Enroll your fingerprint', 'Visit your SBO officers once; checking in at events then takes a second.', $fingerprintEnrolled, null)
+                ? $this->step('fingerprint', 'Enroll your fingerprint', $user->role === 'SBO_OFFICER'
+                    ? 'Ask your organization Admin to enroll your fingerprint once; checking in at events then takes a second.'
+                    : 'Visit your SBO officers once; checking in at events then takes a second.', $fingerprintEnrolled, null)
                 : null,
             $user->role === 'STUDENT'
                 ? $this->step('event', 'Register for an upcoming event', 'Reserve your spot so organizers can plan for you.', DB::table('event_registrations')->where('user_id', $user->school_id)->exists(), '/dashboard/events/activity-calendar')
