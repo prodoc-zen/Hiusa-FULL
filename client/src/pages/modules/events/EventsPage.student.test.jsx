@@ -133,6 +133,25 @@ describe('Student My attendance panel', () => {
     expect(await within(panel).findByText('100%')).toBeInTheDocument();
   });
 
+  it('names the club on an event row and on an attendance record from the college profile', async () => {
+    eventMocks.getEvents.mockResolvedValue(page({ ...event, organization: { id: 4, name: 'PSITS' } }));
+    eventMocks.getPersonalAttendance.mockResolvedValue(summary({
+      summary: { attended: 1, missed: 0, rate: 100 },
+      records: [{ id: 1, status: 'present', method: 'manual', event: { title: 'Sports Fest 2024', start_time: '2026-10-01T08:00:00Z', organization: { id: 4, name: 'PSITS' } } }],
+      pagination: { current_page: 1, last_page: 1, per_page: 5, total: 1 },
+    }));
+    renderEvents();
+    const panel = await screen.findByRole('region', { name: 'Personal attendance summary' });
+    expect(await within(panel).findByText(/PSITS/)).toBeInTheDocument();
+    expect(await screen.findByText('PSITS', { selector: 'td p' })).toBeInTheDocument();
+  });
+
+  it('points an empty student list at the event drawer, not at a Register button that is not there', async () => {
+    eventMocks.getEvents.mockResolvedValue(page());
+    renderEvents();
+    expect(await screen.findByText('Approved events appear here. Open one to register.')).toBeInTheDocument();
+  });
+
   it('is not shown to other roles and does not call the student endpoint', async () => {
     localStorage.setItem('user', JSON.stringify({ school_id: 900004, role: 'SBO_OFFICER' }));
     renderEvents();
