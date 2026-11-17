@@ -29,6 +29,7 @@ class StudentFeedController extends Controller
             ->where('organization_id', $organizationId)
             ->where('is_published', true)
             ->where('approval_status', 'approved')
+            ->where(fn ($query) => $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
             ->where(function ($query) use ($user) {
                 $query->where('target_role', 'all')->orWhere('target_role', $user->role);
             });

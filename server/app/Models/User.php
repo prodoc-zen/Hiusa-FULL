@@ -158,6 +158,7 @@ class User extends Authenticatable
         if ($this->activeAccountProfile && ! $this->listedAmongOthers) {
             $attributes['can_book_venues'] = $this->canBookVenues();
             $attributes['in_student_organization'] = $this->inStudentOrganization();
+            $attributes['view_only'] = (bool) $this->activeAccountProfile->view_only;
         }
 
         return $attributes;

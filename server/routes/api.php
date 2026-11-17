@@ -82,7 +82,7 @@ Route::get('/organizations', [OrganizationController::class, 'index'])->middlewa
 Route::get('/department-head-invitations/{token}', [DepartmentHeadInvitationController::class, 'show'])->middleware('throttle:public');
 Route::post('/department-head-invitations/{token}/accept', [DepartmentHeadInvitationController::class, 'accept'])->middleware('throttle:registration');
 
-Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.changed', 'cache.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.profile', 'view.only', 'org.module', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/process/status', [ProcessStatusController::class, 'show'])->middleware('throttle:api-read');

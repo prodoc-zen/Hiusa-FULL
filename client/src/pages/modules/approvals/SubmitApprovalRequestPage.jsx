@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button, EmptyState, PageHeader } from '../../../components/ui';
+import { readViewOnly } from '../../../utils/userModules';
 
-// `approver` follows server/config/approvals.php: events, budgets and elections go to the Department
+// `approver` follows server/config/approvals.php: events, budgets, elections and financial reports go to the Department
 // Head, and an event the SAO has requirements for continues to the SAO afterwards. An Officer's
 // announcement goes to the Admin; an Admin publishes their own announcements directly.
 const REQUEST_TYPES = [
@@ -42,6 +43,15 @@ const REQUEST_TYPES = [
     roles: ['ADMIN'],
     path: '/dashboard/approval-requests/new/election',
   },
+  {
+    id: 'financial_report',
+    title: 'Financial report',
+    description: 'The semester report, built from your recorded transactions.',
+    approver: { ADMIN: 'The Department Head approves it.' },
+    roles: ['ADMIN'],
+    // Reports are generated and submitted from Finance, so this card opens that page.
+    path: '/dashboard/finance/transaction-history',
+  },
 ];
 
 function getStoredRole() {
@@ -55,7 +65,8 @@ function getStoredRole() {
 export default function SubmitApprovalRequestPage() {
   const navigate = useNavigate();
   const role = getStoredRole();
-  const availableTypes = useMemo(() => REQUEST_TYPES.filter((type) => type.roles.includes(role)), [role]);
+  const viewOnly = readViewOnly();
+  const availableTypes = useMemo(() => (viewOnly ? [] : REQUEST_TYPES.filter((type) => type.roles.includes(role))), [role, viewOnly]);
   const [selectedType, setSelectedType] = useState(availableTypes[0]?.id || '');
   const selectedRequest = availableTypes.find((type) => type.id === selectedType);
 
@@ -73,7 +84,7 @@ export default function SubmitApprovalRequestPage() {
         actions={role === 'ADMIN' ? <Button variant="secondary" to="/dashboard/approvals?tab=submitted">See what I already submitted</Button> : undefined}
       />
       {availableTypes.length === 0 ? (
-        <EmptyState title="No request types available" description="Your role cannot send requests for approval." />
+        <EmptyState title="No request types available" description={viewOnly ? 'This seat is view only, so it cannot send requests for approval.' : 'Your role cannot send requests for approval.'} />
       ) : (
       <form onSubmit={continueToRequest} className="space-y-5">
         <fieldset className="flex flex-col gap-3">

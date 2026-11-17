@@ -249,6 +249,28 @@ describe('OrgAccessPanel', () => {
     expect(await screen.findByText('Access updated for Maria Santos.')).toBeInTheDocument();
   });
 
+  it('lets the dean make an organization head seat view only', async () => {
+    renderPanel();
+    await seen('Juan Cruz');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Change access for Juan Cruz' })[0]);
+    const dialog = await screen.findByRole('dialog');
+    const viewOnly = within(dialog).getByRole('checkbox', { name: /View only/ });
+    expect(viewOnly).not.toBeChecked();
+    fireEvent.click(viewOnly);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mocks.updateAccountProfile).toHaveBeenCalledWith(12, expect.objectContaining({ role: 'ADMIN', view_only: true })));
+  });
+
+  it('never offers View only on an officer seat', async () => {
+    renderPanel();
+    await seen('Maria Santos');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Change access for Maria Santos' })[0]);
+    expect(within(await screen.findByRole('dialog')).queryByRole('checkbox', { name: /View only/ })).not.toBeInTheDocument();
+  });
+
   it('asks before removing access and reports it', async () => {
     renderPanel();
     await seen('Maria Santos');

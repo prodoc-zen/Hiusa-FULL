@@ -9,6 +9,7 @@ use App\Console\Commands\SendEventReminders;
 use App\Console\Commands\SendLowStockNotices;
 use App\Console\Commands\SendRenewalReminders;
 use App\Console\Commands\SyncElectionStatuses;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\GlobalAnnouncementController;
 use App\Services\OrganizationDeletionService;
 use Illuminate\Foundation\Inspiring;
@@ -29,5 +30,6 @@ Schedule::command(SendLowStockNotices::class)->dailyAt('08:00')->withoutOverlapp
 Schedule::command(SyncElectionStatuses::class)->everyMinute()->withoutOverlapping(5);
 Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping(120);
 Schedule::call(fn () => app(OrganizationDeletionService::class)->cleanup())->name('retry-deleted-organization-files')->hourly()->withoutOverlapping(70);
+Schedule::call(fn () => app(AnnouncementController::class)->publishScheduled())->name('publish-scheduled-org-announcements')->everyMinute()->withoutOverlapping(5);
 Schedule::call(fn () => app(GlobalAnnouncementController::class)->publishScheduled())->name('publish-scheduled-sao-announcements')->everyMinute()->withoutOverlapping(5);
 Schedule::call(fn () => Cache::put(OpsCheck::HEARTBEAT_KEY, now()->getTimestamp()))->name('scheduler-heartbeat')->everyMinute();

@@ -160,8 +160,11 @@ const emptyEventForm = () => ({
   title: '', date: '', startTime: '', endDate: '', endTime: '', venue_type: 'on_campus', venue_id: '', location: '', description: '', imageFile: null,
   requires_budget: false, event_type: '', expected_participants: '', requirements: '', resources: '',
   proposed_budget_amount: '', budget_warning_threshold: '', budget_notes: '', vendor_deadlines: '', logistics_checklist: '',
-  proposed_budget_id: null,
+  proposed_budget_id: null, reminder_hours: '24',
 });
+
+// The hours before the start when members get the event reminder; the server sends it hourly.
+const REMINDER_CHOICES = [[1, '1 hour before'], [3, '3 hours before'], [6, '6 hours before'], [12, '12 hours before'], [24, '1 day before'], [48, '2 days before'], [72, '3 days before']];
 
 const REQUEST_SELECTOR_PATH = '/dashboard/approval-requests/new';
 
@@ -715,6 +718,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           budget_notes: form.budget_notes,
           vendor_deadlines: form.vendor_deadlines,
           logistics_checklist: form.logistics_checklist,
+          reminder_hours: Number(form.reminder_hours) || 24,
         },
       };
 
@@ -839,6 +843,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       budget_notes: planning.budget_notes || '',
       vendor_deadlines: planning.vendor_deadlines || '',
       logistics_checklist: planning.logistics_checklist || '',
+      reminder_hours: String(planning.reminder_hours || 24),
     });
     setFormError(null);
     setShowForm(true);
@@ -1274,6 +1279,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   <Input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
                 </Field>
               )}
+              <Field label="Remind members" hint="Members get a notification this long before the event starts.">
+                <HiusaSelect id="event-reminder" value={form.reminder_hours} onChange={(e) => setForm({ ...form, reminder_hours: e.target.value })}>{REMINDER_CHOICES.map(([hours, label]) => <option key={hours} value={hours}>{label}</option>)}</HiusaSelect>
+              </Field>
             </div>
           </section>
 

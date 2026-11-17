@@ -368,3 +368,29 @@ describe('DashboardLayout consent', () => {
     localStorage.clear();
   });
 });
+
+describe('DashboardLayout view-only seat', () => {
+  beforeEach(() => localStorage.clear());
+
+  function renderLayout() {
+    return render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes><Route element={<DashboardLayout />}><Route path="/dashboard" element={<p>Home</p>} /></Route></Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it('tells a view-only seat that it can see records but not change them', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', view_only: true, first_name: 'Org', last_name: 'Adviser', privacy_accepted_at: '2026-11-01T00:00:00.000000Z', privacy_notice_version: PRIVACY_NOTICE_VERSION }));
+    renderLayout();
+
+    expect(screen.getByRole('complementary', { name: 'View only' })).toHaveTextContent("You can see this organization's records but not change them.");
+  });
+
+  it('shows no view-only notice on an ordinary seat', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Org', last_name: 'Head', privacy_accepted_at: '2026-11-01T00:00:00.000000Z', privacy_notice_version: PRIVACY_NOTICE_VERSION }));
+    renderLayout();
+
+    expect(screen.queryByRole('complementary', { name: 'View only' })).not.toBeInTheDocument();
+  });
+});

@@ -7,6 +7,15 @@ export function readCanBookVenues() {
   }
 }
 
+// A view-only seat (an adviser who oversees) reads every record and changes none; the server refuses its writes.
+export function readViewOnly() {
+  try {
+    return JSON.parse(localStorage.getItem('user'))?.view_only === true;
+  } catch {
+    return false;
+  }
+}
+
 // The org modules the active profile may open; null means all of them.
 export function readUserModules() {
   try {

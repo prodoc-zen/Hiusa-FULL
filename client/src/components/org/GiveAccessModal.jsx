@@ -19,6 +19,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
   const [role, setRole] = useState(profile?.role || levels[levels.length - 2] || levels[0] || 'STUDENT');
   const [position, setPosition] = useState(profile?.position_title || '');
   const [modules, setModules] = useState(profile?.modules || ALL_MODULES);
+  const [viewOnly, setViewOnly] = useState(Boolean(profile?.view_only));
   const [positions, setPositions] = useState([]);
   const [positionsFailed, setPositionsFailed] = useState(false);
   const [adviser, setAdviser] = useState(false);
@@ -37,6 +38,8 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
   const rolePositions = positions.filter((item) => item.role === role);
   const needsModules = !adviser && role === 'SBO_OFFICER';
   const mayNameAdviser = !editing && actorRole === 'DEPARTMENT_HEAD';
+  // Only the Department Head or the SAO can make a head seat view only, and only on a seat that already exists.
+  const canSetViewOnly = editing && role === 'ADMIN' && actorRole !== 'ADMIN';
   const canSave = (editing || person) && (!needsModules || modules.length > 0);
 
   function changeRole(event) {
@@ -65,6 +68,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
         role,
         position_title: role === 'STUDENT' ? null : position || null,
         ...(needsModules ? { modules } : {}),
+        ...(canSetViewOnly ? { view_only: viewOnly } : {}),
       };
     try {
       if (editing) {
@@ -147,6 +151,18 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
               {rolePositions.map((item) => <option key={item.id} value={item.title}>{item.title}</option>)}
             </Select>
           </Field>
+        )}
+        {canSetViewOnly && (
+          <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              checked={viewOnly}
+              onChange={(event) => setViewOnly(event.target.checked)}
+              disabled={busy}
+            />
+            <span>View only<span className="block text-xs font-normal text-ink-muted">They can see every record but cannot change any, like an adviser who only oversees.</span></span>
+          </label>
         )}
         {needsModules && (
           <fieldset>

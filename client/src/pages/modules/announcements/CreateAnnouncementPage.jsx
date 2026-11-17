@@ -5,6 +5,7 @@ import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGeneratio
 import ConfirmModal from '../../../components/ConfirmModal';
 import RichTextEditor from '../../../components/RichText';
 import { Button, Field, Input, PageHeader, Select, Textarea } from '../../../components/ui';
+import DateTimeInput from '../../../components/ui/DateTimeInput';
 import { announcementImageError } from './announcementShared.jsx';
 import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../../lib/pageMeta';
 
@@ -53,12 +54,14 @@ export default function CreateAnnouncementPage() {
   const [imageError, setImageError] = useState('');
   const [isPinned, setIsPinned] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [showMissing, setShowMissing] = useState(false);
   const [posted, setPosted] = useState(false);
   const [lastPublishState, setLastPublishState] = useState(true);
+  const [postedScheduledAt, setPostedScheduledAt] = useState('');
   const [confirmState, setConfirmState] = useState({ open: false, isPublished: true });
   const [replaceOpen, setReplaceOpen] = useState(false);
 
@@ -96,11 +99,14 @@ export default function CreateAnnouncementPage() {
 
   async function handleSubmit(isPublished) {
     if (!title.trim() || !body.trim()) return;
+    // A publish time only means something for a post that goes out; a draft and an Officer's request carry none.
+    const publishAt = isPublished && !forApproval ? scheduledAt : '';
     setSubmitting(true);
     setError(null);
     try {
-      await createAnnouncement({ title, body, target_role: targetRole, category, is_published: isPublished, imageFile, is_pinned: isPinned, is_important: isImportant, ai_output_id: aiOutputId });
+      await createAnnouncement({ title, body, target_role: targetRole, category, is_published: isPublished, imageFile, is_pinned: isPinned, is_important: isImportant, ai_output_id: aiOutputId, ...(publishAt ? { scheduled_at: publishAt } : {}) });
       setLastPublishState(isPublished);
+      setPostedScheduledAt(publishAt);
       setPosted(true);
     } catch (err) {
       setError(err.response?.data?.message ?? 'Could not post the announcement. Try again.');
@@ -159,11 +165,13 @@ export default function CreateAnnouncementPage() {
     const audienceLabel = AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label;
     return (
       <div className="mx-auto max-w-xl rounded-card border border-line bg-surface p-6 sm:p-8">
-        <h2 className="text-lg font-semibold text-ink">{forApproval ? 'Sent to your Admin for approval' : lastPublishState ? 'Announcement posted' : 'Draft saved'}</h2>
+        <h2 className="text-lg font-semibold text-ink">{forApproval ? 'Sent to your Admin for approval' : postedScheduledAt ? 'Announcement scheduled' : lastPublishState ? 'Announcement posted' : 'Draft saved'}</h2>
         <p className="mt-2 text-sm text-ink-muted-strong">
           {forApproval
             ? <>It goes to <strong>{audienceLabel}</strong> once the Admin approves it.</>
-            : lastPublishState
+            : postedScheduledAt
+              ? <>Goes to <strong>{audienceLabel}</strong> on {new Date(postedScheduledAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}.</>
+              : lastPublishState
               ? <>Sent to <strong>{audienceLabel}</strong>.</>
               : 'You can publish this draft anytime from Manage Announcements.'}
         </p>
@@ -171,7 +179,7 @@ export default function CreateAnnouncementPage() {
           <Button to={MANAGE_PATH}>View in announcements</Button>
           <Button
             variant="secondary"
-            onClick={() => { setTitle(''); setBody(''); setAiInstructions(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setImageError(''); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
+            onClick={() => { setTitle(''); setBody(''); setAiInstructions(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setImageError(''); setIsPinned(false); setIsImportant(false); setScheduledAt(''); setPostedScheduledAt(''); setPosted(false); setLastPublishState(true); }}
           >
             Create another
           </Button>
@@ -243,6 +251,11 @@ export default function CreateAnnouncementPage() {
                 {CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
             </Field>
+            {!forApproval && (
+              <Field label="Publish on" optional hint="Leave empty to publish at once. Members are notified at the time you set.">
+                <DateTimeInput id="announcement-publish-at" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+              </Field>
+            )}
             <div>
               <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-medium text-ink">Poster or image <span className="font-normal text-ink-muted">(optional)</span></label>
               <label htmlFor="announcement-image" className="flex min-h-16 cursor-pointer items-center gap-3 rounded-control border border-dashed border-line p-3 hover:border-brand-600">
@@ -269,7 +282,7 @@ export default function CreateAnnouncementPage() {
           {error && <p role="alert" className="mb-2 text-sm font-medium text-danger-strong">{error}</p>}
           <div className="flex gap-2 lg:flex-col max-lg:[&>*]:flex-1">
             <Button disabled={submitting || Boolean(imageError)} onClick={() => askConfirm(true)}>
-              {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish now'}
+              {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : scheduledAt ? 'Schedule' : 'Publish now'}
             </Button>
             {!forApproval && <Button variant="secondary" disabled={submitting || Boolean(imageError)} onClick={() => askConfirm(false)}>Save draft</Button>}
           </div>
@@ -289,13 +302,13 @@ export default function CreateAnnouncementPage() {
       <ConfirmModal
         open={confirmState.open}
         variant="primary"
-        title={forApproval ? 'Submit for approval' : confirmState.isPublished ? 'Publish announcement' : 'Save draft'}
+        title={forApproval ? 'Submit for approval' : confirmState.isPublished ? (scheduledAt ? 'Schedule announcement' : 'Publish announcement') : 'Save draft'}
         message={forApproval
           ? 'The Admin approves it before members see it. You can follow it in Announcements.'
           : confirmState.isPublished
-            ? 'Are you sure you want to publish this announcement now?'
+            ? (scheduledAt ? 'Members are notified when the publish time comes. Until then it stays hidden from them.' : 'Are you sure you want to publish this announcement now?')
             : 'Save this announcement as draft for later publishing?'}
-        confirmText={forApproval ? 'Submit for approval' : confirmState.isPublished ? 'Publish now' : 'Save draft'}
+        confirmText={forApproval ? 'Submit for approval' : confirmState.isPublished ? (scheduledAt ? 'Schedule' : 'Publish now') : 'Save draft'}
         busy={submitting}
         onCancel={() => setConfirmState({ open: false, isPublished: true })}
         onConfirm={async () => {
