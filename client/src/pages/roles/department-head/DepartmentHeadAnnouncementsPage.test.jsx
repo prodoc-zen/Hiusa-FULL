@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DepartmentHeadAnnouncementsPage from './DepartmentHeadAnnouncementsPage';
 
-const announcements = vi.hoisted(() => ({ getAnnouncements: vi.fn(), createAnnouncement: vi.fn(), updateAnnouncement: vi.fn(), deleteAnnouncement: vi.fn(), togglePublish: vi.fn() }));
+const announcements = vi.hoisted(() => ({ getAnnouncements: vi.fn(), createAnnouncement: vi.fn(), updateAnnouncement: vi.fn(), deleteAnnouncement: vi.fn(), togglePublish: vi.fn(), generateAnnouncementDraft: vi.fn() }));
 const organizations = vi.hoisted(() => ({ getCollegeOrganizations: vi.fn() }));
 vi.mock('../../../services/announcementService', () => announcements);
 vi.mock('../../../services/collegeOrganizationService', () => organizations);
@@ -39,6 +39,48 @@ describe('Department Head announcements', () => {
     await waitFor(() => expect(announcements.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 7, is_published: true, title: 'College orientation' })));
     expect(await screen.findByText('Announcement published to the selected organization.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+  it('publishes to every active organization of the college when "All organizations in my college" is chosen', async () => {
+    renderPage();
+    await screen.findAllByText('Orientation');
+    await openForm();
+    fireEvent.change(screen.getByLabelText(/Organization/), { target: { value: 'all' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish announcement' }));
+    await waitFor(() => expect(announcements.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 'all', is_published: true })));
+    expect(await screen.findByText('Announcement published to every active organization in your college.')).toBeInTheDocument();
+  });
+  it('does not offer the all-organizations choice when editing one announcement', async () => {
+    renderPage();
+    await action('Edit announcement');
+    expect(screen.queryByRole('option', { name: 'All organizations in my college' })).not.toBeInTheDocument();
+  });
+  it('drafts the message with AI and sends the draft id with the announcement', async () => {
+    announcements.generateAnnouncementDraft.mockResolvedValue({ data: { output_text: 'Orientation is in the main hall.', ai_output_id: 41, is_template: false } });
+    renderPage();
+    await screen.findAllByText('Orientation');
+    fireEvent.click(screen.getByRole('button', { name: 'New announcement' }));
+    await screen.findByRole('option', { name: org.name });
+    fireEvent.change(screen.getByLabelText(/Organization/), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'College orientation' } });
+    fireEvent.click(screen.getByText('Draft the message with AI'));
+    fireEvent.change(screen.getByLabelText(/Instructions for the draft/), { target: { value: 'Main hall at 2 PM' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }));
+    await waitFor(() => expect(screen.getByLabelText(/Message/)).toHaveValue('Orientation is in the main hall.'));
+    expect(announcements.generateAnnouncementDraft).toHaveBeenCalledWith({ title: 'College orientation', target_role: 'all', category: 'general', details: 'Main hall at 2 PM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish announcement' }));
+    await waitFor(() => expect(announcements.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ ai_output_id: 41, body: 'Orientation is in the main hall.' })));
+  });
+  it('asks before an AI draft replaces text already written, and shows the server reason when a draft is refused', async () => {
+    announcements.generateAnnouncementDraft.mockRejectedValue({ response: { status: 429, data: { message: 'You have used all announcement drafts available today.' } } });
+    renderPage();
+    await screen.findAllByText('Orientation');
+    await openForm();
+    fireEvent.click(screen.getByText('Draft the message with AI'));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }));
+    expect(announcements.generateAnnouncementDraft).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Replace your text?' })).getByRole('button', { name: 'Replace text' }));
+    expect((await screen.findAllByText('You have used all announcement drafts available today.')).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/Message/)).toHaveValue('Meet in the office.');
   });
   it('limits the message to 10,000 characters and shows how many are used', async () => {
     renderPage();

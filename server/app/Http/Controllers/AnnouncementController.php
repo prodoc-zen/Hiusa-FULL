@@ -22,6 +22,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class AnnouncementController extends Controller
 {
@@ -393,7 +394,8 @@ class AnnouncementController extends Controller
         }
         $user = $request->user();
         $data = $request->validate([
-            'organization_id' => $user->role === 'DEPARTMENT_HEAD' ? ['required', 'integer'] : ['prohibited'],
+            // A dean names one organization of the college, or 'all' for every active organization of it.
+            'organization_id' => $user->role === 'DEPARTMENT_HEAD' ? ['required', Rule::when(fn ($input) => ($input['organization_id'] ?? null) !== 'all', ['integer'])] : ['prohibited'],
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:10000'],
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
@@ -406,12 +408,18 @@ class AnnouncementController extends Controller
         ], self::BODY_MESSAGES);
 
         $organizationId = $user->organization_id;
+        $organizationIds = [$organizationId];
         if ($user->role === 'DEPARTMENT_HEAD') {
-            $organization = Organization::student()->whereIn('id', $user->scopedOrganizationIds())
-                ->whereKey($data['organization_id'])->where('is_active', true)->firstOrFail();
-            abort_unless($organization->isWritable(), 409, 'Choose an active organization in your college.');
-            abort_if(! empty($data['ai_output_id']), 422, 'AI drafts are available to organization Admins and Officers.');
-            $organizationId = $organization->id;
+            $scoped = Organization::student()->whereIn('id', $user->scopedOrganizationIds())->where('is_active', true);
+            if ($data['organization_id'] === 'all') {
+                $organizationIds = $scoped->get()->filter(fn (Organization $organization) => $organization->isWritable())->pluck('id')->all();
+                abort_if($organizationIds === [], 409, 'Your college has no active organization to announce to.');
+            } else {
+                $organization = $scoped->whereKey($data['organization_id'])->firstOrFail();
+                abort_unless($organization->isWritable(), 409, 'Choose an active organization in your college.');
+                $organizationIds = [$organization->id];
+            }
+            $organizationId = $organizationIds[0];
         }
         $canPublishWithoutApproval = in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true);
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
@@ -428,21 +436,25 @@ class AnnouncementController extends Controller
             }
         }
 
-        $announcement = Announcement::create([
+        // One row per organization: every organization's feed, notifications and audit trail stay its own.
+        // The image is stored once and its URL shared by the rows.
+        $imageUrl = $request->hasFile('image') ? Storage::disk('public')->url($request->file('image')->store('announcements', 'public')) : null;
+        $announcements = DB::transaction(fn () => collect($organizationIds)->map(fn ($targetId) => Announcement::create([
             'title' => $data['title'],
             'body' => $data['body'],
             'target_role' => $data['target_role'],
             'category' => $data['category'] ?? 'general',
             'is_published' => $isDirectPublish,
-            'image_url' => $request->hasFile('image') ? Storage::disk('public')->url($request->file('image')->store('announcements', 'public')) : null,
+            'image_url' => $imageUrl,
             'is_pinned' => $data['is_pinned'] ?? false,
             'is_important' => $data['is_important'] ?? false,
             'approval_status' => $isDirectPublish ? 'approved' : ($user->role === 'SBO_OFFICER' ? 'pending' : 'draft'),
             'reviewed_by' => $isDirectPublish ? $user->id : null,
             'published_at' => $isDirectPublish ? now() : null,
             'created_by' => $user->id,
-            'organization_id' => $organizationId,
-        ]);
+            'organization_id' => $targetId,
+        ]))->all());
+        $announcement = $announcements[0];
 
         if ($user->role === 'SBO_OFFICER') {
             ApprovalRequest::create([
@@ -454,8 +466,10 @@ class AnnouncementController extends Controller
             ]);
         }
 
-        if ($announcement->is_published) {
-            $this->dispatchAnnouncementNotifications($announcement);
+        foreach ($announcements as $created) {
+            if ($created->is_published) {
+                $this->dispatchAnnouncementNotifications($created);
+            }
         }
 
         $draftOutput?->update([
@@ -465,12 +479,14 @@ class AnnouncementController extends Controller
             'decided_at' => now(),
         ]);
 
-        $this->recordAnnouncementAudit($request, 'created', $announcement, null, $this->auditableAnnouncementValues($announcement));
+        foreach ($announcements as $created) {
+            $this->recordAnnouncementAudit($request, 'created', $created, null, $this->auditableAnnouncementValues($created));
+        }
 
         return response()->json($this->withApprovalId($announcement)->load([
             'creator:school_id,first_name,last_name,role',
             'reviewer:school_id,first_name,last_name,role',
-        ]), 201);
+        ])->setAttribute('created_count', count($announcements)), 201);
     }
 
     public function update(Request $request, $id)

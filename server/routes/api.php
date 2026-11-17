@@ -157,8 +157,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'org.module', 'password.ch
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::get('/announcements/generation-quota', [AnnouncementController::class, 'generationQuota'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER', 'privacy.consent']);
+    Route::get('/announcements/generation-quota', [AnnouncementController::class, 'generationQuota'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD', 'privacy.consent']);
     Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);

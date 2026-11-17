@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiOutput;
 use App\Models\Announcement;
+use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -71,6 +74,64 @@ class DepartmentHeadAnnouncementTest extends TestCase
         $organization->update(['is_active' => false]);
         $this->postJson('/api/announcements', $this->payload($organization))->assertNotFound();
         $this->assertDatabaseCount('announcements', 0);
+    }
+
+    public function test_head_announces_to_every_active_organization_of_the_college_and_to_no_other(): void
+    {
+        [$first, $head] = $this->context();
+        $second = Organization::factory()->create(['college_id' => $first->college_id, 'college' => $first->college]);
+        $archived = Organization::factory()->create(['college_id' => $first->college_id, 'college' => $first->college, 'lifecycle_status' => 'archived']);
+        $inactive = Organization::factory()->create(['college_id' => $first->college_id, 'college' => $first->college, 'is_active' => false]);
+        $foreign = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
+        $student->accountProfiles()->create(['organization_id' => $second->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        $response = $this->postJson('/api/announcements', [...$this->payload($first), 'organization_id' => 'all'])
+            ->assertCreated()->assertJsonPath('created_count', 2);
+
+        $this->assertSame([$first->id, $second->id], Announcement::orderBy('organization_id')->pluck('organization_id')->all());
+        $this->assertSame(2, Announcement::where('is_published', true)->where('approval_status', 'approved')->where('created_by', $head->id)->count());
+        foreach ([$archived, $inactive, $foreign] as $skipped) {
+            $this->assertDatabaseMissing('announcements', ['organization_id' => $skipped->id]);
+        }
+        $this->assertDatabaseHas('notifications', ['user_id' => $student->school_id, 'organization_id' => $second->id, 'notification_type' => 'announcement']);
+        $this->assertSame(2, AuditLog::where('user_id', $head->school_id)->whereNotNull('record_id')->count());
+        $this->assertNotNull($response->json('id'));
+    }
+
+    public function test_announcing_to_all_with_no_active_organization_creates_nothing(): void
+    {
+        [$organization] = $this->context();
+        $organization->update(['is_active' => false]);
+
+        $this->postJson('/api/announcements', [...$this->payload($organization), 'organization_id' => 'all'])->assertStatus(409);
+        $this->postJson('/api/announcements', [...$this->payload($organization), 'organization_id' => 'everyone'])->assertUnprocessable()->assertJsonValidationErrors('organization_id');
+        $this->assertDatabaseCount('announcements', 0);
+    }
+
+    public function test_head_drafts_with_ai_and_the_draft_is_accepted_once_and_only_for_its_author(): void
+    {
+        config(['services.groq.key' => 'test-key']);
+        Http::fake(['*' => Http::response(['id' => 'dean-draft', 'model' => 'test-model', 'output_text' => 'Orientation is on the date and venue supplied.'])]);
+        [$organization, $head] = $this->context();
+
+        $generated = $this->postJson('/api/announcements/generate-draft', ['title' => 'College orientation', 'target_role' => 'all', 'details' => 'Orientation is in the main hall.'])
+            ->assertOk()->assertJsonPath('quota.remaining', 19);
+        $this->getJson('/api/announcements/generation-quota')->assertOk()->assertJsonPath('used', 1);
+
+        $announcement = $this->postJson('/api/announcements', [...$this->payload($organization), 'ai_output_id' => $generated->json('ai_output_id')])->assertCreated();
+        $output = AiOutput::findOrFail($generated->json('ai_output_id'));
+        $this->assertSame('accepted', $output->decision_status);
+        $this->assertSame($announcement->json('id'), (int) $output->reference_id);
+
+        $strangerHead = User::factory()->departmentHead()->create(['organization_id' => $head->organization_id]);
+        Sanctum::actingAs($strangerHead);
+        $other = AiOutput::create([
+            'organization_id' => $head->organization_id, 'feature_type' => 'ANNOUNCEMENT_DRAFT', 'reference_type' => 'announcement', 'prompt_text' => 'x', 'output_text' => 'x',
+            'status' => 'completed', 'decision_status' => 'pending', 'requested_by' => $head->school_id, 'created_at' => now(),
+        ]);
+        $this->postJson('/api/announcements', [...$this->payload($organization), 'ai_output_id' => $other->id])->assertUnprocessable()
+            ->assertJsonPath('message', 'The selected AI draft is not available to this user.');
     }
 
     public function test_required_fields_and_role_boundaries_are_enforced(): void

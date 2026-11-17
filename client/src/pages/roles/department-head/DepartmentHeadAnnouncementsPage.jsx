@@ -4,11 +4,13 @@ import { Button, Card, DataTable, Drawer, EmptyState, Field, Input, PageHeader, 
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
-import { createAnnouncement, deleteAnnouncement, getAnnouncements, togglePublish, updateAnnouncement } from '../../../services/announcementService';
+import { createAnnouncement, deleteAnnouncement, generateAnnouncementDraft, getAnnouncements, togglePublish, updateAnnouncement } from '../../../services/announcementService';
 import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
+const ALL_ORGANIZATIONS = 'all';
+const AI_INSTRUCTIONS_MAX = 2000;
 const emptyForm = () => ({ organization_id: '', title: '', body: '', target_role: 'all', category: 'general' });
 
 export default function DepartmentHeadAnnouncementsPage() {
@@ -25,6 +27,11 @@ export default function DepartmentHeadAnnouncementsPage() {
   const [error, setError] = useState('');
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState('');
+  const [aiInstructions, setAiInstructions] = useState('');
+  const [aiOutputId, setAiOutputId] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [draftNotice, setDraftNotice] = useState('');
+  const [replaceOpen, setReplaceOpen] = useState(false);
 
   const load = useCallback(() => {
     let current = true;
@@ -51,6 +58,9 @@ export default function DepartmentHeadAnnouncementsPage() {
 
   function openEditor(row = null) {
     setForm(row ? { ...row, organization_id: String(row.organization_id) } : emptyForm());
+    setAiInstructions('');
+    setAiOutputId(null);
+    setDraftNotice('');
     setError('');
     setErrors({});
     if (organizations.length === 0) loadOrganizations();
@@ -65,14 +75,39 @@ export default function DepartmentHeadAnnouncementsPage() {
     try {
       const data = { title: form.title.trim(), body: form.body.trim(), target_role: form.target_role, category: form.category };
       if (form.id) await updateAnnouncement(form.id, data);
-      else await createAnnouncement({ ...data, organization_id: Number(form.organization_id), is_published: publish });
+      else await createAnnouncement({ ...data, organization_id: form.organization_id === ALL_ORGANIZATIONS ? ALL_ORGANIZATIONS : Number(form.organization_id), is_published: publish, ai_output_id: aiOutputId });
       setForm(null);
-      setNotice(form.id ? 'Announcement updated.' : publish ? 'Announcement published to the selected organization.' : 'Announcement saved as a draft.');
+      const everyone = form.organization_id === ALL_ORGANIZATIONS;
+      setNotice(form.id ? 'Announcement updated.' : publish ? `Announcement published to ${everyone ? 'every active organization in your college' : 'the selected organization'}.` : 'Announcement saved as a draft.');
       load();
     } catch (cause) {
       setError(getApiErrorMessage(cause, 'Could not save this announcement.'));
       setErrors(cause.response?.data?.errors || {});
     } finally { setBusy(false); }
+  }
+
+  function askGenerateDraft() {
+    if (!form.title.trim()) {
+      setError('Enter a title before drafting with AI.');
+      return;
+    }
+    if (form.body.trim()) setReplaceOpen(true);
+    else generateDraft();
+  }
+
+  async function generateDraft() {
+    setGenerating(true);
+    setError('');
+    setDraftNotice('');
+    try {
+      const response = await generateAnnouncementDraft({ title: form.title.trim(), target_role: form.target_role, category: form.category, details: aiInstructions });
+      if (response.data?.output_text) {
+        setForm((current) => ({ ...current, body: response.data.output_text }));
+        setAiOutputId(response.data.ai_output_id || null);
+      }
+      setDraftNotice(response.data?.is_template ? response.data?.notice || 'This is a template draft. Add the details before you publish it.' : '');
+    } catch (cause) { setError(getApiErrorMessage(cause, 'Could not draft the message. Try again.')); }
+    finally { setGenerating(false); }
   }
 
   async function changePublication(row) {
@@ -140,7 +175,7 @@ export default function DepartmentHeadAnnouncementsPage() {
     </Card>
     <Drawer open={Boolean(form)} title={form?.id ? 'Edit announcement' : 'New announcement'} onClose={busy ? undefined : () => setForm(null)} footer={<>{!form?.id && <Button variant="secondary" type="submit" form="college-announcement" name="publication" value="draft" disabled={busy || !form?.organization_id}>Save draft</Button>}<Button type="submit" form="college-announcement" name="publication" value="publish" loading={busy} disabled={!form?.organization_id}>{form?.id ? 'Save changes' : 'Publish announcement'}</Button></>}>
       {form && <form id="college-announcement" className="space-y-4" onSubmit={(event) => save(event, event.nativeEvent.submitter?.value === 'publish')}>
-        <Field label="Organization" required error={errors.organization_id?.[0]}><Select required value={form.organization_id} onChange={change('organization_id')} disabled={busy || optionsLoading || Boolean(form.id)}><option value="">{optionsLoading ? 'Loading organizations...' : 'Choose an organization'}</option>{form.id && !organizations.some((org) => String(org.id) === form.organization_id) && <option value={form.organization_id}>{form.organization?.name || 'Selected organization'}</option>}{organizations.map((org) => <option key={org.id} value={org.id} disabled={org.is_active === false}>{org.name}</option>)}</Select></Field>
+        <Field label="Organization" required error={errors.organization_id?.[0]}><Select required value={form.organization_id} onChange={change('organization_id')} disabled={busy || optionsLoading || Boolean(form.id)}><option value="">{optionsLoading ? 'Loading organizations...' : 'Choose an organization'}</option>{!form.id && <option value={ALL_ORGANIZATIONS}>All organizations in my college</option>}{form.id && !organizations.some((org) => String(org.id) === form.organization_id) && <option value={form.organization_id}>{form.organization?.name || 'Selected organization'}</option>}{organizations.map((org) => <option key={org.id} value={org.id} disabled={org.is_active === false}>{org.name}</option>)}</Select></Field>
         {optionError && <p role="alert" className="text-sm text-danger-strong">{optionError} <Button size="sm" variant="secondary" onClick={() => loadOrganizations(optionPage + 1)}>Retry</Button></p>}
         {optionPage < optionLastPage && !optionError && <Button variant="secondary" size="sm" disabled={optionsLoading || busy} onClick={() => loadOrganizations(optionPage + 1)}>Load more organizations</Button>}
         {!optionsLoading && !optionError && optionPage > 0 && organizations.length === 0 && <p role="status" className="text-sm text-ink-muted">No active organizations are available in your college.</p>}
@@ -149,10 +184,19 @@ export default function DepartmentHeadAnnouncementsPage() {
           <Field label="Message" required error={errors.body?.[0]}><Textarea required rows={6} maxLength={10000} value={form.body} disabled={busy} onChange={change('body')} /></Field>
           <p className="mt-1.5 text-right text-xs tabular-nums text-ink-muted">{form.body.length.toLocaleString()} of 10,000 characters</p>
         </div>
+        {!form.id && <details className="border-t border-line pt-3">
+          <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium text-brand-700">Draft the message with AI</summary>
+          <div className="mt-3 space-y-3">
+            <Field label="Instructions for the draft" optional><Textarea rows={3} maxLength={AI_INSTRUCTIONS_MAX} value={aiInstructions} disabled={busy || generating} onChange={(event) => setAiInstructions(event.target.value)} placeholder="Formal tone. Orientation is on September 30 at 2:00 PM. Bring your ID." /></Field>
+            <Button variant="secondary" onClick={askGenerateDraft} disabled={busy || generating || !form.title.trim()}>{generating ? 'Drafting...' : 'Draft with AI'}</Button>
+            {draftNotice && <p role="status" className="text-sm text-ink-muted-strong">{draftNotice}</p>}
+          </div>
+        </details>}
         <Field label="Audience" required error={errors.target_role?.[0]}><Select value={form.target_role} disabled={busy} onChange={change('target_role')}><option value="all">All organization members</option><option value="STUDENT">Students</option><option value="SBO_OFFICER">Officers</option><option value="ADMIN">Organization Admins</option></Select></Field>
         {error && <p role="alert" className="text-sm text-danger-strong">{error}</p>}
       </form>}
     </Drawer>
+    <ConfirmModal open={replaceOpen} variant="primary" title="Replace your text?" message="Drafting with AI replaces the text in Message." confirmText="Replace text" onCancel={() => setReplaceOpen(false)} onConfirm={() => { setReplaceOpen(false); generateDraft(); }} />
     <ConfirmModal open={Boolean(deleting)} title="Delete announcement?" recordName={deleting?.title} message="This removes your announcement from the selected organization." confirmText="Delete announcement" busy={busy} error={error} onCancel={() => setDeleting(null)} onConfirm={remove} />
   </div>;
 }
