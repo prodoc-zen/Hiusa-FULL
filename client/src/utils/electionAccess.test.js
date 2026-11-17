@@ -31,4 +31,12 @@ describe('election access states', () => {
     expect(canViewElectionResults({ status: 'active', finalized_at, results_visible: true }, 'STUDENT')).toBe(true);
     expect(canViewElectionResults({ status: 'active', results_visible: true }, 'STUDENT')).toBe(false);
   });
+
+  it('lets the reviewer open a tie that waits for a decision before the results are published', () => {
+    const tied = { status: 'closed', finalized_at: '2026-09-01T08:00:00Z', results_visible: false, phase: 'tie_resolution' };
+    expect(canViewElectionResults(tied, 'SUPER_ADMIN')).toBe(true);
+    expect(canViewElectionResults(tied, 'DEPARTMENT_HEAD')).toBe(true);
+    expect(canViewElectionResults(tied, 'STUDENT')).toBe(false);
+    expect(canViewElectionResults({ ...tied, phase: 'canvassing' }, 'SUPER_ADMIN')).toBe(false);
+  });
 });

@@ -142,7 +142,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
   };
 
   if (askingToVote) {
-    if (role === 'DEPARTMENT_HEAD') return <Navigate to="/dashboard/elections/election-results" replace />;
+    if (role === 'DEPARTMENT_HEAD' || role === 'SUPER_ADMIN') return <Navigate to="/dashboard/elections/election-results" replace />;
     return <CastVoteRedirectPage />;
   }
 

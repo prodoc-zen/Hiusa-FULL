@@ -352,4 +352,41 @@ class ElectionTieResolutionTest extends TestCase
         $this->assertSame('tie_pending', $row['status']);
         $this->assertCount(2, $row['runoff']['candidate_ids']);
     }
+
+    private function director(): User
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+
+        return User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+    }
+
+    public function test_the_sao_opens_a_tied_university_wide_election_before_the_results_are_published(): void
+    {
+        $council = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null]);
+        $election = $this->election($council, ['results_visible' => false, 'results_publish_at' => '2026-12-30 08:00:00']);
+        [$position, [$one]] = $this->position($election, 'President', [[4, 3], [4, 3]]);
+        Sanctum::actingAs($this->director());
+
+        $this->getJson('/api/elections/'.$election->id)->assertOk()->assertJsonPath('id', $election->id)->assertJsonPath('phase', 'tie_resolution');
+        $row = $this->getJson('/api/elections/'.$election->id.'/results')->assertOk()->json()[0];
+        $this->assertSame('tie_pending', $row['status']);
+        $this->assertContains($election->id, collect($this->getJson('/api/elections')->assertOk()->json())->pluck('id')->all());
+
+        $this->postJson($this->url($election, $position), ['winner_candidate_ids' => [$one->id], 'explanation' => 'Longer membership.'])->assertOk();
+    }
+
+    public function test_the_sao_cannot_read_a_college_election_or_a_draft(): void
+    {
+        $council = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null]);
+        $collegeElection = $this->election();
+        $draft = $this->election($council, ['status' => 'pending_approval', 'phase' => null, 'submitted_at' => null, 'finalized_at' => null]);
+        $open = $this->election($council);
+        Sanctum::actingAs($this->director());
+
+        $this->getJson('/api/elections/'.$collegeElection->id)->assertNotFound();
+        $this->getJson('/api/elections/'.$collegeElection->id.'/results')->assertNotFound();
+        $this->getJson('/api/elections/'.$draft->id)->assertNotFound();
+        $ids = collect($this->getJson('/api/elections')->assertOk()->json())->pluck('id')->all();
+        $this->assertSame([$open->id], $ids);
+    }
 }

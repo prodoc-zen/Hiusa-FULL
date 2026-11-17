@@ -180,6 +180,7 @@ const NAV_BY_ROLE = {
       leaf('sao-venues', 'Venues', '/dashboard/super-admin/venues', MapPin),
       leaf('sao-grievances', 'Grievances', '/dashboard/super-admin/grievances', MessageSquare),
       leaf('sao-clearances', 'Clearances', '/dashboard/super-admin/clearances', ShieldCheck),
+      leaf('sao-election-results', 'Election results', '/dashboard/elections/election-results', ChartColumn, { aliases: ['Resolve a tie', 'Elections'], also: ['/dashboard/elections'] }),
     ]),
     group('sao-files', 'Files', FileText, [
       leaf('sao-documents', 'Submitted files', '/dashboard/super-admin/documents', FileText),

@@ -116,6 +116,7 @@ const DESTINATIONS = {
     SBO_OFFICER: '/dashboard/elections/cast-vote',
     STUDENT: '/dashboard/elections/cast-vote',
     DEPARTMENT_HEAD: '/dashboard/elections/election-results',
+    SUPER_ADMIN: '/dashboard/elections/election-results',
   }, role),
 
   announcement: (role, _id, notificationType) => announcementDestination(role, notificationType),

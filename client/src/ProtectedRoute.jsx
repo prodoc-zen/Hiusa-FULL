@@ -28,10 +28,15 @@ const recordsPage = () => getNavLeaves("ADMIN").find((page) => page.id === "reco
 // submitted files the dean's links open.
 const DEAN_PAGES_OUTSIDE_MENU = ["/dashboard/department-head/org", "/dashboard/submitted-files"];
 
+// The bare module root a link opens (Ask AI sends the dean to /dashboard/elections, which lands on Election results).
+// Only the root itself: the pages under it stay the organization Admin's, so no menu row may claim it as a prefix.
+const DEAN_ROOTS = ["/dashboard/elections"];
+
 // Office staff keep the ADMIN profile but open the pages their own menu offers, which are the dean's (navigation.js is
 // the one list), so an organization Admin's pages stay closed to them.
 function officeStaffMayOpen(pathname) {
   if (pathname === "/dashboard" || pathname === "/change-password" || pathname === recordsPage()) return true;
+  if (DEAN_ROOTS.includes(pathname.replace(/\/+$/, ""))) return true;
   if (DEAN_PAGES_OUTSIDE_MENU.some((page) => pathname === page || pathname.startsWith(`${page}/`))) return true;
   const pages = [...getNavLeaves("OFFICE_STAFF"), ...footerNav];
   return pages.some((page) => {

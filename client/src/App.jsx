@@ -126,7 +126,7 @@ function ElectionsIndexRedirect() {
     return <Navigate to="manage-elections" replace />;
   }
 
-  if (role === 'DEPARTMENT_HEAD') {
+  if (role === 'DEPARTMENT_HEAD' || role === 'SUPER_ADMIN') {
     return <Navigate to="election-results" replace />;
   }
 
@@ -386,7 +386,7 @@ function App() {
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />
 
           {/* Election module - nested routes */}
-          <Route path="elections" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><ElectionPageGate><ElectionsHub /></ElectionPageGate></ProtectedRoute>}>
+          <Route path="elections" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD", "SUPER_ADMIN"]}><ElectionPageGate><ElectionsHub /></ElectionPageGate></ProtectedRoute>}>
             <Route index element={<ElectionsIndexRedirect />} />
             <Route path="manage-elections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionDetailPage /></ProtectedRoute>} />
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
@@ -395,7 +395,7 @@ function App() {
             <Route path="applications" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ElectionApplicationsPage /></ProtectedRoute>} />
             <Route path="election-info" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><ElectionInfoPage /></ProtectedRoute>} />
             <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />
-            <Route path="election-results" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><ElectionResultsPage /></ProtectedRoute>} />
+            <Route path="election-results" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "SUPER_ADMIN", "STUDENT"]}><ElectionResultsPage /></ProtectedRoute>} />
 
             {/* Legacy election links redirected to REFERENCE view IDs */}
             <Route path="manage" element={<Navigate to="../manage-elections" replace />} />

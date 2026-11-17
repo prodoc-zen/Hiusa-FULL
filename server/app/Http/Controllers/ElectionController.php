@@ -221,7 +221,7 @@ class ElectionController extends Controller
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])]]);
         $user = $request->user();
-        $readableOrgIds = $user->role === 'DEPARTMENT_HEAD' ? $this->readableOrganizationIds($request) : $user->electionOrganizationIds();
+        $readableOrgIds = $user->role === 'DEPARTMENT_HEAD' ? $this->readableOrganizationIds($request) : $user->electionReadOrganizationIds();
         $this->synchronizeScheduledStatuses($readableOrgIds);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
@@ -235,7 +235,7 @@ class ElectionController extends Controller
                 ->orWhereNull('academic_semester_id'));
         }
 
-        if ($user->role === 'DEPARTMENT_HEAD') {
+        if (in_array($user->role, ['DEPARTMENT_HEAD', 'SUPER_ADMIN'], true)) {
             $this->withoutDrafts($query);
         }
 
@@ -273,7 +273,7 @@ class ElectionController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $organizationIds = $user->electionOrganizationIds();
+        $organizationIds = $user->electionReadOrganizationIds();
         $this->synchronizeScheduledStatuses($organizationIds, $id);
         $with = [
             'positions.candidates.user:school_id,first_name,last_name,program,year_level',
@@ -288,7 +288,7 @@ class ElectionController extends Controller
             ->whereIn('organization_id', $organizationIds)
             ->find($id);
 
-        if (! $election || ($user->role === 'DEPARTMENT_HEAD' && $this->isDraft($election))) {
+        if (! $election || (in_array($user->role, ['DEPARTMENT_HEAD', 'SUPER_ADMIN'], true) && $this->isDraft($election))) {
             return response()->json(['message' => 'Election not found'], 404);
         }
 

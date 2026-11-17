@@ -32,7 +32,7 @@ class ElectionResultsController extends Controller
     public function results(Request $request, $id)
     {
         $user = $request->user();
-        $organizationIds = $user->electionOrganizationIds();
+        $organizationIds = $user->electionReadOrganizationIds();
         $this->synchronizeScheduledStatuses($organizationIds, (int) $id);
         $election = Election::whereIn('organization_id', $organizationIds)->find($id);
         if (! $election) {
