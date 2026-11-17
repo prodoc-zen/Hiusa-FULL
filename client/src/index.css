@@ -18,6 +18,12 @@
   min-width: 0;
   min-height: 0;
 }
+/* The button stays 24px to the eye; this pad gives a thumb the 44px it needs. */
+.hiusa-toaster [data-sonner-toast] [data-close-button]::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
 .hiusa-toaster [data-sonner-toast][data-type="success"] { background: #EBF7EF; border-color: #BBE8C9; color: #166534; }
 .hiusa-toaster [data-sonner-toast][data-type="error"] { background: #FBE9E9; border-color: #F2C7C7; color: #991B1B; }
 .hiusa-toaster [data-sonner-toast][data-type="warning"] { background: #FEF3DB; border-color: #F8DF9D; color: #92400E; }
@@ -375,6 +381,11 @@ a {
   }
 
   :where(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: 44px;
+  }
+
+  /* A min-h-6 to min-h-10 class on a control would beat the :where floor above and leave it short of a thumb. */
+  :is(button, a[href], summary, [role='button'], label:has(input)):is(.min-h-6, .min-h-8, .min-h-9, .min-h-10) {
     min-height: 44px;
   }
 }

@@ -15,7 +15,7 @@ export function PageBreadcrumb({ crumbs }) {
             <li key={`${index}-${crumb.label}`} className="flex items-center gap-1.5">
               {index > 0 && <ChevronRight size={12} aria-hidden="true" />}
               {crumb.to && !last ? (
-                <Link to={crumb.to} className="hover:text-ink">{crumb.label}</Link>
+                <Link to={crumb.to} className="inline-flex min-w-11 items-center justify-center hover:text-ink">{crumb.label}</Link>
               ) : (
                 <span className="text-ink" aria-current={last ? 'page' : undefined}>{crumb.label}</span>
               )}

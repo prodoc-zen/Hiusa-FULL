@@ -1715,7 +1715,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       {activeTab === 'attendance' && (
         <section aria-label="Event check-in" className="space-y-6">
           <p className="text-sm font-medium text-ink-muted-strong">{attendanceEvents.length} {attendanceEvents.length === 1 ? 'event' : 'events'} open for check-in</p>
-          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-ink-muted-strong">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Go to Events</Link></p>}
+          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-ink-muted-strong">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="-my-3 inline-block py-3 font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800">Go to Events</Link></p>}
           {loading ? (
             <SkeletonTable rows={3} columns={3} />
           ) : attendanceEvents.length === 0 ? (
