@@ -22,6 +22,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AnnouncementController extends Controller
 {
@@ -399,6 +400,7 @@ class AnnouncementController extends Controller
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
+            'scheduled_at' => $user->role === 'SBO_OFFICER' ? ['prohibited'] : ['nullable', 'date', 'after:now'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'is_pinned' => ['boolean'],
             'is_important' => ['boolean'],
@@ -415,6 +417,11 @@ class AnnouncementController extends Controller
         }
         $canPublishWithoutApproval = in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true);
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
+        // A publish time makes it a scheduled publication: it is approved now, goes out at that time (see publishScheduled) and a draft has nothing to schedule.
+        $scheduledAt = $data['scheduled_at'] ?? null;
+        if ($scheduledAt && ! $isDirectPublish) {
+            throw ValidationException::withMessages(['scheduled_at' => ['A draft has no publish time. Choose Publish to schedule it.']]);
+        }
         $draftOutput = null;
         if (! empty($data['ai_output_id'])) {
             $draftOutput = AiOutput::where('organization_id', $user->organization_id)
@@ -439,7 +446,8 @@ class AnnouncementController extends Controller
             'is_important' => $data['is_important'] ?? false,
             'approval_status' => $isDirectPublish ? 'approved' : ($user->role === 'SBO_OFFICER' ? 'pending' : 'draft'),
             'reviewed_by' => $isDirectPublish ? $user->id : null,
-            'published_at' => $isDirectPublish ? now() : null,
+            'published_at' => $isDirectPublish && ! $scheduledAt ? now() : null,
+            'scheduled_at' => $scheduledAt,
             'created_by' => $user->id,
             'organization_id' => $organizationId,
         ]);
@@ -454,7 +462,7 @@ class AnnouncementController extends Controller
             ]);
         }
 
-        if ($announcement->is_published) {
+        if ($announcement->is_published && ! $scheduledAt) {
             $this->dispatchAnnouncementNotifications($announcement);
         }
 
@@ -698,6 +706,7 @@ class AnnouncementController extends Controller
             'approval_status' => $wasPublished ? 'draft' : 'approved',
             'reviewed_by' => $wasPublished ? null : $user->id,
             'published_at' => $wasPublished ? null : now(),
+            'scheduled_at' => null,
         ]);
 
         if (! $wasPublished) {
@@ -717,6 +726,19 @@ class AnnouncementController extends Controller
             'creator:school_id,first_name,last_name,role',
             'reviewer:school_id,first_name,last_name,role',
         ]));
+    }
+
+    /** Sends the organization announcements whose publish time has come: the notices go out now, as for an announcement published at once. */
+    public function publishScheduled(): int
+    {
+        $announcements = Announcement::where('announcement_source', 'ORGANIZATION')->where('is_published', true)->where('approval_status', 'approved')
+            ->whereNull('published_at')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->get();
+        foreach ($announcements as $announcement) {
+            $announcement->update(['published_at' => now()]);
+            $this->dispatchAnnouncementNotifications($announcement->fresh());
+        }
+
+        return $announcements->count();
     }
 
     private function managedAnnouncementQuery(Request $request): Builder

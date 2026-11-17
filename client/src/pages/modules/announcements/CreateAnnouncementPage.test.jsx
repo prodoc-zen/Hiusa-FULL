@@ -177,6 +177,38 @@ describe('CreateAnnouncementPage', () => {
     expect(screen.getByRole('link', { name: 'View in announcements' })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
   });
 
+  it('lets an Admin set a publish time and sends it with the post', async () => {
+    signInAs('ADMIN');
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'General Assembly' } });
+    fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'All members are invited.' } });
+    fireEvent.change(document.querySelector('#announcement-publish-at'), { target: { value: '2030-10-01T09:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/hidden from them/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Schedule' }));
+
+    expect(await screen.findByRole('heading', { name: 'Announcement scheduled' })).toBeInTheDocument();
+    expect(createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ is_published: true, scheduled_at: '2030-10-01T09:00' }));
+  });
+
+  it('sends no publish time with a draft, and an Officer is never offered one', async () => {
+    signInAs('ADMIN');
+    const { unmount } = render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Later' } });
+    fireEvent.change(screen.getByLabelText(/Content/), { target: { value: 'Text.' } });
+    fireEvent.change(document.querySelector('#announcement-publish-at'), { target: { value: '2030-10-01T09:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(createAnnouncement).toHaveBeenCalled());
+    expect(vi.mocked(createAnnouncement).mock.calls[0][0]).not.toHaveProperty('scheduled_at');
+    unmount();
+
+    signInAs('SBO_OFFICER');
+    render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
+    expect(document.querySelector('#announcement-publish-at')).toBeNull();
+  });
+
   describe('poster picker', () => {
     function pick(input, file) {
       fireEvent.change(input, { target: { files: [file] } });
