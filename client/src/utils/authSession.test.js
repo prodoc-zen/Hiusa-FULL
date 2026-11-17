@@ -21,6 +21,16 @@ describe('four-hour sign-in session', () => {
     expect(localStorage.getItem('auth_token')).toBeNull();
     expect(localStorage.getItem('auth_expires_at')).toBeNull();
   });
+
+  it('leaves no cart behind for the next person on a shared browser, on sign out or on sign in', () => {
+    localStorage.setItem('hiusa_student_cart', JSON.stringify([{ id: 1, qty: 2 }]));
+    clearAuthSession();
+    expect(localStorage.getItem('hiusa_student_cart')).toBeNull();
+
+    localStorage.setItem('hiusa_student_cart', JSON.stringify([{ id: 1, qty: 2 }]));
+    startAuthSession({ access_token: 'token', user: { school_id: 456 } });
+    expect(localStorage.getItem('hiusa_student_cart')).toBeNull();
+  });
 });
 
 describe('sign out notice', () => {
