@@ -704,6 +704,28 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByText("Out of stock.")).toBeInTheDocument();
   });
 
+  it("links the order details to the buyer's receipt once the payment has one", async () => {
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([
+        buyerOrder({ id: 8, status: "paid", officer_review_status: "approved", admin_review_status: "approved", transaction: { id: 3, receipt_reference: "MERCH-ORD-8", receipt_number: 4 } }),
+      ]),
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("MERCH-ORD-8")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "View receipt" })).toHaveAttribute("href", "/dashboard/finance/personal-receipts");
+  });
+
+  it("offers no receipt link in the order details before the payment has a receipt", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 9 })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "View details" }))[0]);
+    expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "View receipt" })).not.toBeInTheDocument();
+  });
+
   it("shows the date an unpaid order lapses only when the server sends one", async () => {
     orderMocks.getOrders.mockResolvedValue({
       data: paginatedOrders([

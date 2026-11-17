@@ -2573,6 +2573,14 @@ export default function MerchandisePage({ initialTab }) {
                   </div>
                 ))}
               </dl>
+              {(orderDetails.transaction?.receipt_reference || orderDetails.transaction?.receipt_number) && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                  <p className="text-sm text-ink-muted">
+                    Receipt <span className="font-mono font-semibold text-ink">{orderDetails.transaction.receipt_reference || `No. ${orderDetails.transaction.receipt_number}`}</span>
+                  </p>
+                  <Button variant="secondary" to="/dashboard/finance/personal-receipts">View receipt</Button>
+                </div>
+              )}
             </div>
           )}
         </Drawer>
