@@ -31,7 +31,7 @@ class EnsureOrganizationModule
     ];
 
     // personal-receipts and invoices are limited to the officer's own records by their controllers.
-    private const OWN_ROUTES = ['api/transactions/personal-receipts', 'api/invoices'];
+    private const OWN_ROUTES = ['api/transactions/personal-receipts', 'api/transactions/personal-receipts/{id}/pdf', 'api/invoices'];
 
     /**
      * The member roster and the academic structure are what the event check-in, the task assignee and the finance

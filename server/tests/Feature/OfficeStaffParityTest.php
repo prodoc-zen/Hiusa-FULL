@@ -416,6 +416,7 @@ class OfficeStaffParityTest extends TestCase
     {
         return [
             'api/ai/assistant/conversations/{conversation}' => [1],
+            'api/transactions/personal-receipts/{id}' => [1],
             'api/events/{id}' => $this->ids['events'],
             'api/events/{event}' => $this->ids['events'],
             'api/events/{event}/submission/files/{file}' => $this->ids['requirementFiles'],

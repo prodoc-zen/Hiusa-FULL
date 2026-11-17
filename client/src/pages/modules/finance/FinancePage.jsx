@@ -59,6 +59,7 @@ import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import ConfirmModal from '../../../components/ConfirmModal';
 import TableFilterBar from '../../../components/TableFilterBar';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
@@ -442,6 +443,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [transactions, setTransactions] = useState([]);
   const [personalReceipts, setPersonalReceipts] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [receiptFileError, setReceiptFileError] = useState('');
   const [invoices, setInvoices] = useState([]);
   const [clearances, setClearances] = useState(null);
   const [studentDebt, setStudentDebt] = useState(null);
@@ -926,6 +928,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', getApiErrorMessage(err, 'Failed to generate the PDF.'));
     } finally {
       setReportPdfDownloading(null);
+    }
+  }
+
+  async function openReceiptPdf(receipt) {
+    setReceiptFileError('');
+    try {
+      await openProtectedFile(receipt.open_url);
+    } catch (err) {
+      setReceiptFileError(getApiErrorMessage(err, 'Could not open this receipt PDF.'));
     }
   }
 
@@ -1952,7 +1963,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     </div>
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
                       <p className="text-sm font-semibold tabular-nums text-ink">{fmt(receipt.amount)}</p>
-                      <Button variant="secondary" leftIcon={Eye} onClick={() => setSelectedReceipt(receipt)}>View receipt</Button>
+                      <Button variant="secondary" leftIcon={Eye} onClick={() => { setReceiptFileError(''); setSelectedReceipt(receipt); }}>View receipt</Button>
                     </div>
                   </article>
                 </li>
@@ -1965,7 +1976,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       <Drawer
         open={Boolean(selectedReceipt)}
         title={selectedReceipt ? receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}` : 'Receipt details'}
-        onClose={() => setSelectedReceipt(null)}
+        onClose={() => { setSelectedReceipt(null); setReceiptFileError(''); }}
         width="max-w-3xl"
         footer={selectedReceipt ? (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1973,10 +1984,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             {selectedReceipt.receipt_file_url && (
               <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-control border border-line bg-surface px-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-subtle"><Download size={16} aria-hidden="true" /> Open receipt file</a>
             )}
+            {selectedReceipt.open_url && <Button variant="secondary" leftIcon={Download} onClick={() => openReceiptPdf(selectedReceipt)}>Download PDF</Button>}
             <Button leftIcon={Printer} onClick={() => printReceiptElement(document.querySelector('[data-finance-receipt] [data-receipt-document]'))}>Print receipt</Button>
           </div>
         ) : null}
       >
+        {receiptFileError && <p role="alert" className="mb-3 text-sm font-medium text-danger-strong">{receiptFileError}</p>}
         {selectedReceipt && <div data-finance-receipt><ReceiptDocument transaction={selectedReceipt} /></div>}
       </Drawer>
 

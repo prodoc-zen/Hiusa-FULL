@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\ReceiptPdfService;
 use App\Support\FilterValues;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
@@ -278,13 +279,13 @@ class TransactionController extends Controller
         });
     }
 
-    public function personalReceipts(Request $request)
+    /** The receipts for payments this person made: a student's from every organization they belong to, anyone else's from their own. */
+    private function ownReceipts(Request $request)
     {
         $userId = $request->user()->id;
-        // A student's own receipts from every organization they belong to.
         $organizationIds = $request->user()->role === 'STUDENT' ? $request->user()->memberOrganizationIds() : [$request->user()->organization_id];
 
-        $receipts = Transaction::with([
+        return Transaction::with([
             'organization:id,name',
             'merchandiseOrder' => fn ($query) => $query
                 ->whereIn('organization_id', $organizationIds)
@@ -301,12 +302,38 @@ class TransactionController extends Controller
                 $query->whereNotNull('receipt_reference')
                     ->orWhereNotNull('receipt_number')
                     ->orWhereNotNull('receipt_file_url');
-            })
+            });
+    }
+
+    public function personalReceipts(Request $request)
+    {
+        $receipts = $this->ownReceipts($request)
             ->orderBy('transaction_date', 'desc')
             ->orderByDesc('id')
             ->get();
 
+        // The same protected-file shape the other documents use, so the client opens the PDF with openProtectedFile.
+        $receipts->each(fn (Transaction $receipt) => $receipt->setAttribute('open_url', '/transactions/personal-receipts/'.$receipt->id.'/pdf'));
+
         return response()->json($receipts);
+    }
+
+    public function personalReceiptPdf(Request $request, ReceiptPdfService $pdf, int $id)
+    {
+        $receipt = $this->ownReceipts($request)->find($id);
+
+        if (! $receipt) {
+            return response()->json(['message' => 'Receipt not found.'], 404);
+        }
+
+        $rendered = $pdf->render($receipt);
+
+        return response($rendered['content'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => ($request->boolean('inline') ? 'inline' : 'attachment').'; filename="'.$rendered['filename'].'"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function destroy(Request $request, $id)
