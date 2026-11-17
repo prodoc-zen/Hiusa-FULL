@@ -248,8 +248,42 @@ class OrgAccessGrantTest extends TestCase
         $this->postJson('/api/elections', [])->assertForbidden();
         $this->getJson('/api/elections/1/voters')->assertForbidden();
         $this->postJson('/api/merchandise', [])->assertForbidden();
-        $this->getJson('/api/users')->assertForbidden();
+        $this->getJson('/api/sbo-positions')->assertForbidden();
         $this->getJson('/api/compliance/status')->assertForbidden();
+    }
+
+    public function test_an_officer_ticked_for_events_can_read_the_roster_but_not_change_it(): void
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['events']]);
+        Sanctum::actingAs($officer);
+
+        $this->getJson('/api/users')->assertSuccessful();
+        $this->getJson('/api/academic-structure')->assertSuccessful();
+        $this->postJson('/api/users', [])->assertForbidden();
+        $this->postJson('/api/academic-structure/programs', [])->assertForbidden();
+    }
+
+    public function test_an_officer_with_no_roster_reading_module_still_cannot_read_the_roster(): void
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['announcements']]);
+        Sanctum::actingAs($officer);
+
+        $this->getJson('/api/users')->assertForbidden();
+        $this->getJson('/api/academic-structure')->assertForbidden();
+    }
+
+    public function test_an_officer_without_finance_reads_their_own_invoices_and_receipts(): void
+    {
+        $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['tasks', 'events']]);
+        Sanctum::actingAs($officer);
+
+        $this->getJson('/api/invoices')->assertSuccessful();
+        $this->getJson('/api/transactions/personal-receipts')->assertSuccessful();
+        $this->getJson('/api/transactions')->assertForbidden();
+        $this->getJson('/api/budgets')->assertForbidden();
     }
 
     public function test_an_officer_without_modules_keeps_their_rights_as_an_ordinary_member(): void
