@@ -299,9 +299,11 @@ describe('getNotificationDestination rules', () => {
     const notice = (entity_type) => ({ reference_type: 'approval_request', reference_id: 31, notification_type: 'general', entity_type });
     expect(getNotificationDestination(notice('event'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=event-reviews&approval=31');
     expect(getNotificationDestination(notice('financial_report'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
-    for (const other of ['budget', 'election', 'announcement', 'payment']) {
-      expect(getNotificationDestination(notice(other), 'SUPER_ADMIN'), other).toBe('/dashboard/super-admin/compliance');
+    for (const approvable of ['budget', 'election', 'announcement']) {
+      expect(getNotificationDestination(notice(approvable), 'SUPER_ADMIN'), approvable).toBe('/dashboard/super-admin/organization-approvals?record=31');
     }
+    expect(getNotificationDestination({ ...notice('budget'), reference_id: 'a/b' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/organization-approvals');
+    expect(getNotificationDestination(notice('payment'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance');
     expect(getNotificationDestination(notice(null), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
     expect(getNotificationDestination({ ...notice(undefined) }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
   });
