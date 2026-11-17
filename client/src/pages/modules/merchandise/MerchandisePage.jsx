@@ -861,30 +861,32 @@ export default function MerchandisePage({ initialTab }) {
       .finally(() => setLoading(false));
   }
 
+  // An answer that arrives after a newer load has started is dropped whole: a late success must not clear the
+  // error of a newer failed load(), and a late failure must not raise one over a newer success.
   async function loadOrders(page, filters = orderFilters) {
-    ordersEpoch.current += 1;
+    const epoch = ++ordersEpoch.current;
     setLoading(true);
     try {
       const oRes = await getOrders({ page, ...filters });
-      extractOrders(oRes);
+      if (epoch === ordersEpoch.current) extractOrders(oRes);
     } catch {
-      setError("Failed to load orders.");
+      if (epoch === ordersEpoch.current) setError("Failed to load orders.");
     } finally {
-      setLoading(false);
+      if (epoch === ordersEpoch.current) setLoading(false);
     }
   }
 
   async function loadPersonalOrders(page) {
-    ordersEpoch.current += 1;
+    const epoch = ++ordersEpoch.current;
     setLoading(true);
     try {
       const search = appliedOrderSearch.current;
       const oRes = await getOrders({ mine: 1, page, ...(search ? { search } : {}) });
-      extractOrders(oRes);
+      if (epoch === ordersEpoch.current) extractOrders(oRes);
     } catch {
-      setError("Failed to load orders.");
+      if (epoch === ordersEpoch.current) setError("Failed to load orders.");
     } finally {
-      setLoading(false);
+      if (epoch === ordersEpoch.current) setLoading(false);
     }
   }
 
@@ -988,15 +990,15 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(() => {
     if (isPersonalShoppingView || activeTab !== "orders") return undefined;
     const timer = window.setTimeout(async () => {
-      ordersEpoch.current += 1;
+      const epoch = ++ordersEpoch.current;
       setLoading(true);
       try {
         const response = await getOrders({ page: 1, ...orderFilters });
-        extractOrders(response);
+        if (epoch === ordersEpoch.current) extractOrders(response);
       } catch {
-        setError("Failed to load orders.");
+        if (epoch === ordersEpoch.current) setError("Failed to load orders.");
       } finally {
-        setLoading(false);
+        if (epoch === ordersEpoch.current) setLoading(false);
       }
     }, 250);
     return () => window.clearTimeout(timer);
