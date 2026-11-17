@@ -66,6 +66,21 @@ class ChangesSinceReturn
 
     private const APPLICATION_LABELS = ['name' => 'Organization name', 'acronym' => 'Acronym', 'description' => 'Description', 'position_title' => 'Position title'];
 
+    /**
+     * What the event form writes for a field the person never filled in. A record that never had the field and
+     * one holding its default are the same, so saving the form over an old record is not a change of these.
+     */
+    private const DEFAULTS = [
+        'planning_details.venue_type' => 'off_campus',
+        'planning_details.proposed_budget_amount' => 0,
+        'planning_details.budget_warning_threshold' => 0,
+    ];
+
+    /** Fields that hold a fixed choice, shown as the label the screen uses. */
+    private const CHOICES = [
+        'planning_details.venue_type' => ['on_campus' => 'On campus', 'off_campus' => 'Off campus'],
+    ];
+
     /** Fields whose value is an id, a link or a structure, so naming the field says more than showing it. */
     private const NO_VALUES = ['image_url', 'planning_details.venue_id', 'event_id', 'financial_semester_id', 'rules'];
 
@@ -204,7 +219,7 @@ class ChangesSinceReturn
 
         $changes = [];
         foreach ($span as $key => [$before, $after]) {
-            if (! $this->same($before, $after)) {
+            if (! $this->same($key, $before, $after)) {
                 $changes[] = $this->entry($key, $labels[$key], $before, $after);
             }
         }
@@ -271,8 +286,12 @@ class ChangesSinceReturn
         return $entry;
     }
 
-    private function same(mixed $before, mixed $after): bool
+    private function same(string $key, mixed $before, mixed $after): bool
     {
+        if (array_key_exists($key, self::DEFAULTS)) {
+            $before = $this->plain($before) === '' ? self::DEFAULTS[$key] : $before;
+            $after = $this->plain($after) === '' ? self::DEFAULTS[$key] : $after;
+        }
         if (is_numeric($before) && is_numeric($after)) {
             return (float) $before === (float) $after;
         }
@@ -295,6 +314,9 @@ class ChangesSinceReturn
             return $value ? 'Yes' : 'No';
         }
         $text = trim((string) ($value ?? ''));
+        if (isset(self::CHOICES[$key][$text])) {
+            return self::CHOICES[$key][$text];
+        }
         if ($text !== '' && (str_ends_with($key, '_time') || str_ends_with($key, '_at'))) {
             try {
                 return Carbon::parse($text)->timezone(config('app.timezone'))->format('M j, Y g:i A');
