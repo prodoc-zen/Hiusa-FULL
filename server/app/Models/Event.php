@@ -15,6 +15,11 @@ class Event extends Model
 
     protected $guarded = [];
 
+    /** How long before an event starts the members can be reminded; the admin picks one, 24 when none is chosen. */
+    public const REMINDER_HOURS = [1, 3, 6, 12, 24, 48, 72];
+
+    public const DEFAULT_REMINDER_HOURS = 24;
+
     protected function casts(): array
     {
         return [

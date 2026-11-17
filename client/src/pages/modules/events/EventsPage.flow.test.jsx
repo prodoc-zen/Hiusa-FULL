@@ -521,6 +521,31 @@ describe('proposing an event', () => {
     expect(eventMocks.getEvent).toHaveBeenCalledWith(77);
   });
 
+  it('sends the reminder time the Admin chose with the proposal', async () => {
+    const proposed = { ...FIXTURES.awaiting_department_head, id: 78, title: 'Reminder Gala' };
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    eventMocks.createEvent.mockResolvedValue({ data: proposed });
+    eventMocks.getEvent.mockResolvedValue({ data: proposed });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New event' }));
+    await screen.findByRole('heading', { level: 1, name: 'New event' });
+    const form = within(document.body);
+    fireEvent.change(form.getByLabelText(/^Event name/), { target: { value: 'Reminder Gala' } });
+    fireEvent.change(document.querySelector('#event-start-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(document.querySelector('#event-start-time'), { target: { value: '09:00' } });
+    fireEvent.change(document.querySelector('#event-end-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(document.querySelector('#event-end-time'), { target: { value: '12:00' } });
+    fireEvent.change(document.querySelector('#event-venue-type'), { target: { value: 'off_campus' } });
+    fireEvent.change(document.querySelector('#event-location'), { target: { value: 'Main Gym' } });
+    expect(document.querySelector('#event-reminder')).toHaveValue('24');
+    fireEvent.change(document.querySelector('#event-reminder'), { target: { value: '3' } });
+    fireEvent.click(form.getByRole('button', { name: 'Send proposal' }));
+
+    await waitFor(() => expect(eventMocks.createEvent).toHaveBeenCalled());
+    expect(eventMocks.createEvent.mock.calls.at(-1)[0].planning_details.reminder_hours).toBe(3);
+  });
+
   it('stays on the list after saving an edit', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     eventMocks.getEvents.mockResolvedValue(page([FIXTURES.not_submitted]));

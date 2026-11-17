@@ -12,15 +12,16 @@ class SendEventReminders extends Command
 {
     protected $signature = 'events:send-reminders';
 
-    protected $description = 'Notify active organization members about approved events starting within 24 hours';
+    protected $description = 'Notify active organization members about approved events starting within the reminder time the admin chose (24 hours by default)';
 
     public function handle(): int
     {
         $created = 0;
         $events = Event::where('status', 'approved')
             ->whereNotNull('approved_at')
-            ->whereBetween('start_time', [now(), now()->addDay()])
-            ->get();
+            ->whereBetween('start_time', [now(), now()->addHours(max(Event::REMINDER_HOURS))])
+            ->get()
+            ->filter(fn (Event $event) => $event->start_time->lte(now()->addHours($this->reminderHours($event))));
 
         foreach ($events as $event) {
             $title = 'Event Reminder: '.Str::limit($event->title, 230);
@@ -54,5 +55,12 @@ class SendEventReminders extends Command
         $this->info("Created {$created} event reminder notification(s).");
 
         return Command::SUCCESS;
+    }
+
+    private function reminderHours(Event $event): int
+    {
+        $hours = (int) data_get($event->planning_details, 'reminder_hours');
+
+        return in_array($hours, Event::REMINDER_HOURS, true) ? $hours : Event::DEFAULT_REMINDER_HOURS;
     }
 }
