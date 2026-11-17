@@ -38,6 +38,32 @@ async function followRoleChange(profiles, activeProfileId) {
   }
 }
 
+// An officer's modules and venue booking are read from the stored user, so a change the Admin makes while the
+// officer is signed in shows only after the stored user is read again. The tab reloads once when either differs.
+let accessCheck = null;
+
+async function followAccessChange() {
+  const before = storedUser();
+  if (before?.role !== 'SBO_OFFICER' || accessCheck) return;
+  accessCheck = (async () => {
+    try {
+      const fresh = await getCurrentUser();
+      if (!fresh) return;
+      if (fresh.role !== before.role) {
+        if (Object.hasOwn(ROLE_HOME_PATHS, fresh.role)) window.location.assign(ROLE_HOME_PATHS[fresh.role]);
+        return;
+      }
+      const modulesChanged = JSON.stringify(fresh.modules ?? null) !== JSON.stringify(before.modules ?? null);
+      const bookingChanged = (fresh.can_book_venues !== false) !== (before.can_book_venues !== false);
+      if (modulesChanged || bookingChanged) window.location.reload();
+    } catch {
+      // The menu stays as it is; the next return to the tab tries again.
+    } finally {
+      accessCheck = null;
+    }
+  })();
+}
+
 export const usable = (profile) => profile.account_status === 'active'
   && Boolean(profile.organization?.is_active)
   && profile.organization.college_is_active !== false;
@@ -150,6 +176,7 @@ export default function useWorkspaces({ enabled = true, activeSubAccount = null 
     const refresh = () => {
       if (document.visibilityState !== 'visible') return;
       if (!inFlight.current) loadProfiles({ quiet: true });
+      followAccessChange();
       if (role === 'DEPARTMENT_HEAD' && !orgInFlight.current) loadCollegeOrganizations({ quiet: true });
     };
     window.addEventListener('focus', refresh);
