@@ -219,6 +219,7 @@ class TaskController extends Controller
             'created_at' => now(),
         ]);
         $this->recordProgressUpdate($task, $request, 'Task assigned.');
+        $this->notifyAssignee($request, $task);
 
         $response = $task->load([
             'assignee:school_id,first_name,last_name',
@@ -335,6 +336,7 @@ class TaskController extends Controller
                 'created_at' => now(),
             ]);
             $this->recordProgressUpdate($task, $request, 'Task reassigned.');
+            $this->notifyAssignee($request, $task);
         }
         $this->notifyAdminsOfTaskUpdate($request, $task->fresh());
 
@@ -977,6 +979,26 @@ class TaskController extends Controller
             'rank' => null,
             'eligibility_result' => $result,
         ];
+    }
+
+    /** Tells the officer a task was given to them, unless they gave it to themselves. */
+    private function notifyAssignee(Request $request, Task $task): void
+    {
+        if (empty($task->assigned_to) || (int) $task->assigned_to === (int) $request->user()->school_id) {
+            return;
+        }
+
+        Notification::create([
+            'organization_id' => $task->organization_id,
+            'user_id' => $task->assigned_to,
+            'title' => 'New Task Assigned',
+            'message' => "You were assigned the task \"{$task->title}\".",
+            'notification_type' => 'task',
+            'reference_type' => Task::class,
+            'reference_id' => $task->id,
+            'is_read' => false,
+            'sent_at' => now(),
+        ]);
     }
 
     private function notifyAdminsOfTaskUpdate(Request $request, Task $task): void
