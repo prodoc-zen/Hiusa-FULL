@@ -12,6 +12,7 @@ use App\Models\Notification;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Support\AdviserPosition;
+use App\Support\FullNameSearch;
 use App\Support\YearLevel;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -246,6 +247,50 @@ class ElectionApplicationService
     public function isApplicantOrRepresentative(ElectionApplication $application, User $user): bool
     {
         return (int) $application->user_school_id === (int) $user->school_id || (int) $application->submitted_by === (int) $user->school_id;
+    }
+
+    /**
+     * The members a representative may list on a slate, found by name or school ID: the voting members of the
+     * election's organization (the rule assertMayRun enforces, so never the faculty adviser) who have no application
+     * in this election that blocks a new one (reusableRow refuses every status but a withdrawn row). At most ten rows,
+     * only what the picker shows: never an email, phone number or birth date.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function eligibleMembers(Election $election, string $search): array
+    {
+        $search = trim($search);
+        if (mb_strlen($search) < 2) {
+            return [];
+        }
+
+        $like = "%{$search}%";
+        $onRoll = AccountProfile::votingMembers()
+            ->where('account_profiles.organization_id', $election->organization_id)
+            ->select('account_profiles.user_school_id');
+        $filed = ElectionApplication::where('election_id', $election->id)->where('status', '!=', 'withdrawn')->select('user_school_id');
+
+        return User::query()
+            ->whereIn('users.school_id', $onRoll)
+            ->whereNotIn('users.school_id', $filed)
+            ->where(function ($matches) use ($like, $search) {
+                $matches->where('users.first_name', 'like', $like)
+                    ->orWhere('users.last_name', 'like', $like)
+                    ->orWhere('users.school_id', 'like', $like);
+                FullNameSearch::orWhereMatches($matches, $search);
+            })
+            ->orderBy('users.last_name')->orderBy('users.first_name')->orderBy('users.school_id')
+            ->limit(10)
+            ->get(['users.school_id', 'users.first_name', 'users.last_name', 'users.program', 'users.year_level'])
+            ->map(fn (User $member) => [
+                'id' => (int) $member->school_id,
+                'school_id' => (int) $member->school_id,
+                'first_name' => $member->first_name,
+                'last_name' => $member->last_name,
+                'program' => $member->program,
+                'year_level' => $member->year_level,
+            ])
+            ->all();
     }
 
     public function userNamed(int $schoolId): ?User

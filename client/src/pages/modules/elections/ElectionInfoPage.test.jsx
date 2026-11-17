@@ -13,6 +13,7 @@ const services = vi.hoisted(() => ({
   createSlate: vi.fn(),
   updateSlate: vi.fn(),
   addSlateMember: vi.fn(),
+  searchEligibleMembers: vi.fn(),
   submitSlate: vi.fn(),
   applicationFileUrl: vi.fn((id, applicationId, kind) => `/elections/${id}/applications/${applicationId}/files/${kind}`),
 }));
@@ -175,6 +176,7 @@ describe('ElectionInfoPage', () => {
     const withMember = { ...created, members: [applicationOf({ id: 21, status: 'draft', position: { id: 1, title: 'President' }, user: { name: 'Ben Cruz', school_id: 900002 } })] };
     services.createSlate.mockResolvedValue(created);
     services.addSlateMember.mockResolvedValue(withMember.members[0]);
+    services.searchEligibleMembers.mockResolvedValue([{ id: 900002, school_id: 900002, first_name: 'Ben', last_name: 'Cruz', program: 'BSIT', year_level: '2nd Year' }]);
     services.getMyApplications
       .mockResolvedValueOnce({ application: null, slate: null })
       .mockResolvedValueOnce({ application: null, slate: created })
@@ -192,7 +194,9 @@ describe('ElectionInfoPage', () => {
     const president = await screen.findByRole('listitem', { name: 'President' });
     expect(within(screen.getByRole('listitem', { name: 'Treasurer' })).getByText('Vacant')).toBeInTheDocument();
     fireEvent.click(within(president).getByRole('button', { name: 'Add member' }));
-    fireEvent.change(screen.getByLabelText('School ID'), { target: { value: '900002' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'ben' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Ben Cruz/ }));
+    expect(services.searchEligibleMembers).toHaveBeenCalledWith(5, 'ben');
     fireEvent.click(screen.getAllByRole('button', { name: 'Add member' }).find((button) => !button.closest('li')));
 
     await waitFor(() => expect(services.addSlateMember).toHaveBeenCalledWith(5, 6, expect.objectContaining({ user_id: 900002, position_id: 1 })));

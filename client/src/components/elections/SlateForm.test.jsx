@@ -52,17 +52,19 @@ describe('SlateForm', () => {
     expect(screen.getByRole('button', { name: 'Submit party list' })).toBeEnabled();
   });
 
-  it('adds a member for a position with a school ID and then closes the member form', async () => {
+  it('adds a member for a position found by search and then closes the member form', async () => {
     const slate = { id: 6, name: 'Unity', motto: 'Together', color: '#112233', members: [] };
     const onAddMember = vi.fn().mockResolvedValue(undefined);
-    render(<SlateForm positions={positions} slate={slate} onCreate={vi.fn()} onAddMember={onAddMember} onSubmitSlate={vi.fn()} />);
+    const searchMembers = vi.fn().mockResolvedValue([{ id: 900003, school_id: 900003, first_name: 'Ben', last_name: 'Cruz', program: 'BSCS', year_level: '3rd Year' }]);
+    render(<SlateForm positions={positions} slate={slate} searchMembers={searchMembers} onCreate={vi.fn()} onAddMember={onAddMember} onSubmitSlate={vi.fn()} />);
 
     fireEvent.click(within(screen.getByRole('listitem', { name: 'Treasurer' })).getByRole('button', { name: 'Add member' }));
-    fireEvent.change(screen.getByLabelText('School ID'), { target: { value: '900003' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'ben' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Ben Cruz/ }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Add member' }).find((button) => !button.closest('li')));
 
     await waitFor(() => expect(onAddMember).toHaveBeenCalledWith(expect.objectContaining({ user_id: 900003, position_id: 2 })));
-    await waitFor(() => expect(screen.queryByLabelText('School ID')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Member' })).not.toBeInTheDocument());
   });
 
   it('submits the whole party list, disabled before any member and while the rules are not accepted', async () => {

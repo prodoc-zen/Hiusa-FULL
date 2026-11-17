@@ -14,7 +14,7 @@ const memberPositionId = (member) => member.position?.id ?? member.position_id;
 
 // The party list a representative files: first its name, motto and color, then one member per position.
 // Seats may stay vacant. `disabled` holds every action while the official rules are not accepted.
-export default function SlateForm({ positions = [], slate = null, disabled = false, onCreate, onAddMember, onSubmitSlate }) {
+export default function SlateForm({ positions = [], slate = null, disabled = false, searchMembers, onCreate, onAddMember, onSubmitSlate }) {
   const [form, setForm] = useState({ name: '', motto: '', color: DEFAULT_COLOR });
   const [bannerFile, setBannerFile] = useState(null);
   const [addingFor, setAddingFor] = useState(null);
@@ -100,6 +100,7 @@ export default function SlateForm({ positions = [], slate = null, disabled = fal
             positions={positions}
             positionId={addingPosition.id}
             disabled={disabled}
+            searchMembers={searchMembers}
             onSubmit={async (payload) => {
               await onAddMember?.(payload);
               setAddingFor(null);

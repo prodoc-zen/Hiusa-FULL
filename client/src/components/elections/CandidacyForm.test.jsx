@@ -10,6 +10,13 @@ const photo = new File(['p'], 'photo.png', { type: 'image/png' });
 const coc = new File(['c'], 'coc.pdf', { type: 'application/pdf' });
 const credentials = new File(['d'], 'credentials.pdf', { type: 'application/pdf' });
 
+const ANA = { id: 900002, school_id: 900002, first_name: 'Ana', last_name: 'Reyes', program: 'BSIT', year_level: '2nd Year' };
+const BEN = { id: 900003, school_id: 900003, first_name: 'Ben', last_name: 'Cruz', program: 'BSCS', year_level: '3rd Year' };
+
+function typeMember(value) {
+  fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value } });
+}
+
 function chooseFiles({ withPhoto = true, withCoc = true, withCredentials = true } = {}) {
   if (withPhoto) fireEvent.change(screen.getByLabelText('Formal photo'), { target: { files: [photo] } });
   if (withCoc) fireEvent.change(screen.getByLabelText('Certificate of Candidacy'), { target: { files: [coc] } });
@@ -99,14 +106,23 @@ describe('CandidacyForm', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ photoFile: null, cocFile: coc, credentialsFile: null }));
   });
 
-  it('asks for the school ID of a party list member and sends it as a number', async () => {
+  it('finds a party list member by name, selects the match and sends the school ID as a number', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<CandidacyForm mode="member" positions={positions} positionId={2} onSubmit={onSubmit} />);
+    const searchMembers = vi.fn().mockResolvedValue([ANA, BEN]);
+    render(<CandidacyForm mode="member" positions={positions} positionId={2} searchMembers={searchMembers} onSubmit={onSubmit} />);
 
     expect(screen.queryByLabelText('Position')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('School ID')).not.toBeInTheDocument();
     const add = screen.getByRole('button', { name: 'Add member' });
     expect(add).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('School ID'), { target: { value: '900002' } });
+
+    typeMember('an');
+    fireEvent.click(await screen.findByRole('option', { name: /Ana Reyes/ }));
+    expect(searchMembers).toHaveBeenCalledTimes(1);
+    expect(searchMembers).toHaveBeenCalledWith('an');
+    expect(screen.getByRole('group', { name: 'Member' })).toHaveTextContent('Ana Reyes');
+    expect(add).toBeEnabled();
+
     chooseFiles({ withCredentials: false });
     fireEvent.click(add);
 
@@ -118,6 +134,56 @@ describe('CandidacyForm', () => {
       cocFile: coc,
       credentialsFile: null,
     }));
+  });
+
+  it('shows the program and year level of each match and picks one with the keyboard', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<CandidacyForm mode="member" positions={positions} positionId={2} searchMembers={vi.fn().mockResolvedValue([ANA, BEN])} onSubmit={onSubmit} />);
+
+    typeMember('re');
+    const options = await screen.findAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent('BSIT');
+    expect(options[0]).toHaveTextContent('2nd Year');
+    expect(options[0]).toHaveTextContent('900002');
+    expect(screen.getByRole('combobox', { name: 'Member' })).toHaveAttribute('aria-autocomplete', 'list');
+
+    const box = screen.getByRole('combobox', { name: 'Member' });
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ user_id: 900003, position_id: 2 })));
+  });
+
+  it('says when nobody matches and keeps Add member disabled', async () => {
+    render(<CandidacyForm mode="member" positions={positions} positionId={2} searchMembers={vi.fn().mockResolvedValue([])} onSubmit={vi.fn()} />);
+
+    typeMember('zzz');
+    expect(await screen.findByText(/No one matches/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled();
+  });
+
+  it('shows a failed search with a way to try again', async () => {
+    const searchMembers = vi.fn().mockRejectedValueOnce(new Error('network')).mockResolvedValue([ANA]);
+    render(<CandidacyForm mode="member" positions={positions} positionId={2} searchMembers={searchMembers} onSubmit={vi.fn()} />);
+
+    typeMember('an');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not search');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('option', { name: /Ana Reyes/ })).toBeInTheDocument();
+  });
+
+  it('lets the representative remove the chosen member and pick another', async () => {
+    render(<CandidacyForm mode="member" positions={positions} positionId={2} searchMembers={vi.fn().mockResolvedValue([ANA])} onSubmit={vi.fn()} />);
+
+    typeMember('an');
+    fireEvent.click(await screen.findByRole('option', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Ana Reyes' }));
+
+    expect(screen.getByRole('combobox', { name: 'Member' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled();
   });
 
   it('shows the server message as returned when the request is refused', async () => {

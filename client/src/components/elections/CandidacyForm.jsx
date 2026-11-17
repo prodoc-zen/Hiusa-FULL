@@ -1,22 +1,23 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
-import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
+import PersonPicker from '../people/PersonPicker';
 import { getApiErrorMessage } from '../../utils/apiError';
 
 const ALERT = 'rounded-control border border-danger/30 bg-danger-tint px-3 py-2 text-sm text-danger-strong';
+const describeMember = (member) => [member.program, member.year_level].filter(Boolean).join(' · ');
 const FILE_INPUT = 'block w-full text-sm text-ink file:mr-3 file:h-10 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-subtle';
 
 // mode "individual": the student's own candidacy (Save draft and Submit). mode "member": one member of a party
-// list for the position given by positionId (asks for a school ID). mode "documents": only the three files, to
-// answer a correction. `initial` is an application already on record; `disabled` holds every button while the
+// list for the position given by positionId (the teammate is found by name or school ID through searchMembers).
+// mode "documents": only the three files, to answer a correction. `initial` is an application already on record; `disabled` holds every button while the
 // official rules are not accepted. The handlers receive the payload the election service expects.
-export default function CandidacyForm({ mode = 'individual', positions = [], positionId = null, initial = null, disabled = false, onSave, onSubmit }) {
+export default function CandidacyForm({ mode = 'individual', positions = [], positionId = null, initial = null, disabled = false, searchMembers, onSave, onSubmit }) {
   const [form, setForm] = useState({
     positionId: String(initial?.position?.id ?? initial?.position_id ?? ''),
-    schoolId: '',
+    member: null,
     platform: initial?.platform ?? '',
   });
   const [files, setFiles] = useState({ photoFile: null, cocFile: null, credentialsFile: null });
@@ -30,7 +31,14 @@ export default function CandidacyForm({ mode = 'individual', positions = [], pos
   const allDocuments = ['photoFile', 'cocFile', 'credentialsFile'].every(hasDocument);
   const anyFile = Object.values(files).some(Boolean);
   const chosenPosition = member ? positionId : (form.positionId ? Number(form.positionId) : null);
-  const schoolId = form.schoolId.trim();
+
+  // The picker restarts its search when this function changes, so it stays the same one however the page re-renders.
+  const searchRef = useRef(searchMembers);
+  useEffect(() => { searchRef.current = searchMembers; }, [searchMembers]);
+  const findMembers = useCallback(async ({ q }) => (await searchRef.current?.(q) ?? []).map((found) => ({
+    ...found,
+    name: `${found.first_name} ${found.last_name}`.trim(),
+  })), []);
 
   const send = async (handler, payload) => {
     setError('');
@@ -74,9 +82,15 @@ export default function CandidacyForm({ mode = 'individual', positions = [], pos
         </Field>
       )}
       {member && (
-        <Field label="School ID" required>
-          <Input inputMode="numeric" value={form.schoolId} onChange={(event) => setForm({ ...form, schoolId: event.target.value })} />
-        </Field>
+        <PersonPicker
+          label="Member"
+          placeholder="Type a name or school ID"
+          hint="Search the members of this organization."
+          disabled={disabled}
+          search={findMembers}
+          describe={describeMember}
+          onSelect={(person) => setForm((current) => ({ ...current, member: person }))}
+        />
       )}
       {fileField('photoFile', 'Formal photo', 'image/jpeg,image/png,image/webp')}
       {fileField('cocFile', 'Certificate of Candidacy', 'application/pdf,image/jpeg,image/png')}
@@ -95,9 +109,9 @@ export default function CandidacyForm({ mode = 'individual', positions = [], pos
         )}
         {member && (
           <Button
-            disabled={disabled || !/^\d+$/.test(schoolId)}
+            disabled={disabled || !form.member}
             loading={busy}
-            onClick={() => send(onSubmit, { user_id: Number(schoolId), position_id: chosenPosition, platform: form.platform, ...files })}
+            onClick={() => send(onSubmit, { user_id: form.member.school_id, position_id: chosenPosition, platform: form.platform, ...files })}
           >
             Add member
           </Button>
