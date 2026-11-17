@@ -8,6 +8,7 @@ use App\Models\Election;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\User;
+use Database\Seeders\AcademicSemesterSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -61,7 +62,7 @@ class SeededAcademicSemesterTest extends TestCase
 
         $this->seed();
         $id = AcademicSemester::active()->id;
-        $this->seed(\Database\Seeders\AcademicSemesterSeeder::class);
+        $this->seed(AcademicSemesterSeeder::class);
 
         $this->assertSame($id, AcademicSemester::active()->id);
         $this->assertSame(1, AcademicSemester::count());
