@@ -105,7 +105,7 @@ class ViewOnlySeatTest extends TestCase
         $profile = $coHead->accountProfiles()->where('organization_id', $this->organization->id)->first();
 
         Sanctum::actingAs($dean);
-        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => null, 'view_only' => true])
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => 'Adviser', 'view_only' => true])
             ->assertOk()->assertJsonPath('view_only', true);
         $this->assertTrue((bool) $profile->fresh()->view_only);
         $this->getJson('/api/account-profiles?organization_id='.$this->organization->id)->assertOk()
@@ -114,6 +114,32 @@ class ViewOnlySeatTest extends TestCase
         Sanctum::actingAs($head);
         $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'view_only' => false])->assertUnprocessable();
         $this->assertTrue((bool) $profile->fresh()->view_only);
+    }
+
+    public function test_the_dean_ticks_view_only_on_an_adviser_seat_and_the_title_is_kept(): void
+    {
+        $dean = $this->makeCollegeHead($this->college);
+        $this->seat(false, 'President');
+        $adviser = $this->seat(false);
+        $profile = $adviser->accountProfiles()->where('organization_id', $this->organization->id)->first();
+
+        Sanctum::actingAs($dean);
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => 'Adviser', 'view_only' => true])
+            ->assertOk()->assertJsonPath('position_title', 'Adviser')->assertJsonPath('view_only', true);
+
+        $this->assertSame('Adviser', $profile->fresh()->position_title);
+        $this->assertTrue((bool) $profile->fresh()->view_only);
+    }
+
+    public function test_an_organization_head_cannot_name_an_adviser_seat_through_an_update(): void
+    {
+        $head = $this->seat(false, 'President');
+        $coHead = $this->seat(false, 'Treasurer');
+        $profile = $coHead->accountProfiles()->where('organization_id', $this->organization->id)->first();
+
+        Sanctum::actingAs($head);
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => 'Adviser'])->assertUnprocessable();
+        $this->assertSame('Treasurer', $profile->fresh()->position_title);
     }
 
     public function test_only_a_head_seat_can_be_view_only(): void
