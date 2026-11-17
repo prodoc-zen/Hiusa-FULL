@@ -31,6 +31,11 @@ function mayNameHead(actorRole, target, organizations) {
   return organizations.some((item) => String(item.id) === String(target.parent_organization_id));
 }
 
+// Whether the actor may name the head of any of these organizations: an organization Admin may only for a child organization.
+export function mayNameAnyHead(actorRole, organizations) {
+  return organizations.some((item) => mayNameHead(actorRole, item, organizations));
+}
+
 function scopeFor(actorRole, target) {
   if (actorRole === 'SUPER_ADMIN') return 'all';
   if (actorRole === 'DEPARTMENT_HEAD') return undefined;

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminUsersPage from './AdminUsersPage';
 
@@ -49,6 +50,24 @@ describe('AdminUsersPage add existing student', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Maria Reyes/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add student' }));
     await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 24001001, organization_id: 8, role: 'STUDENT' }));
+  });
+
+  it('offers Add administrator on the admins tab only when the Admin may name a head, that is for a child organization', async () => {
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Computing Council' }] });
+    const { unmount } = render(<MemoryRouter initialEntries={['/dashboard/admin/users?tab=admins']}><AdminUsersPage /></MemoryRouter>);
+    expect(await screen.findByRole('tab', { name: /Manage admins/, selected: true })).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getProfileOrganizations).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Add administrator' })).not.toBeInTheDocument();
+    unmount();
+
+    mocks.getProfileOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Computing Council' }, { id: 9, name: 'Coding Club', parent_organization_id: 8 }] });
+    render(<MemoryRouter initialEntries={['/dashboard/admin/users?tab=admins']}><AdminUsersPage /></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: 'Add administrator' })).toBeInTheDocument();
+  });
+
+  it('keeps Add existing student on the members tab whether or not the Admin may name a head', async () => {
+    render(<AdminUsersPage />);
+    expect(await screen.findByRole('button', { name: /add existing student/i })).toBeInTheDocument();
   });
 
   it('names the position under an administrator and drops the program column when nobody has one', async () => {

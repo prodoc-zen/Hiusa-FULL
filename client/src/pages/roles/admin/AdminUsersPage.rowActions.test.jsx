@@ -19,7 +19,7 @@ vi.mock('../../../services/userService', () => ({
   updateUser: mocks.updateUser,
   uploadUserPhoto: vi.fn(),
 }));
-vi.mock('../../../services/authService', () => ({ getProfileOrganizations: vi.fn(), inviteAccountProfile: vi.fn() }));
+vi.mock('../../../services/authService', () => ({ getProfileOrganizations: vi.fn().mockResolvedValue({ data: [] }), inviteAccountProfile: vi.fn() }));
 vi.mock('../../../services/peopleService', () => ({ searchPeople: vi.fn() }));
 vi.mock('../../../components/org/OrgAccessPanel', () => ({ default: (props) => { mocks.accessPanel(props); return null; } }));
 vi.mock('../../../services/financeService', () => ({ getStudentDebts: vi.fn() }));
