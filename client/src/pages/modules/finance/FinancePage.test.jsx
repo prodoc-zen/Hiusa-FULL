@@ -363,6 +363,38 @@ describe('FinancePage transaction search', () => {
     expect(screen.queryByRole('button', { name: /Generate forecast/ })).not.toBeInTheDocument();
   });
 
+  it('loads the ledger for an officer ticked for Finance only, even though the events are refused', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', modules: ['finance'] }));
+    getEvents.mockRejectedValueOnce({ response: { status: 403 } });
+    financeMocks.getTransactions.mockResolvedValue({
+      data: { data: [{ id: 5, transaction_date: '2026-09-09', description: 'Poster printing', category: 'Supplies', type: 'expense', amount: 300 }], current_page: 1, last_page: 1, total: 1, per_page: 10 },
+    });
+
+    render(<FinancePage />);
+
+    expect((await screen.findAllByText('Poster printing')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
+  });
+
+  it('opens the receipts of an officer without the Finance module and asks for no ledger data', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', modules: ['tasks', 'events'] }));
+    financeMocks.getTransactions.mockRejectedValue({ response: { status: 403 } });
+    financeMocks.getBudgets.mockRejectedValue({ response: { status: 403 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{ id: 12, transaction_date: '2026-09-09T10:30:00.000000Z', description: 'Officer shirt payment', category: 'Merchandise', type: 'income', amount: 350, receipt_reference: 'HIUSA-1-00000012' }],
+    });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    expect(await screen.findByText('Officer shirt payment')).toBeInTheDocument();
+    expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
+    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
+    expect(financeMocks.getBudgets).not.toHaveBeenCalled();
+    expect(financeMocks.getForecasts).not.toHaveBeenCalled();
+    expect(getEvents).not.toHaveBeenCalled();
+    expect(financeMocks.getInvoices).toHaveBeenCalled();
+  });
+
   it('creates an income statement as a separate document with a letterhead image', async () => {
     financeMocks.generateFinancialReport.mockResolvedValue({
       data: {
