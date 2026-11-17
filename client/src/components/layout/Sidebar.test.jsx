@@ -201,7 +201,7 @@ describe('desktop sidebar rail', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
     render(<MemoryRouter initialEntries={[url]}><SidebarHarness /></MemoryRouter>);
     const link = screen.getByRole('link', { name: 'Organizations' });
-    expect(link).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending');
+    expect(link).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=active');
     expect(link).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
   });

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AcademicSemester;
 use App\Models\Announcement;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -89,7 +90,7 @@ class AnnouncementSeeder extends Seeder
         ];
 
         foreach ($announcements as $a) {
-            Announcement::create($a);
+            Announcement::create([...$a, 'academic_semester_id' => AcademicSemester::active()?->id]);
         }
     }
 }

@@ -115,7 +115,7 @@ const SPEC = {
         ['Colleges', '/dashboard/super-admin/colleges'],
         ['Student records', '/dashboard/super-admin/student-records'],
         ['Applications', '/dashboard/organization-applications'],
-        ['Organizations', '/dashboard/super-admin/organizations?status=pending'],
+        ['Organizations', '/dashboard/super-admin/organizations?status=active'],
       ],
     },
     {

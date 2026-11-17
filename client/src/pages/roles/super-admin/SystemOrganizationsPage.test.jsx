@@ -655,11 +655,12 @@ describe('SystemOrganizationsPage', () => {
     await waitFor(() => expect(screen.getByLabelText('Search organizations')).toHaveValue(''));
   });
 
-  it('describes the apply flow when nothing is waiting for review', async () => {
+  it('sends the SAO to Applications when nothing is waiting for review', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
     renderPage('/dashboard/super-admin/organizations?status=pending');
     expect(await screen.findByText('No organizations are waiting for review.')).toBeInTheDocument();
-    expect(screen.getByText(/A student the Department Head allows applies for an organization/)).toBeInTheDocument();
+    expect(screen.getByText('Applications waiting for the SAO are under Applications.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
     expect(screen.queryByText(/register/i)).not.toBeInTheDocument();
   });
 

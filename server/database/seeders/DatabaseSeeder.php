@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             DepartmentHeadSeeder::class,
             StudentRegistrySeeder::class,
             AcademicStructureSeeder::class,
+            AcademicSemesterSeeder::class,
             SboPositionSeeder::class,
             AnnouncementSeeder::class,
             EventSeeder::class,
