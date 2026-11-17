@@ -53,4 +53,28 @@ class RegistrationRateLimitTest extends TestCase
 
         $this->postJson('/api/password/forgot', ['school_id' => 29999999])->assertTooManyRequests();
     }
+
+    public function test_password_recovery_is_limited_per_account_across_the_hour_not_just_per_address(): void
+    {
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        for ($call = 0; $call < 5; $call++) {
+            $this->assertNotSame(429, $this->postJson('/api/password/forgot', [
+                'identifier' => '20000001',
+            ])->getStatusCode(), "Recovery call {$call} for one account was rate limited.");
+        }
+
+        $this->postJson('/api/password/forgot', ['identifier' => '20000001'])->assertTooManyRequests();
+        $this->assertNotSame(429, $this->postJson('/api/password/forgot', ['identifier' => '20000002'])->getStatusCode());
+        $this->assertNotSame(429, $this->postJson('/api/password/forgot', [
+            'organization_id' => 1,
+            'email' => 'someone@example.edu',
+        ])->getStatusCode());
+    }
+
+    public function test_the_per_account_hourly_limit_ships_at_five(): void
+    {
+        $this->assertSame(5, $this->shippedLimit('RATE_LIMIT_PASSWORD_PER_IDENTIFIER_PER_HOUR'));
+    }
 }

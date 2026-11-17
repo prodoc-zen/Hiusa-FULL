@@ -122,13 +122,13 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->ip())->response($tooManyRequests)];
 
             if ($identifier = User::normalizeIdentifier($request->input('identifier'))) {
-                $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
+                $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
                     ->by('recovery:'.$identifier)
                     ->response($tooManyRequests);
             }
 
             if ($request->filled(['organization_id', 'email'])) {
-                $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
+                $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
                     ->by('recovery:'.$request->input('organization_id').':'.strtolower((string) $request->input('email')))
                     ->response($tooManyRequests);
             }
