@@ -32,6 +32,7 @@ import { createElection, deleteElection, getElectionPositions, getElections, sub
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 import { formatSchedule } from './votingPeriod';
@@ -419,7 +420,7 @@ function ElectionFormFields({ form, setForm, editing = false, errors = {} }) {
 export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null, mode = 'manage' }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
-  const userRole = currentUser?.role;
+  const userRole = effectiveRole(currentUser);
   const canManageElections = userRole === 'ADMIN';
   const managing = mode === 'manage';
   const showingResults = mode === 'results';
@@ -465,7 +466,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     }
   }, [canManageElections, startCreate]);
 
-  const listedElections = useMemo(() => (showingResults ? elections.filter((election) => canViewElectionResults(election, currentUser?.role)) : elections), [elections, showingResults, currentUser?.role]);
+  const listedElections = useMemo(() => (showingResults ? elections.filter((election) => canViewElectionResults(election, userRole)) : elections), [elections, showingResults, userRole]);
 
   const filteredElections = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -675,7 +676,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     const votes = getElectionVoteCount(election);
     const returned = isReturned(election);
     return [
-      election.has_informative_letter && currentUser?.role !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
+      election.has_informative_letter && userRole !== 'STUDENT' && { label: 'View informative letter', icon: Eye, onClick: () => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((error) => notify.error(getApiErrorMessage(error, 'Unable to open the letter.'))) },
       canManageElections && election.status !== 'closed' && !election.declined_at && { label: returned ? 'Edit and resubmit' : 'Edit', icon: PencilLine, onClick: () => openEdit(election) },
       canManageElections && !['active', 'closed'].includes(election.status) && votes === 0 && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(election) },
       canManageElections && election.status === 'upcoming' && election.finalized_at && !(Date.parse(election.start_time) > now) && { label: 'Open voting', icon: Power, disabled: Boolean(statusBusy.id), onClick: () => handleStatusChange(election.id, 'active') },
@@ -691,7 +692,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
       render: (election) => {
         const returned = isReturned(election);
         const declined = Boolean(election.declined_at);
-        const lifecycle = electionLifecycle(withApprovalState(election), currentUser?.role);
+        const lifecycle = electionLifecycle(withApprovalState(election), userRole);
         return (
           <div className="min-w-0 text-left">
             <button type="button" onClick={() => onSelect?.(election.id)} className="min-h-10 rounded-control text-left text-sm font-semibold text-brand-700 underline-offset-2 hover:text-brand-800 hover:underline">{formatDisplayText(election.title)}</button>
@@ -755,7 +756,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
     firstRunState = <EmptyState icon={Vote} title="No elections yet" description="Create an election first." action={<Button variant="secondary" to="/dashboard/elections/manage-elections">Go to elections</Button>} />;
   } else if (canManageElections) {
     firstRunState = <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />;
-  } else if (currentUser?.role === 'STUDENT') {
+  } else if (userRole === 'STUDENT') {
     firstRunState = <EmptyState icon={Vote} title="No election is currently open" description="Voting opens after the Admin finalizes and opens an election. Turnout is shown during voting, and results appear when the election closes." />;
   } else {
     firstRunState = <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />;

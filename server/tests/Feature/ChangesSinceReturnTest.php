@@ -391,4 +391,38 @@ class ChangesSinceReturnTest extends TestCase
             'Two replacements since the return are one change, from the file the reviewer saw to the file now.',
         );
     }
+
+    /** @return list<array<string, string>> */
+    private function eventDiff(array $old, array $new): array
+    {
+        $diff = new \ReflectionMethod(ChangesSinceReturn::class, 'diff');
+        $labels = (new \ReflectionClassConstant(ChangesSinceReturn::class, 'LABELS'))->getValue()['event'];
+        $row = new AuditLog(['old_values' => $old, 'new_values' => $new]);
+
+        return $diff->invoke(new ChangesSinceReturn, collect([$row]), $labels);
+    }
+
+    public function test_saving_the_event_form_over_an_old_record_does_not_list_its_defaults_as_edits(): void
+    {
+        $changes = $this->eventDiff(
+            ['description' => 'Yearly meeting.', 'planning_details' => ['event_type' => 'Assembly']],
+            ['description' => 'Yearly meeting, moved.', 'planning_details' => ['event_type' => 'Assembly', 'venue_type' => 'off_campus', 'budget_warning_threshold' => 0, 'proposed_budget_amount' => null]],
+        );
+
+        $this->assertSame(['description'], array_column($changes, 'field'), 'Only the description was edited.');
+    }
+
+    public function test_a_real_venue_or_budget_change_is_listed_with_the_label_the_screen_uses(): void
+    {
+        $changes = $this->eventDiff(
+            ['planning_details' => ['venue_type' => 'on_campus', 'budget_warning_threshold' => 0]],
+            ['planning_details' => ['venue_type' => 'off_campus', 'budget_warning_threshold' => 500]],
+        );
+
+        $this->assertSame(['On campus', 'Off campus'], [$this->change($changes, 'planning_details.venue_type')['before'], $this->change($changes, 'planning_details.venue_type')['after']]);
+        $this->assertSame(['0', '500'], [$this->change($changes, 'planning_details.budget_warning_threshold')['before'], $this->change($changes, 'planning_details.budget_warning_threshold')['after']]);
+
+        $fromBlank = $this->eventDiff(['planning_details' => []], ['planning_details' => ['venue_type' => 'on_campus']]);
+        $this->assertSame('On campus', $this->change($fromBlank, 'planning_details.venue_type')['after']);
+    }
 }

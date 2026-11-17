@@ -141,6 +141,7 @@ class OfficeStaffParityTest extends TestCase
         'POST api/ai/outputs/{aiOutput}/outcome',
         'POST api/ai/review-notes/draft',
         'POST api/announcements',
+        'POST api/announcements/generate-draft',
         'POST api/announcements/{id}/view',
         'POST api/college/applicant-grants',
         'POST api/college/staff/invitations',

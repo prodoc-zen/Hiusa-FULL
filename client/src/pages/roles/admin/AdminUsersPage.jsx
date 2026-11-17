@@ -14,7 +14,8 @@ import UserImportDrawer from '../../../components/users/UserImportDrawer';
 import OneTimeLinkModal from '../../../components/users/OneTimeLinkModal';
 import { deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, resetUserPassword, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
-import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
+import AddExistingUserModal, { mayNameAnyHead } from '../../../components/users/AddExistingUserModal';
+import { getProfileOrganizations } from '../../../services/authService';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 import OrgAccessPanel from '../../../components/org/OrgAccessPanel';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
@@ -355,6 +356,17 @@ export default function AdminUsersPage() {
   const [searchParams, setSearchParams] = inRouter ? useSearchParams() : [new URLSearchParams(), () => {}];
   const [activeUnit, setActiveUnit] = useState(() => (searchParams.get('tab') === 'admins' ? 'admins' : 'members'));
   const isAdminsUnit = activeUnit === 'admins';
+  // Only the dean or the SAO names an organization's head, so an Admin is offered "Add administrator" only for an organization
+  // that has child organizations. null until their organizations are known.
+  const [mayNameHeads, setMayNameHeads] = useState(null);
+  useEffect(() => {
+    if (actorRole !== 'ADMIN') return undefined;
+    let current = true;
+    getProfileOrganizations()
+      .then((response) => { if (current) setMayNameHeads(mayNameAnyHead(actorRole, unwrapList(response.data))); })
+      .catch(() => { if (current) setMayNameHeads(false); });
+    return () => { current = false; };
+  }, [actorRole]);
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
@@ -850,7 +862,7 @@ export default function AdminUsersPage() {
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
       <PageHeader
-        primary={canManage ? <Button leftIcon={UserPlus} onClick={() => openAddStudent()}>{isAdminsUnit ? 'Add administrator' : 'Add existing student'}</Button> : undefined}
+        primary={canManage && !(isAdminsUnit && actorRole === 'ADMIN' && !mayNameHeads) ? <Button leftIcon={UserPlus} onClick={() => openAddStudent()}>{isAdminsUnit ? 'Add administrator' : 'Add existing student'}</Button> : undefined}
       />
 
       {actorRole === 'ADMIN' && (

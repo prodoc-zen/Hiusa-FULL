@@ -2,6 +2,7 @@ import { filterValues, matchesFilter } from '../../../utils/filterValues';
 import { peso as formatCurrency } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { effectiveRole } from '../../../utils/collegeIdentity';
 import { manilaDateStamp } from '../../../utils/dateTime';
 import { closedPeriodParams } from '../../../utils/academicPeriodStore';
 import { useEffect, useRef, useState } from 'react';
@@ -387,7 +388,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [activeTab, setActiveTab] = useState(initialTab);
   let currentUser = {};
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
-  const currentUserRole = currentUser?.role ?? '';
+  // The dean's office staff hold an ADMIN profile but act as the dean here: no organization tasks, venues or event requests.
+  const currentUserRole = effectiveRole(currentUser) || '';
   const viewParam = searchParams.get('view');
   const eventsView = ['calendar', 'list'].includes(viewParam)
     ? viewParam

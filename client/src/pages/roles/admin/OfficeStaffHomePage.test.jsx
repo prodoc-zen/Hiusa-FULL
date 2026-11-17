@@ -3,8 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OfficeStaffHomePage from './OfficeStaffHomePage';
 
-const mocks = vi.hoisted(() => ({ getOrganizationApplications: vi.fn(), getBriefing: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getOrganizationApplications: vi.fn(), getBriefing: vi.fn(), getApprovalRequests: vi.fn() }));
 vi.mock('../../../services/organizationApplicationService', () => ({ getOrganizationApplications: mocks.getOrganizationApplications }));
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../services/dashboardService', () => ({ getBriefing: mocks.getBriefing }));
 
 const checklist = {
@@ -25,6 +26,7 @@ describe('OfficeStaffHomePage', () => {
     vi.clearAllMocks();
     localStorage.clear();
     mocks.getBriefing.mockResolvedValue({ data: { setup: checklist } });
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 3 } });
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', organization: { id: 9, name: 'Rehearsal College', college: 'Rehearsal College', college_id: 5, organization_type: 'COLLEGE' } }));
   });
 
@@ -37,6 +39,24 @@ describe('OfficeStaffHomePage', () => {
     expect(screen.getByRole('heading', { name: 'Applications for Rehearsal College' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
     expect(screen.queryByText(/Getting started|officer positions|Financial status/i)).not.toBeInTheDocument();
+  });
+
+  it('says how many approval requests wait on staff, as the dean sees them, and links to the approvals page', async () => {
+    mocks.getOrganizationApplications.mockResolvedValue({ data: { data: [], counts: { pending_dean: 0 } } });
+    renderPage();
+
+    expect(await screen.findByText('3 requests are waiting for your approval.')).toBeInTheDocument();
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith({ status: 'pending', per_page: 1 });
+    expect(screen.getByRole('link', { name: 'Review approvals' })).toHaveAttribute('href', '/dashboard/department-head/approvals');
+  });
+
+  it('shows no approvals section when the count cannot load', async () => {
+    mocks.getApprovalRequests.mockRejectedValue(new Error('offline'));
+    mocks.getOrganizationApplications.mockResolvedValue({ data: { data: [], counts: { pending_dean: 0 } } });
+    renderPage();
+
+    await screen.findByText(/Nothing is waiting for review/);
+    expect(screen.queryByRole('region', { name: 'Awaiting your approval' })).not.toBeInTheDocument();
   });
 
   it('says plainly when nothing is waiting', async () => {

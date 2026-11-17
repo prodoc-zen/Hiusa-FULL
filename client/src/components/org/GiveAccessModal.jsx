@@ -7,6 +7,9 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { ACCESS_LEVELS, ORG_MODULES, grantableLevels } from './orgAccess';
 
 const ALL_MODULES = ORG_MODULES.map((module) => module.key);
+// The adviser seat is named by the dean, for a faculty or staff member of the college. It is an Admin profile titled Adviser,
+// which is on no organization's position list, so the server takes the title as it is.
+const ADVISER_TITLE = 'Adviser';
 
 export default function GiveAccessModal({ organizationId, actorRole, profile = null, onClose, onSaved }) {
   const formId = useId();
@@ -18,6 +21,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
   const [modules, setModules] = useState(profile?.modules || ALL_MODULES);
   const [positions, setPositions] = useState([]);
   const [positionsFailed, setPositionsFailed] = useState(false);
+  const [adviser, setAdviser] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [errors, setErrors] = useState({});
@@ -31,12 +35,18 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
   }, [organizationId]);
 
   const rolePositions = positions.filter((item) => item.role === role);
-  const needsModules = role === 'SBO_OFFICER';
+  const needsModules = !adviser && role === 'SBO_OFFICER';
+  const mayNameAdviser = !editing && actorRole === 'DEPARTMENT_HEAD';
   const canSave = (editing || person) && (!needsModules || modules.length > 0);
 
   function changeRole(event) {
     setRole(event.target.value);
     setPosition('');
+  }
+
+  function toggleAdviser() {
+    setAdviser((current) => !current);
+    setPerson(null);
   }
 
   function toggleModule(key) {
@@ -49,11 +59,13 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
     setBusy(true);
     setError('');
     setErrors({});
-    const details = {
-      role,
-      position_title: role === 'STUDENT' ? null : position || null,
-      ...(needsModules ? { modules } : {}),
-    };
+    const details = adviser
+      ? { role: 'ADMIN', position_title: ADVISER_TITLE }
+      : {
+        role,
+        position_title: role === 'STUDENT' ? null : position || null,
+        ...(needsModules ? { modules } : {}),
+      };
     try {
       if (editing) {
         await updateAccountProfile(profile.id, details);
@@ -97,22 +109,33 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
             <p className="text-xs text-ink-muted">{profile.email}</p>
           </div>
         ) : (
-          <PersonPicker
-            label="Student"
-            scope="college"
-            role="STUDENT"
-            excludeOrganizationId={organizationId}
-            onSelect={setPerson}
-            error={errors.school_id?.[0]}
-            disabled={busy}
-          />
+          <>
+            {mayNameAdviser && (
+              <div>
+                <Button variant="ghost" size="sm" onClick={toggleAdviser} disabled={busy}>{adviser ? 'Give a student access instead' : 'Name a faculty adviser instead'}</Button>
+                {adviser && <p className="mt-1 text-xs text-ink-muted">The adviser is a faculty or staff member of the college, not a student, and has the access of an organization head.</p>}
+              </div>
+            )}
+            <PersonPicker
+              key={adviser ? 'adviser' : 'student'}
+              label={adviser ? 'Faculty or staff member' : 'Student'}
+              scope="college"
+              role={adviser ? 'ADMIN' : 'STUDENT'}
+              excludeOrganizationId={organizationId}
+              onSelect={setPerson}
+              error={errors.school_id?.[0]}
+              disabled={busy}
+            />
+          </>
         )}
-        <Field label="Access level" error={errors.role?.[0]}>
-          <Select value={role} onChange={changeRole} disabled={busy}>
-            {levels.map((level) => <option key={level} value={level}>{ACCESS_LEVELS[level].label}</option>)}
-          </Select>
-        </Field>
-        {role !== 'STUDENT' && (
+        {!adviser && (
+          <Field label="Access level" error={errors.role?.[0]}>
+            <Select value={role} onChange={changeRole} disabled={busy}>
+              {levels.map((level) => <option key={level} value={level}>{ACCESS_LEVELS[level].label}</option>)}
+            </Select>
+          </Field>
+        )}
+        {!adviser && role !== 'STUDENT' && (
           <Field
             label="Position"
             optional

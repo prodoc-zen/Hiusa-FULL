@@ -140,6 +140,33 @@ describe('OrgAccessPanel', () => {
     expect(screen.queryByLabelText(/school id/i)).not.toBeInTheDocument();
   });
 
+  it('lets the dean name a faculty adviser: searches the college staff and sends the Adviser title as an Admin profile', async () => {
+    mocks.searchPeople.mockResolvedValue([{ ...PICKED, school_id: 990100, name: 'Rosa Dela Cruz', email: 'rosa@example.edu', role: 'ADMIN' }]);
+    renderPanel();
+    await seen('Maria Santos');
+    fireEvent.click(screen.getByRole('button', { name: /Give access/ }));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Name a faculty adviser instead' }));
+    expect(within(dialog).queryByLabelText('Access level')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Position/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole('combobox', { name: /faculty or staff member/i }), { target: { value: 'rosa' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Rosa Dela Cruz/ }));
+    expect(mocks.searchPeople).toHaveBeenCalledWith({ q: 'rosa', scope: 'college', role: 'ADMIN', exclude_organization_id: 5 });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Give access' }));
+
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: 990100, organization_id: 5, role: 'ADMIN', position_title: 'Adviser' }));
+  });
+
+  it('offers the adviser choice to the dean only, not to an organization head', async () => {
+    renderPanel({ actorRole: 'ADMIN' });
+    await seen('Maria Santos');
+    fireEvent.click(screen.getByRole('button', { name: /Give access/ }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).queryByRole('button', { name: /faculty adviser/i })).not.toBeInTheDocument();
+  });
+
   it('hides modules and position when the access level is Member', async () => {
     renderPanel();
     await seen('Maria Santos');
