@@ -149,7 +149,7 @@ const PAGE_META = {
   '/dashboard/elections/election-info': { title: 'Election information', purpose: 'Read the schedule and rules, file your candidacy and see the official candidates.', group: 'Voting' },
   '/dashboard/elections/manage-voters': { title: 'Voters', purpose: 'Review eligibility and turnout without exposing ballots.', group: 'Voting' },
   '/dashboard/elections/cast-vote': { title: 'Vote', purpose: 'Review the ballot and cast your vote.', group: 'Voting', byRole: MY_ACTIVITY },
-  '/dashboard/elections/election-results': { title: 'Results', purpose: 'Review available vote totals and winners.', group: 'Voting', byRole: { DEPARTMENT_HEAD: { title: 'Election results', group: null } } },
+  '/dashboard/elections/election-results': { title: 'Results', purpose: 'Review available vote totals and winners.', group: 'Voting', byRole: { DEPARTMENT_HEAD: { title: 'Election results', group: null }, SUPER_ADMIN: { title: 'Election results', group: 'Reviews' } } },
 
   '/dashboard/merchandise': { title: 'Merchandise', purpose: 'Browse organization products and orders.', group: 'Store' },
   '/dashboard/merchandise/manage-inventory': { title: 'Inventory', purpose: 'Track products, stock, and sales.', group: 'Store' },
