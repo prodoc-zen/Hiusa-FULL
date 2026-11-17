@@ -12,6 +12,7 @@ import { Button, Card, EmptyState, ErrorState, Skeleton, SkeletonStat, Stat } fr
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { useRefetchOnReturn } from '../../../hooks/useRefetchOnReturn';
 import useActiveSubAccount from '../../../hooks/useActiveSubAccount';
+import usePendingApprovalCount from '../../../hooks/usePendingApprovalCount';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -19,6 +20,7 @@ function formatDate(d) {
 }
 
 const ORGANIZATIONS_PATH = '/dashboard/department-head/organizations';
+const APPROVALS_PATH = '/dashboard/department-head/approvals';
 
 function ListSkeleton({ rows = 3 }) {
   return (
@@ -89,6 +91,7 @@ export default function DepartmentHeadHomePage() {
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at)).slice(0, 3);
 
   const college = headCollegeName(storedUser());
+  const awaitingApproval = usePendingApprovalCount();
   const { subAccountId } = useActiveSubAccount();
   const activeSubId = subAccountId ? String(subAccountId) : null;
   const scopedOrganizations = activeSubId ? data.organizations.filter((o) => String(o.id) === activeSubId) : data.organizations;
@@ -111,7 +114,7 @@ export default function DepartmentHeadHomePage() {
       <section aria-labelledby="college-overview">
         <h2 id="college-overview" className="sr-only">{college ? `${college} organizations` : 'College organizations'}</h2>
         {loading ? (
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">{[0, 1].map((key) => <SkeletonStat key={key} />)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">{[0, 1, 2].map((key) => <SkeletonStat key={key} />)}</div>
         ) : noOrganizations ? (
           <Card>
             <EmptyState
@@ -121,7 +124,8 @@ export default function DepartmentHeadHomePage() {
             />
           </Card>
         ) : !loadError && (
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4">
+            {awaitingApproval !== null && <Stat className="p-3! sm:p-4!" label="Awaiting your approval" value={awaitingApproval} to={APPROVALS_PATH} />}
             <Stat className="p-3! sm:p-4!" label="Active organizations" value={organizationCount('active')} context={needAttention || undefined} to={`${ORGANIZATIONS_PATH}?status=active`} />
             <Stat className="p-3! sm:p-4!" label="Upcoming events" value={upcomingEvents.length} to="/dashboard/events" />
           </div>

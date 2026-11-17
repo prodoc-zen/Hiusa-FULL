@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
   getEvents: vi.fn(),
   getAnnouncements: vi.fn(),
   getCollegeOrganizations: vi.fn(),
+  getApprovalRequests: vi.fn(),
 }));
 vi.mock('../../../services/electionService', () => ({ getElections: mocks.getElections }));
 vi.mock('../../../services/eventService', () => ({ getEvents: mocks.getEvents }));
 vi.mock('../../../services/announcementService', () => ({ getAnnouncements: mocks.getAnnouncements }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests }));
 vi.mock('../../../components/process', () => ({ ProcessTracker: () => <div data-testid="process-tracker" /> }));
 const briefing = vi.hoisted(() => ({ getBriefing: vi.fn() }));
 vi.mock('../../../services/dashboardService', () => ({ getBriefing: briefing.getBriefing }));
@@ -33,20 +35,23 @@ describe('DepartmentHeadHomePage', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Eduardo', last_name: 'Ramos', organization: { id: 9, name: 'College of Engineering', college: 'College of Engineering', college_id: 5, organization_type: 'COLLEGE' } }));
     briefing.getBriefing.mockResolvedValue(briefingWith([]));
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 2 } });
     mocks.getElections.mockResolvedValue([]);
     mocks.getEvents.mockResolvedValue(paginator([]));
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active'), org(2, 'active'), org(3, 'pending'), org(4, 'returned')]));
   });
 
-  it('shows two tiles, each a link, and leaves the approvals count to the briefing, with older returned and pending filings as context', async () => {
+  it('shows three tiles, each a link, starting with the approvals waiting on the dean, with older returned and pending filings as context', async () => {
     renderPage();
 
     const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
     const section = heading.closest('section');
     const tiles = within(section).getAllByRole('link');
-    expect(tiles.map((tile) => tile.textContent)).toEqual(['Active organizations21 returned, 1 pending review', 'Upcoming events0']);
+    expect(tiles.map((tile) => tile.textContent)).toEqual(['Awaiting your approval2', 'Active organizations21 returned, 1 pending review', 'Upcoming events0']);
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith({ status: 'pending', per_page: 1 });
     expect(tiles.map((tile) => tile.getAttribute('href'))).toEqual([
+      '/dashboard/department-head/approvals',
       '/dashboard/department-head/organizations?status=active',
       '/dashboard/events',
     ]);

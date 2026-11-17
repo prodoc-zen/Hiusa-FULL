@@ -4,10 +4,12 @@ import { getBriefing } from '../../../services/dashboardService';
 import SetupChecklist from '../../../components/dashboard/SetupChecklist';
 import { readSetupHidden, shapeSetup, writeSetupHidden } from '../../../components/dashboard/setupSteps.js';
 import { Button, ErrorState, Skeleton } from '../../../components/ui';
+import usePendingApprovalCount from '../../../hooks/usePendingApprovalCount';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import { formatDisplayText } from '../../../utils/displayText.js';
 
 const APPLICATIONS_PATH = '/dashboard/organization-applications';
+const APPROVALS_PATH = '/dashboard/department-head/approvals';
 
 // What the dean's office staff land on. Their one job is reviewing the college's applications, so
 // this page says how many are waiting and links to them. It carries nothing of an organization head's setup,
@@ -15,6 +17,7 @@ const APPLICATIONS_PATH = '/dashboard/organization-applications';
 export default function OfficeStaffHomePage() {
   const user = storedUser();
   const college = formatDisplayText(headCollegeName(user) || user?.organization?.name) || 'your college';
+  const awaitingApproval = usePendingApprovalCount();
   const [state, setState] = useState({ loading: true, error: false, waiting: 0 });
   const [reload, setReload] = useState(0);
   const userKey = `${user?.school_id ?? 'me'}.OFFICE_STAFF`;
@@ -52,6 +55,17 @@ export default function OfficeStaffHomePage() {
           primaryFirst={false}
           onHide={() => { writeSetupHidden(userKey); setChecklistHidden(true); }}
         />
+      )}
+      {awaitingApproval !== null && (
+        <section className="rounded-card border border-line bg-surface p-4 sm:p-5" aria-label="Awaiting your approval">
+          <h2 className="text-base font-semibold text-ink">Awaiting your approval</h2>
+          <p className="mt-2 text-sm text-ink-muted-strong">
+            {awaitingApproval === 0
+              ? 'No event, budget, election or report requests are waiting for you.'
+              : `${awaitingApproval} ${awaitingApproval === 1 ? 'request is' : 'requests are'} waiting for your approval.`}
+          </p>
+          <Button variant="secondary" to={APPROVALS_PATH} className="mt-4">Review approvals</Button>
+        </section>
       )}
       <section className="rounded-card border border-line bg-surface p-4 sm:p-5" aria-label="Applications to review">
         <h2 className="text-base font-semibold text-ink">Applications for {college}</h2>
