@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\Organization;
@@ -67,7 +68,7 @@ class EventSeeder extends Seeder
         foreach ($events as $e) {
             $approvedAt = $e['approved_at'];
             $isPending = $approvedAt === null;
-            $event = Event::create($e);
+            $event = Event::create([...$e, 'academic_semester_id' => AcademicSemester::active()?->id]);
 
             // withoutEvents() suppresses ApprovalRequest::booted()'s
             // notifyApprovers() and recordSubmissionAudit(), which would

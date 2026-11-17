@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AcademicSemester;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\User;
@@ -92,7 +93,7 @@ class TaskSeeder extends Seeder
         ];
 
         foreach ($tasks as $t) {
-            Task::create($t);
+            Task::create([...$t, 'academic_semester_id' => AcademicSemester::active()?->id]);
         }
     }
 }
