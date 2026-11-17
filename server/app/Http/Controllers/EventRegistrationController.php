@@ -19,7 +19,7 @@ class EventRegistrationController extends Controller
     public function store(Request $request, $id)
     {
         $user = $request->user();
-        $event = Event::whereIn('organization_id', $user->scopedOrganizationIds())->find($id);
+        $event = Event::whereIn('organization_id', $user->contentOrganizationIds())->find($id);
 
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -101,7 +101,7 @@ class EventRegistrationController extends Controller
     public function destroyMine(Request $request, $id)
     {
         $user = $request->user();
-        $event = Event::whereIn('organization_id', $user->scopedOrganizationIds())->find($id);
+        $event = Event::whereIn('organization_id', $user->contentOrganizationIds())->find($id);
 
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -215,7 +215,7 @@ class EventRegistrationController extends Controller
         $user = $request->user();
 
         $registrations = EventRegistration::with('event:id,title,start_time,end_time,location,status')
-            ->whereIn('organization_id', $user->scopedOrganizationIds())
+            ->whereIn('organization_id', $user->contentOrganizationIds())
             ->where('user_id', $user->school_id)
             ->whereHas('event')
             ->get();
