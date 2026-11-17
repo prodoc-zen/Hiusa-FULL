@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountProfile;
 use App\Models\Announcement;
+use App\Models\Attendance;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\Invoice;
@@ -98,12 +99,56 @@ class ProfileScopeTest extends TestCase
         $this->event($this->home, 'College assembly');
         $this->event($this->psits, 'PSITS hackathon');
         $this->event($this->elsewhere, 'Elsewhere picnic');
+        $otherCollege = $this->makeCollege('CBA');
+        $this->event($this->makeCollegeStudentOrganization($otherCollege, ['name' => 'Other College Club']), 'Other college fair');
 
         $this->asProfile($this->psitsProfile)->getJson('/api/events')->assertOk()
             ->assertJsonPath('data.0.title', 'PSITS hackathon')->assertJsonCount(1, 'data');
 
-        $this->asProfile($this->collegeProfile)->getJson('/api/events')->assertOk()
-            ->assertJsonPath('data.0.title', 'College assembly')->assertJsonCount(1, 'data');
+        $college = $this->asProfile($this->collegeProfile)->getJson('/api/events')->assertOk()->assertJsonCount(2, 'data');
+        $this->assertEqualsCanonicalizing(
+            ['College assembly' => $this->home->name, 'PSITS hackathon' => 'PSITS'],
+            collect($college->json('data'))->mapWithKeys(fn (array $event) => [$event['title'] => $event['organization']['name']])->all(),
+        );
+    }
+
+    public function test_a_club_event_opens_registers_and_lists_its_own_attendance_from_the_college_profile(): void
+    {
+        $event = $this->event($this->psits, 'PSITS hackathon');
+        $event->forceFill(['start_time' => now()->addDays(3), 'end_time' => now()->addDays(3)->addHours(2)])->save();
+        $elsewhereEvent = $this->event($this->elsewhere, 'Elsewhere picnic');
+
+        $this->asProfile($this->collegeProfile)->getJson("/api/events/{$event->id}")->assertOk()
+            ->assertJsonPath('organization.name', 'PSITS');
+        $this->asProfile($this->collegeProfile)->getJson("/api/events/{$elsewhereEvent->id}")->assertNotFound();
+
+        $this->asProfile($this->collegeProfile)->postJson("/api/events/{$event->id}/registrations")->assertCreated();
+        $this->asProfile($this->collegeProfile)->postJson("/api/events/{$elsewhereEvent->id}/registrations")->assertNotFound();
+        $this->asProfile($this->collegeProfile)->getJson('/api/me/event-registrations')->assertOk()
+            ->assertJsonCount(1, 'upcoming')->assertJsonPath('upcoming.0.event.id', $event->id);
+        $this->asProfile($this->collegeProfile)->deleteJson("/api/events/{$event->id}/registrations/mine")->assertOk();
+
+        Attendance::factory()->create(['event_id' => $event->id, 'user_id' => $this->student->school_id, 'status' => 'present']);
+        $this->asProfile($this->collegeProfile)->getJson("/api/events/{$event->id}/attendance")->assertOk()
+            ->assertJsonPath('summary.present', 1);
+    }
+
+    public function test_personal_attendance_counts_club_events_on_the_college_profile_but_not_an_organization_the_student_is_outside(): void
+    {
+        $collegeEvent = $this->event($this->home, 'College assembly');
+        $clubEvent = $this->event($this->psits, 'PSITS hackathon');
+        $outsideEvent = $this->event($this->elsewhere, 'Elsewhere picnic');
+        Attendance::factory()->create(['event_id' => $collegeEvent->id, 'user_id' => $this->student->school_id, 'status' => 'present']);
+        Attendance::factory()->create(['event_id' => $clubEvent->id, 'user_id' => $this->student->school_id, 'status' => 'absent']);
+        Attendance::factory()->create(['event_id' => $outsideEvent->id, 'user_id' => $this->student->school_id, 'status' => 'present']);
+
+        $this->asProfile($this->collegeProfile)->getJson('/api/attendance/personal-summary')->assertOk()
+            ->assertJsonPath('summary.attended', 1)->assertJsonPath('summary.missed', 1)->assertJsonPath('summary.rate', 50)
+            ->assertJsonPath('pagination.total', 2);
+
+        $club = $this->asProfile($this->psitsProfile)->getJson('/api/attendance/personal-summary')->assertOk()
+            ->assertJsonPath('pagination.total', 1);
+        $this->assertSame('PSITS', $club->json('records.0.event.organization.name'));
     }
 
     public function test_announcements_follow_the_current_profile(): void

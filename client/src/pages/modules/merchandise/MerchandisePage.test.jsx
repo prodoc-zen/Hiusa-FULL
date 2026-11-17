@@ -1883,4 +1883,30 @@ describe("MerchandisePage when the data does not load", () => {
     await waitFor(() => expect(orderMocks.getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, search: "Rafael" })));
     await waitFor(() => expect(screen.queryByText("Orders did not load")).not.toBeInTheDocument());
   });
+
+  it("keeps the error of a newer failed load when an older orders read answers late", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
+    const view = (tab) => (
+      <MemoryRouter initialEntries={["/dashboard/merchandise/manage-orders"]}>
+        <LocationProbe />
+        <MerchandisePage initialTab={tab} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view("orders"));
+    const search = await screen.findByRole("textbox", { name: "Search merchandise orders" });
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenCalled());
+
+    let answerLate;
+    orderMocks.getOrders.mockImplementationOnce(() => new Promise((resolve) => { answerLate = resolve; }));
+    fireEvent.change(search, { target: { value: "Rafael" } });
+    await waitFor(() => expect(answerLate).toBeTypeOf("function"));
+
+    merchandiseMocks.getMerchandise.mockRejectedValue({ response: { status: 500, data: { message: "boom" } } });
+    rerender(view("tokens"));
+    expect(await screen.findByText("The server had a problem. Please try again in a moment.")).toBeInTheDocument();
+
+    await act(async () => { answerLate({ data: paginatedOrders() }); });
+    expect(screen.getByText("The server had a problem. Please try again in a moment.")).toBeInTheDocument();
+  });
 });

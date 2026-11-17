@@ -63,8 +63,9 @@ class EventController extends Controller
             'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
         ]);
 
-        $readableOrgIds = $this->readableOrganizationIds($request);
-        $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
+        // A student on the college profile also reads the events of the clubs they belong to, as with announcements and the shop.
+        $readableOrgIds = $user->role === 'STUDENT' ? $user->contentOrganizationIds() : $this->readableOrganizationIds($request);
+        $query = Event::with(['creator:school_id,first_name,last_name,role,position_title', 'organization:id,name'])
             ->whereIn('organization_id', $readableOrgIds)
             ->withCount([
                 'attendanceRecords',
@@ -136,7 +137,7 @@ class EventController extends Controller
 
     public function show(Request $request, $id)
     {
-        $relations = ['creator:school_id,first_name,last_name'];
+        $relations = ['creator:school_id,first_name,last_name', 'organization:id,name'];
 
         if (in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true)) {
             $relations = [
@@ -148,7 +149,7 @@ class EventController extends Controller
         }
 
         $event = Event::with($relations)
-            ->whereIn('organization_id', $request->user()->scopedOrganizationIds())
+            ->whereIn('organization_id', $request->user()->contentOrganizationIds())
             ->withCount(['attendanceRecords', 'tasks', 'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed')])
             ->find($id);
 
@@ -1272,11 +1273,11 @@ class EventController extends Controller
         $records = Attendance::query()
             ->where('user_id', $request->user()->school_id)
             ->whereHas('event', fn ($query) => $query
-                ->where('organization_id', $request->user()->organization_id)
+                ->whereIn('organization_id', $request->user()->memberOrganizationIds())
                 ->whereIn('status', ['approved', 'ongoing', 'completed']));
         $attended = (clone $records)->whereIn('status', ['present', 'late'])->count();
         $missed = (clone $records)->where('status', 'absent')->count();
-        $page = $records->with('event:id,title,start_time,end_time,status,location')
+        $page = $records->with(['event:id,title,start_time,end_time,status,location,organization_id', 'event.organization:id,name'])
             ->orderByDesc('id')
             ->paginate($filters['per_page'] ?? 10);
 
@@ -1298,7 +1299,7 @@ class EventController extends Controller
 
     public function getAttendance(Request $request, $id)
     {
-        $event = Event::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
+        $event = Event::whereIn('organization_id', $request->user()->contentOrganizationIds())->find($id);
 
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);

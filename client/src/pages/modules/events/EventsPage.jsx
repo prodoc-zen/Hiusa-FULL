@@ -1198,7 +1198,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       <EmptyState
         icon={CalendarCheck2}
         title="No events to join yet"
-        description="Approved events appear here with a Register button."
+        description="Approved events appear here. Open one to register."
         action={<Button variant="secondary" to="/dashboard/announcements/view-announcements">Read announcements</Button>}
       />
     );
@@ -1486,6 +1486,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             {formatDisplayText(evt.title)}
                           </button>
                           <p className="text-xs text-ink-muted">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : ''}{evt.creator && (evt.creator.position_title || evt.creator.role) ? ` · ${formatDisplayText(evt.creator.position_title) || evt.creator.role?.replaceAll('_', ' ')}` : ''}</p>
+                          {currentUserRole === 'STUDENT' && evt.organization?.name && <p className="text-xs text-ink-muted">{formatDisplayText(evt.organization.name)}</p>}
                         </td>
                         <td className="order-2 lg:table-cell py-0 lg:px-4 lg:py-2.5">
                           <EventStatus event={evt} text={eventStatusText(evt)} />
@@ -1930,6 +1931,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <dl className="grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">Schedule</dt><dd className="mt-0.5 text-ink">{formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</dd></div>
                   <div><dt className="text-xs text-ink-muted">Location</dt><dd className="mt-0.5 text-ink">{selectedEvent.location || ''}</dd></div>
+                  {currentUserRole === 'STUDENT' && selectedEvent.organization?.name && <div><dt className="text-xs text-ink-muted">Organization</dt><dd className="mt-0.5 text-ink">{formatDisplayText(selectedEvent.organization.name)}</dd></div>}
                   {selectedEvent.planning_details?.event_type && <div><dt className="text-xs text-ink-muted">Event type</dt><dd className="mt-0.5 text-ink">{selectedEvent.planning_details.event_type}</dd></div>}
                   {selectedEvent.planning_details?.expected_participants && <div><dt className="text-xs text-ink-muted">Expected participants</dt><dd className="mt-0.5 tabular-nums text-ink">{selectedEvent.planning_details.expected_participants}</dd></div>}
                 </dl>

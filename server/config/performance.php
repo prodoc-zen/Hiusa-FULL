@@ -20,7 +20,7 @@ return [
         'expensive_per_minute' => (int) env('RATE_LIMIT_EXPENSIVE_PER_MINUTE', 10),
         'login_per_minute' => (int) env('RATE_LIMIT_LOGIN_PER_MINUTE', 10),
         'login_per_ip_per_minute' => (int) env('RATE_LIMIT_LOGIN_PER_IP_PER_MINUTE', 60),
-        'password_per_minute' => (int) env('RATE_LIMIT_PASSWORD_PER_MINUTE', 5),
-        'registration_per_minute' => (int) env('RATE_LIMIT_REGISTRATION_PER_MINUTE', 5),
+        'password_per_minute' => (int) env('RATE_LIMIT_PASSWORD_PER_MINUTE', 30),
+        'registration_per_minute' => (int) env('RATE_LIMIT_REGISTRATION_PER_MINUTE', 60),
     ],
 ];

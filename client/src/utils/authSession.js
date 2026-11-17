@@ -1,6 +1,10 @@
 export const SESSION_LIFETIME_SECONDS = 4 * 60 * 60;
 
+// The cart lives in the browser, not on the account, so the next person to sign in on a shared laptop must not inherit it.
+const STUDENT_CART_KEY = 'hiusa_student_cart';
+
 export function startAuthSession(data) {
+  localStorage.removeItem(STUDENT_CART_KEY);
   const lifetime = Number(data.session_expires_in_seconds) || SESSION_LIFETIME_SECONDS;
   localStorage.setItem('auth_token', data.access_token);
   localStorage.setItem('user', JSON.stringify(data.user));
@@ -12,6 +16,7 @@ export function clearAuthSession() {
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user');
   localStorage.removeItem('auth_expires_at');
+  localStorage.removeItem(STUDENT_CART_KEY);
 }
 
 // The page a sign out lands on shows why, once: a full page load in between keeps this in the tab and nowhere else.
