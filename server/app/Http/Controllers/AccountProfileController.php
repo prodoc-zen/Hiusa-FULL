@@ -324,7 +324,10 @@ class AccountProfileController extends Controller
                 throw ValidationException::withMessages(['view_only' => ['Only an organization head seat can be view only.']]);
             }
             $before = $profile->only(['role', 'position_title', 'modules', 'view_only']);
-            $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization), 'view_only' => $viewOnly]);
+            // The Adviser title is on no organization's position list, so the dean or the SAO saving that seat passes the flag, as invite does.
+            $adviser = $data['role'] === 'ADMIN' && AdviserPosition::is($data['position_title'] ?? null)
+                && in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true);
+            $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization, $adviser), 'view_only' => $viewOnly]);
             AuditLog::create([
                 'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
                 'module' => 'users', 'action' => 'organization_access_changed', 'record_type' => AccountProfile::class,

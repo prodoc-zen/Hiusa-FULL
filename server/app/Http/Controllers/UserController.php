@@ -47,6 +47,9 @@ class UserController extends Controller
 
     private const IMPORT_COLUMNS = ['school_id', 'first_name', 'last_name', 'email', 'role', 'contact_number', 'position_title', 'program', 'year_level', 'major', 'section'];
 
+    // What an officer without the Members area sees of each person on the roster.
+    private const ROSTER_PICKER_FIELDS = ['school_id', 'first_name', 'last_name', 'program', 'year_level', 'section'];
+
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
     public function index(Request $request)
@@ -63,12 +66,21 @@ class UserController extends Controller
             'section' => ['nullable', FilterValues::rule(['nullable', 'string', 'max:60'])],
         ]);
 
+        // An officer ticked for events, tasks or finance but not Members reads the roster only to pick people, so the
+        // rows carry names and class and nothing personal, and the search cannot reach the hidden fields.
+        $pickerOnly = $request->user()->role === 'SBO_OFFICER' && $request->user()->activeProfile()?->allowsModule('members') === false;
+
         $query = User::query()
             ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
-            ->where('membership.organization_id', $request->user()->organization_id)
-            ->select('users.*')
-            ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS))])
-            ->withExists(['fingerprints as fingerprint_enrolled']);
+            ->where('membership.organization_id', $request->user()->organization_id);
+
+        if ($pickerOnly) {
+            $query->select(array_map(fn ($column) => 'users.'.$column, self::ROSTER_PICKER_FIELDS))->without('organization');
+        } else {
+            $query->select('users.*')
+                ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS))])
+                ->withExists(['fingerprints as fingerprint_enrolled']);
+        }
 
         $requestedRoles = ! empty($filters['role']) ? FilterValues::values($filters['role']) : [];
 
@@ -97,17 +109,20 @@ class UserController extends Controller
 
         if (! empty($filters['search'])) {
             $search = preg_replace('/\s*,\s*/', ', ', preg_replace('/\s+/', ' ', trim($filters['search'])));
-            $query->where(function ($userQuery) use ($search) {
+            $query->where(function ($userQuery) use ($search, $pickerOnly) {
                 $userQuery->where('users.first_name', 'like', "%{$search}%")
                     ->orWhere('users.last_name', 'like', "%{$search}%")
-                    ->orWhere('users.email', 'like', "%{$search}%")
-                    ->orWhere('users.contact_number', 'like', "%{$search}%")
                     ->orWhere('users.school_id', 'like', "%{$search}%")
-                    ->orWhere('users.department', 'like', "%{$search}%")
                     ->orWhere('users.program', 'like', "%{$search}%")
                     ->orWhere('users.year_level', 'like', "%{$search}%")
-                    ->orWhere('users.section', 'like', "%{$search}%")
-                    ->orWhere('users.major', 'like', "%{$search}%");
+                    ->orWhere('users.section', 'like', "%{$search}%");
+
+                if (! $pickerOnly) {
+                    $userQuery->orWhere('users.email', 'like', "%{$search}%")
+                        ->orWhere('users.contact_number', 'like', "%{$search}%")
+                        ->orWhere('users.department', 'like', "%{$search}%")
+                        ->orWhere('users.major', 'like', "%{$search}%");
+                }
 
                 FullNameSearch::orWhereMatches($userQuery, $search);
             });
@@ -145,12 +160,16 @@ class UserController extends Controller
             ->orderBy('users.school_id')
             ->paginate($filters['per_page'] ?? 20);
 
-        $paginated->getCollection()->each(function (User $user) {
-            $profile = $user->accountProfiles->first();
-            $user->is_primary_profile = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
-            $user->activateProfile($profile);
-            $user->listAmongOthers();
-        });
+        if ($pickerOnly) {
+            $paginated->through(fn (User $user) => ['id' => $user->school_id, ...$user->only(self::ROSTER_PICKER_FIELDS)]);
+        } else {
+            $paginated->getCollection()->each(function (User $user) {
+                $profile = $user->accountProfiles->first();
+                $user->is_primary_profile = (int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id;
+                $user->activateProfile($profile);
+                $user->listAmongOthers();
+            });
+        }
 
         return response()->json([
             ...$paginated->toArray(),

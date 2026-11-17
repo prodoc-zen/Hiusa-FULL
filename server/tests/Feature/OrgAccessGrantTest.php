@@ -320,6 +320,48 @@ class OrgAccessGrantTest extends TestCase
         $this->postJson('/api/academic-structure/programs', [])->assertForbidden();
     }
 
+    public function test_an_officer_without_members_reads_only_the_names_and_class_of_the_roster(): void
+    {
+        $student = User::factory()->student()->create([
+            'organization_id' => $this->computingOrg->id, 'first_name' => 'Rhea', 'last_name' => 'Santos',
+            'email' => 'rhea.santos@example.edu', 'contact_number' => '09171234567',
+            'program' => 'BSIT', 'year_level' => '2nd Year', 'section' => 'A',
+        ]);
+        $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+        $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => ['events']]);
+        Sanctum::actingAs($officer);
+
+        $row = collect($this->getJson('/api/users')->assertSuccessful()->json('data'))->firstWhere('school_id', $student->school_id);
+
+        $this->assertNotNull($row);
+        $this->assertEqualsCanonicalizing(['id', 'school_id', 'first_name', 'last_name', 'program', 'year_level', 'section'], array_keys($row));
+        $this->assertSame('Santos', $row['last_name']);
+        $this->assertSame('A', $row['section']);
+
+        $this->getJson('/api/users?search=rhea.santos@example.edu')->assertSuccessful()->assertJsonCount(0, 'data');
+        $this->getJson('/api/users?search=09171234567')->assertSuccessful()->assertJsonCount(0, 'data');
+        $this->getJson('/api/users?search=Santos')->assertSuccessful()->assertJsonCount(1, 'data');
+    }
+
+    public function test_an_officer_with_members_or_every_area_keeps_the_full_roster_rows(): void
+    {
+        $student = User::factory()->student()->create([
+            'organization_id' => $this->computingOrg->id, 'email' => 'full.row@example.edu', 'contact_number' => '09170000001',
+        ]);
+
+        foreach ([['members', 'events'], null] as $modules) {
+            $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);
+            $officer->accountProfiles()->where('organization_id', $this->computingOrg->id)->update(['modules' => $modules]);
+            Sanctum::actingAs($officer);
+
+            $row = collect($this->getJson('/api/users')->assertSuccessful()->json('data'))->firstWhere('school_id', $student->school_id);
+            $this->assertSame('full.row@example.edu', $row['email']);
+            $this->assertSame('09170000001', $row['contact_number']);
+            $this->assertArrayHasKey('fingerprint_enrolled', $row);
+            $this->getJson('/api/users?search=09170000001')->assertSuccessful()->assertJsonCount(1, 'data');
+        }
+    }
+
     public function test_an_officer_with_no_roster_reading_module_still_cannot_read_the_roster(): void
     {
         $officer = User::factory()->officer()->create(['organization_id' => $this->computingOrg->id]);

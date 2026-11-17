@@ -55,6 +55,9 @@ vi.mock('../../../services/financeService', () => ({
   submitFinancialReport: financeMocks.submitFinancialReport,
 }));
 
+const fileMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../../utils/openProtectedFile', () => fileMocks);
+
 const clearanceMocks = vi.hoisted(() => ({ getMyClearances: vi.fn() }));
 vi.mock('../../../services/clearanceService', () => clearanceMocks);
 
@@ -252,6 +255,38 @@ describe('FinancePage transaction search', () => {
     expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Recorded by Marco Santos/).length).toBeGreaterThan(0);
+  });
+
+  it('downloads the receipt as a PDF through the protected file opener and keeps Print receipt', async () => {
+    fileMocks.openProtectedFile.mockReset();
+    fileMocks.openProtectedFile.mockResolvedValue(undefined);
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{
+        id: 12,
+        transaction_date: '2026-09-08T10:30:00.000000Z',
+        description: 'Membership payment',
+        category: 'Membership',
+        type: 'income',
+        amount: 750,
+        receipt_reference: 'HIUSA-1-00000012',
+        open_url: '/transactions/personal-receipts/12/pdf',
+        payer: { school_id: 101, first_name: 'Ana', last_name: 'Reyes' },
+        recorder: { school_id: 102, first_name: 'Marco', last_name: 'Santos' },
+      }],
+    });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View receipt' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Print receipt' })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download PDF' }));
+    await waitFor(() => expect(fileMocks.openProtectedFile).toHaveBeenCalledWith('/transactions/personal-receipts/12/pdf'));
+
+    fileMocks.openProtectedFile.mockRejectedValueOnce({ userMessage: 'Allow pop-ups to open this file.' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download PDF' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
   });
 
   it('opens complete personal receipt details and can close them', async () => {

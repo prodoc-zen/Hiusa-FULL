@@ -54,6 +54,23 @@ class EventRegistrationTest extends TestCase
         ]);
     }
 
+    public function test_a_view_only_seat_cannot_register_or_cancel_but_still_reads_its_registrations(): void
+    {
+        $organization = Organization::factory()->create();
+        $head = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $adviser = User::factory()->admin()->create(['organization_id' => $organization->id, 'position_title' => 'Adviser']);
+        $adviser->accountProfiles()->where('organization_id', $organization->id)->update(['view_only' => true]);
+        $event = $this->makeEvent($organization, $head);
+
+        Sanctum::actingAs($adviser->fresh());
+        $this->postJson("/api/events/{$event->id}/registrations")->assertForbidden();
+        $this->deleteJson("/api/events/{$event->id}/registrations/mine")->assertForbidden();
+        $this->assertDatabaseMissing('event_registrations', ['event_id' => $event->id, 'user_id' => $adviser->school_id]);
+
+        $this->getJson('/api/me/event-registrations')->assertOk();
+        $this->getJson("/api/events/{$event->id}/registrations")->assertOk();
+    }
+
     private function semesterEvent(string $status, Organization $organization, User $admin): Event
     {
         $year = AcademicYear::create(['label' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-05-31', 'is_current' => true]);
