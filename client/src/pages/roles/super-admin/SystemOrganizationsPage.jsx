@@ -40,7 +40,7 @@ const EMPTY_COPY = {
   archived: 'No archived organizations.',
 };
 const EMPTY_HINT = {
-  pending: 'A student the Department Head allows applies for an organization. The Department Head reviews the application, then it appears here for your approval.',
+  pending: 'Applications waiting for the SAO are under Applications.',
   active: 'An organization appears here once you approve its application.',
   returned: 'A returned application waits for its Department Head to edit and resubmit it.',
   archived: 'Archive an active organization to keep it here as read only.',
@@ -585,7 +585,7 @@ export default function SystemOrganizationsPage() {
         actionsHeader="Actions"
         emptyState={debouncedSearch.trim()
           ? <EmptyState kind="filtered" description="Try a different search term." onClearFilters={() => setSearch('')} />
-          : <EmptyState kind="first-run" title={EMPTY_COPY[status]} description={EMPTY_HINT[status]} />}
+          : <EmptyState kind="first-run" title={EMPTY_COPY[status]} description={EMPTY_HINT[status]} action={status === 'pending' ? <Button variant="secondary" size="sm" to="/dashboard/organization-applications">Go to Applications</Button> : undefined} />}
       />
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs text-ink-muted"><Button variant="secondary" size="sm" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><span>Page {page} of {lastPage}</span><Button variant="secondary" size="sm" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)}>Next</Button></nav>}
       </div>
