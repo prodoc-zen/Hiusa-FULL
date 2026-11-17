@@ -187,8 +187,14 @@ class AccountProfileController extends Controller
     }
 
     /** The SAO adds nobody below the Department Head; its one grant is the Admin of a university-wide organization, which has no dean. An organization head hands out officer and member access; Admin only into a suborganization of theirs, never beside themselves. */
-    private function assertMayGrant(User $actor, string $role, Organization $organization): void
+    private function assertMayGrant(User $actor, string $role, Organization $organization, bool $adviser = false): void
     {
+        // The Adviser seat is named by the dean or the SAO, never by an organization head, in any organization they manage.
+        if ($adviser) {
+            abort_unless(in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true), 403, 'Only the SAO or the Department Head can name an organization adviser.');
+
+            return;
+        }
         if ($actor->role === 'SUPER_ADMIN') {
             abort_unless($organization->is_university_wide, 403, 'The Department Head gives access in a college organization.');
             abort_unless($role === 'ADMIN', 403, 'The SAO names only the Admin of a university-wide organization.');
@@ -209,11 +215,15 @@ class AccountProfileController extends Controller
     }
 
     /** Position and modules for one grant: modules only apply to officers, and a full set is stored as "all". */
-    private function grantDetails(array $data, Organization $organization): array
+    private function grantDetails(array $data, Organization $organization, bool $adviser = false): array
     {
         $title = trim((string) ($data['position_title'] ?? '')) ?: null;
         if ($data['role'] === 'STUDENT') {
             $title = null;
+        }
+        if ($adviser) {
+            // The Adviser title is not on any organization's position list; it is reserved for this grant.
+            return ['position_title' => 'Adviser', 'modules' => null];
         }
         if ($title !== null) {
             $known = SboPosition::where('organization_id', $organization->id)->where('role', $data['role'])
@@ -252,11 +262,15 @@ class AccountProfileController extends Controller
 
         $profile = DB::transaction(function () use ($request, $actor, $data) {
             $organization = $this->targetOrganization($request, $data['organization_id'] ?? $actor->organization_id, true);
-            $this->assertMayGrant($actor, $data['role'], $organization);
-            $details = $this->grantDetails($data, $organization);
+            $adviser = $data['role'] === 'ADMIN' && AdviserPosition::is($data['position_title'] ?? null);
+            $this->assertMayGrant($actor, $data['role'], $organization, $adviser);
+            $details = $this->grantDetails($data, $organization, $adviser);
             $user = $this->eligibleUsers($organization)->lockForUpdate()->find($data['school_id']);
             if (! $user) {
-                throw ValidationException::withMessages(['school_id' => ['Choose an active student from this organization’s college.']]);
+                throw ValidationException::withMessages(['school_id' => [$adviser ? 'Choose an active faculty or staff account from this organization’s college.' : 'Choose an active student from this organization’s college.']]);
+            }
+            if ($adviser && $this->isStudent($user)) {
+                throw ValidationException::withMessages(['school_id' => ['An adviser is a faculty or staff member, not a student.']]);
             }
             abort_if($user->accountProfiles()->where('organization_id', $organization->id)->exists(), 409, 'This account already belongs to the organization.');
             $profile = $user->accountProfiles()->create([
@@ -319,6 +333,12 @@ class AccountProfileController extends Controller
         return response()->json($profile->only(['id', 'organization_id', 'role', 'position_title', 'modules', 'account_status']));
     }
 
+    /** A student the way sign-up proves it: a student account, or a school ID the registry lists as a student's. */
+    private function isStudent(User $person): bool
+    {
+        return $person->getRawOriginal('role') === 'STUDENT' || StudentRegistryEntry::students()->where('school_id', $person->school_id)->exists();
+    }
+
     /**
      * Promoting a member rewrites their profile, so a person who had only that profile would lose the student side
      * of their account. They get the college-home student profile sign-up gives everyone, when the college is known.
@@ -328,7 +348,7 @@ class AccountProfileController extends Controller
     private function keepStudentWorkspace(Request $request, User $actor, AccountProfile $promoted, Organization $organization): void
     {
         $person = $promoted->user;
-        $isStudent = $person->getRawOriginal('role') === 'STUDENT' || StudentRegistryEntry::students()->where('school_id', $person->school_id)->exists();
+        $isStudent = $this->isStudent($person);
         $holdsAdviserTitle = $person->accountProfiles()->where('account_status', 'active')->get(['position_title'])->contains(fn ($held) => AdviserPosition::is($held->position_title));
         if (! $isStudent || $holdsAdviserTitle) {
             return;

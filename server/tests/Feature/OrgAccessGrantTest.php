@@ -149,6 +149,62 @@ class OrgAccessGrantTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['modules']);
     }
 
+    private function faculty(): User
+    {
+        return User::factory()->admin()->create(['organization_id' => $this->computingHome->id, 'position_title' => 'Instructor']);
+    }
+
+    public function test_the_dean_names_a_faculty_adviser_without_the_organization_position_list(): void
+    {
+        $dean = $this->makeCollegeHead($this->computing);
+        $faculty = $this->faculty();
+        $this->assertFalse(SboPosition::where('organization_id', $this->computingOrg->id)->where('title', 'Adviser')->exists());
+
+        $this->grant($dean, ['school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'adviser'])
+            ->assertCreated()->assertJsonPath('role', 'ADMIN')->assertJsonPath('position_title', 'Adviser');
+
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'title' => 'You have new access']);
+    }
+
+    public function test_the_sao_names_a_faculty_adviser_in_a_college_organization(): void
+    {
+        $sao = User::factory()->create(['role' => 'SUPER_ADMIN', 'organization_id' => Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION'])->id]);
+        $faculty = $this->faculty();
+
+        $this->grant($sao, ['school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])->assertCreated();
+
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'position_title' => 'Adviser']);
+        $this->grant($sao, ['school_id' => $this->faculty()->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'President'])
+            ->assertForbidden();
+    }
+
+    public function test_an_organization_head_cannot_name_an_adviser_and_a_student_is_not_one(): void
+    {
+        $head = $this->orgHead($this->computingOrg);
+        $this->computingOrg->update(['parent_organization_id' => null]);
+        $child = $this->makeCollegeStudentOrganization($this->computing, ['name' => 'Computing Juniors', 'parent_organization_id' => $this->computingOrg->id]);
+        $faculty = $this->faculty();
+
+        foreach ([$this->computingOrg->id, $child->id] as $organizationId) {
+            $this->grant($head, ['school_id' => $faculty->school_id, 'organization_id' => $organizationId, 'role' => 'ADMIN', 'position_title' => 'Adviser'])->assertForbidden();
+        }
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $faculty->school_id, 'position_title' => 'Adviser']);
+
+        $dean = $this->makeCollegeHead($this->computing);
+        $student = $this->homeStudent();
+        $this->grant($dean, ['school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])
+            ->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $student->school_id, 'organization_id' => $this->computingOrg->id]);
+    }
+
+    public function test_the_dean_cannot_name_an_adviser_in_another_college(): void
+    {
+        $dean = $this->makeCollegeHead($this->computing);
+
+        $this->grant($dean, ['school_id' => $this->faculty()->school_id, 'organization_id' => $this->artsOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])->assertNotFound();
+    }
+
     public function test_the_org_head_cannot_grant_their_own_level(): void
     {
         $head = $this->orgHead($this->computingOrg);
