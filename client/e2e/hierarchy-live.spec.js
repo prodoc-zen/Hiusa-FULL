@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import { expect, test } from '@playwright/test';
-import { newStudent, randomPassword } from './support/pipeline.js';
+import { ensureOpenSemester, newStudent, randomPassword } from './support/pipeline.js';
 import { acceptEveryRequirement, applicationLink, flagRequirement } from './support/review.js';
 import { SHOTS, PSITS_ORGANIZATION_ID, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, apiAs, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
 
@@ -125,6 +125,8 @@ test('Step 1: SAO sets up and activates an academic semester', async ({ browser 
       expect(res.ok(), `activate requirement ${type.name}: ${await res.text()}`).toBe(true);
     }
   }
+  // A fresh seed opens a semester with no registration requirements, so the SAO publishes them.
+  await ensureOpenSemester();
   await page.screenshot({ path: shot('A1-academic-years.png'), fullPage: true });
 });
 
@@ -408,6 +410,14 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   expect(opened.reachedBlob).toBe(true);
   await page.screenshot({ path: shot('A9-track-documents.png'), fullPage: true });
 
+  // A fresh seed opens a semester with no semestral report requirements, so the SAO defines one.
+  const sao = await apiAs(SAO);
+  const semester = (await sao.get('/academic-periods/active')).body;
+  const reports = await sao.get(`/compliance/requirement-types?per_page=100&category=semestral_report&academic_semester_id=${semester.id}`);
+  if (!(reports.body?.data ?? []).some((type) => /Accomplishment Report/i.test(type.name))) {
+    const created = await sao.post('/compliance/requirement-types', { academic_year: semester.academic_year?.label ?? semester.academicYear?.label, name: 'Accomplishment Report', category: 'semestral_report', deadline_at: String(semester.ends_on).slice(0, 10), is_active: true, template_url: 'https://example.edu/format.pdf' });
+    expect(created.status, JSON.stringify(created.body).slice(0, 200)).toBe(201);
+  }
   await goto(page, '/dashboard/super-admin/compliance?tab=semestral-requirements');
   await expect(page.getByRole('tabpanel').last()).toContainText(/Accomplishment Report/i, { timeout: 15000 });
 });
