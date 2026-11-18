@@ -140,7 +140,6 @@ class OrganizationDeletionService
                 abort_if(DB::table($table)->whereIn($column, $orphanIds)->exists(), 409, 'A college user has participation records in another organization. Give the user a surviving profile before deleting.');
             }
             DB::table('sessions')->whereIn('user_id', $orphanIds)->delete();
-            DB::table('password_reset_tokens')->whereIn('email', $users->whereIn('school_id', $orphanIds)->pluck('email'))->delete();
             DB::table('users')->whereIn('school_id', $orphanIds)->delete();
             Organization::whereIn('id', $ids)->update(['parent_organization_id' => null]);
             Organization::whereIn('id', $ids)->delete();
