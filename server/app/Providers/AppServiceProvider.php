@@ -121,16 +121,22 @@ class AppServiceProvider extends ServiceProvider
             $limits = [Limit::perMinute(config('performance.rate_limits.password_per_minute'))
                 ->by($request->ip())->response($tooManyRequests)];
 
-            if ($identifier = User::normalizeIdentifier($request->input('identifier'))) {
-                $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
-                    ->by('recovery:'.$identifier)
-                    ->response($tooManyRequests);
-            }
+            // Only forgot sends mail; validate and reset need a valid token and are held by the per-address limit.
+            // The bucket follows whichever account the request names, in the order forgot looks it up, so
+            // switching lookup shape does not earn a fresh hourly allowance.
+            if ($request->is('api/password/forgot')) {
+                $account = User::normalizeIdentifier($request->input('identifier'))
+                    ?? User::normalizeIdentifier($request->input('school_id'))
+                    ?? ($request->filled(['organization_id', 'email']) && is_scalar($request->input('organization_id')) && is_string($request->input('email'))
+                        ? $request->input('organization_id').':'.strtolower($request->input('email'))
+                        : null)
+                    ?? (is_string($request->input('email')) && $request->filled('email') ? strtolower($request->input('email')) : null);
 
-            if ($request->filled(['organization_id', 'email'])) {
-                $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
-                    ->by('recovery:'.$request->input('organization_id').':'.strtolower((string) $request->input('email')))
-                    ->response($tooManyRequests);
+                if ($account !== null) {
+                    $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
+                        ->by('recovery:'.$account)
+                        ->response($tooManyRequests);
+                }
             }
 
             // Throttling runs before the role check, so only the SAO counts here; otherwise any

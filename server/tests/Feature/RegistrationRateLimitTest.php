@@ -73,6 +73,52 @@ class RegistrationRateLimitTest extends TestCase
         ])->getStatusCode());
     }
 
+    public function test_every_lookup_shape_forgot_accepts_shares_one_hourly_bucket_per_account(): void
+    {
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        foreach ([
+            'school id and email' => [['school_id' => 20000001, 'email' => 'a@example.edu'], ['school_id' => 20000002, 'email' => 'a@example.edu']],
+            'organization and email' => [['organization_id' => 1, 'email' => 'b@example.edu'], ['organization_id' => 1, 'email' => 'c@example.edu']],
+            'email alone' => [['email' => 'd@example.edu'], ['email' => 'e@example.edu']],
+        ] as $shape => [$account, $other]) {
+            for ($call = 0; $call < 5; $call++) {
+                $this->assertNotSame(429, $this->postJson('/api/password/forgot', $account)->getStatusCode(), "{$shape} call {$call} was rate limited.");
+            }
+
+            $this->postJson('/api/password/forgot', $account)->assertTooManyRequests();
+            $this->assertNotSame(429, $this->postJson('/api/password/forgot', $other)->getStatusCode(), "{$shape} locked out a different account.");
+        }
+    }
+
+    public function test_the_same_account_named_by_identifier_or_school_id_shares_one_bucket(): void
+    {
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        foreach ([['identifier' => '20000001'], ['school_id' => 20000001, 'email' => 'a@example.edu'], ['identifier' => '2000-0001'], ['school_id' => 20000001, 'email' => 'a@example.edu'], ['identifier' => '20000001']] as $body) {
+            $this->assertNotSame(429, $this->postJson('/api/password/forgot', $body)->getStatusCode());
+        }
+
+        $this->postJson('/api/password/forgot', ['school_id' => 20000001, 'email' => 'a@example.edu'])->assertTooManyRequests();
+    }
+
+    public function test_reset_validation_and_reset_are_not_held_to_the_hourly_mail_limit(): void
+    {
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        $body = ['organization_id' => 1, 'email' => 'student@example.edu', 'token' => 'not-a-real-token'];
+
+        for ($call = 0; $call < 8; $call++) {
+            $this->assertNotSame(429, $this->postJson('/api/password/reset/validate', $body)->getStatusCode(), "Validate call {$call} was rate limited.");
+            $this->assertNotSame(429, $this->postJson('/api/password/reset', $body + ['password' => 'x', 'password_confirmation' => 'x'])->getStatusCode(), "Reset call {$call} was rate limited.");
+        }
+
+        $this->assertNotSame(429, $this->postJson('/api/password/forgot', ['organization_id' => 1, 'email' => 'student@example.edu'])->getStatusCode());
+    }
+
     public function test_the_per_account_hourly_limit_ships_at_five(): void
     {
         $this->assertSame(5, $this->shippedLimit('RATE_LIMIT_PASSWORD_PER_IDENTIFIER_PER_HOUR'));
