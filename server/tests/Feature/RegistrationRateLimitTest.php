@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mail\PasswordResetMail;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -132,6 +133,32 @@ class RegistrationRateLimitTest extends TestCase
         }
 
         Mail::assertQueued(PasswordResetMail::class, 5);
+    }
+
+    public function test_a_json_true_organization_id_cannot_move_the_bucket_to_another_account_sharing_the_email(): void
+    {
+        Mail::fake();
+        config(['app.frontend_url' => 'https://hiusa.example.test']);
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        // The controller's integer rule accepts JSON true as 1, so the limiter has to resolve it the same way.
+        $accountA = User::factory()->create(['email' => 'dup@example.edu', 'school_id' => 20000019]);
+        $this->assertSame(1, (int) $accountA->organization_id);
+        $otherOrganization = Organization::factory()->create(['is_active' => true]);
+        User::factory()->create(['email' => 'dup@example.edu', 'school_id' => 20000012, 'organization_id' => $otherOrganization->id]);
+
+        $statuses = [];
+        for ($call = 0; $call < 10; $call++) {
+            $body = $call % 2 === 0
+                ? ['organization_id' => $accountA->organization_id, 'email' => 'dup@example.edu']
+                : ['organization_id' => true, 'email' => 'dup@example.edu'];
+            $statuses[] = $this->postJson('/api/password/forgot', $body)->getStatusCode();
+        }
+
+        $this->assertNotContains(429, array_slice($statuses, 0, 5), 'A call inside the hourly allowance was limited.');
+        $this->assertSame(429, $statuses[5]);
+        $this->assertLessThanOrEqual(5, Mail::queued(PasswordResetMail::class, fn ($mail) => $mail->user->school_id === 20000019)->count());
     }
 
     public function test_recovery_input_that_is_not_a_scalar_is_refused_without_an_error(): void

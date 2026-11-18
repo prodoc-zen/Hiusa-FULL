@@ -126,7 +126,7 @@ class AppServiceProvider extends ServiceProvider
             // switching lookup shape does not earn a fresh hourly allowance. Only a request that matches no
             // account falls back to the text it sent, which is the one case where no mail can go out.
             if ($request->is('api/password/forgot')) {
-                $asInt = static fn ($value) => is_scalar($value) && ! is_bool($value) ? filter_var($value, FILTER_VALIDATE_INT) : false;
+                $asInt = static fn ($value) => is_scalar($value) ? filter_var($value, FILTER_VALIDATE_INT) : false;
                 $identifier = $request->input('identifier');
                 $email = $request->input('email');
                 $schoolId = $asInt($request->input('school_id'));
