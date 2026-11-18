@@ -33,6 +33,37 @@ async function throttled(call) {
   return last;
 }
 
+// The ten documents a registering organization files, the same list as RegistrationRequirementCatalog::NAMES.
+const REGISTRATION_REQUIREMENTS = [
+  'Letter of Intent',
+  'Calendar of Activities (1st & 2nd Sem)',
+  'Organizational Profile',
+  'Constitutional By-Laws',
+  'VMGO',
+  'Official List of Officers',
+  'Officers Data Sheets',
+  "Faculty Adviser's Data Sheet / Certificate of Appointment",
+  'Endorsement Letter',
+  'List of Members',
+];
+// The seeded compliance demo spells two of them differently, and the server counts them as the same document.
+const SEEDED_SPELLINGS = ['constitutionandbylaws', 'listofofficers'];
+
+// Applications close when the active semester has no registration requirements. A fresh seed opens a semester
+// without any, and the SAO can withdraw them later; ensureOpenSemester publishes them again.
+export async function closeApplications() {
+  const sao = await apiAs(SAO);
+  const active = await sao.get('/academic-periods/active');
+  expect(active.body?.id, 'the SAO has an open semester').toBeTruthy();
+  const types = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_semester_id=${active.body.id}`);
+  for (const type of (types.body?.data ?? [])) {
+    if (type.is_active) {
+      const withdrawn = await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: false });
+      expect(withdrawn.ok, JSON.stringify(withdrawn.body).slice(0, 200)).toBe(true);
+    }
+  }
+}
+
 // The SAO opens a semester and publishes the organization requirements, once per database.
 export async function ensureOpenSemester() {
   const sao = await apiAs(SAO);
@@ -50,10 +81,26 @@ export async function ensureOpenSemester() {
     const activated = await sao.patch(`/system/academic-semesters/${semester.id}/active`);
     expect(activated.ok, JSON.stringify(activated.body).slice(0, 200)).toBe(true);
   }
-  const requirements = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
-  for (const type of (requirements.body?.data ?? [])) {
-    if (!type.is_active) {
-      await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, template_url: 'https://example.edu/format.pdf' });
+  const semester = (await sao.get('/academic-periods/active')).body;
+  const listed = await sao.get(`/compliance/requirement-types?per_page=100&category=organization&academic_year=${year.label}`);
+  const types = listed.body?.data ?? [];
+  const sample = { template_url: 'https://example.edu/format.pdf' };
+  const squash = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const own = types.filter((type) => type.academic_semester_id === semester.id);
+  for (const type of own.filter((candidate) => !candidate.is_active)) {
+    const published = await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: true, ...sample });
+    expect(published.ok, JSON.stringify(published.body).slice(0, 200)).toBe(true);
+  }
+  const missing = REGISTRATION_REQUIREMENTS.filter((name) => !own.some((type) => squash(type.name) === squash(name)));
+  if (missing.length > 0) {
+    // The server refuses a second active copy of a document, so the seeded spellings step aside first.
+    for (const type of types.filter((candidate) => candidate.is_active && !candidate.academic_semester_id && SEEDED_SPELLINGS.includes(squash(candidate.name)))) {
+      const retired = await sao.put(`/compliance/requirement-types/${type.id}`, { is_active: false });
+      expect(retired.ok, JSON.stringify(retired.body).slice(0, 200)).toBe(true);
+    }
+    for (const name of missing) {
+      const created = await sao.post('/compliance/requirement-types', { academic_year: year.label, name, category: 'organization', deadline_at: String(semester.ends_on).slice(0, 10), is_active: true, ...sample });
+      expect(created.status, JSON.stringify(created.body).slice(0, 200)).toBe(201);
     }
   }
 }

@@ -530,6 +530,29 @@ describe("MerchandisePage fulfillment experience", () => {
     expect(screen.queryByRole("dialog", { name: "Verify merchandise payment" })).not.toBeInTheDocument();
   });
 
+  it("ends the loading state of an orders read that was still out when a status update finished", async () => {
+    const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash" };
+    const response = managerOrdersResponse();
+    response.data.data = [pendingOrder];
+    orderMocks.getOrders.mockResolvedValue(response);
+    orderMocks.updateOrderStatus.mockResolvedValue({ data: { ...pendingOrder, status: "paid", claim_token: "CLAIMTOKEN123456" } });
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole("button", { name: 'Review', exact: true }))[0]);
+    const reviewDialog = screen.getByRole('dialog', { name: 'Merchandise order details' });
+
+    let answerLoad;
+    orderMocks.getOrders.mockImplementationOnce(() => new Promise((resolve) => { answerLoad = resolve; }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Search merchandise orders", hidden: true }), { target: { value: "Rafael" } });
+    await waitFor(() => expect(answerLoad).toBeTypeOf("function"));
+
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: 'Approve payment' }));
+    await waitFor(() => expect(orderMocks.updateOrderStatus).toHaveBeenCalledTimes(1));
+
+    await act(async () => { answerLoad(response); });
+    await waitFor(() => expect(screen.queryByText("Loading...")).not.toBeInTheDocument());
+    expect((await screen.findAllByText(/Aquino/)).length).toBeGreaterThan(0);
+  });
+
   it("keeps the amount check for an officer verifying a payment from the order details", async () => {
     localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
     const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash", officer_review_status: "pending", admin_review_status: "pending" };

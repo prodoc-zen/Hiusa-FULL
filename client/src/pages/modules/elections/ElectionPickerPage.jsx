@@ -750,7 +750,9 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
   );
 
   let firstRunState;
-  if (showingResults) {
+  if (userRole === 'SUPER_ADMIN') {
+    firstRunState = <EmptyState icon={Vote} title="No elections to decide" description="A university-wide organization election that ends in a tie appears here for the SAO to decide." />;
+  } else if (showingResults) {
     firstRunState = <EmptyState icon={Vote} title="No results yet" description="Totals appear once an election is open for voting." />;
   } else if (!managing && canManageElections) {
     firstRunState = <EmptyState icon={Vote} title="No elections yet" description="Create an election first." action={<Button variant="secondary" to="/dashboard/elections/manage-elections">Go to elections</Button>} />;
