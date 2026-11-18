@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountProfile;
 use App\Models\Election;
 use App\Models\ElectionApplication;
 use App\Models\ElectionPosition;
@@ -56,6 +57,31 @@ class ElectionApplicationController extends Controller
             'application' => $application ? $this->applications->present($application, true) : null,
             'slate' => $slate ? $this->applications->presentSlate($slate) : null,
         ]);
+    }
+
+    /**
+     * The picker behind "Add member": up to ten voting members of the election's organization matching the search.
+     * Open to a voting member of that organization only, so a student cannot read another organization's roll.
+     */
+    public function eligibleMembers(Request $request, $id)
+    {
+        $user = $request->user();
+        $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+
+        $election = Election::find($id);
+        if (! $election || ! $election->usesFiling()) {
+            ElectionApplicationService::refuse('Election not found.', 404);
+        }
+
+        $votes = AccountProfile::votingMembers()
+            ->where('account_profiles.organization_id', $election->organization_id)
+            ->where('account_profiles.user_school_id', $user->school_id)
+            ->exists();
+        if (! $votes) {
+            abort(403);
+        }
+
+        return response()->json(['members' => $this->applications->eligibleMembers($election, (string) $request->query('q', ''))]);
     }
 
     /** Files the caller's own candidacy: a draft, or straight to screening with submit and all three documents. */

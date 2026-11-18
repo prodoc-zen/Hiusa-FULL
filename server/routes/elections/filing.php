@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 // writes look the election up among every organization the caller votes in, as the ballot route does. The two edit
 // routes answer PUT as well as POST: a file upload that edits a row is a multipart POST that spells itself _method=PUT.
 Route::get('/elections/{id}/applications', [ElectionApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+Route::get('/elections/{id}/eligible-members', [ElectionApplicationController::class, 'eligibleMembers'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
 Route::get('/elections/{id}/applications/mine', [ElectionApplicationController::class, 'mine'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
 Route::post('/elections/{id}/applications', [ElectionApplicationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);
 Route::match(['put', 'post'], '/elections/{id}/applications/{application}', [ElectionApplicationController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT', 'period.writable:election,voter']);

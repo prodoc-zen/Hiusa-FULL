@@ -16,6 +16,7 @@ import {
   fileApplication,
   getElectionDetails,
   getMyApplications,
+  searchEligibleMembers,
   submitApplication,
   submitSlate,
   updateApplication,
@@ -270,6 +271,7 @@ export default function ElectionInfoPage() {
               positions={positions}
               slate={slate}
               disabled={!accepted}
+              searchMembers={(q) => searchEligibleMembers(electionId, q)}
               onCreate={async (payload) => {
                 await createSlate(electionId, payload);
                 setChoice(null);

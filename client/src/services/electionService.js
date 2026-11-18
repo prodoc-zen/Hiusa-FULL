@@ -172,6 +172,8 @@ export const applicationFileUrl = (id, applicationId, kind) => `/elections/${id}
 export const createSlate = async (id, payload) => unwrap(await api.post(`/elections/${id}/slates`, toFilingFormData(payload)));
 export const updateSlate = async (id, partylistId, payload) =>
   unwrap(await api.post(`/elections/${id}/slates/${partylistId}`, toFilingFormData(payload, 'PUT')));
+// Voting members of the election's organization a representative may list, by name or school ID (at most ten).
+export const searchEligibleMembers = async (id, q) => unwrap(await api.get(`/elections/${id}/eligible-members`, { params: { q } })).members;
 export const addSlateMember = async (id, partylistId, payload) =>
   unwrap(await api.post(`/elections/${id}/slates/${partylistId}/members`, toFilingFormData(payload)));
 export const submitSlate = async (id, partylistId) => unwrap(await api.post(`/elections/${id}/slates/${partylistId}/submit`));

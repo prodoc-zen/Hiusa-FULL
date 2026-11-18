@@ -44,6 +44,7 @@ class ElectionRouteScaffoldTest extends TestCase
             ['GET', 'api/elections/{id}/approval-history', [ElectionGovernanceController::class, 'approvalHistory'], $oversight, 'api-read', null],
 
             ['GET', 'api/elections/{id}/applications', [ElectionApplicationController::class, 'index'], ['ADMIN', 'SBO_OFFICER'], 'api-read', null],
+            ['GET', 'api/elections/{id}/eligible-members', [ElectionApplicationController::class, 'eligibleMembers'], $apply, 'api-read', null],
             ['GET', 'api/elections/{id}/applications/mine', [ElectionApplicationController::class, 'mine'], $apply, 'api-read', null],
             ['POST', 'api/elections/{id}/applications', [ElectionApplicationController::class, 'store'], $apply, 'api-write', 'election,voter'],
             ['POST', 'api/elections/{id}/applications/{application}', [ElectionApplicationController::class, 'update'], $apply, 'api-write', 'election,voter'],
