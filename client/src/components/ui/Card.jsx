@@ -9,7 +9,7 @@ export default function Card({ title, description, actions, footer, children, cl
             {title && <h2 className="text-base font-semibold text-ink">{title}</h2>}
             {description && <p className="mt-1 text-sm font-normal text-ink-muted">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
       <div className={`p-5 ${bodyClassName}`}>{children}</div>

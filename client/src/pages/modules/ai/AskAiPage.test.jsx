@@ -150,6 +150,30 @@ describe('AskAiPage', () => {
     expect(screen.getByText('Three items need you today.')).toBeInTheDocument();
   });
 
+  it('asks for the privacy agreement instead of a retry that cannot work, and reloads once it is recorded', async () => {
+    const refusal = { isPrivacyConsentRequired: true, response: { status: 403, data: { code: 'privacy_consent_required', message: 'Agree first.' } } };
+    service.getAiAssistantOverview.mockRejectedValueOnce(refusal);
+    service.listAiConversations.mockRejectedValueOnce(refusal);
+    const opened = vi.fn();
+    window.addEventListener('hiusa-privacy-consent-required', opened);
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    renderPage();
+    expect(await screen.findAllByText(/Agree to the Data Privacy Notice first/)).toHaveLength(2);
+    expect(screen.queryByText("Could not load today's briefing.")).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load conversations')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Read and agree' })[0]);
+    expect(opened).toHaveBeenCalledTimes(1);
+    window.removeEventListener('hiusa-privacy-consent-required', opened);
+    service.listAiConversations.mockResolvedValue({ data: [conversation(7, 'Missing requirements')] });
+    act(() => { window.dispatchEvent(new Event('hiusa-privacy-consent-recorded')); });
+    expect(await screen.findByText('Three items need you today.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Missing requirements' })).toBeInTheDocument();
+    expect(screen.queryByText(/Agree to the Data Privacy Notice first/)).not.toBeInTheDocument();
+    window.matchMedia = original;
+  });
+
   it('sends a starter with its topic', async () => {
     const stream = deferredStream();
     renderPage();

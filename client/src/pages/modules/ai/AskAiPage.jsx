@@ -15,7 +15,9 @@ import {
 } from '../../../services/askAiService';
 import { actionOf, liveActionId } from '../../../components/ai/actionState';
 import isSafePageHref from '../../../components/ai/safeHref';
+import PrivacyConsentNeeded from '../../../components/ai/PrivacyConsentNeeded';
 import { effectiveRole } from '../../../utils/collegeIdentity';
+import { PRIVACY_CONSENT_RECORDED_EVENT, isPrivacyConsentRefusal } from '../../../utils/privacyNotice';
 import ChatComposer from './ChatComposer';
 import ChatMessage from './ChatMessage';
 import ConversationList from './ConversationList';
@@ -175,7 +177,7 @@ function BriefingCard({ briefing, priorities }) {
   );
 }
 
-function NewConversation({ overview, loading, error, onRetry, onAsk }) {
+function NewConversation({ overview, loading, error, consentRequired, onRetry, onAsk }) {
   const user = storedUser();
   const role = effectiveRole(user);
   const briefing = overview?.daily_briefing;
@@ -217,7 +219,9 @@ function NewConversation({ overview, loading, error, onRetry, onAsk }) {
         </div>
       )}
 
-      {error && !loading && (
+      {consentRequired && !loading && <PrivacyConsentNeeded />}
+
+      {error && !consentRequired && !loading && (
         <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface px-3.5 py-2.5">
           <p className="min-w-0 flex-1 text-sm font-medium text-ink-muted-strong">Could not load today&apos;s briefing.</p>
           <Button variant="secondary" size="sm" onClick={onRetry} className="max-sm:h-[42px]">Try again</Button>
@@ -257,10 +261,12 @@ export default function AskAiPage() {
   const [overview, setOverview] = useState(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState('');
+  const [overviewConsent, setOverviewConsent] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(false);
+  const [listConsent, setListConsent] = useState(false);
   const [listMore, setListMore] = useState({ hasMore: false, before: null });
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -298,10 +304,12 @@ export default function AskAiPage() {
   const loadOverview = useCallback(async () => {
     setOverviewLoading(true);
     setOverviewError('');
+    setOverviewConsent(false);
     try {
       const response = await getAiAssistantOverview();
       setOverview(response.data);
     } catch (err) {
+      setOverviewConsent(isPrivacyConsentRefusal(err));
       setOverviewError(apiMessage(err, 'Try again in a moment.'));
     } finally {
       setOverviewLoading(false);
@@ -311,11 +319,13 @@ export default function AskAiPage() {
   const loadConversations = useCallback(async () => {
     setListLoading(true);
     setListError(false);
+    setListConsent(false);
     try {
       const response = await listAiConversations();
       setConversations(asList(response.data, 'conversations'));
       setListMore(pagingOf(response.data));
-    } catch {
+    } catch (err) {
+      setListConsent(isPrivacyConsentRefusal(err));
       setListError(true);
     } finally {
       setListLoading(false);
@@ -326,6 +336,19 @@ export default function AskAiPage() {
     loadOverview();
     loadConversations();
   }, [loadOverview, loadConversations]);
+
+  // The consent dialog opens over the page when the server refuses for want of the agreement; once it is recorded
+  // the refused loads can succeed, so run them again.
+  const consentRefused = overviewConsent || listConsent;
+  useEffect(() => {
+    if (!consentRefused) return undefined;
+    const reload = () => {
+      if (overviewConsent) loadOverview();
+      if (listConsent) loadConversations();
+    };
+    window.addEventListener(PRIVACY_CONSENT_RECORDED_EVENT, reload);
+    return () => window.removeEventListener(PRIVACY_CONSENT_RECORDED_EVENT, reload);
+  }, [consentRefused, overviewConsent, listConsent, loadOverview, loadConversations]);
 
   const loadMoreConversations = useCallback(async () => {
     if (loadingMore || !listMore.before) return;
@@ -696,6 +719,7 @@ export default function AskAiPage() {
     activeId,
     loading: listLoading,
     error: listError,
+    consentRequired: listConsent,
     onRetry: loadConversations,
     onOpen: openFromList,
     onNew: newChat,
@@ -757,6 +781,7 @@ export default function AskAiPage() {
                 overview={overview}
                 loading={overviewLoading}
                 error={overviewError}
+                consentRequired={overviewConsent}
                 onRetry={loadOverview}
                 onAsk={ask}
               />

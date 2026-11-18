@@ -800,6 +800,14 @@ describe('EventsPage walkthrough fixes', () => {
       expect(await screen.findByText('1 event open for check-in')).toBeInTheDocument();
     });
 
+    it('does not count an approved event whose end time has passed as open for check-in', async () => {
+      eventMocks.getEvents.mockResolvedValue(eventPage({ ...event, status: 'approved', start_time: '2020-01-01T08:00:00Z', end_time: '2020-01-01T10:00:00Z' }));
+      renderAt('/dashboard/events/check-in', 'attendance');
+
+      expect(await screen.findByText('No events ready for check-in')).toBeInTheDocument();
+      expect(screen.getByText('0 events open for check-in')).toBeInTheDocument();
+    });
+
     it('keeps the search and status filter when they find nobody, so they can be cleared', async () => {
       const ongoing = { ...event, status: 'ongoing' };
       const record = { id: 1, user_id: 2400019, status: 'present', method: 'manual', check_in_time: '2026-10-01T08:10:00Z', user: { school_id: 2400019, first_name: 'Trisha', last_name: 'Herrera' } };

@@ -7,3 +7,6 @@ export const PRIVACY_CONSENT_REQUIRED = 'privacy_consent_required';
 export const PRIVACY_CONSENT_EVENT = 'hiusa-privacy-consent-required';
 // Sent once the agreement is recorded, so a refusal still on screen from before it can go.
 export const PRIVACY_CONSENT_RECORDED_EVENT = 'hiusa-privacy-consent-recorded';
+
+export const isPrivacyConsentRefusal = (error) => error?.isPrivacyConsentRequired === true
+  || (error?.response?.status === 403 && [error.response.data?.code, error.response.data?.error_code].includes(PRIVACY_CONSENT_REQUIRED));

@@ -57,6 +57,16 @@ describe('Records page', () => {
     expect(records.getRecords).toHaveBeenCalledWith({});
   });
 
+  it('counts events and files in the singular when there is one', async () => {
+    records.getRecords.mockResolvedValue(payload({ organizations: [
+      { ...organizations[0], counts: { events: 1, elections: 0, files: 1 } },
+      { ...organizations[1], counts: { events: 2, elections: 0, files: 0 } },
+    ] }));
+    renderPage();
+    expect(await screen.findByRole('button', { name: /Code Guild/ })).toHaveTextContent('1 event · 1 file');
+    expect(screen.getByRole('button', { name: /Builders Circle/ })).toHaveTextContent('2 events · 0 files');
+  });
+
   it('opens an organization and lists officers, files, events and winners as plain sections', async () => {
     records.getRecords.mockImplementation((params) => Promise.resolve(payload(params.organization_id ? { organization: detail } : {})));
     renderPage();

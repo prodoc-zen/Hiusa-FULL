@@ -76,6 +76,21 @@ describe('DepartmentHeadHomePage', () => {
     expect(screen.getAllByText(/^Event \d$/)).toHaveLength(4);
   });
 
+  it('leaves out an approved event that already ended', async () => {
+    mocks.getEvents.mockResolvedValue(paginator([
+      { id: 1, title: 'Past Fair', status: 'approved', start_time: '2020-11-15T08:00:00', end_time: '2020-11-15T17:00:00' },
+      { id: 2, title: 'Past Fair Without End', status: 'upcoming', start_time: '2020-11-16T08:00:00', end_time: null },
+      { id: 3, title: 'Coming Fair', status: 'approved', start_time: '2099-01-01T08:00:00', end_time: '2099-01-01T17:00:00' },
+    ]));
+    renderPage();
+
+    const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    expect(within(heading.closest('section')).getByRole('link', { name: /^Upcoming events/ })).toHaveTextContent('1');
+    expect(screen.getByText('Coming Fair')).toBeInTheDocument();
+    expect(screen.queryByText('Past Fair')).not.toBeInTheDocument();
+    expect(screen.queryByText('Past Fair Without End')).not.toBeInTheDocument();
+  });
+
   it('adds no context to the Active tile when nothing is returned or pending', async () => {
     mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active')]));
     renderPage();

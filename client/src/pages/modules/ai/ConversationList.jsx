@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { Button, ErrorState, Skeleton } from '../../../components/ui';
+import PrivacyConsentNeeded from '../../../components/ai/PrivacyConsentNeeded';
 
 const DAY_MS = 86400000;
 const GROUPS = ['Today', 'Yesterday', 'Earlier this week', 'Older'];
@@ -142,6 +143,7 @@ export default function ConversationList({
   activeId,
   loading,
   error,
+  consentRequired = false,
   onRetry,
   onOpen,
   onNew,
@@ -194,6 +196,8 @@ export default function ConversationList({
         <div role="status" aria-label="Loading conversations" className="flex flex-col gap-2">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
         </div>
+      ) : consentRequired && conversations.length === 0 ? (
+        <PrivacyConsentNeeded />
       ) : error && conversations.length === 0 ? (
         <ErrorState title="Could not load conversations" onRetry={onRetry} className="py-2" />
       ) : conversations.length === 0 ? (

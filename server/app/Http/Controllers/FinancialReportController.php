@@ -13,6 +13,7 @@ use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
 use App\Models\FinancialReportDeadline;
+use App\Models\Notification;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
@@ -551,11 +552,17 @@ class FinancialReportController extends Controller
                 return true;
             }
 
-            ApprovalRequest::where('organization_id', $financialReport->organization_id)
+            $superseded = ApprovalRequest::where('organization_id', $financialReport->organization_id)
                 ->where('entity_type', 'financial_report')
                 ->where('entity_id', $financialReport->id)
-                ->where('status', 'pending')
-                ->update(['status' => 'rejected', 'active_key' => null, 'remarks' => 'Superseded by a new submission.', 'reviewed_at' => now()]);
+                ->where('status', 'pending');
+            $supersededIds = (clone $superseded)->pluck('id')->all();
+            $superseded->update(['status' => 'rejected', 'active_key' => null, 'remarks' => 'Superseded by a new submission.', 'reviewed_at' => now()]);
+            // A mass update skips the model hook that reads a decided request's review notifications.
+            Notification::where('reference_type', 'approval_request')
+                ->whereIn('reference_id', $supersededIds)
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
 
             $earlierNames = collect($financialReport->supporting_documents ?? [])->pluck('name')->all();
             $financialReport->update([

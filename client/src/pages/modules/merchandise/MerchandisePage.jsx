@@ -3,6 +3,7 @@ import { peso as fmt } from '../../../lib/format';
 import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { manilaDateStamp } from '../../../utils/dateTime';
+import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
 import { getApiErrorMessage, getLoadErrorDescription } from '../../../utils/apiError';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -174,6 +175,11 @@ function belongsOnlyToCollege() {
   } catch {
     return false;
   }
+}
+
+// The dean and the dean's office staff do not join organizations; the shops they see are the ones in their college.
+function collegeReviewer() {
+  return effectiveRole(storedUser()) === "DEPARTMENT_HEAD";
 }
 
 function getRole() {
@@ -2157,7 +2163,7 @@ export default function MerchandisePage({ initialTab }) {
                 <EmptyState
                   icon={Package}
                   title="Nothing to buy yet"
-                  description={belongsOnlyToCollege() ? "Join an organization to see its shop." : "Merchandise shows here once your organization adds it."}
+                  description={collegeReviewer() ? "Merchandise from the organizations in your college shows here once they add it." : belongsOnlyToCollege() ? "Join an organization to see its shop." : "Merchandise shows here once your organization adds it."}
                 />
               )
             ) : (
@@ -3431,7 +3437,7 @@ export default function MerchandisePage({ initialTab }) {
           {orderSummary && (
             <div className="flex flex-col gap-1 px-1 text-sm sm:flex-row sm:items-center sm:justify-between">
               <p className="text-ink-muted-strong">
-                {orderSummary.purchased_users} of {orderSummary.total_users} users purchased ({orderSummary.purchase_rate}%).
+                {orderSummary.purchased_users} of {orderSummary.total_users} {Number(orderSummary.total_users) === 1 ? "user" : "users"} purchased ({orderSummary.purchase_rate}%).
               </p>
               <div className="flex flex-wrap gap-4">
                 <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className={linkButton}>

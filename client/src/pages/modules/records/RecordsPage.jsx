@@ -185,7 +185,7 @@ function OrganizationList({ organizations, selectedId, onSelect, search, onSearc
                   {organization.lifecycle_status !== 'active' && <StatusBadge status={organization.lifecycle_status} />}
                 </span>
                 <span className="text-xs text-ink-muted">
-                  {[organization.college, `${organization.counts.events} events`, `${organization.counts.files} files`].filter(Boolean).join(' · ')}
+                  {[organization.college, `${organization.counts.events} ${organization.counts.events === 1 ? 'event' : 'events'}`, `${organization.counts.files} ${organization.counts.files === 1 ? 'file' : 'files'}`].filter(Boolean).join(' · ')}
                 </span>
               </button>
             </li>

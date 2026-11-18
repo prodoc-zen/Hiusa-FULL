@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../../../components/ui';
 import { getNotifications, markAllRead, markRead } from '../../../services/notificationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { formatDateTime } from '../../../utils/dateTime';
 import { getNotificationDestination } from '../../../utils/notificationLinks';
 import { notificationIcon } from '../../../utils/notificationIcon';
 import { notificationAppearance } from '../../../utils/notificationTone';
@@ -66,7 +67,7 @@ export default function SaoNotificationsPage() {
         {loading ? <SkeletonTable columns={2} rows={4} /> : loadError ? <ErrorState title="Notifications could not load" description={loadError} onRetry={load} /> : notifications.length ? <div className="divide-y divide-line border-y border-line">{notifications.map((notification) => {
           const destination = getNotificationDestination(notification, 'SUPER_ADMIN');
           const Icon = notificationIcon(notification);
-          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex min-h-11 w-full items-start gap-3 px-1 py-4 text-left hover:bg-subtle ${notificationAppearance(notification).row}`}><Icon size={19} className={`mt-0.5 shrink-0 ${notificationAppearance(notification).icon}`} aria-hidden="true" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{formatDisplayText(notification.title)}</p><p className="mt-1 text-sm text-ink-muted-strong">{notification.message}</p><p className="mt-2 text-xs text-ink-muted">{new Date(notification.sent_at || notification.created_at).toLocaleString('en-PH')}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-brand-700" />}</button>;
+          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex min-h-11 w-full items-start gap-3 px-1 py-4 text-left hover:bg-subtle ${notificationAppearance(notification).row}`}><Icon size={19} className={`mt-0.5 shrink-0 ${notificationAppearance(notification).icon}`} aria-hidden="true" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{formatDisplayText(notification.title)}</p><p className="mt-1 text-sm text-ink-muted-strong">{notification.message}</p><p className="mt-2 text-xs text-ink-muted">{formatDateTime(notification.sent_at || notification.created_at)}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-brand-700" />}</button>;
         })}</div> : <EmptyState kind="first-run" title="No notifications yet" description="Registrations and requests that need the SAO appear here." />}
       </section>
     </div>

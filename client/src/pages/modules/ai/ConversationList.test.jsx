@@ -60,6 +60,24 @@ describe('ConversationList', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it('asks for the privacy agreement when the list was refused for want of it', () => {
+    const opened = vi.fn();
+    window.addEventListener('hiusa-privacy-consent-required', opened);
+    render(<ConversationList {...props} conversations={[]} error consentRequired />);
+    expect(screen.getByText(/Agree to the Data Privacy Notice first/)).toBeInTheDocument();
+    expect(screen.queryByText('Could not load conversations')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Read and agree' }));
+    expect(opened).toHaveBeenCalledTimes(1);
+    window.removeEventListener('hiusa-privacy-consent-required', opened);
+  });
+
+  it('keeps the retry state for other errors', () => {
+    render(<ConversationList {...props} conversations={[]} error />);
+    expect(screen.getByText('Could not load conversations')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
   it('shows an empty state', () => {
     render(<ConversationList {...props} conversations={[]} />);
     expect(screen.getByText('Your conversations will show up here.')).toBeInTheDocument();

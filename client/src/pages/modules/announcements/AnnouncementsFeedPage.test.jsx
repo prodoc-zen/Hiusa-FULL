@@ -75,6 +75,18 @@ describe('AnnouncementsFeedPage', () => {
     expect(screen.queryByText(/once your organization/)).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['the dean', { role: 'DEPARTMENT_HEAD', in_student_organization: false, organization: { organization_type: 'COLLEGE' } }],
+    ['the dean\'s office staff', { role: 'ADMIN', position_title: 'Office staff', in_student_organization: false, organization: { organization_type: 'COLLEGE' } }],
+  ])('does not tell %s to join an organization', async (_who, user) => {
+    localStorage.setItem('user', JSON.stringify(user));
+    mocks.getAnnouncements.mockResolvedValue({ data: [] });
+    renderFeed();
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument();
+    expect(screen.queryByText(/Join an organization/)).not.toBeInTheDocument();
+    expect(screen.getByText('Announcements from the organizations in your college show here once they post.')).toBeInTheDocument();
+  });
+
   it('does not tell a member on the college profile who is in a club to join an organization', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', in_student_organization: true, organization: { organization_type: 'COLLEGE' } }));
     mocks.getAnnouncements.mockResolvedValue({ data: [] });

@@ -1139,6 +1139,20 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.queryByText(/once your organization adds it/)).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["the dean", { role: "DEPARTMENT_HEAD", in_student_organization: false, organization: { organization_type: "COLLEGE" } }],
+    ["the dean's office staff", { role: "ADMIN", position_title: "Office staff", in_student_organization: false, organization: { organization_type: "COLLEGE" } }],
+  ])("does not tell %s to join an organization to see a shop", async (_who, user) => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 910002, ...user }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    expect(await screen.findByText("Nothing to buy yet")).toBeInTheDocument();
+    expect(screen.queryByText(/Join an organization/)).not.toBeInTheDocument();
+    expect(screen.getByText("Merchandise from the organizations in your college shows here once they add it.")).toBeInTheDocument();
+  });
+
   it("does not tell a member on the college profile who is in a club to join an organization", async () => {
     localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT", in_student_organization: true, organization: { organization_type: "COLLEGE" } }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
@@ -1217,6 +1231,18 @@ describe("MerchandisePage order stages for staff", () => {
     localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_open_url: null } });
+  });
+
+  it.each([
+    [0, 1, "0 of 1 user purchased (0%)."],
+    [1, 2, "1 of 2 users purchased (50%)."],
+  ])("counts the purchase summary in the right number: %i of %i", async (purchased, total, line) => {
+    const response = queue([staffOrder({ id: 2 })]);
+    response.data.summary = { ...response.data.summary, total_users: total, purchased_users: purchased, purchase_rate: Math.round((purchased / total) * 100) };
+    orderMocks.getOrders.mockResolvedValue(response);
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    expect(await screen.findByText(line)).toBeInTheDocument();
   });
 
   it("gives an officer the one action for each stage", async () => {

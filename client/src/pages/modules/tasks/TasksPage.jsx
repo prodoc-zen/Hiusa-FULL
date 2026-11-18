@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { isoToLocalDateTimeInput, localDateTimeToIso, manilaDateStamp } from '../../../utils/dateTime';
 import { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   ChevronDown,
@@ -541,7 +541,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       {activeTab === 'create' && canManageTasks && (
         <section className="max-w-3xl">
           {createSuccess && <p role="status" className="mb-5 rounded-control border border-success/30 bg-success-tint px-3 py-2 text-sm font-medium text-success-strong">{createSuccess}</p>}
-          {officers.length === 0 && <div className="mb-5 rounded-control border border-warning/40 bg-warning-tint p-3 text-sm text-warning-strong"><p className="font-semibold">Officer positions must be configured first.</p><p className="mt-1">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating a task.</p></div>}
+          {officers.length === 0 && <div className="mb-5 rounded-control border border-warning/40 bg-warning-tint p-3 text-sm text-warning-strong"><p className="font-semibold">Officer positions must be configured first.</p><p className="mt-1">Add SBO positions under <Link to="/dashboard/admin/positions" className="font-semibold underline underline-offset-2 hover:text-ink">Officer positions</Link>, then assign a position to an active SBO officer before creating a task.</p></div>}
           <form className="space-y-5" onSubmit={handleCreate} noValidate>
             <fieldset className="space-y-2"><legend className="text-[13px] font-medium text-ink">Task type</legend><div className="flex flex-wrap gap-3">{[['standalone', 'Standalone task'], ['event_related', 'Event-related task']].map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-control border border-line px-3 text-sm"><input type="radio" name="task-kind" checked={form.task_kind === value} onChange={() => setForm({ ...form, task_kind: value, event_id: '' })} />{label}</label>)}</div></fieldset>
             <Field label="Task title" required>

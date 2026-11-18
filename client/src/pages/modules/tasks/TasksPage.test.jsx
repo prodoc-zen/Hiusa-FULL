@@ -100,6 +100,14 @@ describe('TasksPage', () => {
     await waitFor(() => expect(mocks.getTasks).toHaveBeenCalledWith({ assigned_to: 'OFF-1', event_id: '7', priority: 'high', deadline_from: '2026-10-10', deadline_to: '2026-10-10', status: 'pending', per_page: 1 }));
   });
 
+  it('points the missing officer positions banner at the Officer positions page by its menu name', async () => {
+    mocks.getUsers.mockResolvedValue([]);
+    render(<MemoryRouter><TasksPage initialTab="create" /></MemoryRouter>);
+    expect(await screen.findByText('Officer positions must be configured first.')).toBeInTheDocument();
+    expect(screen.queryByText(/Users & Positions/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Officer positions' })).toHaveAttribute('href', '/dashboard/admin/positions');
+  });
+
   it('requires a final officer choice after recommendation and preserves entered text when saving', async () => {
     mocks.previewTaskRecommendation.mockResolvedValue({ data: { delegation: { rankings: [{ officer_id: 'OFF-1', name: 'ana reyes', position_title: 'secretary', rank: 1, final_score: 95 }] } } });
     mocks.createTask.mockResolvedValue({ data: { id: 3, title: 'mixed case task', assignee: officer } });

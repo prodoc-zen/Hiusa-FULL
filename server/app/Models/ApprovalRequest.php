@@ -31,6 +31,16 @@ class ApprovalRequest extends Model
             $approval->notifyApprovers();
             $approval->recordSubmissionAudit();
         });
+
+        // A decided request no longer asks anyone for review, whichever approver it was sent to.
+        static::updated(function (ApprovalRequest $approval): void {
+            if ($approval->wasChanged('status') && $approval->status !== 'pending') {
+                Notification::where('reference_type', 'approval_request')
+                    ->where('reference_id', $approval->id)
+                    ->where('is_read', false)
+                    ->update(['is_read' => true]);
+            }
+        });
     }
 
     public function requester(): BelongsTo

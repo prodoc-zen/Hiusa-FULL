@@ -51,6 +51,11 @@ describe('SaoNotificationsPage', () => {
     expect(await screen.findByText('Compliance tab financial')).toBeInTheDocument();
   });
 
+  it('shows the time the way the rest of the app does, in Manila time without seconds', async () => {
+    renderPage();
+    expect(await screen.findByText('Sep 14, 2026, 4:00 PM')).toBeInTheDocument();
+  });
+
   it('marks every SAO notification as read', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Mark all as read' }));

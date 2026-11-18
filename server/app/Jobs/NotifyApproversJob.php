@@ -55,7 +55,7 @@ class NotifyApproversJob implements ShouldQueue
             // firstOrCreate rather than create: a retried attempt (this job has
             // $tries = 3) must not re-notify an approver it already wrote to on a
             // prior, partially-completed run.
-            Notification::firstOrCreate([
+            $notification = Notification::firstOrCreate([
                 'organization_id' => in_array($this->approval->required_role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true) ? $approver->organization_id : $this->approval->organization_id,
                 'user_id' => $approver->school_id,
                 'reference_type' => 'approval_request',
@@ -68,6 +68,12 @@ class NotifyApproversJob implements ShouldQueue
                 'is_read' => false,
                 'sent_at' => now(),
             ]);
+
+            // A request the reviewer returned and the organization sent back reuses its row, which the decision marked
+            // read; ask again.
+            if (! $notification->wasRecentlyCreated && $notification->is_read && $this->approval->status === 'pending') {
+                $notification->update(['is_read' => false, 'sent_at' => now()]);
+            }
         }
     }
 }

@@ -55,7 +55,7 @@ import EventRegistrationPanel from '../../../components/events/EventRegistration
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, SEND_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
-import { budgetLifecycle } from '../../../lib/lifecycle';
+import { budgetLifecycle, roleLabel } from '../../../lib/lifecycle';
 import { Button, DataTable, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonTable, SkeletonText, StatusBadge, Textarea } from '../../../components/ui';
 import PersonPicker from '../../../components/people/PersonPicker';
 import useRecordParam from '../../../lib/useRecordParam';
@@ -1080,7 +1080,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   };
   const attendanceEvents = events.filter((event) => {
     if (canManageAttendance) {
-      return ['approved', 'ongoing'].includes(event.status);
+      if (event.status === 'ongoing') return true;
+      const managedEnd = new Date(event.end_time).getTime();
+      return event.status === 'approved' && !(Number.isFinite(managedEnd) && managedEnd < currentTime);
     }
     const start = new Date(event.start_time).getTime();
     const end = new Date(event.end_time).getTime();
@@ -1494,7 +1496,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           >
                             {formatDisplayText(evt.title)}
                           </button>
-                          <p className="text-xs text-ink-muted">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : ''}{evt.creator && (evt.creator.position_title || evt.creator.role) ? ` · ${formatDisplayText(evt.creator.position_title) || evt.creator.role?.replaceAll('_', ' ')}` : ''}</p>
+                          <p className="text-xs text-ink-muted">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : ''}{evt.creator && (evt.creator.position_title || evt.creator.role) ? ` · ${formatDisplayText(evt.creator.position_title) || roleLabel(evt.creator.role) || evt.creator.role?.replaceAll('_', ' ')}` : ''}</p>
                           {currentUserRole === 'STUDENT' && evt.organization?.name && <p className="text-xs text-ink-muted">{formatDisplayText(evt.organization.name)}</p>}
                         </td>
                         <td className="order-2 lg:table-cell py-0 lg:px-4 lg:py-2.5">

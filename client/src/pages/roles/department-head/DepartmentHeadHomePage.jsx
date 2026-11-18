@@ -39,11 +39,13 @@ export default function DepartmentHeadHomePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   // Bumped by every full load, a reload and an unmount, so a response that belongs to an
   // older request (silent or not) is dropped instead of overwriting newer data.
   const loadEpoch = useRef(0);
   const load = useCallback(async ({ silent = false } = {}) => {
+    setNow(Date.now());
     if (!silent) {
       loadEpoch.current += 1;
       setLoading(true);
@@ -85,8 +87,12 @@ export default function DepartmentHeadHomePage() {
   useRefetchOnReturn(() => load({ silent: true }));
 
   const activeElection = data.elections.find((e) => e.status === 'active') || null;
+  const hasEnded = (e) => {
+    const end = new Date(e.end_time || e.start_time).getTime();
+    return Number.isFinite(end) && end < now;
+  };
   const upcomingEvents = data.events
-    .filter((e) => e.status === 'upcoming' || e.status === 'approved')
+    .filter((e) => (e.status === 'upcoming' || e.status === 'approved') && !hasEnded(e))
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at)).slice(0, 3);
 
