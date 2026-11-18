@@ -606,7 +606,10 @@ export default function MerchandisePage({ initialTab }) {
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  // ordersEpoch drops an answer that a newer load or a local order change has made stale. loadSeq counts only the
+  // loads, so a status update, payment or cancel that bumps the epoch never strands a read's loading flag.
   const ordersEpoch = useRef(0);
+  const loadSeq = useRef(0);
   // The search the student's order list was last requested with, so a silent refresh and a page change
   // ask for the list that is on screen while the typed text is still waiting out its debounce.
   const appliedOrderSearch = useRef("");
@@ -817,6 +820,7 @@ export default function MerchandisePage({ initialTab }) {
 
   function load() {
     ordersEpoch.current += 1;
+    loadSeq.current += 1;
     setLoading(true);
     setError(null);
     setLoadError(null);
@@ -864,19 +868,21 @@ export default function MerchandisePage({ initialTab }) {
   // An answer that arrives after a newer load has started is dropped whole: a late success must not clear the
   // error of a newer failed load(), and a late failure must not raise one over a newer success.
   async function loadOrders(page, filters = orderFilters) {
+    const seq = ++loadSeq.current;
     const epoch = ++ordersEpoch.current;
     setLoading(true);
     try {
       const oRes = await getOrders({ page, ...filters });
       if (epoch === ordersEpoch.current) extractOrders(oRes);
     } catch {
-      if (epoch === ordersEpoch.current) setError("Failed to load orders.");
+      if (seq === loadSeq.current) setError("Failed to load orders.");
     } finally {
-      if (epoch === ordersEpoch.current) setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
 
   async function loadPersonalOrders(page) {
+    const seq = ++loadSeq.current;
     const epoch = ++ordersEpoch.current;
     setLoading(true);
     try {
@@ -884,9 +890,9 @@ export default function MerchandisePage({ initialTab }) {
       const oRes = await getOrders({ mine: 1, page, ...(search ? { search } : {}) });
       if (epoch === ordersEpoch.current) extractOrders(oRes);
     } catch {
-      if (epoch === ordersEpoch.current) setError("Failed to load orders.");
+      if (seq === loadSeq.current) setError("Failed to load orders.");
     } finally {
-      if (epoch === ordersEpoch.current) setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
 
@@ -974,15 +980,16 @@ export default function MerchandisePage({ initialTab }) {
     if (search === appliedOrderSearch.current) return undefined;
     const timer = window.setTimeout(async () => {
       appliedOrderSearch.current = search;
+      const seq = ++loadSeq.current;
       const epoch = ++ordersEpoch.current;
       setLoading(true);
       try {
         const response = await getOrders({ mine: 1, page: 1, ...(search ? { search } : {}) });
         if (epoch === ordersEpoch.current) extractOrders(response);
       } catch {
-        if (epoch === ordersEpoch.current) setError("Failed to load orders.");
+        if (seq === loadSeq.current) setError("Failed to load orders.");
       } finally {
-        if (epoch === ordersEpoch.current) setLoading(false);
+        if (seq === loadSeq.current) setLoading(false);
       }
     }, 250);
     return () => window.clearTimeout(timer);
@@ -990,15 +997,16 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(() => {
     if (isPersonalShoppingView || activeTab !== "orders") return undefined;
     const timer = window.setTimeout(async () => {
+      const seq = ++loadSeq.current;
       const epoch = ++ordersEpoch.current;
       setLoading(true);
       try {
         const response = await getOrders({ page: 1, ...orderFilters });
         if (epoch === ordersEpoch.current) extractOrders(response);
       } catch {
-        if (epoch === ordersEpoch.current) setError("Failed to load orders.");
+        if (seq === loadSeq.current) setError("Failed to load orders.");
       } finally {
-        if (epoch === ordersEpoch.current) setLoading(false);
+        if (seq === loadSeq.current) setLoading(false);
       }
     }, 250);
     return () => window.clearTimeout(timer);
