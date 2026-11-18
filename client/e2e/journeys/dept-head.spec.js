@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { HEAD_CCS, PSITS_ADMIN, SAO, apiAs, liveEnabled, minimalPdf, shot, uiLogin } from '../support/live.js';
-import { allowToApply, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym } from '../support/pipeline.js';
+import { HEAD_CCS, PSITS_ADMIN, apiAs, liveEnabled, minimalPdf, shot, uiLogin } from '../support/live.js';
+import { allowToApply, closeApplications, ensureOpenSemester, newStudent, submitApplication, uniqueAcronym } from '../support/pipeline.js';
 import { acceptEveryRequirement, applicationLink, expectApplicationList, openApplicationList } from '../support/review.js';
 
 // DEPARTMENT_HEAD acceptance journeys, docs/UX_FLOW.md section 9. Each journey starts on the role home
@@ -181,16 +181,14 @@ async function openApplicationQueue(page, journey, application) {
 }
 
 
-// Runs before any semester exists: the fresh seed has none, and the next group opens one.
+// Runs while the SAO has withdrawn the registration requirements, and the next group publishes them again.
 for (const { label, viewport } of WIDTHS) {
-  test.describe(`Department Head with no active semester at ${label}px`, () => {
+  test.describe(`Department Head with applications closed at ${label}px`, () => {
     test.use({ viewport });
 
     test(`DH-1b ${label}px: allow a student to apply while applications are closed`, async ({ page, browser }) => {
       test.setTimeout(120_000);
-      const sao = await apiAs(SAO);
-      const active = await sao.get('/academic-periods/active');
-      expect(active.body?.id ?? null, 'this journey needs a database where the SAO has not opened a semester yet').toBeNull();
+      await closeApplications();
 
       const student = await newStudent('Closed');
       const journey = startJourney();
