@@ -55,7 +55,7 @@ for (const viewport of WIDTHS) {
         expect(member, 'a student who is not yet checked in').toBeTruthy();
 
         const officer = await apiAs(OFFICER_BOOKER);
-        const ledger = await officer.get('/transactions?per_page=1');
+        const ledger = await officer.get('/transactions?per_page=10');
         expect(ledger.status, 'finance is not one of this officer\'s areas').toBe(403);
 
         await uiLogin(page, OFFICER_BOOKER);
@@ -82,7 +82,7 @@ for (const viewport of WIDTHS) {
       const original = await limitModules(OFFICER_AUDITOR, ['finance']);
       try {
         const admin = await apiAs(PSITS_ADMIN);
-        const rows = (await admin.get('/transactions?per_page=20')).body.data;
+        const rows = (await admin.get('/transactions?per_page=10')).body.data;
         const entry = rows.find((row) => row.description && row.description.length > 8);
         expect(entry, 'a seeded ledger entry with a description').toBeTruthy();
 
@@ -93,7 +93,7 @@ for (const viewport of WIDTHS) {
         await uiLogin(page, OFFICER_AUDITOR);
         await page.goto('/dashboard/finance/financial-ledger');
         await expect(page.getByRole('main').getByRole('heading', { name: 'Ledger', level: 1 })).toBeVisible();
-        await expect(page.getByRole('main').getByText(entry.description, { exact: false }).first()).toBeVisible();
+        await expect(page.getByRole('main').getByText(entry.description, { exact: false }).locator('visible=true').first()).toBeVisible();
       } finally {
         await restoreModules(original);
       }
