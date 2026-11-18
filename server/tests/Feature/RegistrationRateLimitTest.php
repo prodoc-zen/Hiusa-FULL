@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Mail\PasswordResetMail;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class RegistrationRateLimitTest extends TestCase
@@ -102,6 +105,46 @@ class RegistrationRateLimitTest extends TestCase
         }
 
         $this->postJson('/api/password/forgot', ['school_id' => 20000001, 'email' => 'a@example.edu'])->assertTooManyRequests();
+    }
+
+    public function test_rotating_lookup_shapes_for_one_real_account_cannot_beat_the_hourly_limit(): void
+    {
+        Mail::fake();
+        config(['app.frontend_url' => 'https://hiusa.example.test']);
+        config()->set('performance.rate_limits.password_per_minute', 100);
+        config()->set('performance.rate_limits.password_per_identifier_per_hour', 5);
+
+        $user = User::factory()->create(['email' => 'victim@example.edu', 'school_id' => 20000001]);
+        $shapes = [
+            ['identifier' => 'victim@example.edu'],
+            ['organization_id' => $user->organization_id, 'email' => 'victim@example.edu'],
+            ['organization_id' => '+'.$user->organization_id, 'email' => 'victim@example.edu'],
+            ['identifier' => '20000001'],
+            ['school_id' => 20000001, 'email' => 'victim@example.edu'],
+        ];
+
+        foreach ($shapes as $call => $body) {
+            $this->assertNotSame(429, $this->postJson('/api/password/forgot', $body)->getStatusCode(), "Call {$call} was rate limited.");
+        }
+
+        foreach ($shapes as $call => $body) {
+            $this->postJson('/api/password/forgot', $body)->assertTooManyRequests();
+        }
+
+        Mail::assertQueued(PasswordResetMail::class, 5);
+    }
+
+    public function test_recovery_input_that_is_not_a_scalar_is_refused_without_an_error(): void
+    {
+        config()->set('performance.rate_limits.password_per_minute', 100);
+
+        foreach ([
+            ['identifier' => ['a']],
+            ['organization_id' => ['1'], 'email' => 'someone@example.edu'],
+            ['school_id' => ['1'], 'email' => ['someone@example.edu']],
+        ] as $body) {
+            $this->assertSame(422, $this->postJson('/api/password/forgot', $body)->getStatusCode());
+        }
     }
 
     public function test_reset_validation_and_reset_are_not_held_to_the_hourly_mail_limit(): void

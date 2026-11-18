@@ -122,15 +122,35 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->ip())->response($tooManyRequests)];
 
             // Only forgot sends mail; validate and reset need a valid token and are held by the per-address limit.
-            // The bucket follows whichever account the request names, in the order forgot looks it up, so
-            // switching lookup shape does not earn a fresh hourly allowance.
+            // The bucket is keyed on the account the request resolves to, found the way forgot finds it, so
+            // switching lookup shape does not earn a fresh hourly allowance. Only a request that matches no
+            // account falls back to the text it sent, which is the one case where no mail can go out.
             if ($request->is('api/password/forgot')) {
-                $account = User::normalizeIdentifier($request->input('identifier'))
-                    ?? User::normalizeIdentifier($request->input('school_id'))
-                    ?? ($request->filled(['organization_id', 'email']) && is_scalar($request->input('organization_id')) && is_string($request->input('email'))
-                        ? $request->input('organization_id').':'.strtolower($request->input('email'))
-                        : null)
-                    ?? (is_string($request->input('email')) && $request->filled('email') ? strtolower($request->input('email')) : null);
+                $asInt = static fn ($value) => is_scalar($value) && ! is_bool($value) ? filter_var($value, FILTER_VALIDATE_INT) : false;
+                $identifier = $request->input('identifier');
+                $email = $request->input('email');
+                $schoolId = $asInt($request->input('school_id'));
+                $organizationId = $asInt($request->input('organization_id'));
+
+                if (is_string($identifier) && $identifier !== '') {
+                    $user = User::findByIdentifier(User::normalizeIdentifier($identifier));
+                } elseif (is_string($email) && $email !== '') {
+                    $user = User::query()
+                        ->when($schoolId !== false, fn ($query) => $query->where('school_id', $schoolId))
+                        ->when($organizationId !== false, fn ($query) => $query->where('organization_id', $organizationId))
+                        ->where('email', $email)
+                        ->first();
+                } else {
+                    $user = null;
+                }
+
+                $account = $user
+                    ? 'user:'.$user->school_id
+                    : (User::normalizeIdentifier($identifier)
+                        ?? User::normalizeIdentifier($request->input('school_id'))
+                        ?? (is_string($email) && $email !== ''
+                            ? ($organizationId !== false ? $organizationId.':' : '').strtolower($email)
+                            : null));
 
                 if ($account !== null) {
                     $limits[] = Limit::perHour(config('performance.rate_limits.password_per_identifier_per_hour'))
