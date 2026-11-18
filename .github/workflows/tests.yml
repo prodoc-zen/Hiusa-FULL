@@ -304,11 +304,11 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health >/dev/null && break; sleep 2; done
           curl -sf http://127.0.0.1:8000/api/organizations >/dev/null || { echo '::error::Laravel API did not come up'; cat /tmp/laravel.log; exit 1; }
           curl -sf http://127.0.0.1:8001/health >/dev/null || { echo '::error::AI service did not come up'; cat /tmp/ai.log; exit 1; }
-          # The five journey specs are stateful (docs/UX_FLOW.md section 9, Live run order):
-          # they must run student, officer, admin, dept-head, sao on one freshly seeded
+          # The six journey specs are stateful (docs/UX_FLOW.md section 9, Live run order):
+          # they must run student, officer, officer-modules, admin, dept-head, sao on one freshly seeded
           # database. Playwright runs the files it is given in alphabetical order whatever
           # order they are listed in, so each journey is its own invocation.
-          for spec in student officer admin dept-head sao; do
+          for spec in student officer officer-modules admin dept-head sao; do
             npx playwright test --project=chromium "e2e/journeys/${spec}.spec.js"
           done
           # The journeys leave the database changed (events completed, a semester opened),
