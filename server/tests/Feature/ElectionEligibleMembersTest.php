@@ -8,6 +8,7 @@ use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
@@ -165,7 +166,7 @@ class ElectionEligibleMembersTest extends TestCase
 
     public function test_the_route_is_throttled_like_the_other_read_routes(): void
     {
-        $route = collect(\Illuminate\Support\Facades\Route::getRoutes()->getRoutes())->first(fn ($candidate) => $candidate->uri() === 'api/elections/{id}/eligible-members');
+        $route = collect(Route::getRoutes()->getRoutes())->first(fn ($candidate) => $candidate->uri() === 'api/elections/{id}/eligible-members');
 
         $this->assertNotNull($route);
         $this->assertContains('throttle:api-read', $route->gatherMiddleware());
