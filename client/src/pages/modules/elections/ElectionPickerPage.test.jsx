@@ -225,6 +225,18 @@ describe('ElectionPickerPage empty states', () => {
     expect(screen.queryByRole('button', { name: /Create/ })).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['the elections list', undefined],
+    ['the results page', 'results'],
+  ])('tells the SAO on %s that a tied university-wide election appears for them to decide', async (_name, mode) => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN' }));
+    render(<ElectionPickerPage onSelect={vi.fn()} mode={mode} />);
+    expect(await screen.findByText(/A university-wide organization election that ends in a tie appears here for the SAO to decide/)).toBeInTheDocument();
+    expect(screen.queryByText(/Only the Admin creates elections/)).not.toBeInTheDocument();
+    expect(screen.queryByText('No results yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create/ })).not.toBeInTheDocument();
+  });
+
   it('tells a student that voting appears when the Admin opens an election', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
     render(<ElectionPickerPage onSelect={vi.fn()} />);
