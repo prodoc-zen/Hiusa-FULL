@@ -45,6 +45,7 @@ class EnsureOrganizationModule
         'GET' => [
             'api/elections', 'api/elections/{id}', 'api/elections/{id}/candidates', 'api/elections/{id}/results',
             'api/elections/{id}/applications/mine', 'api/elections/{id}/applications/{application}/files/{kind}',
+            'api/elections/{id}/eligible-members',
             'api/merchandise', 'api/merchandise/gcash-settings', 'api/merchandise/gcash-settings/qr', 'api/tasks',
         ],
         'POST' => [

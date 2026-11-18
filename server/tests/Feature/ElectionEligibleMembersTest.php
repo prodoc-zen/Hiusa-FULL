@@ -112,6 +112,19 @@ class ElectionEligibleMembersTest extends TestCase
         $this->search('Rep', $outsider)->assertForbidden();
     }
 
+    public function test_an_officer_limited_to_other_areas_still_finds_teammates_but_a_non_voting_caller_is_still_refused(): void
+    {
+        $this->member(['first_name' => 'Anabel', 'last_name' => 'Zamora']);
+        $officer = $this->member([], 'officer');
+        $officer->accountProfiles()->update(['modules' => ['finance']]);
+
+        $this->assertCount(1, $this->search('anab', $officer)->assertOk()->json('members'));
+
+        $adviser = $this->member([], 'adviser');
+        $adviser->accountProfiles()->update(['modules' => ['finance']]);
+        $this->search('anab', $adviser)->assertForbidden();
+    }
+
     public function test_the_faculty_adviser_who_does_not_vote_is_refused(): void
     {
         $this->search('Rep', $this->member([], 'adviser'))->assertForbidden();
