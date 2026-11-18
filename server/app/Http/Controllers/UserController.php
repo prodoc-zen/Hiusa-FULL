@@ -194,7 +194,7 @@ class UserController extends Controller
         }
 
         if ($validatedData['role'] === 'ADMIN' && AdviserPosition::is($validatedData['position_title'] ?? null)) {
-            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO or the Department Head.'], 403);
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the Department Head.'], 403);
         }
 
         if ($validatedData['role'] === 'ADMIN' && $actor->role === 'ADMIN') {
@@ -549,7 +549,7 @@ class UserController extends Controller
 
         if ($user->role === 'ADMIN') {
             if (AdviserPosition::is($user->position_title) || (array_key_exists('position_title', $validatedData) && AdviserPosition::is($validatedData['position_title']))) {
-                return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO or the Department Head.'], 403);
+                return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the Department Head.'], 403);
             }
 
             if (isset($validatedData['role']) && $validatedData['role'] !== 'ADMIN') {
@@ -567,7 +567,7 @@ class UserController extends Controller
 
         if (($validatedData['role'] ?? $user->role) === 'ADMIN'
             && AdviserPosition::is($validatedData['position_title'] ?? $user->position_title)) {
-            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO or the Department Head.'], 403);
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the Department Head.'], 403);
         }
 
         if (

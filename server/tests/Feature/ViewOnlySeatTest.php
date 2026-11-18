@@ -112,7 +112,7 @@ class ViewOnlySeatTest extends TestCase
             ->assertJsonFragment(['id' => $profile->id, 'view_only' => true]);
 
         Sanctum::actingAs($head);
-        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'view_only' => false])->assertUnprocessable();
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'view_only' => false])->assertForbidden();
         $this->assertTrue((bool) $profile->fresh()->view_only);
     }
 
@@ -138,7 +138,7 @@ class ViewOnlySeatTest extends TestCase
         $profile = $coHead->accountProfiles()->where('organization_id', $this->organization->id)->first();
 
         Sanctum::actingAs($head);
-        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => 'Adviser'])->assertUnprocessable();
+        $this->putJson('/api/account-profiles/'.$profile->id, ['role' => 'ADMIN', 'position_title' => 'Adviser'])->assertForbidden();
         $this->assertSame('Treasurer', $profile->fresh()->position_title);
     }
 

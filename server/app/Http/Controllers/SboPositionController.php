@@ -154,7 +154,7 @@ class SboPositionController extends Controller
     {
         if ($this->isSaoAdviserTitle($title)) {
             throw ValidationException::withMessages([
-                'title' => ['The Adviser position is assigned only by the Student Affairs Office.'],
+                'title' => ['The Adviser position is assigned only by the Department Head.'],
             ]);
         }
     }

@@ -178,7 +178,7 @@ export default function ManageSboPositionsPage() {
             />
           ) : undefined}
           actions={(position) => (position.role === 'ADMIN' && /^(organization )?advis(e|o)r$/i.test(position.title)
-            ? <span className="text-xs text-ink-muted">SAO managed</span>
+            ? <span className="text-xs text-ink-muted">Department Head managed</span>
             : <TableRowActions subject={position.title} label="Position actions" actions={[{ label: 'Edit position', icon: PencilLine, onClick: () => openEdit(position) }, { label: 'Delete position', icon: Trash2, danger: true, onClick: () => setDeleteTarget(position) }]} />)}
         />
       </section>
@@ -207,7 +207,7 @@ export default function ManageSboPositionsPage() {
               <Field label="Position title">
                 <Select data-autofocus value={customTitle ? '__other__' : form.title} onChange={(event) => { setCustomTitle(event.target.value === '__other__'); setForm({ ...form, title: event.target.value === '__other__' ? '' : event.target.value }); }}>
                   <option value="">Choose a title</option>
-                  <option value="Adviser" disabled>Adviser (SAO only)</option>
+                  <option value="Adviser" disabled>Adviser (Department Head only)</option>
                   {ADMIN_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}
                   <option value="__other__">Other position</option>
                 </Select>

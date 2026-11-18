@@ -167,16 +167,63 @@ class OrgAccessGrantTest extends TestCase
         $this->assertDatabaseHas('notifications', ['user_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'title' => 'You have new access']);
     }
 
-    public function test_the_sao_names_a_faculty_adviser_in_a_college_organization(): void
+    private function sao(): User
     {
-        $sao = User::factory()->create(['role' => 'SUPER_ADMIN', 'organization_id' => Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION'])->id]);
+        return User::factory()->create(['role' => 'SUPER_ADMIN', 'organization_id' => Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION'])->id]);
+    }
+
+    public function test_the_sao_cannot_name_a_faculty_adviser_only_the_dean_can(): void
+    {
+        $sao = $this->sao();
         $faculty = $this->faculty();
 
-        $this->grant($sao, ['school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])->assertCreated();
+        $this->grant($sao, ['school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])
+            ->assertForbidden()->assertJsonPath('message', 'Only the Department Head can name an organization adviser.');
 
-        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'position_title' => 'Adviser']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id]);
         $this->grant($sao, ['school_id' => $this->faculty()->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'President'])
             ->assertForbidden();
+    }
+
+    public function test_the_sao_cannot_name_an_adviser_in_a_university_wide_organization_either(): void
+    {
+        $sao = $this->sao();
+        $unified = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null, 'lifecycle_status' => 'active']);
+        $faculty = $this->faculty();
+        AccountProfile::create(['user_school_id' => $faculty->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'position_title' => 'Instructor', 'account_status' => 'active']);
+
+        $this->grant($sao, ['school_id' => $faculty->school_id, 'organization_id' => $unified->id, 'role' => 'ADMIN', 'position_title' => 'Adviser'])->assertForbidden();
+
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => $faculty->school_id, 'organization_id' => $unified->id]);
+    }
+
+    public function test_the_sao_cannot_change_a_seat_to_adviser_and_its_title_stays(): void
+    {
+        $sao = $this->sao();
+        $unified = Organization::factory()->create(['is_university_wide' => true, 'college_id' => null, 'college' => null, 'parent_organization_id' => null, 'lifecycle_status' => 'active']);
+        $holder = $this->faculty();
+        $seat = AccountProfile::create(['user_school_id' => $holder->school_id, 'organization_id' => $unified->id, 'role' => 'ADMIN', 'position_title' => 'Instructor', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $this->faculty()->school_id, 'organization_id' => $unified->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+
+        Sanctum::actingAs($sao);
+        $this->putJson('/api/account-profiles/'.$seat->id, ['role' => 'ADMIN', 'position_title' => 'Adviser'])
+            ->assertForbidden()->assertJsonPath('message', 'Only the Department Head can name an organization adviser.');
+
+        $this->assertSame('Instructor', $seat->refresh()->position_title);
+    }
+
+    public function test_the_dean_changes_a_seat_to_adviser(): void
+    {
+        $dean = $this->makeCollegeHead($this->computing);
+        $holder = $this->faculty();
+        $seat = AccountProfile::create(['user_school_id' => $holder->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        AccountProfile::create(['user_school_id' => $this->faculty()->school_id, 'organization_id' => $this->computingOrg->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+
+        Sanctum::actingAs($dean);
+        $this->putJson('/api/account-profiles/'.$seat->id, ['role' => 'ADMIN', 'position_title' => 'adviser'])
+            ->assertOk()->assertJsonPath('position_title', 'Adviser');
+
+        $this->assertSame('Adviser', $seat->refresh()->position_title);
     }
 
     public function test_an_organization_head_cannot_name_an_adviser_and_a_student_is_not_one(): void

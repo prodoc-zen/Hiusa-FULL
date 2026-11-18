@@ -127,7 +127,7 @@ class PositionManagementTest extends TestCase
         $this->putJson('/api/users/'.$otherAdmin->school_id, [
             'position_title' => 'Adviser',
         ])->assertForbidden()
-            ->assertJsonPath('message', 'Adviser accounts and Adviser assignments are managed only by the SAO or the Department Head.');
+            ->assertJsonPath('message', 'Adviser accounts and Adviser assignments are managed only by the Department Head.');
 
         $this->assertSame('President', $otherAdmin->fresh()->position_title);
     }

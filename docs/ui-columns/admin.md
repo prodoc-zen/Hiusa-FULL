@@ -54,12 +54,12 @@ Mobile: cards (name, school ID, kebab, role pill, Active/Inactive pill, "Fingerp
 ## Members > Officer positions (/dashboard/admin/positions)
 Filters: search "Search title or responsibilities..."; role select (All account roles | Admin | SBO Officer)
 Table "Positions": Position | Account Role | Responsibilities | Status | Actions
-Row actions: Edit position | Delete position (Adviser positions show "SAO managed")
+Row actions: Edit position | Delete position (Adviser positions show "Department Head managed")
 Status badges: Active = green, Inactive = grey
 Bulk/Toolbar: Add Position
 Paging: 10   Empty: "No positions match the current filters."
 Mobile: table scrolls horizontally (min width 760)
-  Modal "Add Position"/"Edit Position": Assignable account role * (Admin | SBO Officer), Position title * (Choose a title | Adviser (SAO only) | Other position...), Responsibilities, Available for assignment checkbox
+  Modal "Add Position"/"Edit Position": Assignable account role * (Admin | SBO Officer), Position title * (Choose a title | Adviser (Department Head only) | Other position...), Responsibilities, Available for assignment checkbox
 
 ## Members > Programs and sections (/dashboard/admin/programs-sections)
 No table: three blocks.

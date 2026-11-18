@@ -189,9 +189,9 @@ class AccountProfileController extends Controller
     /** The SAO adds nobody below the Department Head; its one grant is the Admin of a university-wide organization, which has no dean. An organization head hands out officer and member access; Admin only into a suborganization of theirs, never beside themselves. */
     private function assertMayGrant(User $actor, string $role, Organization $organization, bool $adviser = false): void
     {
-        // The Adviser seat is named by the dean or the SAO, never by an organization head, in any organization they manage.
+        // The Adviser seat is named and edited by the Department Head alone, never by the SAO or an organization head.
         if ($adviser) {
-            abort_unless(in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true), 403, 'Only the SAO or the Department Head can name an organization adviser.');
+            abort_unless($actor->role === 'DEPARTMENT_HEAD', 403, 'Only the Department Head can name an organization adviser.');
 
             return;
         }
@@ -305,7 +305,9 @@ class AccountProfileController extends Controller
         $profile = DB::transaction(function () use ($request, $actor, $data, $profile) {
             $organization = $this->targetOrganization($request, $profile->organization_id, true);
             $profile = AccountProfile::with('user')->lockForUpdate()->findOrFail($profile->id);
-            $this->assertMayGrant($actor, $data['role'], $organization);
+            // A seat that is, or is being made, the Adviser is the Department Head's to change.
+            $adviser = $data['role'] === 'ADMIN' && AdviserPosition::is($data['position_title'] ?? null);
+            $this->assertMayGrant($actor, $data['role'], $organization, $adviser || AdviserPosition::is($profile->position_title));
             if ($reason = $this->profileDeletion->permissionFailure($actor, $profile)) {
                 abort(403, $reason);
             }
@@ -324,9 +326,7 @@ class AccountProfileController extends Controller
                 throw ValidationException::withMessages(['view_only' => ['Only an organization head seat can be view only.']]);
             }
             $before = $profile->only(['role', 'position_title', 'modules', 'view_only']);
-            // The Adviser title is on no organization's position list, so the dean or the SAO saving that seat passes the flag, as invite does.
-            $adviser = $data['role'] === 'ADMIN' && AdviserPosition::is($data['position_title'] ?? null)
-                && in_array($actor->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true);
+            // The Adviser title is on no organization's position list, so the dean saving that seat passes the flag, as invite does.
             $profile->update(['role' => $data['role'], ...$this->grantDetails($data, $organization, $adviser), 'view_only' => $viewOnly]);
             AuditLog::create([
                 'organization_id' => $organization->id, 'user_id' => $actor->school_id, 'actor_role' => $actor->profileRole(),
