@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AccountProfile;
+use App\Models\ApprovalRequest;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\Merchandise;
+use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
@@ -137,6 +139,30 @@ class CollegeOrganizationLifecycleTest extends TestCase
         Storage::disk('local')->assertMissing("compliance-submissions/{$organization->id}/target.pdf");
         Storage::disk('local')->assertExists("compliance-submissions/{$other->id}/other.pdf");
         Storage::disk('public')->assertExists('logos/shared.png');
+    }
+
+    public function test_deleting_an_organization_reads_review_notifications_filed_under_the_approvers_organization(): void
+    {
+        $college = $this->college();
+        $organization = $this->organization($college);
+        $requester = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $dean = User::factory()->create(['organization_id' => $college->homeOrganization->id, 'role' => 'DEPARTMENT_HEAD']);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $organization->id, 'entity_type' => 'budget', 'entity_id' => 1,
+            'requested_by' => $requester->school_id, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'pending',
+        ]);
+        $notification = fn (int $referenceId) => Notification::create([
+            'organization_id' => $college->homeOrganization->id, 'user_id' => $dean->school_id, 'title' => 'Approval Request Submitted',
+            'message' => 'Review requested.', 'reference_type' => 'approval_request', 'reference_id' => $referenceId, 'is_read' => false,
+        ]);
+        $review = $notification($approval->id);
+        $other = $notification($approval->id + 1000);
+
+        $this->deleteJson('/api/system/organizations/'.$organization->id, ['confirmation_name' => $organization->name])->assertNoContent();
+
+        $this->assertDatabaseMissing('approval_requests', ['id' => $approval->id]);
+        $this->assertTrue($review->fresh()->is_read, 'the dean no longer has an open link to a deleted request');
+        $this->assertFalse($other->fresh()->is_read, 'a notification for another request is left alone');
     }
 
     public function test_only_sao_can_archive_restore_or_delete_an_organization_and_system_department_is_protected(): void

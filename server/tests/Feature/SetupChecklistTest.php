@@ -137,6 +137,33 @@ class SetupChecklistTest extends TestCase
         $this->assertStringContainsString('Visit your SBO officers', $this->steps($this->checklistFor($student))['fingerprint']['detail']);
     }
 
+    public function test_every_role_counts_exactly_the_steps_it_lists_and_sends_none_that_cannot_be_done(): void
+    {
+        // The client adds the advisory links (statement, My tasks) on top of this list and labels them as not counted.
+        // That is only honest while the server's own completed and total always describe the steps it sends.
+        $college = $this->makeCollege('CCS');
+        $head = $this->makeCollegeHead($college, ['account_status' => 'active']);
+        $organization = Organization::factory()->create();
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $people = [
+            'sao' => User::factory()->superAdmin()->create(['organization_id' => $sao->id]),
+            'dean' => $head,
+            'office staff' => User::factory()->admin()->create(['organization_id' => $head->organization_id, 'account_status' => 'active']),
+            'admin' => User::factory()->admin()->create(['organization_id' => $organization->id, 'account_status' => 'active']),
+            'officer' => User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']),
+            'student' => User::factory()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active', 'contact_number' => '09171234567']),
+        ];
+
+        foreach ($people as $label => $person) {
+            $this->app['auth']->forgetGuards();
+            $setup = $this->checklistFor($person);
+
+            $this->assertSame(count($setup['steps']), $setup['total'], "{$label}: total must equal the steps listed.");
+            $this->assertSame(count(array_filter(array_column($setup['steps'], 'done'))), $setup['completed'], "{$label}: completed must equal the done steps listed.");
+            $this->assertSame([], array_filter($setup['steps'], fn (array $step) => ($step['advisory'] ?? false) === true), "{$label}: an advisory step never comes from the server.");
+        }
+    }
+
     public function test_the_sao_checklist_asks_for_a_department_head_in_every_college(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);

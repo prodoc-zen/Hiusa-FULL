@@ -38,6 +38,7 @@ function OpenRow({ step, primary, className = '' }) {
             ) : (
               <p className="mt-0.5 text-xs leading-5 text-ink-muted">{step.detail}</p>
             )}
+            {step.advisory && <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">Optional. Not counted in your progress.</p>}
           </div>
         </div>
         {!step.blocked && step.href && (

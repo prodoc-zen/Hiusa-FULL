@@ -35,12 +35,47 @@ class ApprovalRequest extends Model
         // A decided request no longer asks anyone for review, whichever approver it was sent to.
         static::updated(function (ApprovalRequest $approval): void {
             if ($approval->wasChanged('status') && $approval->status !== 'pending') {
-                Notification::where('reference_type', 'approval_request')
-                    ->where('reference_id', $approval->id)
-                    ->where('is_read', false)
-                    ->update(['is_read' => true]);
+                static::readReviewNotifications([$approval->id]);
             }
         });
+    }
+
+    /**
+     * Reads the unread review notifications of approval requests, whichever approver or organization they were filed
+     * under. A deleted or decided request leaves approvers a review link that opens nothing.
+     */
+    public static function readReviewNotifications(iterable $approvalIds): void
+    {
+        $ids = collect($approvalIds)->values();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        Notification::where('reference_type', 'approval_request')
+            ->whereIn('reference_id', $ids)
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
+    }
+
+    /**
+     * Removes the approval requests of an entity that is being deleted. Their unread review notifications are read
+     * first, because a deleted request leaves approvers a review link that opens nothing.
+     */
+    public static function deleteForEntity(int $organizationId, string $entityType, int $entityId): void
+    {
+        $ids = static::where('organization_id', $organizationId)
+            ->where('entity_type', $entityType)
+            ->where('entity_id', $entityId)
+            ->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        static::readReviewNotifications($ids);
+
+        static::whereIn('id', $ids)->delete();
     }
 
     public function requester(): BelongsTo

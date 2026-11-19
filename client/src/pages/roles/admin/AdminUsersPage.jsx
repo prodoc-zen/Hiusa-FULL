@@ -27,6 +27,7 @@ import { buildCsv } from '../../../utils/csv';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const filterRoles = accountRoles;
+const OFFICER_VISIBLE_ROLES = ['STUDENT', 'SBO_OFFICER'];
 const ROLE_LABELS = {
   SUPER_ADMIN: 'Super admin',
   STUDENT: 'Student',
@@ -350,7 +351,9 @@ export default function AdminUsersPage() {
     actorOrganizationId = actor?.organization_id || actor?.organization?.id || null;
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles.filter((role) => role !== 'DEPARTMENT_HEAD');
-  const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
+  // An officer sees students and fellow officers, never an administrator. A request with no role makes the server
+  // answer with students only, which left an organization of officers reading "0 users", so "All roles" asks for both.
+  const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? OFFICER_VISIBLE_ROLES : filterRoles;
   const inRouter = useInRouterContext();
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const [searchParams, setSearchParams] = inRouter ? useSearchParams() : [new URLSearchParams(), () => {}];
@@ -435,7 +438,7 @@ export default function AdminUsersPage() {
 
   // Shared by load() and export(): every filter maps onto a /users query parameter.
   const userQuery = {
-    ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
+    ...(roleFilter !== 'all' ? { role: roleFilter } : actorRole === 'SBO_OFFICER' ? { role: JSON.stringify(OFFICER_VISIBLE_ROLES) } : {}),
     ...(programFilter !== 'all' ? { program: programFilter } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
   };
@@ -819,7 +822,10 @@ export default function AdminUsersPage() {
   // and stays inside a 390px screen.
   const tableTools = (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <p className="text-sm tabular-nums text-ink-muted">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
+      <div>
+        <p className="text-sm tabular-nums text-ink-muted">{meta.total} {meta.total === 1 ? 'user' : 'users'}</p>
+        {actorRole === 'SBO_OFFICER' && <p className="text-xs text-ink-muted">Your organization's administrators are not listed here.</p>}
+      </div>
       {canManage && (
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" leftIcon={Download} onClick={exportUsers} disabled={!meta.total}>Export</Button>

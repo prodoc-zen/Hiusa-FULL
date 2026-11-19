@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminUsersPage from './AdminUsersPage';
 
@@ -85,6 +86,34 @@ describe('AdminUsersPage row actions and empty values', () => {
 
     const cards = container.querySelector('[data-view="cards"]');
     expect(within(cards).getAllByText('Program')).toHaveLength(1);
+  });
+
+  it('asks for students and fellow officers when an officer opens Members, never an administrator, so the count matches the rows', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 900002, role: 'SBO_OFFICER', organization_id: 8 }));
+    mocks.getUsers.mockResolvedValue({ data: [ben], current_page: 1, last_page: 1, total: 1, per_page: 10, summary: { by_role: { SBO_OFFICER: 1 }, by_section: [] } });
+    render(<MemoryRouter><AdminUsersPage /></MemoryRouter>);
+    await screen.findAllByText('Ben Cruz');
+
+    expect(mocks.getUsers).toHaveBeenCalledWith(expect.objectContaining({ role: JSON.stringify(['STUDENT', 'SBO_OFFICER']) }));
+    expect(screen.getByText('1 user')).toBeInTheDocument();
+    const offered = within(screen.getByLabelText('Filter by role')).getAllByRole('option').map((option) => option.textContent);
+    expect(offered).toEqual(['All roles', 'Student', 'SBO officer']);
+
+    fireEvent.change(screen.getByLabelText('Filter by role'), { target: { value: 'STUDENT' } });
+    await waitFor(() => expect(mocks.getUsers).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'STUDENT' })));
+  });
+
+  it('tells an officer that administrators are not listed, and says nothing of the kind to an administrator', async () => {
+    localStorage.setItem('user', JSON.stringify({ school_id: 900002, role: 'SBO_OFFICER', organization_id: 8 }));
+    const officerView = render(<MemoryRouter><AdminUsersPage /></MemoryRouter>);
+    await screen.findAllByText('Ben Cruz');
+    expect(screen.getByText("Your organization's administrators are not listed here.")).toBeInTheDocument();
+    officerView.unmount();
+
+    localStorage.setItem('user', JSON.stringify({ school_id: 900001, role: 'ADMIN', organization_id: 8 }));
+    render(<MemoryRouter><AdminUsersPage /></MemoryRouter>);
+    await screen.findAllByText('Ben Cruz');
+    expect(screen.queryByText("Your organization's administrators are not listed here.")).not.toBeInTheDocument();
   });
 
   it('writes Not set for a profile field with no value instead of leaving it blank', async () => {

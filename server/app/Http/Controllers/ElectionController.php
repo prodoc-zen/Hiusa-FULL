@@ -1188,10 +1188,7 @@ class ElectionController extends Controller
             }
 
             $oldValues = $this->auditableElectionValues($locked);
-            ApprovalRequest::where('organization_id', $locked->organization_id)
-                ->where('entity_type', 'election')
-                ->where('entity_id', $locked->id)
-                ->delete();
+            ApprovalRequest::deleteForEntity($locked->organization_id, 'election', $locked->id);
             $locked->delete();
 
             return null;

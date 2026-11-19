@@ -612,10 +612,7 @@ class AnnouncementController extends Controller
         $oldValues = $this->auditableAnnouncementValues($announcement);
         $imageUrl = $announcement->image_url;
         DB::transaction(function () use ($announcement) {
-            ApprovalRequest::where('organization_id', $announcement->organization_id)
-                ->where('entity_type', 'announcement')
-                ->where('entity_id', $announcement->id)
-                ->delete();
+            ApprovalRequest::deleteForEntity($announcement->organization_id, 'announcement', $announcement->id);
             $announcement->delete();
         });
         if ($imageUrl) {

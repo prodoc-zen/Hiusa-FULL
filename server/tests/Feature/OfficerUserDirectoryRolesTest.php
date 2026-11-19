@@ -76,6 +76,16 @@ class OfficerUserDirectoryRolesTest extends TestCase
         $this->assertSame($this->sorted($this->caller, $this->fellowOfficer), $this->ids($query));
     }
 
+    public function test_the_members_page_request_counts_exactly_the_rows_it_lists(): void
+    {
+        // The Members page sends both visible roles when the officer picks "All roles", so the header count is the roster.
+        $query = '?'.http_build_query(['role' => json_encode(['STUDENT', 'SBO_OFFICER']), 'page' => 1, 'per_page' => 10]);
+        $response = $this->getJson('/api/users'.$query)->assertOk();
+
+        $this->assertSame(3, $response->json('total'));
+        $this->assertCount($response->json('total'), $response->json('data'));
+    }
+
     public function test_an_officer_with_no_role_filter_still_receives_students_only(): void
     {
         $this->assertSame($this->sorted($this->student), $this->ids(''));

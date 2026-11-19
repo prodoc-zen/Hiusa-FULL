@@ -668,10 +668,7 @@ class EventController extends Controller
             }
 
             $requirementPaths = EventRequirementFile::where('event_id', $locked->id)->pluck('path')->all();
-            ApprovalRequest::where('organization_id', $locked->organization_id)
-                ->where('entity_type', 'event')
-                ->where('entity_id', $locked->id)
-                ->delete();
+            ApprovalRequest::deleteForEntity($locked->organization_id, 'event', $locked->id);
             $locked->delete();
             $this->auditEvent($request, $locked, 'event_deleted', $this->auditedFields($locked), null);
 

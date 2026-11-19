@@ -592,10 +592,17 @@ describe('TasksPage', () => {
     const base = { event_id: null, priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 };
     const serve = (...records) => mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(records)));
 
+    it('keeps the search placeholder short enough to read in full on a 390px phone', async () => {
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Monthly Records');
+      // 290px of input at 390px wide; Poppins 14px runs about 9px a character, so 28 characters is the ceiling.
+      expect(screen.getByPlaceholderText('Search tasks').getAttribute('placeholder').length).toBeLessThanOrEqual(28);
+    });
+
     it('searches every page on the server instead of only the rows on screen', async () => {
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       await screen.findAllByText('Monthly Records');
-      fireEvent.change(screen.getByPlaceholderText('Search tasks, assignees, or events'), { target: { value: 'bulk' } });
+      fireEvent.change(screen.getByPlaceholderText('Search tasks'), { target: { value: 'bulk' } });
       await waitFor(() => expect(mocks.getTasks).toHaveBeenCalledWith(expect.objectContaining({ search: 'bulk', page: 1, per_page: 10 })));
       expect(mocks.getTasks).toHaveBeenCalledWith(expect.objectContaining({ search: 'bulk', per_page: 1 }));
     });
@@ -604,7 +611,7 @@ describe('TasksPage', () => {
       mocks.getTasks.mockImplementation((params = {}) => Promise.resolve(envelope(params.search ? [] : tasks)));
       render(<MemoryRouter><TasksPage /></MemoryRouter>);
       await screen.findAllByText('Monthly Records');
-      fireEvent.change(screen.getByPlaceholderText('Search tasks, assignees, or events'), { target: { value: 'qqzzx' } });
+      fireEvent.change(screen.getByPlaceholderText('Search tasks'), { target: { value: 'qqzzx' } });
       expect(await screen.findByText('No tasks match these filters')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
       expect((await screen.findAllByText('Monthly Records')).length).toBeGreaterThan(0);

@@ -191,10 +191,7 @@ class BudgetController extends Controller
             }
 
             $oldValues = $this->auditableValues($locked);
-            ApprovalRequest::where('organization_id', $locked->organization_id)
-                ->where('entity_type', 'budget')
-                ->where('entity_id', $locked->id)
-                ->delete();
+            ApprovalRequest::deleteForEntity($locked->organization_id, 'budget', $locked->id);
             $locked->delete();
             $this->recordBudgetAudit($request, 'deleted', $locked, $oldValues, null);
 

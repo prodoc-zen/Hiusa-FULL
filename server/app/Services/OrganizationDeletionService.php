@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
@@ -117,6 +118,8 @@ class OrganizationDeletionService
             $profileIds = DB::table('account_profiles')->whereIn('organization_id', $ids)->pluck('id');
             DB::table('personal_access_tokens')->where(fn ($query) => $query->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $users->pluck('school_id')))->delete();
             DB::table('organization_applications')->whereIn('id', $applicationIds)->delete();
+            // Approvers' review notifications sit under their own organization, so they outlive the requests unless read here.
+            ApprovalRequest::readReviewNotifications(DB::table('approval_requests')->whereIn('organization_id', $ids)->pluck('id'));
             foreach (self::TABLES as $table) {
                 DB::table($table)->whereIn('organization_id', $ids)->delete();
             }

@@ -3,6 +3,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 export default function Tabs({ tabs, value, onChange, className = '' }) {
   const baseId = useId();
   const refs = useRef([]);
+  const scrollerRef = useRef(null);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
   useLayoutEffect(() => {
@@ -12,6 +13,18 @@ export default function Tabs({ tabs, value, onChange, className = '' }) {
       setIndicator({ left: node.offsetLeft, width: node.offsetWidth });
     }
   }, [value, tabs]);
+
+  // Keyed on the selection alone: parents build a new tabs array every render, and a swipe toward a far tab must survive that.
+  useLayoutEffect(() => {
+    const node = refs.current.find((el) => el && el.getAttribute('aria-selected') === 'true');
+    const scroller = scrollerRef.current;
+    // A strip wider than its screen scrolls inside itself; bring the selected tab into view so it is never the one cut off.
+    if (node && scroller && scroller.clientWidth > 0) {
+      const pastRight = node.offsetLeft + node.offsetWidth - (scroller.scrollLeft + scroller.clientWidth);
+      if (pastRight > 0) scroller.scrollLeft += pastRight;
+      else if (node.offsetLeft < scroller.scrollLeft) scroller.scrollLeft = node.offsetLeft;
+    }
+  }, [value]);
 
   function focusTab(index) {
     const tab = tabs[index];
@@ -37,8 +50,8 @@ export default function Tabs({ tabs, value, onChange, className = '' }) {
   }
 
   return (
-    <div className={`overflow-x-auto overflow-y-clip ${className}`}>
-      <div role="tablist" className="relative flex w-max min-w-full items-center gap-1 border-b border-line">
+    <div ref={scrollerRef} className={`overflow-x-auto overflow-y-clip ${className}`}>
+      <div role="tablist" className="relative flex w-max min-w-full items-center gap-0 border-b sm:gap-1 border-line">
         {tabs.map((tab, index) => {
           const isActive = tab.key === value;
           return (
@@ -53,7 +66,7 @@ export default function Tabs({ tabs, value, onChange, className = '' }) {
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.key)}
               onKeyDown={(event) => handleKeyDown(event, index)}
-              className={`relative flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-4 text-sm font-medium transition-colors duration-150 ${isActive ? 'text-brand-700' : 'text-ink-muted hover:text-ink'}`}
+              className={`relative flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-2 text-sm sm:px-4 font-medium transition-colors duration-150 ${isActive ? 'text-brand-700' : 'text-ink-muted hover:text-ink'}`}
             >
               {tab.icon && <tab.icon size={16} aria-hidden="true" />}
               {tab.label}

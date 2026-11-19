@@ -43,6 +43,17 @@ describe('SetupChecklist', () => {
     expect(within(fingerprint).getByRole('button', { name: 'Where to go' })).toBeInTheDocument();
   });
 
+  it('says an advisory link is not counted, so rows beyond the total are not read as missing progress', () => {
+    const advisory = { key: 'tasks', label: 'Open My tasks', detail: 'See what your Admin assigned.', done: false, advisory: true, href: '/dashboard/tasks/assigned-tasks', action: 'Open My tasks' };
+    renderChecklist({ setup: { completed: 0, total: 2, steps: [setup.steps[1], setup.steps[3], advisory] } });
+
+    expect(screen.getByText('0 of 2 done')).toBeInTheDocument();
+    const rows = screen.getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    expect(within(rows[2]).getByText('Optional. Not counted in your progress.')).toBeInTheDocument();
+    expect(screen.getAllByText('Optional. Not counted in your progress.')).toHaveLength(1);
+  });
+
   it('falls back to a plain Open label when a step brings none', () => {
     renderChecklist({ setup: { completed: 0, total: 1, steps: [{ key: 'x', label: 'Plain', detail: 'd', done: false, href: '/x' }] } });
     expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/x');

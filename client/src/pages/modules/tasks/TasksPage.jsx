@@ -605,7 +605,7 @@ export default function TasksPage({ initialTab = 'board' }) {
           <TableFilterBar
             searchValue={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search tasks, assignees, or events"
+            searchPlaceholder="Search tasks"
             activeFilters={activeTaskFilters}
             onClear={clearTaskFilters}
             resultCount={tasksMeta.total}

@@ -54,6 +54,56 @@ describe('Tabs', () => {
     expect(overviewTabs[1].id).toBeTruthy();
   });
 
+  it('fits four tabs inside a 390px phone with tight padding, and keeps the roomy padding from sm up', () => {
+    render(<Tabs tabs={TABS} value="overview" onChange={() => {}} />);
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).toHaveClass('px-2', 'sm:px-4');
+      expect(tab).toHaveClass('h-11', 'shrink-0', 'whitespace-nowrap');
+    }
+    expect(screen.getByRole('tablist')).toHaveClass('gap-0', 'sm:gap-1');
+  });
+
+  it('keeps the strip scrolling inside itself, so a tab that does not fit never widens the page', () => {
+    render(<Tabs tabs={TABS} value="overview" onChange={() => {}} />);
+    expect(screen.getByRole('tablist').parentElement).toHaveClass('overflow-x-auto');
+    expect(screen.getByRole('tablist')).toHaveClass('w-max', 'min-w-full');
+  });
+
+  it('scrolls the strip so the selected tab is in view when it sits past an edge', () => {
+    const { rerender } = render(<Tabs tabs={TABS} value="overview" onChange={() => {}} />);
+    const scroller = screen.getByRole('tablist').parentElement;
+    let scrollLeft = 0;
+    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 300 });
+    Object.defineProperty(scroller, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (next) => { scrollLeft = next; } });
+    const settings = screen.getByRole('tab', { name: 'Settings' });
+    Object.defineProperty(settings, 'offsetLeft', { configurable: true, value: 400 });
+    Object.defineProperty(settings, 'offsetWidth', { configurable: true, value: 100 });
+
+    rerender(<Tabs tabs={TABS} value="settings" onChange={() => {}} />);
+    expect(scrollLeft).toBe(200);
+
+    const overview = screen.getByRole('tab', { name: 'Overview' });
+    Object.defineProperty(overview, 'offsetLeft', { configurable: true, value: 0 });
+    Object.defineProperty(overview, 'offsetWidth', { configurable: true, value: 100 });
+    rerender(<Tabs tabs={TABS} value="overview" onChange={() => {}} />);
+    expect(scrollLeft).toBe(0);
+  });
+
+  it('leaves a strip the person has swiped alone when the parent re-renders with a new tabs array', () => {
+    const { rerender } = render(<Tabs tabs={[...TABS]} value="overview" onChange={() => {}} />);
+    const scroller = screen.getByRole('tablist').parentElement;
+    let scrollLeft = 0;
+    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 300 });
+    Object.defineProperty(scroller, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (next) => { scrollLeft = next; } });
+    const overview = screen.getByRole('tab', { name: 'Overview' });
+    Object.defineProperty(overview, 'offsetLeft', { configurable: true, value: 0 });
+    Object.defineProperty(overview, 'offsetWidth', { configurable: true, value: 100 });
+
+    scrollLeft = 150;
+    rerender(<Tabs tabs={[...TABS]} value="overview" onChange={() => {}} />);
+    expect(scrollLeft).toBe(150);
+  });
+
   it('keeps one weight across tabs so the indicator never drifts, and has no bold', () => {
     render(<Tabs tabs={TABS} value="members" onChange={() => {}} />);
     for (const tab of screen.getAllByRole('tab')) {
