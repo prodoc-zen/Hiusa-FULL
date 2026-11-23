@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\Log;
  *
  * generate() and generateStructured() run inside a web request, so both attempts share one deadline. A provider
  * that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one longer
- * deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off.
+ * deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off. The event plan is the one
+ * structured call that gets a longer deadline (services.ai.plan_deadline_seconds), because a full plan takes Claude
+ * about 9 seconds and 12 shared with Groq left it too little.
  */
 class FallbackTextGenerator implements TextGenerator
 {
@@ -23,6 +25,12 @@ class FallbackTextGenerator implements TextGenerator
 
     // Both attempts together; matches the cap each provider applies to a single call.
     private const DEADLINE_SECONDS = 12;
+
+    // The structured call that builds an event's to-do plan; EventController passes this schema name.
+    public const EVENT_PLAN_SCHEMA = 'hiusa_event_workflow';
+
+    // The primary's part of the longer plan deadline; the rest is Groq's turn.
+    private const PLAN_PRIMARY_SHARE = 0.75;
 
     // A provider that has said nothing for this long gets a 'tick' event, so the caller can keep the page alive.
     private const TICK_SECONDS = 4;
@@ -52,7 +60,14 @@ class FallbackTextGenerator implements TextGenerator
         int $maxOutputTokens = 1800,
         float $temperature = 0.2,
     ): ?array {
-        return $this->serve('generateStructured', fn (TextGenerator $generator) => $generator->generateStructured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $temperature), true);
+        $call = fn (TextGenerator $generator) => $generator->generateStructured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $temperature);
+        if ($schemaName !== self::EVENT_PLAN_SCHEMA) {
+            return $this->serve('generateStructured', $call, true);
+        }
+
+        $planSeconds = max(self::DEADLINE_SECONDS, min(120, (int) config('services.ai.plan_deadline_seconds', 30) ?: 30));
+
+        return $this->serve('generateStructured', $call, true, $planSeconds, $planSeconds * self::PLAN_PRIMARY_SHARE, $planSeconds);
     }
 
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
@@ -93,9 +108,12 @@ class FallbackTextGenerator implements TextGenerator
     }
 
     /**
+     * $timeoutCeiling lifts each provider's own 12 second request cap to that many seconds, so a deadline longer
+     * than 12 is not cut short by the HTTP timeout; the budget still bounds every attempt.
+     *
      * @param  \Closure(TextGenerator): ?array  $call
      */
-    private function serve(string $operation, \Closure $call, bool $bounded = false, int $deadlineSeconds = self::DEADLINE_SECONDS, float $primaryShare = self::DEADLINE_SECONDS * 2 / 3): ?array
+    private function serve(string $operation, \Closure $call, bool $bounded = false, int $deadlineSeconds = self::DEADLINE_SECONDS, float $primaryShare = self::DEADLINE_SECONDS * 2 / 3, ?float $timeoutCeiling = null): ?array
     {
         $deadline = microtime(true) + $deadlineSeconds;
 
@@ -121,7 +139,7 @@ class FallbackTextGenerator implements TextGenerator
             }
 
             $started = microtime(true);
-            $this->timeBudget($generator, $budget);
+            $this->timeBudget($generator, $budget, $timeoutCeiling);
             try {
                 $result = $call($generator);
             } finally {
@@ -159,10 +177,10 @@ class FallbackTextGenerator implements TextGenerator
         return null;
     }
 
-    private function timeBudget(TextGenerator $generator, ?float $seconds): void
+    private function timeBudget(TextGenerator $generator, ?float $seconds, ?float $ceiling = null): void
     {
         if ($generator instanceof ClaudeMessagesService || $generator instanceof GroqResponsesService) {
-            $generator->withTimeBudget($seconds);
+            $generator->withTimeBudget($seconds, $ceiling);
         }
     }
 

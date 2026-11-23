@@ -17,12 +17,18 @@ class GroqResponsesService implements TextGenerator
 
     private ?float $timeBudget = null;
 
+    private ?float $timeoutCeiling = null;
+
     private bool $unreachable = false;
 
-    /** Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. */
-    public function withTimeBudget(?float $seconds): void
+    /**
+     * Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. $ceiling, set only
+     * for a deadline longer than the usual 12 seconds, replaces the configured timeout as the longest one attempt may run.
+     */
+    public function withTimeBudget(?float $seconds, ?float $ceiling = null): void
     {
         $this->timeBudget = $seconds;
+        $this->timeoutCeiling = $seconds === null ? null : $ceiling;
     }
 
     /**
@@ -195,9 +201,14 @@ class GroqResponsesService implements TextGenerator
         return max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.groq.timeout') ?: self::MAX_REQUEST_SECONDS));
     }
 
+    private function longestSeconds(): int|float
+    {
+        return $this->timeoutCeiling ?? $this->configuredSeconds();
+    }
+
     private function requestSeconds(): int|float
     {
-        $configured = $this->configuredSeconds();
+        $configured = $this->longestSeconds();
 
         return $this->timeBudget === null ? $configured : max(1.0, min((float) $configured, $this->timeBudget));
     }
@@ -212,7 +223,7 @@ class GroqResponsesService implements TextGenerator
         }
 
         $seconds = $this->requestSeconds();
-        $budgeted = $this->timeBudget !== null && $this->timeBudget < $this->configuredSeconds();
+        $budgeted = $this->timeBudget !== null && $this->timeBudget < $this->longestSeconds();
 
         try {
             $response = Http::acceptJson()

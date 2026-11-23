@@ -47,6 +47,8 @@ class ClaudeMessagesService implements TextGenerator
 
     private ?float $timeBudget = null;
 
+    private ?float $timeoutCeiling = null;
+
     private bool $unreachable = false;
 
     // True while the call ran under a shared deadline shorter than its own timeout.
@@ -70,10 +72,14 @@ class ClaudeMessagesService implements TextGenerator
         return $this->lastStopReason;
     }
 
-    /** Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. */
-    public function withTimeBudget(?float $seconds): void
+    /**
+     * Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. $ceiling, set only
+     * for a deadline longer than the usual 12 seconds, replaces the configured timeout as the longest one attempt may run.
+     */
+    public function withTimeBudget(?float $seconds, ?float $ceiling = null): void
     {
         $this->timeBudget = $seconds;
+        $this->timeoutCeiling = $seconds === null ? null : $ceiling;
     }
 
     /**
@@ -272,7 +278,7 @@ class ClaudeMessagesService implements TextGenerator
         }
 
         $started = microtime(true);
-        $this->budgeted = $this->timeBudget !== null && $this->timeBudget < $this->configuredSeconds();
+        $this->budgeted = $this->timeBudget !== null && $this->timeBudget < $this->longestSeconds();
 
         try {
             $message = $this->client($apiKey)->messages->create(
@@ -385,9 +391,14 @@ class ClaudeMessagesService implements TextGenerator
         return (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
     }
 
+    private function longestSeconds(): float
+    {
+        return $this->timeoutCeiling ?? $this->configuredSeconds();
+    }
+
     private function requestSeconds(): float
     {
-        $configured = $this->configuredSeconds();
+        $configured = $this->longestSeconds();
 
         return $this->timeBudget === null ? $configured : max(1.0, min($configured, $this->timeBudget));
     }

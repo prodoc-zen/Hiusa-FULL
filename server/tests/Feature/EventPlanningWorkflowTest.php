@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\TextGenerator;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
@@ -12,6 +13,8 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Ai\Concerns\GuardsGeneratedText;
+use App\Services\Ai\FallbackTextGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -231,6 +234,51 @@ class EventPlanningWorkflowTest extends TestCase
 
         $this->assertDatabaseCount('ai_outputs', 0);
         $this->assertDatabaseCount('tasks', 0);
+    }
+
+    public function test_generating_a_plan_asks_for_the_schema_that_gets_the_longer_ai_deadline(): void
+    {
+        $generator = new class implements TextGenerator
+        {
+            use GuardsGeneratedText;
+
+            /** @var list<string> */
+            public array $schemas = [];
+
+            public function generate(string $instructions, string $input, int $maxOutputTokens = 400, float $temperature = 0.2): ?array
+            {
+                return null;
+            }
+
+            public function generateStructured(string $instructions, array $input, string $schemaName, array $schema, int $maxOutputTokens = 1800, float $temperature = 0.2): ?array
+            {
+                $this->schemas[] = $schemaName;
+
+                return null;
+            }
+
+            public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+            {
+                return null;
+            }
+        };
+        $this->app->instance(TextGenerator::class, $generator);
+
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'planning',
+            'start_time' => now()->addWeek(),
+            'end_time' => now()->addWeek()->addHours(2),
+        ]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/events/{$event->id}/generate-plan", ['requirements' => 'Require a complete plan.'])
+            ->assertCreated()
+            ->assertJsonPath('is_template', true);
+
+        $this->assertSame([FallbackTextGenerator::EVENT_PLAN_SCHEMA], $generator->schemas);
     }
 
     public function test_unavailable_groq_returns_a_template_plan_that_passes_the_same_validation(): void
