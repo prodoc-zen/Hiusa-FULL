@@ -7,8 +7,8 @@ use App\Services\Finance\FinancialReportChecks;
 
 /**
  * Puts the findings of FinancialReportChecks in order and in words. The rules already found every problem; the model
- * may only order them and write one sentence for each, so an answer that adds, drops or repeats a finding, runs past
- * three summary sentences or one sentence per finding, or carries a number that is not in the findings is thrown away
+ * may only order them and write a sentence or two for each, so an answer that adds, drops or repeats a finding, runs past
+ * three summary sentences or two sentences per finding, or carries a number that is not in the findings is thrown away
  * and the rules list itself is used. A model outage therefore costs only the prose.
  */
 class ReportCheckExplainer
@@ -95,7 +95,7 @@ class ReportCheckExplainer
         foreach (is_array($data['items'] ?? null) ? $data['items'] : [] as $item) {
             $key = is_array($item) && is_string($item['key'] ?? null) ? trim($item['key']) : '';
             $sentence = is_array($item) && is_string($item['sentence'] ?? null) ? $this->ai->plainText($item['sentence']) : '';
-            if (! in_array($key, $expected, true) || isset($items[$key]) || $sentence === '' || $this->sentenceCount($sentence) > 1 || ! $this->ai->preservesNumericFacts($sentence, $facts)) {
+            if (! in_array($key, $expected, true) || isset($items[$key]) || $sentence === '' || $this->sentenceCount($sentence) > 2 || ! $this->ai->preservesNumericFacts($sentence, $facts)) {
                 return null;
             }
             $items[$key] = ['key' => $key, 'sentence' => $sentence];

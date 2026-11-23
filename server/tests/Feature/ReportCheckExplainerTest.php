@@ -94,15 +94,34 @@ class ReportCheckExplainerTest extends TestCase
         $this->assertSame('template', $explained['engine']);
     }
 
-    public function test_more_than_one_sentence_per_finding_or_three_in_the_summary_is_thrown_away(): void
+    public function test_two_sentences_per_finding_are_kept(): void
+    {
+        $answer = $this->validAnswer();
+        $answer['items'][0]['sentence'] = 'The receipt reference is missing. Add it for the PHP 1,200.50 Supplies expense on 2026-09-02.';
+
+        [$explained] = $this->explain(fn () => $answer);
+
+        $this->assertSame('claude', $explained['engine']);
+        $this->assertSame($answer['items'][0]['sentence'], $explained['items'][0]['sentence']);
+    }
+
+    public function test_more_than_two_sentences_per_finding_or_three_in_the_summary_is_thrown_away(): void
     {
         $long = $this->validAnswer();
-        $long['items'][0]['sentence'] = 'Add the receipt reference. Then upload the photo.';
+        $long['items'][0]['sentence'] = 'Add the receipt reference. Then upload the photo. Then tell the treasurer.';
         $wordy = $this->validAnswer();
         $wordy['summary'] = 'There are 2 things. Start with the budget. Then the receipt. Then relax.';
 
         $this->assertSame('template', $this->explain(fn () => $long)[0]['engine']);
         $this->assertSame('template', $this->explain(fn () => $wordy)[0]['engine']);
+    }
+
+    public function test_a_number_that_is_not_in_the_findings_is_still_thrown_away_in_a_second_sentence(): void
+    {
+        $answer = $this->validAnswer();
+        $answer['items'][1]['sentence'] = 'Foundation Day budget is over. It is over by PHP 999.00, so move the spending.';
+
+        $this->assertSame('template', $this->explain(fn () => $answer)[0]['engine']);
     }
 
     public function test_no_findings_means_no_model_call(): void

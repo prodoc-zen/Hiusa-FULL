@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
 use App\Services\Ai\AiInstructions;
+use App\Services\Ai\FallbackTextGenerator;
 use App\Services\EventApprovalChain;
 use App\Services\EventVenueRelease;
 use App\Services\TaskDelegationService;
@@ -840,7 +841,7 @@ class EventController extends Controller
         $generated = $this->ai->generateStructured(
             AiInstructions::eventPlan(),
             $context,
-            'hiusa_event_workflow',
+            FallbackTextGenerator::EVENT_PLAN_SCHEMA,
             $this->eventWorkflowSchema(),
             2400,
             0.25,

@@ -70,6 +70,65 @@ class AiProviderDeadlineTest extends TestCase
         $this->assertLessThan(11.0, $secondary->budget);
     }
 
+    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_twelve(): void
+    {
+        $primary = new ClaudeProbe(null, 1_100_000);
+        $secondary = new GroqProbe(['data' => [], 'text' => '{}', 'model' => 'g', 'response_id' => null]);
+        (new FallbackTextGenerator($primary, $secondary))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
+
+        // Claude gets three quarters of the 30 second default, and its HTTP timeout is lifted to the whole deadline.
+        $this->assertEqualsWithDelta(22.5, $primary->budget, 0.05);
+        $this->assertSame(30.0, $primary->ceiling);
+        // Groq gets what is left of the deadline (Claude spent 1.1 seconds), with the same lifted ceiling.
+        $this->assertGreaterThan(28.0, $secondary->budget);
+        $this->assertLessThan(29.0, $secondary->budget);
+        $this->assertSame(30.0, $secondary->ceiling);
+
+        foreach (['generate', 'other schema'] as $kind) {
+            $primary = new ClaudeProbe(null, 1_100_000);
+            $secondary = new GroqProbe(['text' => 'ok', 'data' => [], 'model' => 'g', 'response_id' => null]);
+            $chain = new FallbackTextGenerator($primary, $secondary);
+            $kind === 'generate' ? $chain->generate('i', 'x') : $chain->generateStructured('i', [], 'hiusa_task_recommendation_explanations', []);
+
+            $this->assertLessThanOrEqual(8.0, $primary->budget, $kind);
+            $this->assertNull($primary->ceiling, $kind);
+            $this->assertNull($secondary->ceiling, $kind);
+            $this->assertLessThan(11.0, $secondary->budget, $kind);
+        }
+    }
+
+    public function test_the_plan_deadline_is_configurable_and_never_shorter_than_twelve(): void
+    {
+        $this->assertSame(30, config('services.ai.plan_deadline_seconds'));
+
+        config()->set('services.ai.plan_deadline_seconds', 40);
+        $primary = new ClaudeProbe(['data' => [], 'text' => '{}', 'model' => 'c', 'response_id' => null]);
+        (new FallbackTextGenerator($primary, new GroqProbe(null)))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
+        $this->assertEqualsWithDelta(30.0, $primary->budget, 0.05);
+        $this->assertSame(40.0, $primary->ceiling);
+
+        config()->set('services.ai.plan_deadline_seconds', 5);
+        $primary = new ClaudeProbe(['data' => [], 'text' => '{}', 'model' => 'c', 'response_id' => null]);
+        (new FallbackTextGenerator($primary, new GroqProbe(null)))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
+        $this->assertEqualsWithDelta(9.0, $primary->budget, 0.05);
+        $this->assertSame(12.0, $primary->ceiling);
+    }
+
+    public function test_a_lifted_ceiling_lets_the_http_timeout_follow_the_plan_deadline(): void
+    {
+        foreach ([new GroqResponsesService, new ClaudeMessagesService] as $service) {
+            $service->withTimeBudget(22.5, 30.0);
+            $this->assertSame(22.5, (float) $this->seconds($service));
+            $service->withTimeBudget(50.0, 30.0);
+            $this->assertSame(30.0, (float) $this->seconds($service));
+            // Clearing the budget clears the ceiling too, so the next ordinary call is back to twelve.
+            $service->withTimeBudget(null);
+            $this->assertEquals(12, $this->seconds($service));
+            $service->withTimeBudget(40);
+            $this->assertEquals(12, $this->seconds($service));
+        }
+    }
+
     public function test_a_provider_that_timed_out_is_skipped_for_the_cooling_off_period(): void
     {
         $down = new ClaudeProbe(null, 0, true);
@@ -221,13 +280,18 @@ trait ProbeBehavior
 
     public ?float $budget = null;
 
+    public ?float $ceiling = null;
+
     private ?float $pending = null;
+
+    private ?float $pendingCeiling = null;
 
     public function __construct(private readonly ?array $answer, private readonly int $sleepMicroseconds = 0, private readonly bool $down = false) {}
 
-    public function withTimeBudget(?float $seconds): void
+    public function withTimeBudget(?float $seconds, ?float $ceiling = null): void
     {
         $this->pending = $seconds;
+        $this->pendingCeiling = $ceiling;
     }
 
     public function lastCallUnreachable(): bool
@@ -254,6 +318,7 @@ trait ProbeBehavior
     {
         $this->calls++;
         $this->budget = $this->pending;
+        $this->ceiling = $this->pendingCeiling;
         usleep($this->sleepMicroseconds);
 
         return $this->answer;
