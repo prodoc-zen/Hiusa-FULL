@@ -25,10 +25,12 @@ class ClaudeMessagesServiceTest extends TestCase
         parent::setUp();
         config()->set('services.anthropic', [
             'key' => 'test-anthropic-key',
-            'model' => 'claude-sonnet-5-5',
-            'effort' => 'low',
+            'model' => 'claude-opus-5-5',
+            'effort' => 'medium',
             'timeout' => 8,
             'connect_timeout' => 3,
+            'chat_model' => 'claude-opus-5-5',
+            'chat_effort' => 'high',
         ]);
         $this->history = [];
     }
@@ -39,22 +41,68 @@ class ClaudeMessagesServiceTest extends TestCase
 
         $result = $service->generate('Use only supplied figures.', 'Income: 1000.', 220, 0.2);
 
-        $this->assertSame(['text' => 'The treasury is stable.', 'model' => 'claude-sonnet-5-5', 'response_id' => 'msg_test_1'], $result);
+        $this->assertSame(['text' => 'The treasury is stable.', 'model' => 'claude-opus-5-5', 'response_id' => 'msg_test_1'], $result);
         $this->assertSame('end_turn', $service->lastStopReason());
 
         $this->assertCount(1, $this->history);
         $request = $this->history[0]['request'];
         $body = json_decode((string) $request->getBody(), true);
         $this->assertSame('Bearer test-anthropic-key', $request->getHeaderLine('Authorization'));
-        $this->assertSame('claude-sonnet-5-5', $body['model']);
+        $this->assertSame('claude-opus-5-5', $body['model']);
         $this->assertSame('Use only supplied figures.', $body['system']);
         $this->assertSame([['role' => 'user', 'content' => 'Income: 1000.']], $body['messages']);
-        $this->assertSame(330, $body['max_tokens']);
-        $this->assertSame(['type' => 'between_tools'], $body['thinking']);
-        $this->assertSame('low', $body['output_config']['effort']);
-        // Sonnet 5.5 answers 400 to any sampling parameter.
-        foreach (['temperature', 'top_p', 'top_k'] as $rejected) {
+        // 220 asked for, 1.5 times that for the tokenizer, plus room for the thinking that spends the same budget.
+        $this->assertSame(330 + 4096, $body['max_tokens']);
+        $this->assertSame(['type' => 'adaptive'], $body['thinking']);
+        $this->assertSame('medium', $body['output_config']['effort']);
+        $this->assertSame('', $request->getHeaderLine('anthropic-beta'), 'a one-shot call stays on the stable endpoint');
+        // Opus 5.5 answers 400 to sampling parameters, thinking disabled, a thinking budget and a forced tool choice.
+        foreach (['temperature', 'top_p', 'top_k', 'tool_choice', 'tools'] as $rejected) {
             $this->assertArrayNotHasKey($rejected, $body);
+        }
+        $this->assertNotSame('disabled', $body['thinking']['type']);
+        $this->assertArrayNotHasKey('budget_tokens', $body['thinking']);
+    }
+
+    public function test_the_one_shot_effort_follows_config_and_an_unknown_value_is_medium(): void
+    {
+        foreach (['low' => 'low', 'HIGH' => 'high', 'bogus' => 'medium', '' => 'medium'] as $configured => $sent) {
+            config()->set('services.anthropic.effort', $configured);
+            $this->history = [];
+            $this->service([$this->message('ok')])->generate('i', 'x');
+
+            $this->assertSame($sent, json_decode((string) $this->history[0]['request']->getBody(), true)['output_config']['effort'], "effort '{$configured}'");
+        }
+    }
+
+    public function test_the_one_shot_timeout_defaults_to_25_and_is_clamped_to_30(): void
+    {
+        $seconds = fn () => (new \ReflectionMethod(ClaudeMessagesService::class, 'requestSeconds'))->invoke(new ClaudeMessagesService);
+
+        foreach ([[null, 25.0], [0, 25.0], [8, 8.0], [25, 25.0], [30, 30.0], [90, 30.0]] as [$configured, $expected]) {
+            config()->set('services.anthropic.timeout', $configured);
+            $this->assertSame($expected, (float) $seconds(), 'timeout '.var_export($configured, true));
+        }
+    }
+
+    public function test_the_shipped_anthropic_and_groq_defaults_are_the_reasoning_models(): void
+    {
+        $config = (string) file_get_contents(base_path('config/services.php'));
+        $example = (string) file_get_contents(base_path('.env.example'));
+
+        foreach ([
+            "env('ANTHROPIC_MODEL', 'claude-opus-5-5')",
+            "env('ANTHROPIC_EFFORT', 'medium')",
+            "env('ANTHROPIC_TIMEOUT', 25)",
+            "env('ANTHROPIC_CHAT_MODEL', 'claude-opus-5-5')",
+            "env('ANTHROPIC_CHAT_EFFORT', 'high')",
+            "env('GROQ_MODEL', 'openai/gpt-oss-120b')",
+            "env('GROQ_REASONING_EFFORT', 'medium')",
+        ] as $line) {
+            $this->assertStringContainsString($line, $config);
+        }
+        foreach (['ANTHROPIC_MODEL=claude-opus-5-5', 'ANTHROPIC_EFFORT=medium', 'ANTHROPIC_TIMEOUT=25', 'ANTHROPIC_CHAT_MODEL=claude-opus-5-5', 'ANTHROPIC_CHAT_EFFORT=high', 'GROQ_MODEL=openai/gpt-oss-120b', 'GROQ_REASONING_EFFORT=medium'] as $line) {
+            $this->assertStringContainsString($line, $example);
         }
     }
 
@@ -85,15 +133,28 @@ class ClaudeMessagesServiceTest extends TestCase
 
         $this->assertNull($service->generate('i', 'x'));
         $this->assertSame('refusal', $service->lastStopReason());
-        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'Claude did not finish an answer.' && $context['stop_reason'] === 'refusal')->once();
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'Claude refused the request.' && $context['stop_reason'] === 'refusal')->once();
     }
 
-    public function test_a_cut_off_answer_is_null(): void
+    public function test_a_cut_off_answer_is_null_and_says_the_token_budget_was_the_cause(): void
     {
+        Log::spy();
         $service = $this->service([$this->message('The treasury is sta', stopReason: 'max_tokens')]);
 
-        $this->assertNull($service->generate('i', 'x'));
+        $this->assertNull($service->generate('i', 'x', 220));
         $this->assertSame('max_tokens', $service->lastStopReason());
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'Claude ran out of output tokens before finishing.'
+            && $context['stop_reason'] === 'max_tokens' && $context['max_tokens'] === 330 + 4096)->once();
+    }
+
+    public function test_a_thinking_block_before_the_json_does_not_hide_the_answer(): void
+    {
+        $service = $this->service([$this->message(null, content: [
+            ['type' => 'thinking', 'thinking' => '', 'signature' => 'sig'],
+            ['type' => 'text', 'text' => json_encode(['explanations' => [['task_id' => 4, 'explanation' => 'Best fit.']]])],
+        ])]);
+
+        $this->assertSame(4, $service->generateStructured('i', ['x' => 1], 'n', $this->schema())['data']['explanations'][0]['task_id']);
     }
 
     public function test_an_empty_answer_is_null(): void
@@ -140,11 +201,13 @@ class ClaudeMessagesServiceTest extends TestCase
         $result = $service->generateStructured('Explain.', ['event_id' => 1], 'hiusa_test', $schema, 300, 0.2);
 
         $this->assertSame([['task_id' => 4, 'explanation' => 'Best fit.']], $result['data']['explanations']);
-        $this->assertSame('claude-sonnet-5-5', $result['model']);
+        $this->assertSame('claude-opus-5-5', $result['model']);
         $body = json_decode((string) $this->history[0]['request']->getBody(), true);
         $this->assertSame('{"event_id":1}', $body['messages'][0]['content']);
         $this->assertSame('json_schema', $body['output_config']['format']['type']);
-        $this->assertSame('low', $body['output_config']['effort']);
+        $this->assertSame('medium', $body['output_config']['effort']);
+        $this->assertSame(['type' => 'adaptive'], $body['thinking']);
+        $this->assertSame(450 + 4096, $body['max_tokens'], 'the thinking budget is added so it cannot truncate the JSON');
         $this->assertArrayNotHasKey('temperature', $body);
         $this->assertArrayNotHasKey('tools', $body);
         $this->assertArrayNotHasKey('tool_choice', $body);
@@ -218,7 +281,6 @@ class ClaudeMessagesServiceTest extends TestCase
 
     public function test_a_conversation_streams_reasoning_then_text_and_returns_the_whole_answer(): void
     {
-        config()->set('services.anthropic.chat_effort', 'medium');
         config()->set('services.anthropic.chat_timeout', 60);
         $service = $this->service([$this->stream([
             ['thinking', 'Looking at '], ['thinking', 'the records.'], ['text', 'Three organizations '], ['text', 'are missing files.'],
@@ -239,22 +301,61 @@ class ClaudeMessagesServiceTest extends TestCase
         $this->assertSame([
             'text' => 'Three organizations are missing files.',
             'reasoning' => 'Looking at the records.',
-            'model' => 'claude-sonnet-5-5',
+            'model' => 'claude-opus-5-5',
             'response_id' => 'msg_stream_1',
         ], $result);
         $this->assertSame('end_turn', $service->lastStopReason());
 
         $body = json_decode((string) $this->history[0]['request']->getBody(), true);
         $this->assertTrue($body['stream']);
+        $this->assertSame('claude-opus-5-5', $body['model']);
         $this->assertSame(['type' => 'adaptive', 'display' => 'summarized'], $body['thinking']);
-        $this->assertSame('medium', $body['output_config']['effort']);
+        $this->assertSame('high', $body['output_config']['effort']);
+        // 1400 asked for, 1.5 times that, plus room for the summarized thinking that spends the same budget.
+        $this->assertSame(2100 + 6144, $body['max_tokens']);
+        $this->assertSame('default', $body['fallbacks']);
+        $this->assertSame('server-side-fallback-2026-07-01', $this->history[0]['request']->getHeaderLine('anthropic-beta'));
         $this->assertSame([['type' => 'text', 'text' => 'Be brief.', 'cache_control' => ['type' => 'ephemeral']]], $body['system']);
         $this->assertCount(3, $body['messages']);
         $this->assertSame('And now?', $body['messages'][2]['content']);
-        foreach (['temperature', 'top_p', 'top_k'] as $rejected) {
+        foreach (['temperature', 'top_p', 'top_k', 'tool_choice', 'tools'] as $rejected) {
             $this->assertArrayNotHasKey($rejected, $body);
         }
         $this->assertArrayNotHasKey('budget_tokens', $body['thinking']);
+    }
+
+    public function test_the_chat_model_and_effort_follow_their_own_config(): void
+    {
+        config()->set('services.anthropic.chat_model', 'claude-opus-5-5-test');
+        config()->set('services.anthropic.chat_effort', 'XHIGH');
+        $this->service([$this->stream([['text', 'Hi.']])])->converse('i', [['role' => 'user', 'content' => 'hi']]);
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true);
+        $this->assertSame('claude-opus-5-5-test', $body['model']);
+        $this->assertSame('xhigh', $body['output_config']['effort']);
+
+        config()->set('services.anthropic.chat_model', '');
+        config()->set('services.anthropic.chat_effort', 'bogus');
+        $this->history = [];
+        $this->service([$this->stream([['text', 'Hi.']])])->converse('i', [['role' => 'user', 'content' => 'hi']]);
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true);
+        $this->assertSame('claude-opus-5-5', $body['model']);
+        $this->assertSame('high', $body['output_config']['effort']);
+    }
+
+    public function test_a_chat_answer_served_by_the_fallback_model_is_returned_and_names_that_model(): void
+    {
+        $body = (string) $this->stream([['text', 'Served by the fallback.']])->getBody();
+        $body = str_replace('"model":"claude-opus-5-5"', '"model":"claude-opus-4-8"', $body);
+        $fallbackBlock = "event: content_block_start\ndata: ".json_encode(['type' => 'content_block_start', 'index' => 0, 'content_block' => [
+            'type' => 'fallback', 'from' => ['model' => 'claude-opus-5-5'], 'to' => ['model' => 'claude-opus-4-8'],
+        ]])."\n\nevent: content_block_stop\ndata: ".json_encode(['type' => 'content_block_stop', 'index' => 0])."\n\n";
+        $body = preg_replace('/(event: message_start\ndata: [^\n]*\n\n)/', '$1'.addcslashes($fallbackBlock, '\\$'), $body, 1);
+        $service = $this->service([new Response(200, ['content-type' => 'text/event-stream'], $body)]);
+
+        $result = $service->converse('i', [['role' => 'user', 'content' => 'hi']]);
+
+        $this->assertSame('Served by the fallback.', $result['text']);
+        $this->assertSame('claude-opus-4-8', $result['model']);
     }
 
     public function test_a_conversation_without_thinking_has_null_reasoning(): void
@@ -421,7 +522,7 @@ class ClaudeMessagesServiceTest extends TestCase
     {
         $event = fn (string $name, array $data) => "event: {$name}\ndata: ".json_encode(['type' => $name] + $data)."\n\n";
         $body = $event('message_start', ['message' => [
-            'id' => 'msg_stream_1', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-sonnet-5-5', 'content' => [],
+            'id' => 'msg_stream_1', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-opus-5-5', 'content' => [],
             'stop_reason' => null, 'stop_sequence' => null, 'usage' => ['input_tokens' => 12, 'output_tokens' => 1],
         ]]);
         $index = -1;
@@ -454,7 +555,7 @@ class ClaudeMessagesServiceTest extends TestCase
             'id' => 'msg_test_1',
             'type' => 'message',
             'role' => 'assistant',
-            'model' => 'claude-sonnet-5-5',
+            'model' => 'claude-opus-5-5',
             'content' => $content ?? [['type' => 'text', 'text' => $text]],
             'stop_reason' => $stopReason,
             'stop_sequence' => null,
