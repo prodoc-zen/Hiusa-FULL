@@ -71,7 +71,7 @@ describe('ManageSboPositionsPage', () => {
     render(<ManageSboPositionsPage />);
     await screen.findAllByText('Treasurer');
     const table = tableView();
-    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Position', 'Can book venues', 'Actions']);
+    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Position', 'Can book venues', 'Can handle finance', 'Actions']);
     const switches = table.getAllByRole('switch', { name: /can book venues/i });
     expect(switches.map((toggle) => toggle.getAttribute('aria-checked'))).toEqual(['false', 'true']);
 
@@ -79,6 +79,48 @@ describe('ManageSboPositionsPage', () => {
 
     await waitFor(() => expect(service.updateSboPosition).toHaveBeenCalledWith(8, { can_book_venues: true }));
     await waitFor(() => expect(tableView().getAllByRole('switch', { name: /can book venues/i })[0]).toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('lets an Admin switch finance handling per officer position and saves just that switch', async () => {
+    service.getSboPositions.mockResolvedValue([
+      { id: 8, role: 'SBO_OFFICER', title: 'Treasurer', description: '', is_active: true, can_book_venues: true, can_handle_finance: false },
+      { id: 9, role: 'SBO_OFFICER', title: 'Auditor', description: '', is_active: true, can_book_venues: true, can_handle_finance: true },
+    ]);
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+    const switches = tableView().getAllByRole('switch', { name: /can handle finance/i });
+    expect(switches.map((toggle) => toggle.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+    expect(switches[0]).toHaveAccessibleName('Can handle finance: Treasurer');
+
+    fireEvent.click(switches[0]);
+
+    await waitFor(() => expect(service.updateSboPosition).toHaveBeenCalledWith(8, { can_handle_finance: true }));
+    await waitFor(() => expect(tableView().getAllByRole('switch', { name: /can handle finance/i })[0]).toHaveAttribute('aria-checked', 'true'));
+    expect(service.updateSboPosition).not.toHaveBeenCalledWith(8, expect.objectContaining({ can_book_venues: expect.anything() }));
+  });
+
+  it('keeps the finance switch where it was and says so when saving it fails', async () => {
+    service.getSboPositions.mockResolvedValue([{ id: 8, role: 'SBO_OFFICER', title: 'Treasurer', description: '', is_active: true, can_handle_finance: false }]);
+    service.updateSboPosition.mockRejectedValue({ response: { data: { message: 'Could not save finance.' } } });
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('Treasurer');
+
+    fireEvent.click(tableView().getByRole('switch', { name: /can handle finance/i }));
+
+    expect(await screen.findByText('Could not save finance.')).toBeInTheDocument();
+    expect(tableView().getByRole('switch', { name: /can handle finance/i })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('shows Always for an Admin position under Can handle finance', async () => {
+    service.getSboPositions.mockResolvedValue([
+      { id: 8, role: 'ADMIN', title: 'President', description: '', is_active: true, can_book_venues: true },
+      { id: 9, role: 'SBO_OFFICER', title: 'Treasurer', description: '', is_active: true, can_handle_finance: true },
+    ]);
+    render(<ManageSboPositionsPage />);
+    await screen.findAllByText('President');
+    const row = tableView().getAllByRole('row').find((candidate) => within(candidate).queryByText('President'));
+    expect(within(row).getAllByText('Always')).toHaveLength(2);
+    expect(tableView().getAllByRole('switch', { name: /can handle finance/i })).toHaveLength(1);
   });
 
   it('keeps the switch where it was and says so when saving it fails', async () => {

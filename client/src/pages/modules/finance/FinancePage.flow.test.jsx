@@ -337,7 +337,7 @@ describe('FinancePage empty states', () => {
     renderPage('DEPARTMENT_HEAD', BUDGETS, { initialTab: 'budgets' });
 
     expect(await screen.findByText('No budgets to show yet')).toBeInTheDocument();
-    expect(screen.getByText(/Only the organization Admin proposes budgets/)).toBeInTheDocument();
+    expect(screen.getByText(/Only the organization Admin, or an officer whose position handles finance, proposes budgets/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Propose budget' })).not.toBeInTheDocument();
   });
 
@@ -353,7 +353,7 @@ describe('FinancePage empty states', () => {
     renderPage('SBO_OFFICER', '/dashboard/finance/financial-ledger', { initialTab: 'transactions' });
 
     expect(await screen.findByText('No transactions to show yet')).toBeInTheDocument();
-    expect(screen.getByText(/Only the organization Admin records transactions/)).toBeInTheDocument();
+    expect(screen.getByText(/Only the organization Admin, or an officer whose position handles finance, records transactions/)).toBeInTheDocument();
   });
 
   it('offers Clear filters when a filter hides every saved report', async () => {
@@ -374,7 +374,7 @@ describe('FinancePage empty states', () => {
 
     renderPage('DEPARTMENT_HEAD', REPORTS, { initialTab: 'reports' });
     expect(await screen.findByText('No saved reports to show yet')).toBeInTheDocument();
-    expect(screen.getByText(/Only the organization Admin prepares financial reports/)).toBeInTheDocument();
+    expect(screen.getByText(/Only the organization Admin, or an officer whose position handles finance, prepares financial reports/)).toBeInTheDocument();
   });
 
   it('explains the first-run forecast', async () => {

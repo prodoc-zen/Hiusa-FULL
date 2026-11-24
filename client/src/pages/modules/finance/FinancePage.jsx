@@ -68,7 +68,8 @@ import ReportDetailDrawer, { withDraftDefault } from '../../../components/financ
 import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge } from '../../../components/ui';
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
-import { effectiveRole } from '../../../utils/collegeIdentity';
+import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
+import { canHandleFinance } from '../../../utils/financeAccess';
 import { readUserModules } from '../../../utils/userModules';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
@@ -501,12 +502,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [deleteError, setDeleteError] = useState(null);
   let currentUserRole = '';
   try { currentUserRole = effectiveRole(JSON.parse(localStorage.getItem('user') ?? '{}')) ?? ''; } catch {}
-  const canManageLedger = currentUserRole === 'ADMIN';
+  const isAdmin = currentUserRole === 'ADMIN';
+  // Recording and preparing are the Admin's and the finance-enabled officer's; verifying, deleting a budget or forecast and
+  // submitting a budget or report stay with the Admin, so the officer records and the Admin approves.
+  const canHandle = canHandleFinance(storedUser());
+  const canManageLedger = canHandle;
   const isDepartmentHead = currentUserRole === 'DEPARTMENT_HEAD';
   const [collegeOrganizations, setCollegeOrganizations] = useState([]);
   const [organizationFilter, setOrganizationFilter] = useState('');
-  // Officers and department heads review the organization's finances; only the ADMIN changes them. An officer
-  // whose profile leaves out the Finance module still opens their own receipts and statement, and the server
+  // Officers and department heads review the organization's finances; only the ADMIN, or an officer whose position
+  // handles finance, changes them. An officer whose profile leaves out the Finance module still opens their own receipts and statement, and the server
   // refuses them the ledger, the budgets and the forecasts, so those are not asked for.
   const officerModules = currentUserRole === 'SBO_OFFICER' ? readUserModules() : null;
   const officerHasFinance = officerModules === null || officerModules.includes('finance');
@@ -514,12 +519,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewTransactions = canReadFinance;
   const canViewForecasts = canReadFinance;
   const canViewBudgets = canReadFinance;
-  const canGenerateForecast = currentUserRole === 'ADMIN';
-  const canDeleteForecast = currentUserRole === 'ADMIN';
+  const canGenerateForecast = canHandle;
+  const canDeleteForecast = canHandle;
   const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
-  const canProposeBudget = currentUserRole === 'ADMIN';
-  const canGenerateBudgetAdvice = currentUserRole === 'ADMIN';
+  const canProposeBudget = canHandle;
+  const canGenerateBudgetAdvice = canHandle;
+  const canPrepareReport = canHandle;
+  // The budget drawer offers "Edit and resubmit" to the person whose turn it is; for a budget that is the finance handler.
+  const budgetViewerRole = canHandle ? 'ADMIN' : currentUserRole;
+  // An officer whose position cannot handle finance still sees the action buttons, switched off, so the page reads as view only.
+  const officerViewOnly = currentUserRole === 'SBO_OFFICER' && !canHandle && canReadFinance;
+  const viewOnlyHint = 'Your position cannot handle finance';
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -761,14 +772,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: eventParam });
       setBudgetFormError(null);
       setShowBudgetForm(true);
-    } else if (activeTab === 'reports' && currentUserRole === 'ADMIN') {
+    } else if (activeTab === 'reports' && canPrepareReport) {
       setReportFormOpen(true);
       setReportForm((current) => ({ ...current, report_type: 'event', event_id: eventParam }));
     } else {
       return;
     }
     eventParamHandled.current = eventParam;
-  }, [activeTab, canProposeBudget, currentUserRole, eventParam]);
+  }, [activeTab, canProposeBudget, canPrepareReport, eventParam]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -1189,7 +1200,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   // From the request selector the budget form is the page, with nothing of the budget list behind it.
   const inlineBudgetForm = startBudgetProposal && showBudgetForm && !editingBudget;
   const requestFlow = startBudgetProposal && !editingBudget && (showBudgetForm || proposalSent);
-  const reportFormVisible = currentUserRole === 'ADMIN' && (reportFormOpen || (!loading && reports.length === 0));
+  const reportFormVisible = canPrepareReport && (reportFormOpen || (!loading && reports.length === 0));
   // The semesters a report can cover are the SAO's own, so they load once the report form is on screen. A semester
   // that has not started has nothing to report; the one picked at the top bar (else the active one) is preselected.
   useEffect(() => {
@@ -1210,7 +1221,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   let headerPrimary = null;
   if (showForm || showBudgetForm || requestFlow) {
     headerPrimary = null;
-  } else if (activeTab === 'reports' && currentUserRole === 'ADMIN') {
+  } else if (activeTab === 'reports' && canPrepareReport) {
     headerPrimary = reportFormVisible || loading ? null : <Button leftIcon={FileText} onClick={() => setReportFormOpen(true)}>Prepare a report</Button>;
   } else if (activeTab === 'transactions' && canManageLedger) {
     headerPrimary = <Button leftIcon={Plus} onClick={() => openTransactionForm()}>Record transaction</Button>;
@@ -1218,6 +1229,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     headerPrimary = <Button leftIcon={Plus} onClick={() => openBudgetForm()}>Propose budget</Button>;
   } else if (activeTab === 'forecasting' && canGenerateForecast) {
     headerPrimary = <Button leftIcon={TrendingUp} disabled={forecastGenerating} onClick={handleGenerateForecast}>{forecastGenerating ? 'Generating...' : 'Generate forecast'}</Button>;
+  } else if (officerViewOnly && !loading) {
+    const OFFICER_VIEW_ONLY_PRIMARY = {
+      reports: { icon: FileText, label: 'Prepare a report' },
+      transactions: { icon: Plus, label: 'Record transaction' },
+      budgets: { icon: Plus, label: 'Propose budget' },
+      forecasting: { icon: TrendingUp, label: 'Generate forecast' },
+    }[activeTab];
+    if (OFFICER_VIEW_ONLY_PRIMARY) headerPrimary = <Button leftIcon={OFFICER_VIEW_ONLY_PRIMARY.icon} disabled title={viewOnlyHint}>{OFFICER_VIEW_ONLY_PRIMARY.label}</Button>;
   }
 
   const missingRecordNotice = (noun) => (
@@ -1366,7 +1385,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <EmptyState
                   kind="restricted"
                   title="No transactions to show yet"
-                  description="Only the organization Admin records transactions. Verified collections, cash advances, paid charges and orders post here by themselves."
+                  description="Only the organization Admin, or an officer whose position handles finance, records transactions. Verified collections, cash advances, paid charges and orders post here by themselves."
                 />
               )}
             </div>
@@ -1525,7 +1544,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <EmptyState
                   kind="restricted"
                   title="No budgets to show yet"
-                  description="Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one."
+                  description="Only the organization Admin, or an officer whose position handles finance, proposes budgets. They appear here, with their approval stage, once one is proposed."
                 />
               )}
             </div>
@@ -1623,7 +1642,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <TableRowActions subject={formatDisplayText(b.title)} actions={[
                     { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
                     canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
-                    canProposeBudget && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, onClick: () => askDelete('budget', b) },
+                    canHandle && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('budget', b) },
                   ]} />
                 </li>
                 );
@@ -1652,7 +1671,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   description="A forecast projects income and spending from the months of ledger history you have. Choose Generate forecast above once the ledger covers at least a few months."
                 />
               ) : (
-                <EmptyState kind="restricted" title="No forecasts to show yet" description="Only the organization Admin generates forecasts. They appear here once one is generated." />
+                <EmptyState kind="restricted" title="No forecasts to show yet" description="Only the organization Admin, or an officer whose position handles finance, generates forecasts. They appear here once one is generated." />
               )
             ) : (
               <div className="space-y-6">
@@ -1704,7 +1723,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         )}
                         {summaryText && <p className="mt-3 text-xs text-ink-muted">{summaryText}</p>}
                         {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-xs font-medium text-warning-strong">The written explanation was unavailable. The forecast figures and risk were calculated normally; generate again to retry the explanation.</p>}
-                        {canDeleteForecast && <div className="mt-3 border-t border-line pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, onClick: () => askDelete('forecast', f) }]} /></div>}
+                        {canDeleteForecast && <div className="mt-3 border-t border-line pt-3"><TableRowActions subject={f.summary_text || `Forecast ${f.id}`} actions={[{ label: 'Delete forecast', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('forecast', f) }]} /></div>}
                       </li>
                     );
                   })}
@@ -1888,14 +1907,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             {recordMissing && <div className="border-b border-line p-4">{missingRecordNotice('report')}</div>}
             {reports.length === 0 ? (
               <div className="px-4 sm:px-5">
-                {currentUserRole === 'ADMIN' ? (
+                {canPrepareReport ? (
                   <EmptyState
                     icon={FileText}
                     title="No saved reports yet"
                     description="A financial report or income statement turns your ledger into a document for review. Generate one above; it saves here as a draft, then you submit it to the Department Head."
                   />
                 ) : (
-                  <EmptyState kind="restricted" title="No saved reports to show yet" description="Only the organization Admin prepares financial reports. They appear here, with their approval stage, once saved." />
+                  <EmptyState kind="restricted" title="No saved reports to show yet" description="Only the organization Admin, or an officer whose position handles finance, prepares financial reports. They appear here, with their approval stage, once saved." />
                 )}
               </div>
             ) : visibleReports.length === 0 ? (
@@ -2010,7 +2029,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 icon={FileText}
                 title="No invoices of your own"
                 description="This page lists charges billed to you as a student. Charges you set for members are under Student accounts."
-                action={currentUserRole === 'ADMIN' ? <Button variant="secondary" to="/dashboard/finance/student-accounts">Open student accounts</Button> : undefined}
+                action={canHandle ? <Button variant="secondary" to="/dashboard/finance/student-accounts">Open student accounts</Button> : undefined}
               />
             )}
           />
@@ -2107,7 +2126,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       <BudgetDetailDrawer
         budget={selectedBudget}
-        viewerRole={currentUserRole}
+        viewerRole={budgetViewerRole}
         onClose={() => setRecordId(null)}
         onEdit={canProposeBudget ? openBudgetForm : undefined}
       />

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getFlatPages, getNavForRole } from '../components/layout/navigation';
 import { dashboardRoutes, roleCanOpen } from '../test/appRoutes';
 import { getBreadcrumbs, getPageMeta, hasPageMeta } from './pageMeta';
@@ -132,5 +132,17 @@ describe('getBreadcrumbs', () => {
         });
       });
     });
+  });
+});
+
+describe('finance pages for an officer whose position handles finance', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('names the group Finance instead of Finance (view only)', () => {
+    expect(getPageMeta('/dashboard/finance/financial-ledger', 'SBO_OFFICER').group).toBe('Finance (view only)');
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', can_handle_finance: true }));
+    expect(getPageMeta('/dashboard/finance/financial-ledger', 'SBO_OFFICER').group).toBe('Finance');
+    expect(getPageMeta('/dashboard/finance/collections', 'SBO_OFFICER').group).toBe('Finance');
+    expect(getBreadcrumbs('/dashboard/finance/budget-allocation', 'SBO_OFFICER').map((crumb) => crumb.label)).toEqual(['Home', 'Finance', 'Budgets']);
   });
 });

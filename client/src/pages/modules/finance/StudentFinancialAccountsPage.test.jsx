@@ -29,6 +29,7 @@ describe('StudentFinancialAccountsPage invoice cancellation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     account = accountWith([invoice(), invoice({ id: 8, reference: 'INV-PARTIAL', amount_paid: 100, remaining_balance: 200, status: 'partially_paid' })]);
     mocks.getStudentDebts.mockImplementation((params) => Promise.resolve(params?.student_id
       ? { data: [account] }

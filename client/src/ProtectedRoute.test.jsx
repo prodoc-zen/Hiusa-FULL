@@ -72,6 +72,47 @@ describe('ProtectedRoute venue booking guard', () => {
   });
 });
 
+function renderCollections() {
+  return render(
+    <MemoryRouter initialEntries={['/dashboard/finance/collections']}>
+      <Routes>
+        <Route path="/dashboard/finance/collections" element={<ProtectedRoute allowedRoles={['ADMIN', 'SBO_OFFICER']} requireFinanceWriter><p>Collections page</p></ProtectedRoute>} />
+        <Route path="/dashboard/officer" element={<p>Officer dashboard</p>} />
+        <Route path="/dashboard/student" element={<p>Student dashboard</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('ProtectedRoute finance writer guard', () => {
+  beforeEach(() => localStorage.clear());
+
+  it.each([
+    ['an officer whose position cannot handle finance', { role: 'SBO_OFFICER', can_handle_finance: false }],
+    ['an officer signed in before the flag existed', { role: 'SBO_OFFICER' }],
+  ])('sends %s back to the officer dashboard', (_label, user) => {
+    signIn(user);
+    renderCollections();
+    expect(screen.getByText('Officer dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('Collections page')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['an officer whose position can handle finance', { role: 'SBO_OFFICER', can_handle_finance: true }],
+    ['an Admin', { role: 'ADMIN' }],
+  ])('opens the page for %s', (_label, user) => {
+    signIn(user);
+    renderCollections();
+    expect(screen.getByText('Collections page')).toBeInTheDocument();
+  });
+
+  it('still refuses a student', () => {
+    signIn({ role: 'STUDENT', can_handle_finance: true });
+    renderCollections();
+    expect(screen.queryByText('Collections page')).not.toBeInTheDocument();
+  });
+});
+
 describe('ProtectedRoute password change guard', () => {
   beforeEach(() => localStorage.clear());
 
