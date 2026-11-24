@@ -41,6 +41,78 @@ class HowToGuideLibrary
     private const ALL_ROLES = ['SUPER_ADMIN', 'DEPARTMENT_HEAD', 'ADMIN', 'SBO_OFFICER', 'STUDENT'];
 
     /**
+     * The screens of HIUSA by client path: [sidebar group or null, page title, what the screen is for, per-role
+     * [group, title] overrides]. Names follow client/src/lib/pageMeta.js, which AskAiSmarterAnswersTest checks, so an
+     * answer can send a person to "Finance → Ledger" and a link that opens it. Which of them a person is offered is
+     * decided by config/client_routes.php, never by this list.
+     */
+    public const SCREENS = [
+        '/dashboard/super-admin/organizations' => ['Governance', 'Organizations', 'review registrations and manage student organizations'],
+        '/dashboard/super-admin/colleges' => ['Governance', 'Colleges', 'maintain the colleges assigned to student organizations'],
+        '/dashboard/super-admin/student-records' => ['Governance', 'Student records', 'load the school records students are matched against when they sign up'],
+        '/dashboard/super-admin/organization-approvals' => ['Reviews', 'Approvals', 'decide requests routed to the SAO'],
+        '/dashboard/super-admin/compliance' => ['Reviews', 'Compliance', 'review organization and event submissions and financial reports'],
+        '/dashboard/super-admin/venues' => ['Reviews', 'Venues', 'decide venue booking requests with conflicts in view'],
+        '/dashboard/super-admin/grievances' => ['Reviews', 'Grievances', 'review confidential grievances university-wide'],
+        '/dashboard/super-admin/clearances' => ['Reviews', 'Clearances', 'open a clearance period and track completed signatures'],
+        '/dashboard/super-admin/academic-years' => ['Setup and records', 'Academic years', 'set the academic year and semester'],
+        '/dashboard/super-admin/audit-logs' => ['Setup and records', 'Audit trail', 'trace who changed a record and when'],
+        '/dashboard/super-admin/announcements' => ['Updates', 'University announcements', 'publish notices for the whole university'],
+        '/dashboard/department-head/approvals' => [null, 'Approvals', 'review approval requests awaiting the dean'],
+        '/dashboard/department-head/organizations' => [null, 'Organizations', 'review the student organizations in the college'],
+        '/dashboard/department-head/people' => [null, 'People', 'see the students, office staff and organization leaders in the college'],
+        '/dashboard/department-head/documents' => [null, 'College files', 'search organization folders and open submitted files'],
+        '/dashboard/department-head/compliance' => [null, 'College compliance', 'track organization requirements and send reminders'],
+        '/dashboard/department-head/announcements' => [null, 'College announcements', 'write announcements for an organization in the college'],
+        '/dashboard/approvals' => [null, 'Approvals', 'review approval requests awaiting your sign-off'],
+        '/dashboard/approval-requests/new' => ['Approvals', 'New request', 'start an announcement, budget, event or election request for approval'],
+        '/dashboard/admin/users' => ['Members', 'People', 'search the organization directory and manage account access', ['SBO_OFFICER' => [null, 'Members and fingerprints']]],
+        '/dashboard/admin/positions' => ['Members', 'Officer positions', 'maintain the titles available to administrators and officers'],
+        '/dashboard/compliance' => ['Records', 'Compliance', 'submit and track the accreditation requirements'],
+        '/dashboard/grievances' => ['Records', 'Grievances', 'review confidential concerns filed against the organization'],
+        '/dashboard/clearances' => ['Records', 'Clearance signing', 'clear, hold or reopen student clearance signatures'],
+        '/dashboard/submitted-files' => ['Records', 'Submitted files', 'view documents submitted by the organization'],
+        '/dashboard/audit-logs' => ['Records', 'Audit log', 'trace who changed a record and when'],
+        '/dashboard/finance/budget-allocation' => ['Finance', 'Budgets', 'plan and review organization budgets'],
+        '/dashboard/finance/financial-ledger' => ['Finance', 'Ledger', 'review income and expenses in the organization ledger'],
+        '/dashboard/finance/collections' => ['Finance', 'Collections and advances', 'track money received, its verification and remittance, and cash advances'],
+        '/dashboard/finance/student-accounts' => ['Finance', 'Student accounts', 'review charges, payments and student clearance'],
+        '/dashboard/finance/transaction-history' => ['Finance', 'Financial reports', 'build financial reports and review the saved ones'],
+        '/dashboard/finance/financial-insights' => ['Finance', 'Forecast', 'review financial forecasts and trends'],
+        '/dashboard/finance/personal-receipts' => ['My activity', 'My receipts', 'view and print your payment receipts', ['STUDENT' => ['My payments', 'Receipts']]],
+        '/dashboard/finance/statement-of-account' => ['My activity', 'Statement of account', 'review your account and financial clearance', ['STUDENT' => ['My payments', 'Statement of account']]],
+        '/dashboard/finance/where-fees-go' => ['My payments', 'Where your fees go', 'see how your organization used the money, from reports the SAO approved'],
+        '/dashboard/events/manage-events' => ['Events and tasks', 'Events', 'review and update organization events'],
+        '/dashboard/events/event-planner' => ['Events and tasks', 'Planning', 'plan tasks and resources for upcoming events'],
+        '/dashboard/events/check-in' => ['Events and tasks', 'Check-in', 'verify participants and manage event attendance'],
+        '/dashboard/events/activity-calendar' => ['Events and tasks', 'Calendar', 'browse approved activities and upcoming events', ['STUDENT' => ['Events', 'Events'], 'DEPARTMENT_HEAD' => [null, 'Calendar']]],
+        '/dashboard/venues' => ['Events and tasks', 'Venue booking', 'check availability and request a venue'],
+        '/dashboard/tasks/task-board' => ['Events and tasks', 'Tasks', 'review work by status and deadline'],
+        '/dashboard/tasks/create-task' => ['Events and tasks', 'New task', 'assign a task to an officer or event'],
+        '/dashboard/tasks/task-progress' => ['Events and tasks', 'Task progress', 'review progress across organization tasks'],
+        '/dashboard/tasks/assigned-tasks' => ['Events and tasks', 'My tasks', 'review work assigned to you'],
+        '/dashboard/tasks/ai-delegation' => ['Events and tasks', 'AI delegation', 'review suggested officers for each task'],
+        '/dashboard/elections/manage-elections' => ['Voting', 'Elections', 'configure ballots and election schedules'],
+        '/dashboard/elections/manage-candidates' => ['Voting', 'Candidates', 'review the candidates on the selected ballot'],
+        '/dashboard/elections/manage-voters' => ['Voting', 'Voters', 'review eligibility and turnout'],
+        '/dashboard/elections/applications' => ['Voting', 'Applications', 'screen candidacy applications and follow their status'],
+        '/dashboard/elections/election-info' => ['Voting', 'Election information', 'read the schedule and rules and file a candidacy'],
+        '/dashboard/elections/cast-vote' => ['Voting', 'Vote', 'review the ballot and cast your vote', ['ADMIN' => ['My activity', 'Vote'], 'SBO_OFFICER' => ['My activity', 'Vote']]],
+        '/dashboard/elections/election-results' => ['Voting', 'Results', 'review available vote totals and winners'],
+        '/dashboard/merchandise/manage-inventory' => ['Store', 'Inventory', 'track products, stock and sales'],
+        '/dashboard/merchandise/manage-orders' => ['Store', 'Orders', 'review merchandise payments and fulfillment'],
+        '/dashboard/merchandise/claim-tokens' => ['Store', 'Claim desk', 'verify orders and release purchases'],
+        '/dashboard/merchandise/order-merchandise' => ['Store', 'Shop', 'browse products and place an order', ['ADMIN' => ['My activity', 'Shop'], 'SBO_OFFICER' => ['My activity', 'Shop']]],
+        '/dashboard/merchandise/my-orders' => ['Store', 'My orders', 'review your purchases and claim details', ['ADMIN' => ['My activity', 'My orders'], 'SBO_OFFICER' => ['My activity', 'My orders']]],
+        '/dashboard/announcements/manage-announcements' => ['Updates', 'Announcements', 'review, edit and publish organization announcements'],
+        '/dashboard/announcements/create-announcement' => ['Updates', 'New announcement', 'write an announcement and choose its audience'],
+        '/dashboard/announcements/view-announcements' => ['Updates', 'Feed', 'read updates from your organization', ['STUDENT' => ['Updates', 'Announcements'], 'DEPARTMENT_HEAD' => [null, 'Announcements']]],
+        '/dashboard/my-grievances' => ['Support', 'My grievances', 'file a confidential concern and follow how it is handled'],
+        '/dashboard/my-clearance' => ['Support', 'My clearance', 'see which signatures you still need and why a clearance is on hold'],
+        '/dashboard/profile' => [null, 'Profile', 'keep your personal details and account access current'],
+    ];
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function all(): array
@@ -1178,6 +1250,32 @@ class HowToGuideLibrary
             'categories' => $categories,
             'top_confidence' => max(35, min(99, (int) round(min(1.0, $top['score'] / 14) * 100))),
         ];
+    }
+
+    /**
+     * The screens this role may open, named the way the sidebar names them, for an answer's next steps.
+     *
+     * @return array<int, array{screen: string, href: string, use_it_to: string}>
+     */
+    public function screensFor(string $role): array
+    {
+        $allowed = config("client_routes.{$role}", []);
+        $screens = [];
+
+        foreach (self::SCREENS as $path => $entry) {
+            if (! in_array($path, $allowed, true)) {
+                continue;
+            }
+
+            [$group, $title] = $entry[3][$role] ?? $entry;
+            if ($group === 'Finance' && $role === 'SBO_OFFICER') {
+                $group = 'Finance (view only)';
+            }
+
+            $screens[] = ['screen' => $group === null ? $title : $group.' → '.$title, 'href' => $path, 'use_it_to' => $entry[2]];
+        }
+
+        return $screens;
     }
 
     /**

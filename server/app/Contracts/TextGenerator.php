@@ -33,9 +33,10 @@ interface TextGenerator
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array;
 
     /**
-     * True when $text introduces no number that is absent from $facts.
+     * True when $text introduces no number that is absent from $facts. With $allowDerived a number that is a sum,
+     * difference or percentage of numbers in $facts passes too.
      */
-    public function preservesNumericFacts(string $text, array $facts): bool;
+    public function preservesNumericFacts(string $text, array $facts, bool $allowDerived = false): bool;
 
     /**
      * Strip Markdown from model-authored copy that is rendered as prose.

@@ -58,7 +58,7 @@ class AiInstructionsTest extends TestCase
         }
         $this->assertStringContainsString('PHP 12,500.00', $text);
         $this->assertStringContainsString('Never use $', $text);
-        $this->assertStringContainsString('180 words', $text);
+        $this->assertStringContainsString('short enough to read at a glance', $text);
         $this->assertStringContainsString('[date]', $text);
         $this->assertStringContainsString('decline in one sentence', $text);
         $this->assertStringContainsString('[Open compliance](/dashboard/compliance)', $text);
