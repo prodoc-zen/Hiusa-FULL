@@ -183,8 +183,8 @@ class TransactionEditTrailTest extends TestCase
         $changes = collect($history[1]['changes'])->keyBy('label');
         $this->assertSame(['field' => 'amount', 'label' => 'Amount', 'from' => '500.00', 'to' => '650.00'], $changes['Amount']);
         $this->assertSame(['field' => 'category', 'label' => 'Category', 'from' => 'Dues', 'to' => 'Fundraising'], $changes['Category']);
-        $this->assertSame(['field' => 'budget_id', 'label' => 'Linked budget', 'from' => null, 'to' => 'Approved budget'], $changes['Linked budget (title)']);
-        $this->assertSame(['field' => 'event_id', 'label' => 'Linked event', 'from' => null, 'to' => 'Leadership Seminar 2024'], $changes['Linked event (title)']);
+        $this->assertSame(['field' => 'budget_id', 'label' => 'Linked budget', 'from' => null, 'to' => 'Approved budget'], $changes['Linked budget']);
+        $this->assertSame(['field' => 'event_id', 'label' => 'Linked event', 'from' => null, 'to' => 'Leadership Seminar 2024'], $changes['Linked event']);
         $this->assertSame(['field' => 'transaction_date', 'label' => 'Date', 'from' => '2026-11-10', 'to' => '2026-11-12'], $changes['Date']);
         $this->assertArrayNotHasKey('Description', $changes->all());
     }
