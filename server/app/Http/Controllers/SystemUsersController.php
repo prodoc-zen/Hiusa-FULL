@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiMessageAttachment;
 use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\ClearanceSignature;
@@ -251,6 +252,8 @@ class SystemUsersController extends Controller
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
                 // A token is keyed by school ID only, so one left behind would sign in as whoever is later given the same ID.
                 $locked->tokens()->delete();
+                // The files they attached to Ask AI questions sit on disk; the rows go with their conversations.
+                AiMessageAttachment::eraseFiles(AiMessageAttachment::ownedBy($locked));
                 // The questions and answers are the person's own text; the foreign keys only null them.
                 AiOutput::query()->where('feature_type', 'ASK_AI_ASSISTANT')->where(fn ($owned) => $owned
                     ->where('requested_by', $locked->school_id)
