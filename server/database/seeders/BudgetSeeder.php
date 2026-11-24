@@ -174,7 +174,9 @@ class BudgetSeeder extends Seeder
                 'transaction_date' => now()->subWeeks(2)->subDays(2),
             ],
             [
-                'budget_id' => $sportsBudget->id,
+                // The Sports Fest budget is still pending, so nothing is linked to it: the expense belongs to the event alone.
+                'budget_id' => null,
+                'event_id' => $sportsFest?->id,
                 'recorded_by' => $officer1->id,
                 'type' => 'expense',
                 'category' => 'Supplies',
