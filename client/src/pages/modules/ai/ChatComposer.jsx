@@ -11,7 +11,10 @@ const NARROW_QUERY = '(max-width: 639px)';
 const SHORT_PLACEHOLDER = 'Ask anything';
 const LONG_PLACEHOLDER = 'Ask about your records or what to do next';
 const ATTACHED_PLACEHOLDER = 'Say what to do with the file, like Record this expense';
-const ICON_BUTTON_CLASS = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-ink-muted-strong transition-colors hover:bg-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-[42px] max-sm:w-[42px]';
+const ICON_BUTTON_BASE = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control transition-colors disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-[42px] max-sm:w-[42px]';
+const ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE} text-ink-muted-strong hover:bg-subtle hover:text-ink`;
+// Its own colours, not layered on the idle ones, so hovering the listening mic keeps the white icon on the blue.
+const ICON_BUTTON_ACTIVE_CLASS = `${ICON_BUTTON_BASE} bg-brand-700 text-white hover:bg-brand-800`;
 
 function useNarrow() {
   const [narrow, setNarrow] = useState(() => window.matchMedia?.(NARROW_QUERY).matches ?? false);
@@ -150,7 +153,7 @@ export default function ChatComposer({ ref, streaming, offline, blockedReason = 
             title="Speak your question"
             disabled={streaming}
             onClick={toggleVoice}
-            className={`${ICON_BUTTON_CLASS} ${voice.listening ? 'bg-brand-700 text-white hover:bg-brand-800 hover:text-white' : ''}`}
+            className={voice.listening ? ICON_BUTTON_ACTIVE_CLASS : ICON_BUTTON_CLASS}
           >
             <Mic size={18} aria-hidden="true" />
           </button>
