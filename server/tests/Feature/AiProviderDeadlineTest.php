@@ -24,16 +24,19 @@ class AiProviderDeadlineTest extends TestCase
         Cache::flush();
         config()->set('services.ai.cooldown_seconds', 60);
         config()->set('services.groq', ['key' => 'g', 'url' => 'https://groq.test/v1/responses', 'model' => 'm', 'timeout' => 12, 'connect_timeout' => 5]);
-        config()->set('services.anthropic', ['key' => 'a', 'model' => 'claude-sonnet-5-5', 'timeout' => 12, 'connect_timeout' => 3, 'chat_timeout' => 60]);
+        config()->set('services.anthropic', ['key' => 'a', 'model' => 'claude-opus-5-5', 'timeout' => 25, 'connect_timeout' => 3, 'chat_timeout' => 60]);
     }
 
-    public function test_configured_timeouts_above_the_cap_are_clamped_to_twelve_seconds(): void
+    public function test_configured_timeouts_above_the_cap_are_clamped_groq_to_twelve_and_claude_to_thirty_seconds(): void
     {
-        config()->set('services.groq.timeout', 30);
-        config()->set('services.anthropic.timeout', 30);
+        config()->set('services.groq.timeout', 90);
+        config()->set('services.anthropic.timeout', 90);
 
         $this->assertEquals(12, $this->seconds(new GroqResponsesService));
-        $this->assertSame(12.0, $this->seconds(new ClaudeMessagesService));
+        $this->assertSame(30.0, $this->seconds(new ClaudeMessagesService));
+
+        config()->set('services.anthropic.timeout', 0);
+        $this->assertSame(25.0, $this->seconds(new ClaudeMessagesService), 'unset means the 25 second default');
     }
 
     public function test_the_shipped_defaults_state_what_the_code_enforces(): void
@@ -41,20 +44,22 @@ class AiProviderDeadlineTest extends TestCase
         $config = (string) file_get_contents(base_path('config/services.php'));
 
         $this->assertStringContainsString("env('GROQ_TIMEOUT', 12)", $config);
-        $this->assertStringContainsString("env('ANTHROPIC_TIMEOUT', 12)", $config);
-        $this->assertStringContainsString('capped at 12', $config);
+        $this->assertStringContainsString("env('ANTHROPIC_TIMEOUT', 25)", $config);
+        $this->assertStringContainsString('caps this at 12', $config);
+        $this->assertStringContainsString('capped at 30', $config);
         $this->assertStringContainsString('GROQ_TIMEOUT=12', (string) file_get_contents(base_path('.env.example')));
+        $this->assertStringContainsString('ANTHROPIC_TIMEOUT=25', (string) file_get_contents(base_path('.env.example')));
     }
 
     public function test_a_time_budget_shortens_the_timeout_and_never_lengthens_it(): void
     {
-        foreach ([new GroqResponsesService, new ClaudeMessagesService] as $service) {
+        foreach ([[new GroqResponsesService, 12], [new ClaudeMessagesService, 25]] as [$service, $cap]) {
             $service->withTimeBudget(4.5);
             $this->assertSame(4.5, $this->seconds($service));
             $service->withTimeBudget(0.2);
             $this->assertSame(1.0, $this->seconds($service));
             $service->withTimeBudget(40);
-            $this->assertEquals(12, $this->seconds($service));
+            $this->assertEquals($cap, $this->seconds($service));
         }
     }
 
@@ -65,12 +70,15 @@ class AiProviderDeadlineTest extends TestCase
 
         (new FallbackTextGenerator($primary, $secondary))->generate('i', 'x');
 
-        $this->assertLessThanOrEqual(8.0, $primary->budget);
+        // Claude may use 25 of the 30 seconds, so a hung Claude still leaves Groq a turn; Groq's own 12 second cap
+        // then bounds that turn.
+        $this->assertEqualsWithDelta(25.0, $primary->budget, 0.05);
         $this->assertGreaterThanOrEqual(1.0, $secondary->budget);
-        $this->assertLessThan(11.0, $secondary->budget);
+        $this->assertLessThan(30.0, $secondary->budget);
+        $this->assertGreaterThan(27.0, $secondary->budget);
     }
 
-    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_twelve(): void
+    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_the_thirty_second_one(): void
     {
         $primary = new ClaudeProbe(null, 1_100_000);
         $secondary = new GroqProbe(['data' => [], 'text' => '{}', 'model' => 'g', 'response_id' => null]);
@@ -90,14 +98,14 @@ class AiProviderDeadlineTest extends TestCase
             $chain = new FallbackTextGenerator($primary, $secondary);
             $kind === 'generate' ? $chain->generate('i', 'x') : $chain->generateStructured('i', [], 'hiusa_task_recommendation_explanations', []);
 
-            $this->assertLessThanOrEqual(8.0, $primary->budget, $kind);
+            $this->assertLessThanOrEqual(25.0, $primary->budget, $kind);
             $this->assertNull($primary->ceiling, $kind);
             $this->assertNull($secondary->ceiling, $kind);
-            $this->assertLessThan(11.0, $secondary->budget, $kind);
+            $this->assertLessThan(30.0, $secondary->budget, $kind);
         }
     }
 
-    public function test_the_plan_deadline_is_configurable_and_never_shorter_than_twelve(): void
+    public function test_the_plan_deadline_is_configurable_and_never_shorter_than_the_ordinary_one(): void
     {
         $this->assertSame(30, config('services.ai.plan_deadline_seconds'));
 
@@ -110,8 +118,8 @@ class AiProviderDeadlineTest extends TestCase
         config()->set('services.ai.plan_deadline_seconds', 5);
         $primary = new ClaudeProbe(['data' => [], 'text' => '{}', 'model' => 'c', 'response_id' => null]);
         (new FallbackTextGenerator($primary, new GroqProbe(null)))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
-        $this->assertEqualsWithDelta(9.0, $primary->budget, 0.05);
-        $this->assertSame(12.0, $primary->ceiling);
+        $this->assertEqualsWithDelta(22.5, $primary->budget, 0.05);
+        $this->assertSame(30.0, $primary->ceiling);
     }
 
     public function test_a_lifted_ceiling_lets_the_http_timeout_follow_the_plan_deadline(): void
@@ -121,11 +129,11 @@ class AiProviderDeadlineTest extends TestCase
             $this->assertSame(22.5, (float) $this->seconds($service));
             $service->withTimeBudget(50.0, 30.0);
             $this->assertSame(30.0, (float) $this->seconds($service));
-            // Clearing the budget clears the ceiling too, so the next ordinary call is back to twelve.
+            // Clearing the budget clears the ceiling too, so the next ordinary call is back to its own cap.
             $service->withTimeBudget(null);
-            $this->assertEquals(12, $this->seconds($service));
+            $this->assertEquals($service instanceof ClaudeMessagesService ? 25 : 12, $this->seconds($service));
             $service->withTimeBudget(40);
-            $this->assertEquals(12, $this->seconds($service));
+            $this->assertEquals($service instanceof ClaudeMessagesService ? 25 : 12, $this->seconds($service));
         }
     }
 

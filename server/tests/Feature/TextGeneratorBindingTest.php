@@ -53,8 +53,8 @@ class TextGeneratorBindingTest extends TestCase
     public function test_production_defaults_ship_with_claude_off(): void
     {
         $this->assertSame('', trim((string) config('services.anthropic.key')));
-        $this->assertSame('claude-sonnet-5-5', config('services.anthropic.model'));
-        $this->assertSame('low', config('services.anthropic.effort'));
+        $this->assertSame('claude-opus-5-5', config('services.anthropic.model'));
+        $this->assertSame('medium', config('services.anthropic.effort'));
         $this->assertInstanceOf(GroqResponsesService::class, app(TextGenerator::class));
     }
 }
