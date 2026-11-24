@@ -7,12 +7,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Archive,
   ChevronLeft,
   ChevronRight,
   Download,
   Eye,
   FileSpreadsheet,
   FileText,
+  History,
   Paperclip,
   Pencil,
   Plus,
@@ -28,7 +30,7 @@ import {
   getTransactionSummary,
   createTransaction,
   updateTransaction,
-  deleteTransaction,
+  archiveTransaction,
   deleteBudget,
   deleteForecast,
   getPersonalReceipts,
@@ -66,8 +68,11 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
 import BudgetDetailDrawer from '../../../components/finance/BudgetDetailDrawer';
+import ArchiveTransactionModal, { reasonIsGiven, MAX_REASON_LENGTH } from '../../../components/finance/ArchiveTransactionModal';
+import ReceiptFileField, { RECEIPT_REQUIRED_MESSAGE } from '../../../components/finance/ReceiptFileField';
+import TransactionHistoryModal from '../../../components/finance/TransactionHistoryModal';
 import ReportDetailDrawer, { withDraftDefault } from '../../../components/finance/ReportDetailDrawer';
-import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge, Textarea } from '../../../components/ui';
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
@@ -146,7 +151,6 @@ const allocationStatusTone = {
 const deleteLabels = {
   budget: { title: 'Delete this budget?', confirm: 'Delete budget', done: 'Budget deleted.', failed: 'This budget could not be deleted.' },
   forecast: { title: 'Delete this forecast?', confirm: 'Delete forecast', done: 'Forecast deleted.', failed: 'This forecast could not be deleted.' },
-  transaction: { title: 'Delete this transaction?', confirm: 'Delete transaction', done: 'Transaction deleted.', failed: 'This transaction could not be deleted.' },
 };
 
 const invoiceColumns = [
@@ -300,6 +304,15 @@ function ledgerLockNote(transaction) {
   return null;
 }
 
+// The kept official receipt of an entry. The server gives an open link and never the storage path; older entries kept it in receipt_file_url.
+function receiptOpenUrl(transaction) {
+  return transaction.receipt_file_open_url || (keptReceiptFile(transaction) ? `/transactions/${transaction.id}/receipt-file` : null);
+}
+
+function byline(name, at) {
+  return [name && `by ${name}`, at && `on ${formatLedgerDate(at)}`].filter(Boolean).join(' ');
+}
+
 function receiptLabel(transaction) {
   if (transaction.receipt_reference) return transaction.receipt_reference;
   if (transaction.receipt_number) return `Receipt #${transaction.receipt_number}`;
@@ -438,6 +451,15 @@ function downloadBlobResponse(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
+const blankTransactionForm = (overrides = {}) => ({
+  description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '', receipt_file: null, edit_reason: '', ...overrides,
+});
+
+// The totals never count an archived entry, so the summary read never carries the archived switch.
+function withoutArchived(query) {
+  return Object.fromEntries(Object.entries(query).filter(([key]) => key !== 'archived'));
+}
+
 // A new transaction starts on today's date, so the form only needs a description and an amount.
 function todayInputValue() {
   const now = new Date();
@@ -445,7 +467,7 @@ function todayInputValue() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
+export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false, startRecord = null }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [transactions, setTransactions] = useState([]);
@@ -466,7 +488,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const loadTicket = useRef(0);
   const ledgerTicket = useRef(0);
-  const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
+  const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '', archived: '' });
   const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
@@ -489,8 +511,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [reportPdfDownloading, setReportPdfDownloading] = useState(null);
   const [reportExcelDownloading, setReportExcelDownloading] = useState(null);
 
-  const [form, setForm] = useState({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+  const [form, setForm] = useState(blankTransactionForm());
   const [editingTransaction, setEditingTransaction] = useState(null);
+  // A record opened from one event's ledger keeps that event: the entry belongs to it and cannot be moved.
+  const [eventLocked, setEventLocked] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState(null);
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
@@ -579,7 +607,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setError(null);
     const term = searchTerm.trim();
     const query = { ...ledgerScope(filters, organizationFilter).activeFilters, ...(term ? { search: term } : {}) };
-    Promise.all([getTransactions({ page, ...query }), getTransactionSummary(query)])
+    Promise.all([getTransactions({ page, ...query }), getTransactionSummary(withoutArchived(query))])
       .then(([txRes, sumRes]) => {
         if (ticket === ledgerTicket.current) showTransactions(txRes, sumRes);
       })
@@ -625,7 +653,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     // The ledger totals follow the search and filters, but the Reports tab and the category export are not narrowed by them,
     // so they read their own summary that carries the organization scope and nothing else.
     const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
-    const ledgerSummary = canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve(emptySummary);
+    const ledgerSummary = canViewTransactions ? getTransactionSummary(withoutArchived({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) })) : Promise.resolve(emptySummary);
     const isNarrowed = Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
     const allTimeSummary = canViewTransactions && isNarrowed ? getTransactionSummary({ ...organizationScope }) : ledgerSummary;
     Promise.all([
@@ -680,15 +708,35 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setDeleteError(null);
     try {
       if (kind === 'budget') await deleteBudget(record.id);
-      else if (kind === 'forecast') await deleteForecast(record.id);
-      else await deleteTransaction(record.id);
+      else await deleteForecast(record.id);
       showFeedback('success', deleteLabels[kind].done);
       setDeleteTarget(null);
-      refreshAfterSave(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+      refreshAfterSave(txMeta.current_page);
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, deleteLabels[kind].failed));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  function askArchive(transaction) {
+    setArchiveError(null);
+    setArchiveTarget(transaction);
+  }
+
+  async function confirmArchive(reason) {
+    const transaction = archiveTarget;
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      await archiveTransaction(transaction.id, reason);
+      showFeedback('success', 'Transaction archived.');
+      setArchiveTarget(null);
+      refreshAfterSave(transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+    } catch (err) {
+      setArchiveError(getApiErrorMessage(err, 'This transaction could not be archived.'));
+    } finally {
+      setArchiveBusy(false);
     }
   }
 
@@ -817,6 +865,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       return;
     }
 
+    if (editingTransaction && !reasonIsGiven(form.edit_reason)) {
+      const message = 'Give the reason for this edit.';
+      setFormError(message);
+      showFeedback('error', message);
+      return;
+    }
+
+    if (!editingTransaction && form.type === 'expense' && !form.receipt_file) {
+      setFormError(RECEIPT_REQUIRED_MESSAGE);
+      showFeedback('error', RECEIPT_REQUIRED_MESSAGE);
+      return;
+    }
+
     setFormSubmitting(true);
     setFormError(null);
     try {
@@ -829,15 +890,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         budget_id: form.budget_id || null,
         event_id: form.event_id || null,
         receipt_reference: form.receipt_reference || null,
+        receipt_file: form.receipt_file,
       };
       if (editingTransaction) {
-        await updateTransaction(editingTransaction.id, payload);
+        await updateTransaction(editingTransaction.id, { ...payload, edit_reason: form.edit_reason.trim() });
       } else {
         await createTransaction(payload);
       }
       setShowForm(false);
       setEditingTransaction(null);
-      setForm({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+      setEventLocked(false);
+      setForm(blankTransactionForm());
       showFeedback('success', `Transaction ${editingTransaction ? 'updated' : 'recorded'} successfully.`);
       refreshAfterSave(editingTransaction ? txMeta.current_page : 1);
     } catch (err) {
@@ -965,7 +1028,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   async function openKeptReceipt(transaction) {
     setLedgerFileError({ id: null, message: '' });
     try {
-      await openProtectedFile(`/transactions/${transaction.id}/receipt-file`);
+      await openProtectedFile(receiptOpenUrl(transaction) || `/transactions/${transaction.id}/receipt-file`);
     } catch (err) {
       setLedgerFileError({ id: transaction.id, message: getApiErrorMessage(err, 'Could not open this receipt file.') });
     }
@@ -1191,7 +1254,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   function openTransactionForm(tx = null) {
     setEditingTransaction(tx);
-    setForm(tx ? {
+    setEventLocked(false);
+    setForm(tx ? blankTransactionForm({
       description: tx.description || '',
       amount: tx.amount || '',
       type: tx.type || 'expense',
@@ -1200,12 +1264,77 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       budget_id: tx.budget_id || '',
       event_id: tx.event_id || '',
       receipt_reference: tx.receipt_reference || '',
-    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: todayInputValue(), budget_id: '', event_id: '', receipt_reference: '' });
+    }) : blankTransactionForm({ transaction_date: todayInputValue() }));
     setFormError(null);
     setShowForm(true);
   }
 
+  // The one way to start a new record from outside the ledger list. An event can be preset, and locked so the
+  // record stays in that event's own ledger.
+  function openRecordTransaction({ eventId = null, lockEvent = false } = {}) {
+    setEditingTransaction(null);
+    setEventLocked(Boolean(eventId) && lockEvent);
+    setForm(blankTransactionForm({ transaction_date: todayInputValue(), event_id: eventId ? String(eventId) : '' }));
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function closeTransactionForm() {
+    setShowForm(false);
+    setEditingTransaction(null);
+    setEventLocked(false);
+  }
+
+  // A route can open the Record transaction form with an event preset (and locked): the same entry an event's own ledger uses.
+  useEffect(() => {
+    if (!startRecord || !canManageLedger) return;
+    openRecordTransaction(startRecord);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(startRecord), startRecord?.eventId, startRecord?.lockEvent, canManageLedger]);
+
   const filtered = transactions;
+  const archivedView = txFilters.archived === '1';
+
+  // The three-dot menu of a ledger row. Entries other modules posted and entries in a submitted report are not changed here, so they have none.
+  // An archived entry is on record only: its history and its receipt can be opened, nothing else.
+  function ledgerRowActions(tx, lockNote) {
+    const viewReceipt = receiptOpenUrl(tx) && { label: 'View receipt', icon: Paperclip, onClick: () => openKeptReceipt(tx) };
+    const viewHistory = { label: 'View history', icon: History, onClick: () => setHistoryTarget(tx) };
+    if (tx.archived_at) return [viewHistory, viewReceipt].filter(Boolean);
+    if (!canManageLedger || lockNote) return [];
+    return [
+      { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+      viewHistory,
+      viewReceipt,
+      { label: 'Archive transaction', icon: Archive, danger: true, onClick: () => askArchive(tx) },
+    ].filter(Boolean);
+  }
+
+  // Under the description: a text badge for an edited entry (who and when beside it), and who archived an entry, when and why.
+  function ledgerRowTrail(tx) {
+    if (tx.archived_at) {
+      return (
+        <div className="mt-1 space-y-1 text-xs text-ink-muted">
+          <p className="flex flex-wrap items-center gap-2"><StatusBadge label="Archived" tone="neutral" /><span>{byline(tx.archived_by_name, tx.archived_at)}</span></p>
+          {tx.archive_reason && <p>Reason: {tx.archive_reason}</p>}
+        </div>
+      );
+    }
+    if (!(tx.edit_count > 0)) return null;
+    return (
+      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <button
+          type="button"
+          title="View what changed"
+          onClick={() => setHistoryTarget(tx)}
+          className="relative inline-flex h-6 items-center whitespace-nowrap rounded bg-amber-50 px-2 text-xs font-medium text-amber-800 after:absolute after:-inset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        >
+          Edited
+        </button>
+        <span>{byline(tx.last_edited_by_name, tx.last_edited_at)}</span>
+      </p>
+    );
+  }
 
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
@@ -1215,10 +1344,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     txFilters.event_id && `Event: ${filterLabel(txFilters.event_id, (value) => events.find((event) => String(event.id) === value)?.title || value)}`,
     txFilters.from && `From: ${txFilters.from}`,
     txFilters.to && `To: ${txFilters.to}`,
+    archivedView && 'Showing archived',
   ].filter(Boolean);
 
   const clearTransactionFilters = () => {
-    const cleared = { type: '', event_id: '', from: '', to: '' };
+    const cleared = { type: '', event_id: '', from: '', to: '', archived: '' };
     setTxFilters(cleared);
     setSearch('');
     setAppliedSearch('');
@@ -1350,7 +1480,13 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </p>
       )}
 
-      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && (
+      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && archivedView && (
+        <p role="status" className="rounded-card border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+          Archived entries are on record only. They are read only and are not counted in any total.
+        </p>
+      )}
+
+      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && !archivedView && (
         <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Income</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-success-strong">{fmt(summary.total_income)}</dd></div>
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Expenses</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
@@ -1375,6 +1511,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultCount={txMeta.total}
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            actions={(
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink-muted transition-colors duration-150 hover:bg-subtle md:min-h-10">
+                <input
+                  type="checkbox"
+                  checked={archivedView}
+                  onChange={(e) => { const next = { ...txFilters, archived: e.target.checked ? '1' : '' }; setTxFilters(next); load(1, next); }}
+                  className="h-4 w-4 accent-brand-600"
+                />
+                Show archived
+              </label>
+            )}
           >
             <HiusaSelect filter
               value={txFilters.type}
@@ -1411,7 +1558,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <div className="p-4"><SkeletonTable rows={5} columns={5} className="border-0" /></div>
           ) : filtered.length === 0 ? (
             <div className="px-4 sm:px-5">
-              {activeTransactionFilters.length > 0 ? (
+              {archivedView && activeTransactionFilters.length === 1 ? (
+                <EmptyState icon={Archive} title="No archived transactions" description="An entry you archive from the ledger is listed here, with who archived it and why." />
+              ) : activeTransactionFilters.length > 0 ? (
                 <EmptyState kind="filtered" title="No matching transactions" description="Try a different search or clear the filters." onClearFilters={clearTransactionFilters} />
               ) : canManageLedger ? (
                 <EmptyState
@@ -1445,17 +1594,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {receipt && <p>Reference {receipt}</p>}
                       </div>
                     )}
-                    {keptReceiptFile(tx) && (
+                    {ledgerRowTrail(tx)}
+                    {receiptOpenUrl(tx) && (
                       <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-control text-sm font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
                         <Paperclip size={16} aria-hidden="true" /> Open receipt file
                       </button>
                     )}
                     {ledgerFileError.id === tx.id && <p role="alert" className="mt-1 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
-                    {canManageLedger && lockNote && <p className="mt-3 text-xs text-ink-muted">{lockNote}</p>}
-                    {canManageLedger && !lockNote && <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={[
-                      { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                      { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                    ]} />}
+                    {canManageLedger && lockNote && !tx.archived_at && <p className="mt-3 text-xs text-ink-muted">{lockNote}</p>}
+                    <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={ledgerRowActions(tx, lockNote)} />
                   </li>;
                 })}
               </ul>
@@ -1470,7 +1617,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <th scope="col" className="hidden 2xl:table-cell px-4 py-2.5">Payer / Recorder</th>
                     <th scope="col" className="px-4 py-2.5">Category</th>
                     <th scope="col" className="px-4 py-2.5 text-right">Amount</th>
-                    {canManageLedger && <th scope="col" className="px-4 py-2.5 text-right">Actions</th>}
+                    {(canManageLedger || archivedView) && <th scope="col" className="px-4 py-2.5 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft text-sm">
@@ -1488,13 +1635,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <p className="font-semibold text-ink">{tx.description}</p>
                         {receipt && <p className="mt-0.5 text-xs text-ink-muted">{receipt}</p>}
                         {meta.length > 0 && <p className="mt-0.5 text-xs text-ink-muted 2xl:hidden">{meta.join(' · ')}</p>}
-                        {keptReceiptFile(tx) && (
+                        {ledgerRowTrail(tx)}
+                        {receiptOpenUrl(tx) && (
                           <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-control text-xs font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
                             <Paperclip size={14} aria-hidden="true" /> Open receipt file
                           </button>
                         )}
                         {ledgerFileError.id === tx.id && <p role="alert" className="mt-0.5 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
-                        {canManageLedger && lockNote && <p className="mt-0.5 text-xs text-ink-muted">{lockNote}</p>}
+                        {canManageLedger && lockNote && !tx.archived_at && <p className="mt-0.5 text-xs text-ink-muted">{lockNote}</p>}
                       </td>
                       <td className="hidden px-4 py-2.5 2xl:table-cell">
                         {sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate text-ink">{source}</p>)}
@@ -1507,14 +1655,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <td className={`whitespace-nowrap px-4 py-2.5 text-right tabular-nums ${tx.type === 'income' ? 'text-success-strong' : 'text-ink'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                       </td>
-                      {canManageLedger && (
+                      {(canManageLedger || archivedView) && (
                         <td className="px-4 py-2.5 text-right">
-                          {lockNote ? <span className="text-xs text-ink-muted">Locked</span> : (
+                          {lockNote && !tx.archived_at ? <span className="text-xs text-ink-muted">Locked</span> : (
                             <div className="flex justify-end">
-                              <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
-                                { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                                { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                              ]} />
+                              <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={ledgerRowActions(tx, lockNote)} />
                             </div>
                           )}
                         </td>
@@ -2092,11 +2237,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <Drawer
           open
           title={editingTransaction ? 'Edit transaction' : 'Record transaction'}
-          onClose={() => { setShowForm(false); setEditingTransaction(null); }}
+          onClose={closeTransactionForm}
           footer={(
             <>
-              <Button variant="secondary" onClick={() => { setShowForm(false); setEditingTransaction(null); }}>Cancel</Button>
-              <Button type="submit" form="transaction-form" loading={formSubmitting} disabled={!form.description || !form.amount || !form.transaction_date}>
+              <Button variant="secondary" onClick={closeTransactionForm}>Cancel</Button>
+              <Button type="submit" form="transaction-form" loading={formSubmitting} disabled={!form.description || !form.amount || !form.transaction_date || (Boolean(editingTransaction) && !reasonIsGiven(form.edit_reason))}>
                 {editingTransaction ? 'Update transaction' : 'Save transaction'}
               </Button>
             </>
@@ -2136,19 +2281,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   onChange={(e) => {
                     const budgetId = e.target.value;
                     const linkedBudget = budgets.find((budget) => String(budget.id) === String(budgetId));
-                    setForm({ ...form, budget_id: budgetId, event_id: linkedBudget?.event_id || form.event_id });
+                    setForm({ ...form, budget_id: budgetId, event_id: eventLocked ? form.event_id : (linkedBudget?.event_id || form.event_id) });
                   }}
                 >
                   <option value="">No linked budget</option>
-                  {budgets.map((budget) => (
+                  {budgets.filter((budget) => !eventLocked || !budget.event_id || String(budget.event_id) === String(form.event_id)).map((budget) => (
                     <option key={budget.id} value={budget.id} disabled={budget.approval_status !== 'approved'}>
                       {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.submission_status === 'draft' ? 'draft' : budget.approval_status || 'pending'})` : ''}
                     </option>
                   ))}
                 </HiusaSelect>
               </Field>
-              <Field label="Linked event" optional>
-                <HiusaSelect value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
+              <Field label="Linked event" optional={!eventLocked} hint={eventLocked ? 'This entry stays in the ledger of this event.' : undefined}>
+                <HiusaSelect value={form.event_id} disabled={eventLocked} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
                   <option value="">No linked event</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>
@@ -2159,6 +2304,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <Field label="Receipt reference" optional>
               <Input type="text" value={form.receipt_reference} onChange={(e) => setForm({ ...form, receipt_reference: e.target.value })} placeholder="GCash reference, OR number, or payment note" />
             </Field>
+            <ReceiptFileField
+              file={form.receipt_file}
+              onChange={(file) => setForm((current) => ({ ...current, receipt_file: file }))}
+              required={!editingTransaction && form.type === 'expense'}
+              hint={editingTransaction ? (receiptOpenUrl(editingTransaction) ? 'An official receipt is on file. Choose one only to replace it.' : 'No official receipt file is on record. JPG, PNG, WEBP or PDF up to 5 MB.') : 'JPG, PNG, WEBP or PDF up to 5 MB.'}
+            />
+            {editingTransaction && (
+              <Field label="Reason for this edit" hint="Saved with the change, so the ledger shows who edited it and why. At least 5 characters.">
+                <Textarea rows={3} maxLength={MAX_REASON_LENGTH} value={form.edit_reason} onChange={(e) => setForm({ ...form, edit_reason: e.target.value })} placeholder="e.g. Typed the wrong amount" />
+              </Field>
+            )}
             {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
           </form>
         </Drawer>
@@ -2193,11 +2349,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         submitting={selectedReport ? reportSubmitting === selectedReport.id : false}
       />
 
+      {archiveTarget && (
+        <ArchiveTransactionModal
+          key={archiveTarget.id}
+          transaction={archiveTarget}
+          busy={archiveBusy}
+          error={archiveError}
+          onCancel={() => setArchiveTarget(null)}
+          onConfirm={confirmArchive}
+        />
+      )}
+      {historyTarget && <TransactionHistoryModal key={historyTarget.id} transaction={historyTarget} onClose={() => setHistoryTarget(null)} />}
+
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title={deleteTarget ? deleteLabels[deleteTarget.kind].title : ''}
-        message={deleteTarget?.kind === 'forecast' ? 'The forecast is removed for good. Generate a new one from the current ledger whenever you need it. This cannot be undone.' : deleteTarget?.kind === 'budget' ? 'The budget is removed for good. This cannot be undone. An approved budget or one that already has transactions cannot be deleted.' : 'The entry is removed from the ledger and its budget balance is adjusted. This cannot be undone. Entries created by collections, cash advances, invoices or orders must be changed where they came from.'}
-        recordName={deleteTarget?.kind === 'forecast' ? `Forecast for ${deleteTarget.record.forecast_period}` : deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
+        message={deleteTarget?.kind === 'forecast' ? 'The forecast is removed for good. Generate a new one from the current ledger whenever you need it. This cannot be undone.' : 'The budget is removed for good. This cannot be undone. An approved budget or one that already has transactions cannot be deleted.'}
+        recordName={deleteTarget?.kind === 'forecast' ? `Forecast for ${deleteTarget.record.forecast_period}` : deleteTarget?.record.title}
         confirmText={deleteTarget ? deleteLabels[deleteTarget.kind].confirm : 'Delete'}
         variant="danger"
         busy={deleteBusy}

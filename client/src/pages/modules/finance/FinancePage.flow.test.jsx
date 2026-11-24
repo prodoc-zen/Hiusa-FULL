@@ -25,7 +25,7 @@ vi.mock('../../../services/financeService', () => ({
   ...financeMocks,
   createTransaction: vi.fn(),
   updateTransaction: vi.fn(),
-  deleteTransaction: vi.fn(),
+  archiveTransaction: vi.fn(),
   deleteBudget: vi.fn(),
   generateForecast: vi.fn(),
   generateBudgetAdvice: vi.fn(),
