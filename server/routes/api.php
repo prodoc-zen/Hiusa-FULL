@@ -301,6 +301,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'view.only', 'org.module',
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/budgets', [BudgetController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer']);
     Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER', 'finance.writer', 'privacy.consent']);
+    Route::patch('/budgets/{id}/submit', [BudgetController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer']);
     Route::delete('/budgets/{id}', [BudgetController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
 

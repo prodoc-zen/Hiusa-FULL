@@ -16,7 +16,7 @@ const SEVERITY = {
 // wrong and block nothing. The Admin may put them in order with a written explanation, or set one aside with a
 // reason that is kept in the audit log. onExplained hands the explanation up so the screen can report what became of it.
 // onUse is given only to a reviewer: it hands up the sentences of the checks not set aside, to use in their remarks.
-export default function ReportChecksPanel({ reportId, canIgnore = false, heading = 'Before you send', onExplained, onUse }) {
+export default function ReportChecksPanel({ reportId, canIgnore = false, ignoreBlockedReason, heading = 'Before you send', onExplained, onUse }) {
   const [findings, setFindings] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [explanation, setExplanation] = useState(null);
@@ -158,6 +158,16 @@ export default function ReportChecksPanel({ reportId, canIgnore = false, heading
                     type="button"
                     onClick={() => { setIgnoring(finding.key); setReason(''); setIgnoreError(''); }}
                     className="mt-1 min-h-8 text-xs font-semibold text-brand-700 underline underline-offset-2 pointer-coarse:min-h-[42px]"
+                  >
+                    Ignore with a reason
+                  </button>
+                )}
+                {!canIgnore && ignoreBlockedReason && !finding.ignored && (
+                  <button
+                    type="button"
+                    disabled
+                    title={ignoreBlockedReason}
+                    className="mt-1 min-h-8 cursor-not-allowed text-xs font-semibold text-ink-muted underline underline-offset-2 pointer-coarse:min-h-[42px]"
                   >
                     Ignore with a reason
                   </button>

@@ -22,8 +22,11 @@ class BudgetController extends Controller
 {
     private const BUDGET_GONE = 'budget_gone';
 
-    /** The statuses an officer may still edit: a draft, and a budget the reviewer returned. */
+    /** The statuses an officer may still edit: a draft, and a budget the reviewer returned. Either way it stays a draft until the Admin submits it. */
     private const OFFICER_EDITABLE_STATUSES = ['draft', 'rejected'];
+
+    /** The statuses the Admin may send for approval. */
+    private const SUBMITTABLE_STATUSES = ['draft', 'rejected'];
 
     public function __construct(
         private readonly HiusaAiService $aiService,
@@ -67,22 +70,26 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
         }
 
-        $budget = DB::transaction(function () use ($data, $request) {
+        $isDraft = $request->user()->role === 'SBO_OFFICER';
+
+        $budget = DB::transaction(function () use ($data, $request, $isDraft) {
             $budget = Budget::create([
                 ...$data,
                 'remaining_amount' => $data['allocated_amount'],
                 'overspending_risk' => Budget::overspendingRiskFor((float) $data['allocated_amount'], (float) $data['warning_threshold']),
-                'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
+                'submission_status' => $isDraft ? 'draft' : $this->submittedStatus($request),
                 'organization_id' => $request->user()->organization_id,
             ]);
 
-            ApprovalRequest::create([
-                'organization_id' => $request->user()->organization_id,
-                'entity_type' => 'budget',
-                'entity_id' => $budget->id,
-                'requested_by' => $request->user()->id,
-                'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.budget')),
-            ]);
+            if (! $isDraft) {
+                ApprovalRequest::create([
+                    'organization_id' => $request->user()->organization_id,
+                    'entity_type' => 'budget',
+                    'entity_id' => $budget->id,
+                    'requested_by' => $request->user()->id,
+                    'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.budget')),
+                ]);
+            }
 
             $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));
 
@@ -117,9 +124,13 @@ class BudgetController extends Controller
 
         return DB::transaction(function () use ($request, $budget, $data) {
             $budget = Budget::whereKey($budget->id)->lockForUpdate()->firstOrFail();
+            $byOfficer = $request->user()->role === 'SBO_OFFICER';
             // An officer prepares a budget the organization has not sent on: one that is submitted or approved is the Admin's to change.
-            if ($request->user()->role === 'SBO_OFFICER' && ! in_array($budget->submission_status, self::OFFICER_EDITABLE_STATUSES, true)) {
+            if ($byOfficer && ! in_array($budget->submission_status, self::OFFICER_EDITABLE_STATUSES, true)) {
                 return response()->json(['message' => 'This budget has been submitted. Only your Admin can change it.'], 403);
+            }
+            if ($byOfficer) {
+                $data['submission_status'] = 'draft';
             }
             $oldValues = $this->auditableValues($budget);
 
@@ -157,9 +168,45 @@ class BudgetController extends Controller
             $budget->update($data);
             $this->recordBudgetAudit($request, 'updated', $budget, $oldValues, $this->auditableValues($budget->fresh()));
 
-            if ($this->hasRejectedApproval($budget)) {
+            if (! $byOfficer && $this->hasRejectedApproval($budget)) {
                 $this->restartApprovalAtDepartmentHead($budget, $request);
             }
+
+            $fresh = $budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']);
+            $this->attachSpentAmount([$fresh]);
+
+            return response()->json($fresh);
+        });
+    }
+
+    public function submit(Request $request, $id)
+    {
+        $budget = Budget::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (! $budget) {
+            return response()->json(['message' => 'Budget not found.'], 404);
+        }
+
+        return DB::transaction(function () use ($request, $budget) {
+            $budget = Budget::whereKey($budget->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($budget->submission_status, self::SUBMITTABLE_STATUSES, true)) {
+                return response()->json(['message' => 'Only a draft or a returned budget can be submitted.'], 409);
+            }
+            $oldValues = $this->auditableValues($budget);
+
+            if (ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->where('organization_id', $budget->organization_id)->exists()) {
+                $this->restartApprovalAtDepartmentHead($budget, $request);
+            } else {
+                $budget->update(['submission_status' => $this->submittedStatus($request)]);
+                ApprovalRequest::create([
+                    'organization_id' => $budget->organization_id,
+                    'entity_type' => 'budget',
+                    'entity_id' => $budget->id,
+                    'requested_by' => $request->user()->id,
+                    'required_role' => $request->user()->organization->approvalRole(config('approvals.routes.budget')),
+                ]);
+            }
+            $this->recordBudgetAudit($request, 'submitted', $budget, $oldValues, $this->auditableValues($budget->fresh()));
 
             $fresh = $budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']);
             $this->attachSpentAmount([$fresh]);
@@ -441,6 +488,11 @@ class BudgetController extends Controller
         ])) > 0;
     }
 
+    private function submittedStatus(Request $request): string
+    {
+        return $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head';
+    }
+
     private function restartApprovalAtDepartmentHead(Budget $budget, Request $request): void
     {
         ApprovalRequest::where('entity_type', 'budget')
@@ -454,7 +506,7 @@ class BudgetController extends Controller
             );
 
         $budget->update([
-            'submission_status' => $request->user()->organization->is_university_wide ? 'pending_sao' : 'pending_department_head',
+            'submission_status' => $this->submittedStatus($request),
             'department_head_approved_by' => null,
             'department_head_approved_at' => null,
         ]);

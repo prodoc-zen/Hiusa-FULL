@@ -137,8 +137,8 @@ export function financialReportLifecycle(report, viewerRole) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Budget. submission_status: pending_department_head, pending_sao (only when approvals.budget_final
-// is SUPER_ADMIN), approved, rejected.
+// Budget. submission_status: draft (an officer's proposal, waiting for the Admin to submit it), pending_department_head,
+// pending_sao (only when approvals.budget_final is SUPER_ADMIN), approved, rejected.
 
 const BUDGET_STAGES = [
   { key: 'proposed', label: 'Proposed', actor: 'Department Head' },
@@ -152,7 +152,24 @@ export function budgetLifecycle(budget, viewerRole) {
   const b = budget ?? {};
   const href = recordHref('/dashboard/finance/budget-allocation', b.id);
 
+  const byOfficer = viewerRole === 'SBO_OFFICER';
+
   switch (b.submission_status) {
+    case 'draft':
+      return finish(buildSteps(BUDGET_STAGES, -1, { skipped: ['second_review'] }), byOfficer
+        ? {
+          tone: 'action',
+          title: 'Draft: edit it, your Admin submits it',
+          body: 'Your Admin sends the budget to the Department Head when it is ready.',
+          label: 'Edit draft',
+          to: href,
+        }
+        : turn(viewerRole, ['ADMIN'], {
+          title: 'Draft: review and submit',
+          body: 'Check the budget, then send it to the Department Head.',
+          label: 'Submit for approval',
+          to: href,
+        }, { title: 'Waiting for the Admin to submit the budget' }), 'ADMIN', href);
     case 'pending_department_head':
       return finish(buildSteps(BUDGET_STAGES, 0, { skipped: ['second_review'] }), turn(viewerRole, ['DEPARTMENT_HEAD'], {
         title: 'Review this budget',
@@ -182,12 +199,20 @@ export function budgetLifecycle(budget, viewerRole) {
     }
     case 'rejected': {
       const atSecond = Boolean(b.department_head_approved_at);
-      return finish(buildSteps(BUDGET_STAGES, atSecond ? 1 : 0, { blocked: true, skipped: atSecond ? [] : ['second_review'], notes: { [atSecond ? 'second_review' : 'proposed']: 'Returned' } }), turn(viewerRole, ['ADMIN'], {
-        title: 'Returned: edit and resubmit',
-        body: b.approval_remarks || 'Read the reviewer remarks, change the budget, and submit it again.',
-        label: 'Edit budget',
-        to: href,
-      }, { title: 'Returned to the Admin for changes' }), 'ADMIN', href);
+      return finish(buildSteps(BUDGET_STAGES, atSecond ? 1 : 0, { blocked: true, skipped: atSecond ? [] : ['second_review'], notes: { [atSecond ? 'second_review' : 'proposed']: 'Returned' } }), byOfficer
+        ? {
+          tone: 'action',
+          title: 'Returned: edit the draft',
+          body: b.approval_remarks || 'Read the reviewer remarks and change the budget. Your Admin submits it again.',
+          label: 'Edit budget',
+          to: href,
+        }
+        : turn(viewerRole, ['ADMIN'], {
+          title: 'Returned: edit and resubmit',
+          body: b.approval_remarks || 'Read the reviewer remarks, change the budget, and submit it again.',
+          label: 'Edit budget',
+          to: href,
+        }, { title: 'Returned to the Admin for changes' }), 'ADMIN', href);
     }
     default:
       return unknown(BUDGET_STAGES, b.submission_status, href);
@@ -217,7 +242,7 @@ function fundingOf(budgets) {
   const find = (status) => budgets.find((budget) => budget.submission_status === status);
   const approved = find('approved');
   if (approved) return { state: 'approved', budget: approved };
-  for (const state of ['pending_sao', 'pending_department_head', 'rejected']) {
+  for (const state of ['pending_sao', 'pending_department_head', 'rejected', 'draft']) {
     const budget = find(state);
     if (budget) return { state, budget };
   }
@@ -345,6 +370,14 @@ export function eventLifecycle(event, viewerRole) {
           label: 'Edit budget',
           to: budgetHref,
         }, 'Budget returned to the Admin for changes'), 'ADMIN', href);
+      }
+      if (funding.state === 'draft') {
+        return finish(steps, admin({
+          title: 'Submit the event budget',
+          body: 'The budget is a draft. Submit it so the Department Head can decide.',
+          label: 'Open budget',
+          to: budgetHref,
+        }, 'Waiting for the Admin to submit the event budget'), 'ADMIN', href);
       }
       const reviewer = funding.state === 'pending_sao' ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD';
       return finish(steps, turn(viewerRole, [reviewer], {

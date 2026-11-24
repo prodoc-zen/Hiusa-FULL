@@ -244,6 +244,10 @@ class TransactionController extends Controller
             return response()->json(['message' => $message], 409);
         }
 
+        if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
+            return response()->json(['message' => 'You can only change transactions you recorded.'], 403);
+        }
+
         $data = $request->validate($this->rules($request, true, $transaction), $this->messages());
 
         if ($message = $this->validateAndNormalizeLinks($request, $data, $transaction)) {

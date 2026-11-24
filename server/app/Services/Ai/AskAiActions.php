@@ -207,7 +207,9 @@ class AskAiActions
                 ...array_map('floatval', $this->present($v, ['allocated_amount', 'warning_threshold'])),
             ],
             'result' => fn (array $json, array $v): array => [
-                'message' => 'Budget proposed. It is waiting for approval.',
+                'message' => data_get($json, 'submission_status') === 'draft'
+                    ? 'Budget saved as a draft. Your Admin submits it for approval.'
+                    : 'Budget proposed. It is waiting for approval.',
                 'path' => '/dashboard/finance/budget-allocation',
                 'label' => 'Open budgets',
             ],

@@ -37,6 +37,7 @@ import {
   getBudgets,
   createBudget,
   updateBudget,
+  submitBudget,
   generateBudgetAdvice,
   getFinancialReports,
   getFinancialReport,
@@ -526,8 +527,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canProposeBudget = canHandle;
   const canGenerateBudgetAdvice = canHandle;
   const canPrepareReport = canHandle;
-  // The budget drawer offers "Edit and resubmit" to the person whose turn it is; for a budget that is the finance handler.
-  const budgetViewerRole = canHandle ? 'ADMIN' : currentUserRole;
+  // An officer drafts a budget and the Admin submits it, so the budget form and drawer read differently for the two.
+  const budgetIsDraftOnly = currentUserRole === 'SBO_OFFICER';
   // An officer whose position cannot handle finance still sees the action buttons, switched off, so the page reads as view only.
   const officerViewOnly = currentUserRole === 'SBO_OFFICER' && !canHandle && canReadFinance;
   const viewOnlyHint = 'Your position cannot handle finance';
@@ -737,6 +738,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       closeBudgetForm();
       setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
       if (sentFromRequestPage) setProposalSent(true);
+      else if (budgetIsDraftOnly) showFeedback('success', editingBudget ? 'Draft saved. Your Admin submits it for approval.' : 'Budget saved as a draft. Your Admin submits it for approval.');
       else showFeedback('success', editingBudget ? 'Budget updated and sent back for approval.' : 'Budget proposal submitted for approval.');
       refreshAfterSave(txMeta.current_page);
     } catch (err) {
@@ -745,6 +747,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', message);
     } finally {
       setBudgetFormSubmitting(false);
+    }
+  }
+
+  async function handleSubmitBudget(budget) {
+    try {
+      await submitBudget(budget.id);
+      setRecordId(null);
+      showFeedback('success', 'Budget submitted for approval.');
+      refreshAfterSave(txMeta.current_page);
+    } catch (err) {
+      showFeedback('error', getApiErrorMessage(err, 'Failed to submit the budget.'));
     }
   }
 
@@ -1283,7 +1296,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         loading={budgetFormSubmitting}
         disabled={!budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === ''}
       >
-        {editingBudget ? 'Resubmit for approval' : 'Submit for approval'}
+        {budgetIsDraftOnly ? 'Save draft' : editingBudget ? 'Resubmit for approval' : 'Submit for approval'}
       </Button>
     </>
   );
@@ -1562,7 +1575,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" onClick={() => setRecordId(b.id)} className="rounded-control text-left text-sm font-semibold text-ink hover:underline">{formatDisplayText(b.title)}</button>
                       {/* Approved is the default state of a budget, so only the others carry a badge. */}
-                      {b.approval_status !== 'approved' && <StatusBadge status={b.approval_status || 'pending'} />}
+                      {b.approval_status !== 'approved' && <StatusBadge status={b.submission_status === 'draft' ? 'draft' : b.approval_status || 'pending'} />}
                     </div>
                     {b.event && <p className="mt-1 text-xs text-ink-muted">{formatDisplayText(b.event.title)}</p>}
                     {b.financial_semester && <p className="mt-1 text-xs text-ink-muted">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
@@ -2090,7 +2103,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <option value="">No linked budget</option>
                   {budgets.map((budget) => (
                     <option key={budget.id} value={budget.id} disabled={budget.approval_status !== 'approved'}>
-                      {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.approval_status || 'pending'})` : ''}
+                      {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.submission_status === 'draft' ? 'draft' : budget.approval_status || 'pending'})` : ''}
                     </option>
                   ))}
                 </HiusaSelect>
@@ -2116,7 +2129,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <Drawer
           open
           title={editingBudget ? 'Edit budget' : 'Propose budget'}
-          description={editingBudget ? 'Saving sends this budget back to the Department Head for approval.' : undefined}
+          description={budgetIsDraftOnly ? 'Saving keeps this budget a draft until your Admin submits it.' : editingBudget ? 'Saving sends this budget back to the Department Head for approval.' : undefined}
           onClose={closeBudgetForm}
           footer={budgetFormButtons}
         >
@@ -2126,13 +2139,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       <BudgetDetailDrawer
         budget={selectedBudget}
-        viewerRole={budgetViewerRole}
+        viewerRole={currentUserRole}
         onClose={() => setRecordId(null)}
         onEdit={canProposeBudget ? openBudgetForm : undefined}
+        onSubmit={isAdmin ? handleSubmitBudget : undefined}
       />
       <ReportDetailDrawer
         report={selectedReport}
         viewerRole={currentUserRole}
+        canHandleFinance={canHandle}
         onClose={() => setRecordId(null)}
         files={selectedReport ? reportFiles[selectedReport.id] || [] : []}
         onFilesChange={(files) => setReportFiles((current) => ({ ...current, [selectedReport.id]: files }))}
