@@ -260,7 +260,8 @@ class FinancialAccountabilityController extends Controller
         $user = $request->user();
         // A student's own invoices from every organization they belong to; staff read their own organization.
         $query = Invoice::with('payments')->whereIn('organization_id', $user->role === 'STUDENT' ? $user->memberOrganizationIds() : [$user->organization_id]);
-        if ($request->user()->role !== 'ADMIN') {
+        // The Admin and an officer whose position handles finance read every charge of the organization; anyone else reads their own.
+        if ($request->user()->role !== 'ADMIN' && ! ($user->role === 'SBO_OFFICER' && $user->canHandleFinance())) {
             $query->where('student_id', $request->user()->school_id);
         }
 

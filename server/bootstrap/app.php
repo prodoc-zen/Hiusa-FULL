@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CacheApiResponse;
+use App\Http\Middleware\EnsureFinanceWriter;
 use App\Http\Middleware\EnsureOrganizationModule;
 use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsurePasswordChanged;
@@ -56,6 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
+            'finance.writer' => EnsureFinanceWriter::class,
             'org.writable' => EnsureOrganizationWritable::class,
             'org.module' => EnsureOrganizationModule::class,
             'view.only' => EnsureProfileCanWrite::class,
