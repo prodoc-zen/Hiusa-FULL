@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\GroqResponsesService;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -48,9 +49,54 @@ class GroqResponsesServiceTest extends TestCase
                 && $request['model'] === 'openai/gpt-oss-20b'
                 && $request['instructions'] === 'Preserve the supplied figures.'
                 && $request['input'] === 'Income: 1000; expense: 400.'
-                && $request['reasoning']['effort'] === 'low'
-                && $request['max_output_tokens'] === 220;
+                && $request['reasoning']['effort'] === 'medium'
+                // 220 asked for plus room for the reasoning that is counted in the same budget.
+                && $request['max_output_tokens'] === 220 + 1536
+                && ! isset($request['previous_response_id'], $request['store'], $request['truncation'], $request['include']);
         });
+    }
+
+    public function test_the_reasoning_effort_follows_config_and_only_low_has_no_reasoning_room(): void
+    {
+        foreach (['low' => 220, 'medium' => 220 + 1536, 'HIGH' => 220 + 3072, 'bogus' => 220 + 1536] as $configured => $tokens) {
+            config()->set('services.groq', ['key' => 'k', 'url' => 'https://api.groq.com/openai/v1/responses', 'model' => 'openai/gpt-oss-120b', 'timeout' => 12, 'reasoning_effort' => $configured]);
+            Http::swap(new HttpFactory);
+            Http::fake(['api.groq.com/*' => Http::response(['id' => 'r', 'model' => 'openai/gpt-oss-120b', 'output_text' => 'ok'])]);
+
+            app(GroqResponsesService::class)->generate('i', 'x', 220);
+
+            Http::assertSent(fn (Request $request) => $request['max_output_tokens'] === $tokens
+                && $request['reasoning']['effort'] === (strtolower($configured) === 'bogus' ? 'medium' : strtolower($configured)));
+        }
+    }
+
+    public function test_a_400_at_medium_is_retried_once_at_low_with_the_original_budget(): void
+    {
+        config()->set('services.groq', ['key' => 'k', 'url' => 'https://api.groq.com/openai/v1/responses', 'model' => 'openai/gpt-oss-120b', 'timeout' => 12, 'reasoning_effort' => 'medium']);
+        Http::fake(['api.groq.com/*' => Http::sequence()
+            ->push(['error' => ['message' => 'unsupported reasoning effort']], 400)
+            ->push(['id' => 'r2', 'model' => 'openai/gpt-oss-120b', 'output_text' => 'Answered at low.'])]);
+
+        $result = app(GroqResponsesService::class)->generate('i', 'x', 220);
+
+        $this->assertSame('Answered at low.', $result['text']);
+        Http::assertSentCount(2);
+        $sent = Http::recorded()->map(fn ($pair) => $pair[0])->values();
+        $this->assertSame('medium', $sent[0]['reasoning']['effort']);
+        $this->assertSame('low', $sent[1]['reasoning']['effort']);
+        $this->assertSame(220, $sent[1]['max_output_tokens']);
+    }
+
+    public function test_a_400_at_low_or_a_non_400_error_is_not_retried(): void
+    {
+        foreach ([['low', 400], ['medium', 500], ['medium', 429]] as [$effort, $status]) {
+            config()->set('services.groq', ['key' => 'k', 'url' => 'https://api.groq.com/openai/v1/responses', 'model' => 'm', 'timeout' => 12, 'reasoning_effort' => $effort]);
+            Http::swap(new HttpFactory);
+            Http::fake(['api.groq.com/*' => Http::response('boom', $status)]);
+
+            $this->assertNull(app(GroqResponsesService::class)->generate('i', 'x'));
+            Http::assertSentCount(1);
+        }
     }
 
     public function test_it_returns_null_when_no_key_is_configured(): void
@@ -122,7 +168,8 @@ class GroqResponsesServiceTest extends TestCase
         $this->assertSame(['overview' => 'Validated'], $result['data']);
         Http::assertSent(fn (Request $request) => $request['text']['format']['type'] === 'json_schema'
             && $request['text']['format']['strict'] === true
-            && $request['reasoning']['effort'] === 'low'
+            && $request['reasoning']['effort'] === 'medium'
+            && $request['max_output_tokens'] === 1800 + 1536
             && $request['text']['format']['schema'] === $schema);
     }
 
