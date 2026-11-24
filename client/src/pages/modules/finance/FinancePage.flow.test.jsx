@@ -114,7 +114,9 @@ describe('FinancePage budget lifecycle', () => {
     ['DEPARTMENT_HEAD', 'approved', 'Approved: the Admin records spending', null],
     ['SBO_OFFICER', 'pending_department_head', 'Waiting for Department Head approval', null],
     ['SBO_OFFICER', 'approved', 'Approved: the Admin records spending', null],
-    ['SBO_OFFICER', 'rejected', 'Returned to the Admin for changes', null],
+    ['SBO_OFFICER', 'rejected', 'Returned: edit the draft', 'Edit budget'],
+    ['SBO_OFFICER', 'draft', 'Draft: edit it, your Admin submits it', 'Edit draft'],
+    ['ADMIN', 'draft', 'Draft: review and submit', 'Submit for approval'],
   ];
 
   it.each(cases)('%s sees a %s budget with "%s" and %s', async (role, status, title, buttonLabel) => {

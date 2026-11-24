@@ -1,5 +1,5 @@
 import { findRowAction } from '../../../test/rowActions';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancePage from './FinancePage';
@@ -11,6 +11,9 @@ const financeMocks = vi.hoisted(() => ({
   getInvoices: vi.fn(),
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
+  createBudget: vi.fn(),
+  updateBudget: vi.fn(),
+  submitBudget: vi.fn(),
   getFinancialReports: vi.fn(),
   getReportChecks: vi.fn(),
   explainReportChecks: vi.fn(),
@@ -25,8 +28,9 @@ vi.mock('../../../services/financeService', () => ({
   deleteForecast: vi.fn(),
   generateForecast: vi.fn(),
   generateBudgetAdvice: vi.fn(),
-  createBudget: vi.fn(),
-  updateBudget: vi.fn(),
+  createBudget: financeMocks.createBudget,
+  updateBudget: financeMocks.updateBudget,
+  submitBudget: financeMocks.submitBudget,
   getFinancialReport: vi.fn(),
   generateFinancialReport: vi.fn(),
   submitFinancialReport: vi.fn(),
@@ -78,6 +82,9 @@ beforeEach(() => {
   financeMocks.getInvoices.mockResolvedValue({ data: [] });
   financeMocks.getForecasts.mockResolvedValue({ data: [] });
   financeMocks.getBudgets.mockResolvedValue({ data: [] });
+  financeMocks.createBudget.mockResolvedValue({ data: {} });
+  financeMocks.updateBudget.mockResolvedValue({ data: {} });
+  financeMocks.submitBudget.mockResolvedValue({ data: {} });
   financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
   financeMocks.getReportChecks.mockResolvedValue({ data: { findings: [] } });
   eventMocks.getEvents.mockResolvedValue({ data: [] });
@@ -140,5 +147,80 @@ describe('Finance for an officer whose position handles finance', () => {
     renderPage(OFFICER, REPORTS, { initialTab: 'reports' });
     expect(await screen.findByText('No saved reports to show yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Prepare a report' })).toBeDisabled();
+  });
+});
+
+describe('Budgets are drafts until the Admin submits them', () => {
+  async function fillBudgetForm() {
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Foundation week' } });
+    fireEvent.change(screen.getByLabelText('Allocated amount (₱)'), { target: { value: '800' } });
+    fireEvent.change(screen.getByLabelText('Warning threshold (₱)'), { target: { value: '80' } });
+  }
+
+  it('saves a treasurer proposal as a draft, and the button says so', async () => {
+    renderPage(TREASURER, BUDGETS, { initialTab: 'budgets' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Propose budget' }));
+    await fillBudgetForm();
+
+    expect(screen.queryByRole('button', { name: /Submit for approval/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Budget saved as a draft. Your Admin submits it for approval.')).toBeInTheDocument();
+  });
+
+  it('keeps Submit for approval on the Admin form', async () => {
+    renderPage(ADMIN, BUDGETS, { initialTab: 'budgets' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Propose budget' }));
+    await fillBudgetForm();
+
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+
+    await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Budget proposal submitted for approval.')).toBeInTheDocument();
+  });
+
+  it('lets the Admin submit a draft from its detail drawer', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [budget({ id: 8, title: 'Drafted budget', approval_status: null, submission_status: 'draft' })] });
+    renderPage(ADMIN, BUDGETS, { initialTab: 'budgets' });
+    fireEvent.click(await findRowAction('View details for Drafted budget', 'Drafted budget'));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit for approval' }));
+
+    await waitFor(() => expect(financeMocks.submitBudget).toHaveBeenCalledWith(8));
+  });
+
+  it('shows a treasurer an Edit draft button, never Edit and resubmit', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [budget({ id: 8, title: 'Drafted budget', approval_status: null, submission_status: 'draft' }), budget({ id: 9, title: 'Returned budget', approval_status: 'rejected', submission_status: 'rejected' })] });
+    renderPage(TREASURER, BUDGETS, { initialTab: 'budgets' });
+    fireEvent.click(await findRowAction('View details for Drafted budget', 'Drafted budget'));
+
+    expect(await screen.findByRole('button', { name: 'Edit draft' })).toBeInTheDocument();
+    expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /Submit for approval|Edit and resubmit/ })).not.toBeInTheDocument();
+  });
+
+  it('saves a treasurer edit of a draft as a draft', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [budget({ id: 8, title: 'Drafted budget', approval_status: null, submission_status: 'draft' })] });
+    renderPage(TREASURER, BUDGETS, { initialTab: 'budgets' });
+    fireEvent.click(await findRowAction('View details for Drafted budget', 'Drafted budget'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit draft' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(financeMocks.updateBudget).toHaveBeenCalledWith(8, expect.objectContaining({ title: 'Drafted budget' })));
+    expect(await screen.findByText('Draft saved. Your Admin submits it for approval.')).toBeInTheDocument();
+  });
+});
+
+describe('Report drawer for a finance officer', () => {
+  it('shows Submit switched off with its reason, as every other Admin only step', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft', generated_at: '2026-08-31' }] });
+    renderPage(TREASURER, REPORTS, { initialTab: 'reports' });
+    fireEvent.click(await findRowAction('View details for August report', 'August report'));
+
+    expect(await screen.findByRole('button', { name: 'Submit for review' })).toBeDisabled();
+    expect(screen.getByText('An Admin submits reports')).toBeInTheDocument();
   });
 });

@@ -3,19 +3,26 @@ import { budgetLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import { peso } from '../../lib/format';
 import { formatDisplayText } from '../../utils/displayText.js';
 
-// A returned budget is edited on this page, so its button opens the form instead of linking back here.
-export function budgetNextStepProps(budget, viewerRole, onEdit) {
+// A draft or returned budget is edited on this page, so its button opens the form instead of linking back here. An
+// officer only ever edits (the budget stays a draft); the Admin submits a draft and resubmits a returned one.
+export function budgetNextStepProps(budget, viewerRole, onEdit, onSubmit) {
   const props = toNextStepProps(budgetLifecycle(budget, viewerRole));
-  if (budget.submission_status === 'rejected' && props.primary && onEdit) {
+  const status = budget.submission_status;
+  if (!props.primary) return props;
+  if (viewerRole === 'SBO_OFFICER') {
+    if (onEdit && ['draft', 'rejected'].includes(status)) props.primary = { label: props.primary.label, onClick: onEdit };
+  } else if (status === 'rejected' && onEdit) {
     props.primary = { label: 'Edit and resubmit', onClick: onEdit };
+  } else if (status === 'draft' && onSubmit) {
+    props.primary = { label: 'Submit for approval', onClick: onSubmit };
   }
   return props;
 }
 
-export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit }) {
+export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit, onSubmit }) {
   if (!budget) return null;
   const lifecycle = budgetLifecycle(budget, viewerRole);
-  const nextStep = budgetNextStepProps(budget, viewerRole, onEdit ? () => onEdit(budget) : undefined);
+  const nextStep = budgetNextStepProps(budget, viewerRole, onEdit ? () => onEdit(budget) : undefined, onSubmit ? () => onSubmit(budget) : undefined);
   const context = [budget.event && formatDisplayText(budget.event.title), budget.financial_semester && `Semester: ${formatDisplayText(budget.financial_semester.name)}`].filter(Boolean).join(' · ');
 
   return (

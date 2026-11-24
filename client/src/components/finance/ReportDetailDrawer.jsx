@@ -42,7 +42,7 @@ function supportingFileProblem(picked) {
   return '';
 }
 
-export default function ReportDetailDrawer({ report, viewerRole, onClose, files = [], onFilesChange, onSubmit, submitting }) {
+export default function ReportDetailDrawer({ report, viewerRole, canHandleFinance = false, onClose, files = [], onFilesChange, onSubmit, submitting }) {
   const [fileError, setFileError] = useState('');
   const [pickError, setPickError] = useState('');
   const [explained, setExplained] = useState(null);
@@ -57,6 +57,11 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
     if (sent === true && explained) recordAiOutcome(explained.aiOutputId, explained.text).catch(() => {});
   }
   const nextStep = reportNextStepProps(report, viewerRole, { onSubmit: canSubmit ? submitReport : undefined, submitting });
+  // A finance officer prepares the report but an Admin submits it: the button stays, switched off, with its reason.
+  const officerSubmitBlocked = viewerRole === 'SBO_OFFICER' && canHandleFinance && ['draft', 'rejected'].includes(withDraftDefault(report).submission_status);
+  const stepProps = officerSubmitBlocked
+    ? { ...nextStep, tone: 'action', primary: { label: withDraftDefault(report).submission_status === 'draft' ? 'Submit for review' : 'Resubmit for review', disabledReason: 'An Admin submits reports' } }
+    : nextStep;
   const documentName = report.document_type === 'income_statement' ? 'Income statement' : 'Financial report';
   const generated = String(report.generated_at || '').slice(0, 10);
   const documents = report.supporting_documents || [];
@@ -74,9 +79,9 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
     <Drawer open title={formatDisplayText(report.title)} description={[documentName, generated && `Generated ${generated}`].filter(Boolean).join(' · ')} onClose={onClose} width="max-w-xl">
       <div className="space-y-5">
         <FlowStepper variant="full" steps={lifecycle.steps} ariaLabel="Financial report progress" />
-        <NextStep {...nextStep} />
+        <NextStep {...stepProps} />
         {report.summary_text && <p className="border-t border-line pt-4 text-sm font-medium text-ink-muted-strong">{report.summary_text}</p>}
-        {showChecks && <ReportChecksPanel reportId={report.id} canIgnore={viewerRole === 'ADMIN'} onExplained={setExplained} />}
+        {showChecks && <ReportChecksPanel reportId={report.id} canIgnore={viewerRole === 'ADMIN'} ignoreBlockedReason={viewerRole === 'SBO_OFFICER' && canHandleFinance ? 'An Admin decides which checks to ignore' : undefined} onExplained={setExplained} />}
         <div className="border-t border-line pt-4">
           <h3 className="text-sm font-semibold text-ink">Submitted supporting files</h3>
           {fileError && <p role="alert" className="mt-2 text-sm font-medium text-danger-strong">{fileError}</p>}

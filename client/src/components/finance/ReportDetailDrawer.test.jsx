@@ -54,6 +54,21 @@ describe('ReportDetailDrawer', () => {
       expect(screen.queryByRole('button', { name: 'Ignore with a reason' })).not.toBeInTheDocument();
     });
 
+    it('shows a finance officer the Ignore button switched off, with the reason', async () => {
+      render(<ReportDetailDrawer report={unsent} viewerRole="SBO_OFFICER" canHandleFinance onClose={vi.fn()} />);
+
+      const ignore = await screen.findByRole('button', { name: 'Ignore with a reason' });
+      expect(ignore).toBeDisabled();
+      expect(ignore).toHaveAttribute('title', 'An Admin decides which checks to ignore');
+    });
+
+    it('shows a finance officer the Submit button switched off, with the reason', () => {
+      render(<ReportDetailDrawer report={unsent} viewerRole="SBO_OFFICER" canHandleFinance onClose={vi.fn()} />);
+
+      expect(screen.getByRole('button', { name: 'Submit for review' })).toBeDisabled();
+      expect(screen.getByText('An Admin submits reports')).toBeInTheDocument();
+    });
+
     it('asks nothing of a report that is already with the reviewers', () => {
       render(<ReportDetailDrawer report={{ ...unsent, submission_status: 'pending_sao' }} viewerRole="ADMIN" onClose={vi.fn()} />);
 

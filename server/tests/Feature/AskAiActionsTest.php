@@ -497,6 +497,22 @@ class AskAiActionsTest extends TestCase
         $this->assertSame('/dashboard/finance/budget-allocation', $response->json('message.payload.action.result.href'));
     }
 
+    public function test_a_treasurers_budget_proposal_is_saved_as_a_draft_for_the_admin_to_submit(): void
+    {
+        $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
+        $treasurer = User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => 'Treasurer']);
+        Sanctum::actingAs($treasurer);
+        $message = $this->ask('propose a budget called Fun Run Budget for 5000 pesos');
+
+        $response = $this->confirm($message['id'], [...$this->values($message), 'warning_threshold' => '4000'])->assertOk();
+
+        $budget = Budget::sole();
+        $this->assertSame('draft', $budget->submission_status);
+        $this->assertSame(0, ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->count());
+        $this->assertSame('Budget saved as a draft. Your Admin submits it for approval.', $response->json('message.payload.action.result.message'));
+    }
+
     public function test_the_route_validation_errors_come_back_on_the_right_fields_and_keep_the_values(): void
     {
         Sanctum::actingAs($this->admin());

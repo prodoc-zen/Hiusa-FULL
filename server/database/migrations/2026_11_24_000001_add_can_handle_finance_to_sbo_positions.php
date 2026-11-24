@@ -14,7 +14,7 @@ return new class extends Migration
             $table->boolean('can_handle_finance')->default(false)->after('can_book_venues');
         });
 
-        // The Treasurer, the Auditor and the Business Manager start with the switch on; every other position starts off.
+        // The Treasurer, the Auditor, the Business Manager and the Secretary start with the switch on; every other position starts off.
         $ids = DB::table('sbo_positions')->select('id', 'title')->get()
             ->filter(fn ($position) => SboPosition::financeDefaultFor((string) $position->title))
             ->pluck('id');

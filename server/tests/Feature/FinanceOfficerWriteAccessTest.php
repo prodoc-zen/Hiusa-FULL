@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\CashAdvance;
 use App\Models\Collection;
@@ -75,10 +76,6 @@ class FinanceOfficerWriteAccessTest extends TestCase
             'organization_id' => $this->organization->id, 'recorded_by' => $this->treasurer->id, 'type' => 'income', 'category' => 'Dues',
             'description' => 'Seed entry', 'amount' => 100, 'transaction_date' => now(),
         ]);
-        $this->draftBudget = Budget::create([
-            'organization_id' => $this->organization->id, 'title' => 'Draft budget', 'allocated_amount' => 1000, 'remaining_amount' => 1000,
-            'warning_threshold' => 100, 'submission_status' => 'draft',
-        ]);
         $this->approvedBudget = Budget::create([
             'organization_id' => $this->organization->id, 'title' => 'Approved budget', 'allocated_amount' => 1000, 'remaining_amount' => 1000,
             'warning_threshold' => 100, 'submission_status' => 'approved',
@@ -88,6 +85,9 @@ class FinanceOfficerWriteAccessTest extends TestCase
         $collectionId = $this->postJson('/api/collections', ['amount_collected' => '200.00', 'source' => 'Seed collection'])->assertCreated()->json('id');
         Collection::whereKey($collectionId)->update(['status' => 'verified']);
         $this->verifiedCollection = Collection::findOrFail($collectionId);
+        Sanctum::actingAs($this->treasurer);
+        $this->draftBudget = Budget::findOrFail($this->postJson('/api/budgets', ['title' => 'Draft budget', 'allocated_amount' => '1000.00', 'warning_threshold' => '100.00'])->assertCreated()->json('id'));
+        Sanctum::actingAs($this->admin);
         $this->invoice = Invoice::findOrFail($this->postJson('/api/invoices', ['student_id' => $this->student->school_id, 'description' => 'Seed charge', 'amount_due' => '300.00'])->assertCreated()->json('id'));
     }
 
@@ -183,13 +183,15 @@ class FinanceOfficerWriteAccessTest extends TestCase
 
         $this->assertSame($this->otherTreasurer->school_id, Collection::findOrFail($collectionId)->collected_by);
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $this->other->id, 'module' => 'collections', 'action' => 'recorded', 'user_id' => $this->otherTreasurer->school_id, 'actor_role' => 'SBO_OFFICER']);
-        $this->assertDatabaseHas('approval_requests', ['organization_id' => $this->other->id, 'entity_type' => 'budget', 'entity_id' => $budgetId, 'requested_by' => $this->otherTreasurer->id]);
+        $this->assertSame('draft', Budget::findOrFail($budgetId)->submission_status);
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'budget', 'entity_id' => $budgetId]);
         $this->assertDatabaseMissing('transactions', ['organization_id' => $this->organization->id, 'description' => 'Paper']);
     }
 
     public function test_a_treasurer_cannot_write_into_another_organizations_records_by_id(): void
     {
-        $foreign = Budget::create(['organization_id' => $this->other->id, 'title' => 'Foreign', 'allocated_amount' => 100, 'remaining_amount' => 100, 'warning_threshold' => 10, 'submission_status' => 'draft']);
+        Sanctum::actingAs($this->otherTreasurer);
+        $foreign = Budget::findOrFail($this->postJson('/api/budgets', ['title' => 'Foreign', 'allocated_amount' => '100.00', 'warning_threshold' => '10.00'])->assertCreated()->json('id'));
         Sanctum::actingAs($this->treasurer);
 
         $this->putJson("/api/budgets/{$foreign->id}", ['title' => 'Hijacked'])->assertNotFound();
@@ -211,12 +213,84 @@ class FinanceOfficerWriteAccessTest extends TestCase
         $this->putJson("/api/budgets/{$this->approvedBudget->id}", ['title' => 'Admin change'])->assertOk();
     }
 
-    public function test_an_officer_may_fix_a_budget_the_reviewer_returned(): void
+    public function test_an_officers_new_budget_is_a_draft_that_reaches_nobody_until_the_admin_submits_it(): void
     {
-        $this->draftBudget->update(['submission_status' => 'rejected']);
         Sanctum::actingAs($this->treasurer);
 
-        $this->putJson("/api/budgets/{$this->draftBudget->id}", ['title' => 'Fixed after return'])->assertOk()->assertJsonPath('title', 'Fixed after return');
+        $id = $this->postJson('/api/budgets', ['title' => 'Foundation week', 'allocated_amount' => '800.00', 'warning_threshold' => '80.00'])
+            ->assertCreated()->assertJsonPath('submission_status', 'draft')->json('id');
+
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'budget', 'entity_id' => $id]);
+        $this->patchJson("/api/budgets/{$id}/submit")->assertForbidden();
+        $this->assertSame('draft', Budget::findOrFail($id)->submission_status);
+
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/budgets/{$id}/submit")->assertOk()->assertJsonPath('submission_status', 'pending_department_head');
+        $this->assertDatabaseHas('approval_requests', ['organization_id' => $this->organization->id, 'entity_type' => 'budget', 'entity_id' => $id, 'requested_by' => $this->admin->id, 'status' => 'pending']);
+    }
+
+    public function test_the_admins_own_budget_is_still_submitted_at_once(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $id = $this->postJson('/api/budgets', ['title' => 'Admin budget', 'allocated_amount' => '800.00', 'warning_threshold' => '80.00'])
+            ->assertCreated()->assertJsonPath('submission_status', 'pending_department_head')->json('id');
+
+        $this->assertDatabaseHas('approval_requests', ['entity_type' => 'budget', 'entity_id' => $id]);
+    }
+
+    public function test_an_officer_editing_a_draft_keeps_it_a_draft(): void
+    {
+        Sanctum::actingAs($this->treasurer);
+
+        $this->putJson("/api/budgets/{$this->draftBudget->id}", ['title' => 'Draft, revised'])->assertOk()->assertJsonPath('submission_status', 'draft');
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'budget', 'entity_id' => $this->draftBudget->id]);
+    }
+
+    public function test_an_officer_fixing_a_returned_budget_saves_a_draft_and_the_admin_resubmits_it(): void
+    {
+        $this->draftBudget->update(['submission_status' => 'rejected']);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $this->organization->id, 'entity_type' => 'budget', 'entity_id' => $this->draftBudget->id,
+            'requested_by' => $this->admin->id, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'rejected', 'decision' => 'rejected',
+        ]);
+        Sanctum::actingAs($this->treasurer);
+
+        $this->putJson("/api/budgets/{$this->draftBudget->id}", ['title' => 'Fixed after return'])
+            ->assertOk()->assertJsonPath('title', 'Fixed after return')->assertJsonPath('submission_status', 'draft');
+        $this->assertSame('rejected', $approval->fresh()->status);
+        $this->patchJson("/api/budgets/{$this->draftBudget->id}/submit")->assertForbidden();
+
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/budgets/{$this->draftBudget->id}/submit")->assertOk()->assertJsonPath('submission_status', 'pending_department_head');
+        $this->assertSame('pending', $approval->fresh()->status);
+    }
+
+    public function test_only_a_draft_or_returned_budget_can_be_submitted_and_only_inside_the_admins_organization(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/budgets/{$this->approvedBudget->id}/submit")->assertStatus(409);
+        Sanctum::actingAs($this->otherTreasurer);
+        $foreign = Budget::findOrFail($this->postJson('/api/budgets', ['title' => 'Foreign', 'allocated_amount' => '100.00', 'warning_threshold' => '10.00'])->assertCreated()->json('id'));
+        Sanctum::actingAs($this->admin);
+        $this->patchJson("/api/budgets/{$foreign->id}/submit")->assertNotFound();
+        $this->assertSame('draft', $foreign->fresh()->submission_status);
+    }
+
+    public function test_an_officer_cannot_change_a_transaction_someone_else_recorded(): void
+    {
+        $entry = Transaction::create([
+            'organization_id' => $this->organization->id, 'recorded_by' => $this->admin->id, 'type' => 'income', 'category' => 'Dues',
+            'description' => 'Admin entry', 'amount' => 500, 'transaction_date' => now(),
+        ]);
+        Sanctum::actingAs($this->treasurer);
+
+        $this->putJson("/api/transactions/{$entry->id}", ['amount' => '0.01'])
+            ->assertForbidden()->assertJsonPath('message', 'You can only change transactions you recorded.');
+        $this->assertSame('500.00', number_format((float) $entry->fresh()->amount, 2, '.', ''));
+
+        Sanctum::actingAs($this->admin);
+        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Admin corrected'])->assertOk();
     }
 
     public function test_ask_ai_offers_the_budget_action_and_the_finance_tools_only_to_an_officer_with_the_switch(): void
@@ -254,7 +328,7 @@ class FinanceOfficerWriteAccessTest extends TestCase
     public static function adminOnlyRoutes(): array
     {
         return array_map(fn (string $key) => [$key], [
-            'collection.verify', 'advance.store', 'advance.approve', 'advance.release', 'advance.repay', 'invoice.close', 'budget.destroy',
+            'collection.verify', 'advance.store', 'advance.approve', 'advance.release', 'advance.repay', 'invoice.close', 'budget.destroy', 'budget.submit',
             'report.submit', 'report.ignore', 'forecast.store', 'forecast.update', 'forecast.destroy',
         ]);
     }
@@ -275,6 +349,7 @@ class FinanceOfficerWriteAccessTest extends TestCase
             'advance.repay' => ['POST', "/api/cash-advances/{$advance->id}/repayments", ['amount' => '10.00']],
             'invoice.close' => ['PATCH', "/api/invoices/{$this->invoice->id}/status", ['status' => 'cancelled', 'reason' => 'Wrong student']],
             'budget.destroy' => ['DELETE', "/api/budgets/{$this->draftBudget->id}", []],
+            'budget.submit' => ['PATCH', "/api/budgets/{$this->draftBudget->id}/submit", []],
             'report.submit' => ['POST', "/api/financial-reports/{$report->id}/submit", []],
             'report.ignore' => ['POST', "/api/financial-reports/{$report->id}/checks/ignore", ['key' => 'k', 'reason' => 'r']],
             'forecast.store' => ['POST', '/api/forecasts', ['forecast_period' => '2030-01', 'predicted_income' => 1, 'predicted_expense' => 1]],

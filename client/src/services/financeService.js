@@ -13,6 +13,9 @@ export const generateBudgetAdvice = (id) =>
 export const updateBudget = (id, data) =>
   api.put(`/budgets/${id}`, data);
 
+export const submitBudget = (id) =>
+  api.patch(`/budgets/${id}/submit`);
+
 export const deleteBudget = (id) =>
   api.delete(`/budgets/${id}`);
 
