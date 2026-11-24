@@ -86,9 +86,9 @@ return [
         'provider' => env('AI_PROVIDER'),
         // Seconds a provider is skipped after it timed out or could not connect. 0 turns the cooling-off off.
         'cooldown_seconds' => env('AI_PROVIDER_COOLDOWN_SECONDS', 60),
-        // Seconds both providers share to draft an event's to-do plan, which is longer than any other call. Claude gets
-        // three quarters of it and Groq the rest; their usual request caps (30 and 12 seconds) are lifted to this for that call only.
-        'plan_deadline_seconds' => (int) env('AI_PLAN_DEADLINE_SECONDS', 30),
+        // Seconds both providers share to draft an event's to-do plan, which is longer than any other call. Groq keeps its
+        // 12 seconds and Claude gets the rest; their usual request caps (30 and 12 seconds) are lifted to this for that call only.
+        'plan_deadline_seconds' => (int) env('AI_PLAN_DEADLINE_SECONDS', 45),
     ],
 
     'edp' => [

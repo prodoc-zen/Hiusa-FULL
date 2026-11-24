@@ -19,8 +19,9 @@ use Illuminate\Support\Facades\Log;
  * read timeout. A
  * provider that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one
  * longer deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off. The event plan is
- * the one structured call that gets its own deadline (services.ai.plan_deadline_seconds), because a full plan is the
- * longest answer either provider writes.
+ * the one structured call that gets its own deadline (services.ai.plan_deadline_seconds, 45 by default, never below
+ * the ordinary 37), because a full plan is the longest answer either provider writes: Groq keeps its 12 seconds and
+ * Claude gets the rest, 33 at the default, so the plan never has a shorter window than any other call.
  */
 class FallbackTextGenerator implements TextGenerator
 {
@@ -36,13 +37,10 @@ class FallbackTextGenerator implements TextGenerator
     private const DEADLINE_SECONDS = self::PRIMARY_SECONDS + self::SECONDARY_SECONDS;
 
     // The shortest deadline the event plan may be given, whatever services.ai.plan_deadline_seconds says.
-    private const PLAN_DEADLINE_FLOOR_SECONDS = 30;
+    private const PLAN_DEADLINE_FLOOR_SECONDS = self::DEADLINE_SECONDS;
 
     // The structured call that builds an event's to-do plan; EventController passes this schema name.
     public const EVENT_PLAN_SCHEMA = 'hiusa_event_workflow';
-
-    // The primary's part of the longer plan deadline; the rest is Groq's turn.
-    private const PLAN_PRIMARY_SHARE = 0.75;
 
     // A provider that has said nothing for this long gets a 'tick' event, so the caller can keep the page alive.
     private const TICK_SECONDS = 4;
@@ -77,9 +75,9 @@ class FallbackTextGenerator implements TextGenerator
             return $this->serve('generateStructured', $call, true);
         }
 
-        $planSeconds = max(self::PLAN_DEADLINE_FLOOR_SECONDS, min(120, (int) config('services.ai.plan_deadline_seconds', 30) ?: 30));
+        $planSeconds = max(self::PLAN_DEADLINE_FLOOR_SECONDS, min(120, (int) config('services.ai.plan_deadline_seconds', 45) ?: 45));
 
-        return $this->serve('generateStructured', $call, true, $planSeconds, $planSeconds * self::PLAN_PRIMARY_SHARE, $planSeconds);
+        return $this->serve('generateStructured', $call, true, $planSeconds, $planSeconds - self::SECONDARY_SECONDS, $planSeconds);
     }
 
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
