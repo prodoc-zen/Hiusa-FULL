@@ -108,12 +108,12 @@ class LedgerEntryFlagsTest extends TestCase
     public function test_the_store_and_update_responses_carry_the_flags(): void
     {
         Sanctum::actingAs($this->admin);
-        $created = $this->postJson('/api/transactions', [
+        $created = $this->postTransaction([
             'type' => 'expense', 'amount' => 80, 'category' => 'Supplies', 'description' => 'Markers', 'transaction_date' => now()->toDateString(),
         ])->assertCreated();
         $created->assertJsonPath('is_system_generated', false)->assertJsonPath('is_locked_by_report', false)->assertJsonPath('system_source', null);
 
-        $this->putJson('/api/transactions/'.$created->json('id'), ['description' => 'Markers and tape'])
+        $this->putJson('/api/transactions/'.$created->json('id'), ['edit_reason' => 'Corrected after review', 'description' => 'Markers and tape'])
             ->assertOk()->assertJsonPath('is_system_generated', false)->assertJsonPath('is_locked_by_report', false);
     }
 
@@ -123,8 +123,8 @@ class LedgerEntryFlagsTest extends TestCase
         $this->report([$entry->id], 'draft');
         Sanctum::actingAs($this->admin);
 
-        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Changed'])->assertOk();
-        $this->deleteJson("/api/transactions/{$entry->id}")->assertOk();
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Changed'])->assertOk();
+        $this->patchJson("/api/transactions/{$entry->id}/archive", ['reason' => 'Archived in the test'])->assertOk();
     }
 
     public function test_a_rejected_report_unlocks_its_entries(): void
@@ -133,8 +133,8 @@ class LedgerEntryFlagsTest extends TestCase
         $this->report([$entry->id], 'rejected');
         Sanctum::actingAs($this->admin);
 
-        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Changed'])->assertOk();
-        $this->deleteJson("/api/transactions/{$entry->id}")->assertOk();
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Changed'])->assertOk();
+        $this->patchJson("/api/transactions/{$entry->id}/archive", ['reason' => 'Archived in the test'])->assertOk();
     }
 
     public function test_a_submitted_or_approved_report_locks_edit_and_delete(): void
@@ -148,9 +148,9 @@ class LedgerEntryFlagsTest extends TestCase
                 ? "This entry is part of the financial report 'August report' that has been approved. An approved report is final, so this entry can no longer be changed."
                 : "This entry is part of the financial report 'August report' that has been submitted. Ask the Department Head to return the report before changing it.";
 
-            $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Quietly rewritten'])
+            $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Quietly rewritten'])
                 ->assertStatus(409)->assertJsonPath('message', $message);
-            $this->deleteJson("/api/transactions/{$entry->id}")
+            $this->patchJson("/api/transactions/{$entry->id}/archive", ['reason' => 'Archived in the test'])
                 ->assertStatus(409)->assertJsonPath('message', $message);
 
             $this->assertSame('Markers', Transaction::findOrFail($entry->id)->description, $status);
@@ -164,10 +164,10 @@ class LedgerEntryFlagsTest extends TestCase
         $this->report([$entry->id], 'approved', 'Other report', $other);
         Sanctum::actingAs($this->admin);
 
-        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Changed'])->assertOk();
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Changed'])->assertOk();
         $row = $this->row($this->getJson('/api/transactions')->assertOk()->json('data'), $entry->id);
         $this->assertFalse($row['is_locked_by_report']);
-        $this->deleteJson("/api/transactions/{$entry->id}")->assertOk();
+        $this->patchJson("/api/transactions/{$entry->id}/archive", ['reason' => 'Archived in the test'])->assertOk();
     }
 
     public function test_an_id_that_only_shares_digits_with_a_listed_id_is_not_locked(): void
@@ -176,7 +176,7 @@ class LedgerEntryFlagsTest extends TestCase
         $this->report([$entry->id * 10 + 1, 9000 + $entry->id], 'approved');
         Sanctum::actingAs($this->admin);
 
-        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Changed'])->assertOk();
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Changed'])->assertOk();
     }
 
     public function test_the_index_flags_a_mixed_page_correctly(): void

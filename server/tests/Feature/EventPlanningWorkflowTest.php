@@ -411,7 +411,7 @@ class EventPlanningWorkflowTest extends TestCase
             Transaction::create(['organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'income', 'category' => 'Historical', 'description' => 'Forecast history', 'amount' => $income, 'transaction_date' => now()->subMonths($monthsAgo)]);
             Transaction::create(['organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'expense', 'category' => 'Historical', 'description' => 'Forecast history', 'amount' => $expense, 'transaction_date' => now()->subMonths($monthsAgo)]);
         }
-        $this->postJson('/api/transactions', ['budget_id' => $budget->id, 'event_id' => $event->id, 'type' => 'expense', 'amount' => 150, 'category' => 'Events', 'description' => 'Event supplies', 'transaction_date' => $event->start_time->toDateString()])->assertCreated();
+        $this->postTransaction(['budget_id' => $budget->id, 'event_id' => $event->id, 'type' => 'expense', 'amount' => 150, 'category' => 'Events', 'description' => 'Event supplies', 'transaction_date' => $event->start_time->toDateString()])->assertCreated();
         $this->assertSame('850.00', $budget->fresh()->remaining_amount);
         $this->postJson('/api/forecasts/generate', ['months' => 12])->assertCreated()->assertJsonPath('model_details.algorithm', 'ordinary_least_squares');
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk();
@@ -475,8 +475,8 @@ class EventPlanningWorkflowTest extends TestCase
             'category' => 'Events',
             'transaction_date' => now()->toDateString(),
         ];
-        $this->postJson('/api/transactions', [...$transactionBase, 'type' => 'expense', 'amount' => 600, 'description' => 'Venue deposit'])->assertCreated();
-        $this->postJson('/api/transactions', [...$transactionBase, 'type' => 'income', 'amount' => 100, 'description' => 'Partner contribution'])->assertCreated();
+        $this->postTransaction([...$transactionBase, 'type' => 'expense', 'amount' => 600, 'description' => 'Venue deposit'])->assertCreated();
+        $this->postTransaction([...$transactionBase, 'type' => 'income', 'amount' => 100, 'description' => 'Partner contribution'])->assertCreated();
         $budget->update(['overspending_risk' => 'medium', 'safe_spending_limit' => 1200, 'advice_generated_at' => now()]);
         FinancialForecast::factory()->create([
             'organization_id' => $organization->id,

@@ -167,7 +167,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     public function test_an_edited_amount_blocks_submission(): void
     {
         $report = $this->generate();
-        $this->putJson('/api/transactions/'.$this->entry->id, ['amount' => 1500])->assertOk();
+        $this->putJson('/api/transactions/'.$this->entry->id, ['edit_reason' => 'Corrected after review', 'amount' => 1500])->assertOk();
 
         $this->assertStale($report);
     }
@@ -175,7 +175,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     public function test_a_deleted_entry_blocks_submission(): void
     {
         $report = $this->generate();
-        $this->deleteJson('/api/transactions/'.$this->entry->id)->assertOk();
+        $this->patchJson('/api/transactions/'.$this->entry->id.'/archive', ['reason' => 'Archived in the test'])->assertOk();
 
         $this->assertStale($report);
     }
@@ -183,7 +183,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     public function test_a_changed_category_blocks_submission(): void
     {
         $report = $this->generate();
-        $this->putJson('/api/transactions/'.$this->entry->id, ['category' => 'donations'])->assertOk();
+        $this->putJson('/api/transactions/'.$this->entry->id, ['edit_reason' => 'Corrected after review', 'category' => 'donations'])->assertOk();
 
         $this->assertStale($report);
     }
@@ -216,7 +216,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     {
         Storage::fake('local');
         $report = $this->generate();
-        $this->putJson('/api/transactions/'.$this->entry->id, ['amount' => 1500])->assertOk();
+        $this->putJson('/api/transactions/'.$this->entry->id, ['edit_reason' => 'Corrected after review', 'amount' => 1500])->assertOk();
 
         $this->post('/api/financial-reports/'.$report->id.'/submit', [
             'supporting_documents' => [UploadedFile::fake()->create('receipts.pdf', 100, 'application/pdf')],
@@ -228,7 +228,7 @@ class FinancialReportLedgerDriftTest extends TestCase
     public function test_regenerating_after_a_change_submits(): void
     {
         $stale = $this->generate();
-        $this->putJson('/api/transactions/'.$this->entry->id, ['amount' => 1500])->assertOk();
+        $this->putJson('/api/transactions/'.$this->entry->id, ['edit_reason' => 'Corrected after review', 'amount' => 1500])->assertOk();
         $this->postJson('/api/financial-reports/'.$stale->id.'/submit')->assertStatus(422);
 
         $fresh = $this->generate();

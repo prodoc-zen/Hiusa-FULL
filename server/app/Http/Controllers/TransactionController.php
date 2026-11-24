@@ -21,12 +21,38 @@ use App\Services\TransactionReceiptFiles;
 use App\Support\FilterValues;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TransactionController extends Controller
 {
-    public function index(Request $request)
+    private const RECEIPT_REQUIRED_MESSAGE = 'Attach the official receipt for this expense.';
+
+    private const RECEIPT_FILE_MESSAGE = 'Attach the official receipt as a JPG, PNG, WEBP or PDF up to 5 MB.';
+
+    private const ARCHIVED_MESSAGE = 'This transaction is archived.';
+
+    /** The audit actions the history shows, and the kind each is shown as; a budget unlinked by the system reads as an edit. */
+    private const HISTORY_ACTIONS = ['created' => 'created', 'updated' => 'updated', 'budget_unlinked' => 'updated', 'archived' => 'archived'];
+
+    /** The fields an edit can change, in the words the history shows them in. */
+    private const FIELD_LABELS = [
+        'amount' => 'Amount',
+        'type' => 'Type',
+        'category' => 'Category',
+        'transaction_date' => 'Date',
+        'description' => 'Description',
+        'budget_id' => 'Linked budget (title)',
+        'event_id' => 'Linked event (title)',
+        'payer_id' => 'Payer (school ID)',
+        'receipt_reference' => 'Receipt reference',
+        'receipt_number' => 'Receipt number',
+        'receipt_file' => 'Official receipt file',
+    ];
+
+    public function index(Request $request, TransactionReceiptFiles $files)
     {
         $filters = $request->validate([
             'budget_id' => ['nullable', FilterValues::rule(['nullable', 'integer'])],
@@ -37,16 +63,23 @@ class TransactionController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'in:10'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'archived' => ['nullable', 'boolean'],
             'search' => ['nullable', 'string', 'max:150'],
             'event_search' => ['nullable', 'string', 'max:150'],
         ]);
 
-        $query = Transaction::with([
+        // The archived list is read only and reaches the archived rows through the one place that lifts the scope.
+        $base = $request->boolean('archived')
+            ? Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereNotNull('archived_at')
+            : Transaction::query();
+        $query = $base->with([
             'budget:id,title',
             'event:id,title',
             'recorder:school_id,first_name,last_name',
             'payer:school_id,first_name,last_name,department,program,year_level',
             'organization:id,name,acronym',
+            'archiver:school_id,first_name,last_name',
+            'lastEditor:school_id,first_name,last_name',
         ])->withSystemSource()->orderBy('transaction_date', 'desc')->orderByDesc('id');
 
         $query->whereIn('organization_id', $this->readableOrganizationIds($request));
@@ -100,7 +133,7 @@ class TransactionController extends Controller
         }
 
         $page = $query->paginate(10);
-        $this->exposeLedgerFlags($page->getCollection());
+        $this->exposeLedgerFlags($page->getCollection(), $files);
 
         return response()->json($page);
     }
@@ -185,17 +218,52 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TransactionReceiptFiles $files)
     {
         $data = $request->validate($this->rules($request), $this->messages());
+        $organizationId = $request->user()->organization_id;
+        $upload = $request->file('receipt_file');
+        unset($data['receipt_file']);
+
+        // A kept path is accepted only when it is a file this organization's receipt folder holds, so a typed string cannot stand in for the receipt.
+        if (isset($data['receipt_file_url']) && ! $files->isKeptFor($data['receipt_file_url'], $organizationId)) {
+            unset($data['receipt_file_url']);
+        }
+
+        if ($upload === null && empty($data['receipt_file_url']) && $data['type'] === 'expense') {
+            throw ValidationException::withMessages(['receipt_file' => [self::RECEIPT_REQUIRED_MESSAGE]]);
+        }
 
         if ($message = $this->validateAndNormalizeLinks($request, $data)) {
             return response()->json(['message' => $message], 422);
         }
 
-        return DB::transaction(function () use ($data, $request) {
+        $stored = null;
+        if ($upload !== null) {
+            $stored = $files->storeUploaded($organizationId, $upload);
+            if ($stored === null) {
+                throw ValidationException::withMessages(['receipt_file' => ['The receipt file could not be saved. Try again.']]);
+            }
+            $data['receipt_file_url'] = $stored;
+        }
+
+        try {
+            return $this->createEntry($request, $data, $files);
+        } catch (\Throwable $exception) {
+            if ($stored !== null) {
+                $files->discard($stored);
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function createEntry(Request $request, array $data, TransactionReceiptFiles $files)
+    {
+        return DB::transaction(function () use ($data, $request, $files) {
             if (empty($data['receipt_number'])) {
-                $data['receipt_number'] = ((int) Transaction::where('organization_id', $request->user()->organization_id)
+                // Archived entries keep their number, so the next one must clear them too.
+                $data['receipt_number'] = ((int) Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $request->user()->organization_id)
                     ->when(
                         ! empty($data['event_id']),
                         fn ($query) => $query->where('event_id', $data['event_id']),
@@ -227,18 +295,22 @@ class TransactionController extends Controller
                 'recorder:school_id,first_name,last_name',
                 'payer:school_id,first_name,last_name',
             ])->loadSystemSource();
-            $this->exposeLedgerFlags([$transaction]);
+            $this->exposeLedgerFlags([$transaction], $files);
 
             return response()->json($transaction, 201);
         });
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, TransactionReceiptFiles $files, $id)
     {
-        $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
+        $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $request->user()->organization_id)->find($id);
 
         if (! $transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);
+        }
+
+        if ($transaction->archived_at !== null) {
+            return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
         }
 
         if ($message = $this->systemSourceMessage($transaction)) {
@@ -249,39 +321,105 @@ class TransactionController extends Controller
             return response()->json(['message' => 'You can only change transactions you recorded.'], 403);
         }
 
-        $data = $request->validate($this->rules($request, true, $transaction), $this->messages());
+        $data = $request->validate([...$this->rules($request, true, $transaction), 'edit_reason' => ['required', 'string', 'min:5', 'max:500']], $this->messages());
+        $reason = trim($data['edit_reason']);
+        $upload = $request->file('receipt_file');
+        // The file changes only through an upload; a typed path is never taken.
+        unset($data['edit_reason'], $data['receipt_file'], $data['receipt_file_url']);
 
         if ($message = $this->validateAndNormalizeLinks($request, $data, $transaction)) {
             return response()->json(['message' => $message], 422);
         }
 
-        return DB::transaction(function () use ($transaction, $data, $request) {
-            $transaction = Transaction::where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
+        $newPath = null;
+        $oldPath = null;
+        $saved = false;
 
-            if (! $transaction) {
-                return response()->json(['message' => 'Transaction not found.'], 404);
+        try {
+            $response = DB::transaction(function () use ($transaction, $data, $request, $files, $upload, $reason, &$newPath, &$oldPath, &$saved) {
+                $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
+
+                if (! $transaction) {
+                    return response()->json(['message' => 'Transaction not found.'], 404);
+                }
+
+                if ($transaction->archived_at !== null) {
+                    return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
+                }
+
+                if ($message = $this->reportLockMessage($transaction)) {
+                    return response()->json(['message' => $message], 409);
+                }
+
+                // The date picker sends a day, not a time, so the same day is not a change and keeps the time it was recorded with.
+                if (isset($data['transaction_date']) && Carbon::parse($data['transaction_date'], config('app.timezone'))->setTimezone(config('app.timezone'))->toDateString() === $transaction->transaction_date->copy()->setTimezone(config('app.timezone'))->toDateString()) {
+                    unset($data['transaction_date']);
+                }
+
+                if ($upload !== null) {
+                    $newPath = $files->storeUploaded($transaction->organization_id, $upload);
+
+                    if ($newPath === null) {
+                        throw ValidationException::withMessages(['receipt_file' => ['The receipt file could not be saved. Try again.']]);
+                    }
+
+                    $data['receipt_file_url'] = $newPath;
+                    $oldPath = $transaction->receipt_file_url;
+                }
+
+                $oldValues = $this->auditableValues($transaction);
+                $changed = $this->changedFields($oldValues, $this->auditableValues((clone $transaction)->fill($data)));
+
+                if ($changed === []) {
+                    return response()->json(['message' => 'Nothing changed.'], 422);
+                }
+
+                // Only a change to the amount, the type or the budget moves the budget; the rest leaves it alone.
+                $movesBudget = array_intersect(['amount', 'type', 'budget_id'], $changed) !== [];
+                if ($movesBudget) {
+                    $this->applyBudgetMovement($transaction, -1);
+                }
+
+                $transaction->fill($data);
+                $transaction->last_edited_at = now();
+                $transaction->last_edited_by = $request->user()->school_id;
+                $transaction->edit_count = (int) $transaction->edit_count + 1;
+                $transaction->save();
+
+                if ($movesBudget) {
+                    $this->applyBudgetMovement($transaction->fresh(), 1);
+                }
+
+                $this->recordFinancialAudit($request, 'updated', $transaction, $oldValues, [
+                    ...$this->auditableValues($transaction->fresh()),
+                    'changed_fields' => $changed,
+                    'edit_reason' => $reason,
+                ]);
+                $saved = true;
+
+                $updated = $transaction->fresh()->load([
+                    'budget:id,title',
+                    'event:id,title',
+                    'recorder:school_id,first_name,last_name',
+                    'payer:school_id,first_name,last_name',
+                ])->loadSystemSource();
+                $this->exposeLedgerFlags([$updated], $files);
+
+                return response()->json($updated);
+            });
+        } finally {
+            // A file that was stored for an edit that did not commit is not kept.
+            if (! $saved && $newPath !== null) {
+                $files->discard($newPath);
             }
+        }
 
-            if ($message = $this->reportLockMessage($transaction)) {
-                return response()->json(['message' => $message], 409);
-            }
+        // The replaced file goes only after the commit, and only when no entry, archived or not, still points at it.
+        if ($saved && $oldPath !== null) {
+            $files->discardIfUnreferenced($oldPath, $transaction->organization_id);
+        }
 
-            $oldValues = $this->auditableValues($transaction);
-            $this->applyBudgetMovement($transaction, -1);
-            $transaction->update($data);
-            $this->applyBudgetMovement($transaction->fresh(), 1);
-            $this->recordFinancialAudit($request, 'updated', $transaction, $oldValues, $this->auditableValues($transaction->fresh()));
-
-            $updated = $transaction->fresh()->load([
-                'budget:id,title',
-                'event:id,title',
-                'recorder:school_id,first_name,last_name',
-                'payer:school_id,first_name,last_name',
-            ])->loadSystemSource();
-            $this->exposeLedgerFlags([$updated]);
-
-            return response()->json($updated);
-        });
+        return $response;
     }
 
     /** The receipts for payments this person made: a student's from every organization they belong to, anyone else's from their own. */
@@ -290,7 +428,8 @@ class TransactionController extends Controller
         $userId = $request->user()->id;
         $organizationIds = $request->user()->role === 'STUDENT' ? $request->user()->memberOrganizationIds() : [$request->user()->organization_id];
 
-        return Transaction::with([
+        // A payer keeps the receipt for what they paid even after the organization archives the entry.
+        return Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->with([
             'organization:id,name',
             'merchandiseOrder' => fn ($query) => $query
                 ->whereIn('organization_id', $organizationIds)
@@ -344,7 +483,8 @@ class TransactionController extends Controller
     /** Opens the private receipt file kept for a transaction, for the people who can read that organization's ledger. */
     public function receiptFile(Request $request, TransactionReceiptFiles $files, int $id)
     {
-        $transaction = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request))->find($id);
+        // An archived entry keeps its receipt file, so the file opens for it too.
+        $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereIn('organization_id', $this->readableOrganizationIds($request))->find($id);
         $path = $transaction?->receipt_file_url;
 
         if (! $transaction || ! $files->isOurs($path) || ! str_starts_with($path, 'finance-receipts/'.$transaction->organization_id.'/') || ! $files->exists($path)) {
@@ -361,12 +501,25 @@ class TransactionController extends Controller
         return $response;
     }
 
-    public function destroy(Request $request, TransactionReceiptFiles $files, $id)
+    /** Takes an entry out of the books without deleting it: the reason, who and when are kept, the budget is given back, and the receipt file stays. */
+    public function archive(Request $request, $id)
     {
-        $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:500']], [
+            'reason.required' => 'Give the reason for archiving this transaction.',
+            'reason.string' => 'Give the reason for archiving this transaction.',
+            'reason.min' => 'Give the reason for archiving this transaction.',
+            'reason.max' => 'Keep the reason for archiving to 500 characters.',
+        ]);
+        $reason = trim($data['reason']);
+
+        $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $request->user()->organization_id)->find($id);
 
         if (! $transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);
+        }
+
+        if ($transaction->archived_at !== null) {
+            return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
         }
 
         if ($message = $this->systemSourceMessage($transaction)) {
@@ -374,15 +527,18 @@ class TransactionController extends Controller
         }
 
         if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
-            return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
+            return response()->json(['message' => 'You can only archive transactions you recorded.'], 403);
         }
 
-        $keptFile = null;
-        $response = DB::transaction(function () use ($transaction, $request, &$keptFile) {
-            $transaction = Transaction::where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
+        return DB::transaction(function () use ($transaction, $request, $reason) {
+            $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
 
             if (! $transaction) {
                 return response()->json(['message' => 'Transaction not found.'], 404);
+            }
+
+            if ($transaction->archived_at !== null) {
+                return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
             }
 
             if ($message = $this->reportLockMessage($transaction)) {
@@ -391,21 +547,61 @@ class TransactionController extends Controller
 
             $oldValues = $this->auditableValues($transaction);
             $this->applyBudgetMovement($transaction, -1);
-            $transaction->delete();
-            $this->recordFinancialAudit($request, 'deleted', $transaction, $oldValues, null);
-            $keptFile = $transaction->receipt_file_url;
+            $transaction->forceFill([
+                'archived_at' => now(),
+                'archived_by' => $request->user()->school_id,
+                'archive_reason' => $reason,
+            ])->save();
+            $this->recordFinancialAudit($request, 'archived', $transaction, $oldValues, [
+                'archived_at' => $transaction->archived_at->toIso8601String(),
+                'archive_reason' => $reason,
+            ]);
 
-            return response()->json(['message' => 'Transaction deleted successfully.']);
+            return response()->json(['message' => 'Transaction archived.']);
         });
+    }
 
-        // The private copy goes only once the delete has committed, and only when it is this organization's own and no other entry points to it.
-        if ($keptFile !== null && $response->getStatusCode() === 200 && $files->isOurs($keptFile)
-            && str_starts_with($keptFile, 'finance-receipts/'.$transaction->organization_id.'/')
-            && ! Transaction::where('receipt_file_url', $keptFile)->exists()) {
-            $files->discard($keptFile);
+    /** Who recorded, edited and archived an entry, newest first, read from the financial audit log. */
+    public function history(Request $request, $id)
+    {
+        $transaction = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereIn('organization_id', $this->readableOrganizationIds($request))->find($id);
+
+        if (! $transaction) {
+            return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        return $response;
+        $logs = AuditLog::where('record_type', Transaction::class)
+            ->where('record_id', $transaction->id)
+            ->whereIn('action', array_keys(self::HISTORY_ACTIONS))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $names = User::whereIn('school_id', $logs->pluck('user_id')->filter()->unique())->get(['school_id', 'first_name', 'last_name'])
+            ->mapWithKeys(fn (User $user) => [$user->school_id => trim($user->first_name.' '.$user->last_name)]);
+
+        $values = $logs->flatMap(fn (AuditLog $log) => [(array) $log->old_values, (array) $log->new_values]);
+        $budgetTitles = Budget::whereIn('id', $values->pluck('budget_id')->filter()->unique())->pluck('title', 'id');
+        $eventTitles = Event::whereIn('id', $values->pluck('event_id')->filter()->unique())->pluck('title', 'id');
+
+        return response()->json(['data' => $logs->map(function (AuditLog $log) use ($names, $budgetTitles, $eventTitles) {
+            $action = self::HISTORY_ACTIONS[$log->action];
+            $old = (array) $log->old_values;
+            $new = (array) $log->new_values;
+
+            return [
+                'action' => $action,
+                'at' => $log->created_at?->setTimezone(config('app.timezone'))->toIso8601String(),
+                'by' => ['user_id' => $log->user_id, 'name' => $log->user_id === null ? 'System' : ($names[$log->user_id] ?? 'Unknown user')],
+                'reason' => match ($log->action) {
+                    'updated' => $new['edit_reason'] ?? null,
+                    'archived' => $new['archive_reason'] ?? null,
+                    'budget_unlinked' => $new['reason'] ?? $log->description ?? 'Budget not approved',
+                    default => null,
+                },
+                'changes' => $action === 'updated' ? $this->historyChanges($old, $new, $budgetTitles, $eventTitles) : [],
+            ];
+        })->values()]);
     }
 
     private function systemSourceMessage(Transaction $transaction): ?string
@@ -435,9 +631,11 @@ class TransactionController extends Controller
      * Tells the client which entries it must not offer to change: the system-generated
      * ones and the ones inside a submitted report. One report query covers the whole page.
      *
+     * It also names who edited or archived each entry and says whether a receipt file is kept, never giving out where it is stored.
+     *
      * @param  iterable<Transaction>  $transactions
      */
-    private function exposeLedgerFlags(iterable $transactions): void
+    private function exposeLedgerFlags(iterable $transactions, TransactionReceiptFiles $files): void
     {
         $locking = FinancialReport::lockingReports($transactions);
 
@@ -446,7 +644,26 @@ class TransactionController extends Controller
                 ->setAttribute('is_locked_by_report', isset($locking[$transaction->id]))
                 ->setAttribute('locking_report_title', $locking[$transaction->id]['title'] ?? null)
                 ->setAttribute('locking_report_status', $locking[$transaction->id]['status'] ?? null);
+
+            $path = $transaction->receipt_file_url;
+            $kept = $files->isKeptFor($path, $transaction->organization_id);
+            $transaction->setAttribute('has_receipt_file', $kept || (is_string($path) && $path !== '' && ! $files->isOurs($path)))
+                ->setAttribute('receipt_file_open_url', $kept ? '/transactions/'.$transaction->id.'/receipt-file' : null)
+                ->setAttribute('archived_by_name', $this->nameOf($transaction, 'archiver', 'archived_by'))
+                ->setAttribute('last_edited_by_name', $this->nameOf($transaction, 'lastEditor', 'last_edited_by'))
+                ->makeHidden(['archiver', 'lastEditor']);
         }
+    }
+
+    private function nameOf(Transaction $transaction, string $relation, string $column): ?string
+    {
+        if ($transaction->getAttribute($column) === null) {
+            return null;
+        }
+
+        $user = $transaction->loadMissing($relation.':school_id,first_name,last_name')->getRelation($relation);
+
+        return $user ? trim($user->first_name.' '.$user->last_name) : null;
     }
 
     private function validateAndNormalizeLinks(Request $request, array &$data, ?Transaction $transaction = null): ?string
@@ -494,6 +711,14 @@ class TransactionController extends Controller
         return [
             'receipt_reference.unique' => 'This receipt reference is already used. Enter a different one.',
             'receipt_number.unique' => 'This receipt number is already used for this event. Enter a different one.',
+            'receipt_file.file' => self::RECEIPT_FILE_MESSAGE,
+            'receipt_file.uploaded' => self::RECEIPT_FILE_MESSAGE,
+            'receipt_file.mimes' => self::RECEIPT_FILE_MESSAGE,
+            'receipt_file.max' => self::RECEIPT_FILE_MESSAGE,
+            'edit_reason.required' => 'Give the reason for this edit.',
+            'edit_reason.string' => 'Give the reason for this edit.',
+            'edit_reason.min' => 'Give the reason for this edit.',
+            'edit_reason.max' => 'Keep the reason for this edit to 500 characters.',
         ];
     }
 
@@ -526,6 +751,7 @@ class TransactionController extends Controller
                     ->ignore($transaction?->id),
             ],
             'receipt_file_url' => ['nullable', 'string', 'max:500'],
+            'receipt_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ];
     }
 
@@ -553,19 +779,91 @@ class TransactionController extends Controller
 
     private function auditableValues(Transaction $transaction): array
     {
-        return $transaction->only([
-            'id',
-            'budget_id',
-            'event_id',
-            'payer_id',
-            'type',
-            'category',
-            'amount',
-            'description',
-            'receipt_reference',
-            'receipt_number',
-            'transaction_date',
-        ]);
+        return [
+            ...$transaction->only([
+                'id',
+                'budget_id',
+                'event_id',
+                'payer_id',
+                'type',
+                'category',
+                'amount',
+                'description',
+                'receipt_reference',
+                'receipt_number',
+                'transaction_date',
+            ]),
+            // A short fingerprint of the file, never its path, so the audit log can show that the file changed without saying where it is.
+            'receipt_file' => $transaction->receipt_file_url ? substr(sha1($transaction->receipt_file_url), 0, 12) : null,
+        ];
+    }
+
+    /** One value in a form two audit values can be compared in. */
+    private function comparable(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return match ($field) {
+            'amount' => number_format((float) $value, 2, '.', ''),
+            'transaction_date' => Carbon::parse($value)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+            default => (string) $value,
+        };
+    }
+
+    /** @return list<string> the fields whose value differs between the two sets of audit values */
+    private function changedFields(array $old, array $new): array
+    {
+        return collect(array_keys(self::FIELD_LABELS))
+            ->filter(fn (string $field) => $this->comparable($field, $old[$field] ?? null) !== $this->comparable($field, $new[$field] ?? null))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What an edit changed, field by field, in words. A field the edit's record does not carry (an older entry,
+     * or the file before it was tracked) is not reported rather than guessed.
+     *
+     * @return list<array{field: string, label: string, from: ?string, to: ?string}>
+     */
+    private function historyChanges(array $old, array $new, $budgetTitles, $eventTitles): array
+    {
+        return collect(self::FIELD_LABELS)
+            ->filter(fn (string $label, string $field) => array_key_exists($field, $new) && $this->comparable($field, $old[$field] ?? null) !== $this->comparable($field, $new[$field]))
+            ->map(function (string $label, string $field) use ($old, $new, $budgetTitles, $eventTitles) {
+                $from = $this->comparable($field, $old[$field] ?? null);
+                $to = $this->comparable($field, $new[$field]);
+
+                return [
+                    'field' => $field,
+                    'label' => $label,
+                    'from' => $this->shownValue($field, $from, $to, $budgetTitles, $eventTitles, true),
+                    'to' => $this->shownValue($field, $to, $from, $budgetTitles, $eventTitles, false),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /** A stored value as a person reads it: a title for a link, a day for a date, a word for the file. */
+    private function shownValue(string $field, ?string $value, ?string $other, $budgetTitles, $eventTitles, bool $isFrom): ?string
+    {
+        if ($field === 'receipt_file') {
+            return $value === null ? 'None' : ($other === null ? 'File attached' : ($isFrom ? 'Previous file' : 'Replacement file'));
+        }
+
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($field) {
+            'budget_id' => $budgetTitles[(int) $value] ?? 'Budget #'.$value,
+            'event_id' => $eventTitles[(int) $value] ?? 'Event #'.$value,
+            'type' => ucfirst($value),
+            'transaction_date' => substr($value, 0, 10),
+            default => $value,
+        };
     }
 
     private function recordFinancialAudit(Request $request, string $action, Transaction $transaction, ?array $oldValues, ?array $newValues): void
