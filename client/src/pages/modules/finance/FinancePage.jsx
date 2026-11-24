@@ -494,6 +494,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [studentDebt, setStudentDebt] = useState(null);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [overallSummary, setOverallSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
+  const [budgetsLedgerSummary, setBudgetsLedgerSummary] = useState(null);
   const [eventLedgers, setEventLedgers] = useState(null);
   const [ledgerView, setLedgerView] = useState('all');
   const [forecasts, setForecasts] = useState([]);
@@ -668,6 +669,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     ]);
     // The ledger totals follow the search and filters, but the Reports tab and the category export are not narrowed by them,
     // so they read their own summary that carries the organization scope and nothing else.
+    // The budgets response carries the whole ledger's totals, read at the same moment as the budgets beside them.
+    let ledgerSummaryFromBudgets = null;
     const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
     const ledgerSummary = canViewTransactions ? getTransactionSummary(withoutArchived({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) })) : Promise.resolve(emptySummary);
     const isNarrowed = Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
@@ -676,7 +679,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       ledgerSummary,
       allTimeSummary,
-      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
+      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => {
+        ledgerSummaryFromBudgets ??= r.data?.ledger_summary ?? null;
+        return r.data;
+      }), organizationScope) : Promise.resolve([]),
       // The events only fill the event dropdown, and an officer ticked for Finance but not Events is refused them.
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)).catch(() => []) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
@@ -692,6 +698,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setBudgets(budgetsList);
+        setBudgetsLedgerSummary(ledgerSummaryFromBudgets);
         setEvents(eventsList);
         setEventLedgers(eventLedgersRes);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
@@ -1629,7 +1636,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {canViewTransactions && !error && !inlineBudgetForm && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (
         <p className="text-sm text-ink-muted">
-          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt(overallSummary.net_balance)}</strong>
+          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt((budgetsLedgerSummary ?? overallSummary).net_balance)}</strong>
         </p>
       )}
 
