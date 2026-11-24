@@ -361,7 +361,7 @@ class TransactionController extends Controller
         return $response;
     }
 
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, TransactionReceiptFiles $files, $id)
     {
         $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
 
@@ -377,7 +377,8 @@ class TransactionController extends Controller
             return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
 
-        return DB::transaction(function () use ($transaction, $request) {
+        $keptFile = null;
+        $response = DB::transaction(function () use ($transaction, $request, &$keptFile) {
             $transaction = Transaction::where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
 
             if (! $transaction) {
@@ -392,9 +393,19 @@ class TransactionController extends Controller
             $this->applyBudgetMovement($transaction, -1);
             $transaction->delete();
             $this->recordFinancialAudit($request, 'deleted', $transaction, $oldValues, null);
+            $keptFile = $transaction->receipt_file_url;
 
             return response()->json(['message' => 'Transaction deleted successfully.']);
         });
+
+        // The private copy goes only once the delete has committed, and only when it is this organization's own and no other entry points to it.
+        if ($keptFile !== null && $response->getStatusCode() === 200 && $files->isOurs($keptFile)
+            && str_starts_with($keptFile, 'finance-receipts/'.$transaction->organization_id.'/')
+            && ! Transaction::where('receipt_file_url', $keptFile)->exists()) {
+            $files->discard($keptFile);
+        }
+
+        return $response;
     }
 
     private function systemSourceMessage(Transaction $transaction): ?string

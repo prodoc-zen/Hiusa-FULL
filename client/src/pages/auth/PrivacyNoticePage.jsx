@@ -53,7 +53,7 @@ export default function PrivacyNoticePage() {
               'Grievances you file, with the text you write, any files you attach, and the decisions made on them.',
               'Fingerprint templates, only if an Admin or SBO Officer enrolls you for event attendance and you confirm it. A template is made from your fingerprint scans and is used only to confirm you attended. No screen shows it.',
               'Records of what people do in the system, such as approvals, changes and sign-ins, kept as an audit trail.',
-              'What you type to the Ask AI assistant, and drafting help, when you use them. Voice typing is done by your browser (Google or Apple) and is not stored by HIUSA.',
+              'What you type to the Ask AI assistant, and drafting help, when you use them. Voice typing is done by your browser (such as Google, Apple or Microsoft) and is not stored by HIUSA.',
             ]}
           />
         </Section>
@@ -66,7 +66,7 @@ export default function PrivacyNoticePage() {
               'To keep organization money accountable to the school and to the members who paid it.',
               'To handle grievances and protect students.',
               'To keep the system secure and to show who did what, if a decision is questioned.',
-              'To help you with the AI features. Some features, such as the Ask AI assistant and drafting help, send your question and a limited set of facts to an outside AI service to write a reply. A person reads every draft and decides what to do with it. A photo or PDF you attach to Ask AI, such as a receipt, is sent to Anthropic so it can be read, and a copy is kept with your conversation until you delete the conversation.',
+              'To help you with the AI features. Some features, such as the Ask AI assistant and drafting help, send your question and a limited set of facts to an outside AI service to write a reply. A person reads every draft and decides what to do with it. A photo or PDF you attach to Ask AI, such as a receipt, is sent to Anthropic so it can be read, and a copy is kept with your conversation until you delete the conversation. If you record it as an expense, a copy is also kept with that ledger entry as part of the organization record.',
             ]}
           />
           <p>We do not sell your data and we do not use it for advertising.</p>

@@ -11,6 +11,7 @@ const NARROW_QUERY = '(max-width: 639px)';
 const SHORT_PLACEHOLDER = 'Ask anything';
 const LONG_PLACEHOLDER = 'Ask about your records or what to do next';
 const ATTACHED_PLACEHOLDER = 'Say what to do with the file, like Record this expense';
+const ATTACHED_SHORT_PLACEHOLDER = 'Note (optional)';
 const ICON_BUTTON_BASE = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control transition-colors disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-[42px] max-sm:w-[42px]';
 const ICON_BUTTON_CLASS = `${ICON_BUTTON_BASE} text-ink-muted-strong hover:bg-subtle hover:text-ink`;
 // Its own colours, not layered on the idle ones, so hovering the listening mic keeps the white icon on the blue.
@@ -61,9 +62,11 @@ export default function ChatComposer({ ref, streaming, offline, blockedReason = 
   }, [text]);
 
   const trimmed = text.trim();
+  // A file can stand in for the words: the server answers a file sent alone.
+  const canSend = Boolean(trimmed) || Boolean(attachment);
 
   const submit = () => {
-    if (streaming || offline || blockedReason || !trimmed) return;
+    if (streaming || offline || blockedReason || !canSend) return;
     voice.stop();
     if (onSend(trimmed, attachment) !== false) {
       setText('');
@@ -131,7 +134,7 @@ export default function ChatComposer({ ref, streaming, offline, blockedReason = 
             setText(event.target.value);
           }}
           onKeyDown={handleKeyDown}
-          placeholder={attachment ? ATTACHED_PLACEHOLDER : narrow ? SHORT_PLACEHOLDER : LONG_PLACEHOLDER}
+          placeholder={attachment ? (narrow ? ATTACHED_SHORT_PLACEHOLDER : ATTACHED_PLACEHOLDER) : narrow ? SHORT_PLACEHOLDER : LONG_PLACEHOLDER}
           className="max-h-36 min-h-[42px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-base font-normal leading-5 text-ink outline-none focus-visible:outline-none! placeholder:text-ink-soft sm:text-sm"
         />
         <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} onChange={pickFile} className="hidden" tabIndex={-1} aria-hidden="true" />
@@ -163,7 +166,7 @@ export default function ChatComposer({ ref, streaming, offline, blockedReason = 
             Stop
           </Button>
         ) : (
-          <Button type="submit" leftIcon={ArrowUp} disabled={!trimmed || offline || Boolean(blockedReason)} aria-label="Send message">
+          <Button type="submit" leftIcon={ArrowUp} disabled={!canSend || offline || Boolean(blockedReason)} aria-label="Send message">
             Send
           </Button>
         )}

@@ -121,9 +121,11 @@ export default function ChatMessage({
     return (
       <div className="flex flex-col items-end gap-1.5">
         {message.attachment?.open_url && <AttachmentLine attachment={message.attachment} />}
-        <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-card bg-brand-50 px-3.5 py-2.5 text-sm font-medium leading-6 text-ink">
-          {message.content}
-        </p>
+        {message.content && (
+          <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-card bg-brand-50 px-3.5 py-2.5 text-sm font-medium leading-6 text-ink">
+            {message.content}
+          </p>
+        )}
       </div>
     );
   }

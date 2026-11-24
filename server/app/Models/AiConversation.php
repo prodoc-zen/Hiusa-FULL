@@ -59,12 +59,12 @@ class AiConversation extends Model
      */
     public static function eraseWithOutputs(Builder $conversations): void
     {
-        DB::transaction(function () use ($conversations): void {
+        $files = DB::transaction(function () use ($conversations): array {
             $ids = (clone $conversations)->select('ai_conversations.id');
 
-            // The files go first: the message rows that point to them are deleted in bulk below.
+            // The paths are read first: the message rows that point to them are deleted in bulk below.
             $attached = fn () => AiMessageAttachment::query()->whereIn('message_id', AiMessage::query()->select('id')->whereIn('conversation_id', $ids));
-            AiMessageAttachment::eraseFiles($attached());
+            $files = AiMessageAttachment::fileList($attached());
             $attached()->delete();
 
             AiOutput::query()->whereIn('id', AiMessage::query()
@@ -81,7 +81,12 @@ class AiConversation extends Model
             }
             AiMessage::query()->whereIn('conversation_id', $ids)->delete();
             $conversations->delete();
+
+            return $files;
         });
+
+        // A file is never removed before the rows are gone for good: a rolled-back delete must not leave rows pointing at nothing.
+        AiMessageAttachment::deleteFiles($files);
     }
 
     public function user(): BelongsTo

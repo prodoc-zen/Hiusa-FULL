@@ -7,6 +7,7 @@ use App\Models\AiMessage;
 use App\Models\AiMessageAttachment;
 use App\Models\AuditLog;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Ai\ClaudeMessagesService;
@@ -412,6 +413,8 @@ class AskAiAttachmentsTest extends TestCase
         ]])->assertOk();
 
         $this->assertSame('done', $done->json('message.payload.action.status'));
+        // The link goes to the ledger itself, where the entry and its receipt file are listed, not to the Financial reports page.
+        $this->assertSame('/dashboard/finance/financial-ledger', $done->json('message.payload.action.result.href'));
         $this->assertSame(['name' => 'receipt.jpg', 'open_url' => '/ai/assistant/attachments/'.$attachment->id], $done->json('message.payload.action.receipt'));
         $transaction = Transaction::firstOrFail();
         $this->assertSame('expense', $transaction->type);
@@ -435,6 +438,91 @@ class AskAiAttachmentsTest extends TestCase
         $this->getJson("/api/transactions/{$transaction->id}/receipt-file")->assertNotFound();
         Sanctum::actingAs($this->student());
         $this->getJson("/api/transactions/{$transaction->id}/receipt-file")->assertForbidden();
+    }
+
+    private function officer(string $title): User
+    {
+        $org = Organization::factory()->create();
+        SboPosition::create(['organization_id' => $org->id, 'role' => 'SBO_OFFICER', 'title' => $title, 'is_active' => true]);
+
+        return User::factory()->officer()->create(['organization_id' => $org->id, 'position_title' => $title]);
+    }
+
+    public function test_an_officer_with_the_finance_switch_gets_the_card_and_can_confirm_it_and_one_without_gets_text(): void
+    {
+        $this->claude([$this->jsonMessage($this->receipt())]);
+        $treasurer = $this->officer('Treasurer');
+        Sanctum::actingAs($treasurer);
+        $response = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk();
+
+        $this->assertSame('record_expense', $response->json('message.payload.action.key'));
+        $done = $this->postJson('/api/ai/assistant/messages/'.$response->json('message.id').'/action/confirm', ['fields' => [
+            'amount' => '1250', 'transaction_date' => '2026-11-20', 'description' => 'Mercury Drug', 'category' => 'Operations',
+        ]])->assertOk();
+        $this->assertSame('done', $done->json('message.payload.action.status'));
+        $transaction = Transaction::firstOrFail();
+        $this->assertSame($treasurer->id, $transaction->recorded_by);
+        $this->assertSame($treasurer->organization_id, $transaction->organization_id);
+        Storage::disk('local')->assertExists($transaction->receipt_file_url);
+
+        $this->claude([$this->jsonMessage($this->receipt()), $this->streamed('It is a receipt from Mercury Drug.')]);
+        Sanctum::actingAs($this->officer('Public Information Officer'));
+        $text = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk();
+        $this->assertArrayNotHasKey('action', $text->json('message.payload'));
+        $this->assertSame(1, Transaction::count());
+    }
+
+    public function test_the_result_sentence_claims_a_receipt_only_when_one_was_kept(): void
+    {
+        $this->claude([$this->jsonMessage($this->receipt())]);
+        Sanctum::actingAs($this->admin());
+        $card = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk()->json('message');
+        $fields = ['amount' => '1250', 'transaction_date' => '2026-11-20', 'description' => 'Mercury Drug', 'category' => 'Operations'];
+
+        $with = $this->postJson("/api/ai/assistant/messages/{$card['id']}/action/confirm", ['fields' => $fields])->assertOk();
+        $this->assertStringContainsString('with the receipt attached', $with->json('message.content'));
+
+        $this->claude([$this->jsonMessage($this->receipt())]);
+        $second = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk()->json('message');
+        Storage::disk('local')->delete(AiMessageAttachment::latest('id')->firstOrFail()->path);
+
+        $without = $this->postJson("/api/ai/assistant/messages/{$second['id']}/action/confirm", ['fields' => $fields])->assertOk();
+        $this->assertSame('done', $without->json('message.payload.action.status'));
+        $this->assertStringNotContainsString('receipt attached', $without->json('message.content'));
+        $this->assertNull(Transaction::latest('id')->firstOrFail()->receipt_file_url);
+    }
+
+    public function test_deleting_the_transaction_deletes_the_receipt_copy_kept_for_it(): void
+    {
+        $this->claude([$this->jsonMessage($this->receipt())]);
+        Sanctum::actingAs($this->admin());
+        $card = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk()->json('message');
+        $this->postJson("/api/ai/assistant/messages/{$card['id']}/action/confirm", ['fields' => [
+            'amount' => '1250', 'transaction_date' => '2026-11-20', 'description' => 'Mercury Drug', 'category' => 'Operations',
+        ]])->assertOk();
+        $transaction = Transaction::firstOrFail();
+        Storage::disk('local')->assertExists($transaction->receipt_file_url);
+
+        $this->deleteJson("/api/transactions/{$transaction->id}")->assertOk();
+
+        $this->assertSame(0, Transaction::count());
+        $this->assertSame([], collect(Storage::disk('local')->allFiles())->filter(fn (string $path) => str_starts_with($path, 'finance-receipts/'))->all());
+    }
+
+    public function test_a_refused_delete_keeps_the_receipt_copy(): void
+    {
+        $this->claude([$this->jsonMessage($this->receipt())]);
+        Sanctum::actingAs($this->admin());
+        $card = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk()->json('message');
+        $this->postJson("/api/ai/assistant/messages/{$card['id']}/action/confirm", ['fields' => [
+            'amount' => '1250', 'transaction_date' => '2026-11-20', 'description' => 'Mercury Drug', 'category' => 'Operations',
+        ]])->assertOk();
+        $transaction = Transaction::firstOrFail();
+        Sanctum::actingAs($this->officer('Treasurer'));
+
+        $this->deleteJson("/api/transactions/{$transaction->id}")->assertNotFound();
+
+        Storage::disk('local')->assertExists($transaction->receipt_file_url);
     }
 
     public function test_a_refused_confirm_keeps_no_receipt_copy_and_the_card_waits_for_a_fix(): void
@@ -514,6 +602,41 @@ class AskAiAttachmentsTest extends TestCase
         Storage::disk('local')->assertMissing($third);
         $this->assertSame(0, AiMessageAttachment::count());
         $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_deleting_an_organization_deletes_the_files_its_people_attached_to_questions(): void
+    {
+        $org = Organization::factory()->create();
+        Sanctum::actingAs($this->admin($org));
+        $this->claude([new Response(500)]);
+        $this->send(['message' => 'What is this?', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk();
+        $attached = AiMessageAttachment::firstOrFail()->path;
+        Storage::disk('local')->assertExists($attached);
+
+        $sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]);
+        Sanctum::actingAs($sao);
+        $this->deleteJson('/api/system/organizations/'.$org->id, ['confirmation_name' => $org->name])->assertNoContent();
+
+        $this->assertSame(0, AiMessageAttachment::count());
+        $this->assertSame(0, AiConversation::count());
+        Storage::disk('local')->assertMissing($attached);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_deleting_an_organization_keeps_the_files_of_a_person_who_belongs_to_another_one(): void
+    {
+        $org = Organization::factory()->create();
+        Sanctum::actingAs($this->admin(Organization::factory()->create()));
+        $this->claude([new Response(500)]);
+        $this->send(['message' => 'What is this?', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk();
+        $attached = AiMessageAttachment::firstOrFail()->path;
+
+        $sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]);
+        Sanctum::actingAs($sao);
+        $this->deleteJson('/api/system/organizations/'.$org->id, ['confirmation_name' => $org->name])->assertNoContent();
+
+        $this->assertSame(1, AiMessageAttachment::count());
+        Storage::disk('local')->assertExists($attached);
     }
 
     public function test_the_receipt_kept_in_the_ledger_survives_deleting_the_conversation(): void

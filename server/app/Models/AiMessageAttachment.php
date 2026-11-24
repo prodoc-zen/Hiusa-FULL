@@ -49,8 +49,24 @@ class AiMessageAttachment extends Model
     /** Removes the files from disk for every attachment the query matches. The rows go with their messages. */
     public static function eraseFiles(Builder $attachments): void
     {
-        $attachments->get(['id', 'disk', 'path'])->each(function (self $attachment): void {
-            Storage::disk($attachment->disk)->delete($attachment->path);
-        });
+        self::deleteFiles(self::fileList($attachments));
+    }
+
+    /**
+     * The disk and path of every attachment the query matches, read before the rows go so the files can be removed after the commit.
+     *
+     * @return array<int, array{disk: string, path: string}>
+     */
+    public static function fileList(Builder $attachments): array
+    {
+        return $attachments->get(['id', 'disk', 'path'])->map(fn (self $attachment): array => ['disk' => $attachment->disk, 'path' => $attachment->path])->all();
+    }
+
+    /** @param array<int, array{disk: string, path: string}> $files */
+    public static function deleteFiles(array $files): void
+    {
+        foreach ($files as $file) {
+            Storage::disk($file['disk'])->delete($file['path']);
+        }
     }
 }

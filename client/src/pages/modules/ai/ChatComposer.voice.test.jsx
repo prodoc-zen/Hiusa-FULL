@@ -222,6 +222,46 @@ describe('ChatComposer attachment', () => {
     expect(screen.queryByText('receipt.jpg')).not.toBeInTheDocument();
   });
 
+  it('sends a file alone, with no words, and clears it', () => {
+    const onSend = vi.fn();
+    const { container } = render(<ChatComposer onSend={onSend} onStop={vi.fn()} />);
+    const send = screen.getByRole('button', { name: 'Send message' });
+    expect(send).toBeDisabled();
+    const attached = file();
+    pick(container, attached);
+    expect(send).toBeEnabled();
+    fireEvent.click(send);
+    expect(onSend).toHaveBeenCalledWith('', attached);
+    expect(screen.queryByText('receipt.jpg')).not.toBeInTheDocument();
+    expect(send).toBeDisabled();
+  });
+
+  it('sends a file alone with Enter', () => {
+    const onSend = vi.fn();
+    const { container } = render(<ChatComposer onSend={onSend} onStop={vi.fn()} />);
+    const attached = file();
+    pick(container, attached);
+    fireEvent.keyDown(box(), { key: 'Enter' });
+    expect(onSend).toHaveBeenCalledWith('', attached);
+  });
+
+  it('does not send blank spaces even with no file', () => {
+    const onSend = vi.fn();
+    render(<ChatComposer onSend={onSend} onStop={vi.fn()} />);
+    fireEvent.change(box(), { target: { value: '   ' } });
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    fireEvent.keyDown(box(), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('uses a short note placeholder on a narrow screen once a file is attached', () => {
+    window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const { container } = render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
+    pick(container, file());
+    expect(box()).toHaveAttribute('placeholder', 'Note (optional)');
+    delete window.matchMedia;
+  });
+
   it('sends without a file as before', () => {
     const onSend = vi.fn();
     render(<ChatComposer onSend={onSend} onStop={vi.fn()} />);

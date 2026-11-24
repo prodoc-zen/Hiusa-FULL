@@ -410,7 +410,7 @@ export default function AskAiPage() {
   const send = useCallback(async (rawText, { topic = null, regenerate = false, source = 'link', attachment = null } = {}) => {
     if (sendingRef.current || loadingRef.current) return false;
     const text = (rawText ?? '').trim();
-    if (!regenerate && (!text || text.length > 2000)) return false;
+    if (!regenerate && ((!text && !attachment) || text.length > 2000)) return false;
 
     sendingRef.current = true;
     const requestedId = convIdRef.current;
@@ -476,7 +476,7 @@ export default function AskAiPage() {
     try {
       const result = await streamAiChat({
         conversationId: requestedId,
-        message: regenerate ? undefined : text,
+        message: regenerate || !text ? undefined : text,
         topic,
         regenerate,
         source,
