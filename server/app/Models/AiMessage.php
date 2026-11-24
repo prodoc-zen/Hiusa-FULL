@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 
 class AiMessage extends Model
@@ -23,6 +24,11 @@ class AiMessage extends Model
     public function conversation(): BelongsTo
     {
         return $this->belongsTo(AiConversation::class, 'conversation_id');
+    }
+
+    public function attachment(): HasOne
+    {
+        return $this->hasOne(AiMessageAttachment::class, 'message_id');
     }
 
     /** Deletes the message and keeps its ai_outputs row, marked superseded, so the audit trail still shows what was said. */
