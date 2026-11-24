@@ -46,6 +46,7 @@ class SboPositionController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
             'can_book_venues' => ['sometimes', 'boolean'],
+            'can_handle_finance' => ['sometimes', 'boolean'],
         ]);
         $row = SboPosition::create([...$data, 'organization_id' => $request->user()->organization_id]);
         $this->audit($request, 'created', $row, null, $row->getAttributes());
@@ -70,6 +71,7 @@ class SboPositionController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
             'can_book_venues' => ['sometimes', 'boolean'],
+            'can_handle_finance' => ['sometimes', 'boolean'],
         ]);
         DB::transaction(function () use ($position, $data) {
             $oldRole = $position->role;
