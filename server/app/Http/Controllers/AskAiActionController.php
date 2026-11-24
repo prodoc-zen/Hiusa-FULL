@@ -40,7 +40,7 @@ class AskAiActionController extends Controller
         }
 
         try {
-            $outcome = $this->actions->execute($user, $request, $definition, $checked['values']);
+            $outcome = $this->actions->execute($user, $request, $definition, $checked['values'], $claimed);
         } catch (Throwable $e) {
             Log::warning('Ask AI action failed to run.', ['action' => $claimed->payload['action']['key'], 'exception' => $e::class]);
             $outcome = ['outcome' => 'failed', 'message' => 'I could not do that. Nothing was confirmed, so check the page before trying again.'];

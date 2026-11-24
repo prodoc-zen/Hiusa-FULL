@@ -6,10 +6,12 @@ use App\Contracts\TextGenerator;
 use App\Models\AiConversation;
 use App\Models\AiMemory;
 use App\Models\AiMessage;
+use App\Models\AiMessageAttachment;
 use App\Models\AiOutput;
 use App\Models\User;
 use App\Services\Dashboard\ClientRouteAccess;
 use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -28,6 +30,8 @@ class AskAiChatService
 
     private const GUARD_NOTICE = 'The written answer was replaced with the verified summary.';
 
+    private const FILE_UNREAD = 'I could not read that file right now, so nothing was saved. Try again in a moment.';
+
     private const PROVIDER_NOTICE = 'The writing service did not finish, so the written answer was replaced with the summary from your records.';
 
     public const CHAT_AUDIT_VERSION = 'ask-ai-chat-v1';
@@ -39,7 +43,8 @@ class AskAiChatService
 
     public const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
 
-    private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory'];
+    // An answer about an attached file reads no records either, so it is always shown to the person who asked.
+    private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory', 'attached_file'];
 
     private const LOCAL_PHRASES = [
         'greeting' => 'Understood this as a greeting',
@@ -76,6 +81,11 @@ class AskAiChatService
         private readonly AskAiActions $actions,
     ) {}
 
+    private function attachments(): AskAiAttachments
+    {
+        return app(AskAiAttachments::class);
+    }
+
     public function assertRegenerable(AiConversation $conversation): void
     {
         $lastQuestion = $conversation->messages()->reorder()->where('role', 'user')->orderByDesc('id')->first(['id']);
@@ -96,6 +106,23 @@ class AskAiChatService
      * @return array{conversation: array, user_message: array, message: ?array}
      */
     public function respond(User $user, ?AiConversation $conversation, ?string $text, ?string $topic, bool $regenerate, callable $emit, ?callable $aborted = null, string $source = 'typed'): array
+    {
+        return $this->answer($user, $conversation, $text, $topic, $regenerate, $emit, $aborted, $source, null);
+    }
+
+    /**
+     * respond() for a new question that comes with a file. The file is stored against the question and read by Claude only.
+     *
+     * @param  callable(string, array): void  $emit
+     * @param  null|callable(): bool  $aborted
+     * @return array{conversation: array, user_message: array, message: ?array}
+     */
+    public function respondWithFile(User $user, ?AiConversation $conversation, ?string $text, ?string $topic, callable $emit, ?callable $aborted, string $source, UploadedFile $upload): array
+    {
+        return $this->answer($user, $conversation, $text, $topic, false, $emit, $aborted, $source, $upload);
+    }
+
+    private function answer(User $user, ?AiConversation $conversation, ?string $text, ?string $topic, bool $regenerate, callable $emit, ?callable $aborted, string $source, ?UploadedFile $upload): array
     {
         $started = microtime(true);
 
@@ -121,18 +148,25 @@ class AskAiChatService
                 'status' => 'completed',
                 'created_at' => now(),
             ]);
+            if ($upload !== null) {
+                $userMessage->setRelation('attachment', $this->attachments()->store($user, $userMessage, $upload));
+            }
         }
 
         $conversation->forceFill(['last_message_at' => now()])->save();
         $question = $userMessage->content;
+        // A regenerated question reads the same file again; a new one has just stored its own.
+        $attachment = $userMessage->attachment;
 
         $emit('meta', ['conversation' => $this->presentConversation($conversation, $user), 'user_message' => $this->presentMessage($userMessage)]);
 
-        $local = $this->localAnswer($user, $question, $source === 'typed');
-        $message = $local !== null
-            ? $this->answerLocally($user, $conversation, $userMessage, $local, $emit, $started)
-            : ($this->actions->propose($user, $conversation, $userMessage, $source, $emit)
-                ?? $this->answerFromRecords($user, $conversation, $userMessage, $topic, $emit, $aborted, $started));
+        $local = $attachment === null ? $this->localAnswer($user, $question, $source === 'typed') : null;
+        $message = $attachment !== null
+            ? $this->answerAboutFile($user, $conversation, $userMessage, $attachment, $topic, $emit, $aborted, $started)
+            : ($local !== null
+                ? $this->answerLocally($user, $conversation, $userMessage, $local, $emit, $started)
+                : ($this->actions->propose($user, $conversation, $userMessage, $source, $emit)
+                    ?? $this->answerFromRecords($user, $conversation, $userMessage, $topic, $emit, $aborted, $started)));
 
         $conversation->forceFill(['last_message_at' => now()])->save();
 
@@ -178,6 +212,7 @@ class AskAiChatService
             'feedback' => $message->feedback,
             'created_at' => $message->created_at?->toIso8601String(),
             'payload' => $message->role === 'user' ? null : $this->withErrorsAsMap($message->payload),
+            'attachment' => $message->role === 'user' ? $message->attachment?->present() : null,
         ];
     }
 
@@ -385,21 +420,70 @@ class AskAiChatService
     // Answers built from records, with the model putting words around them
     // -------------------------------------------------------------------------
 
-    private function answerFromRecords(User $user, AiConversation $conversation, AiMessage $userMessage, ?string $topic, callable $emit, ?callable $aborted, float $started): ?AiMessage
+    /**
+     * A question that came with a file. Claude reads the file first into a fixed set of fields; a person who may record
+     * expenses gets a card when it is a receipt, and everyone else gets an answer written from those same fields. Groq
+     * cannot see a file, so when Claude does not answer nothing else is tried.
+     */
+    private function answerAboutFile(User $user, AiConversation $conversation, AiMessage $userMessage, AiMessageAttachment $attachment, ?string $topic, callable $emit, ?callable $aborted, float $started): ?AiMessage
+    {
+        $emit('status', ['stage' => 'reading', 'label' => 'Reading your file']);
+
+        $read = $this->attachments()->extract($attachment, AskAiActions::EXPENSE_CATEGORIES);
+        if ($aborted !== null && $aborted()) {
+            return null;
+        }
+        if ($read === null) {
+            $emit('delta', ['text' => self::FILE_UNREAD]);
+
+            return $this->storeAnswer($user, $conversation, $userMessage, 'attached_file', $this->fileAnswer(null), self::FILE_UNREAD, 'records', false, $this->reasoning($started, ['Received the file you attached', 'The AI service that reads files did not answer, so nothing was read or saved'], null), null, 'completed', null);
+        }
+
+        return $this->actions->proposeExpense($user, $conversation, $attachment, $read, $emit)
+            ?? $this->answerFromRecords($user, $conversation, $userMessage, $topic, $emit, $aborted, $started, ['attachment' => $attachment, 'read' => $read]);
+    }
+
+    /** The plain answer and payload for a file: what was read from it, in words, or a note that nothing was. */
+    private function fileAnswer(?array $read): array
+    {
+        $answer = self::FILE_UNREAD;
+        if ($read !== null) {
+            $parts = [$read['summary'] !== '' ? $read['summary'] : 'I read the file you attached.'];
+            if ($read['payee_or_description'] !== null) {
+                $parts[] = 'Paid to or for: '.$read['payee_or_description'].'.';
+            }
+            if ($read['amount'] !== null) {
+                $parts[] = 'Amount: PHP '.number_format($read['amount'], 2).'.';
+            }
+            if ($read['date'] !== null) {
+                $parts[] = 'Date: '.$read['date'].'.';
+            }
+            $answer = implode(' ', $parts);
+        }
+
+        return [...$this->plainPayload('Your file', $answer), 'sources' => [], 'no_answer' => false];
+    }
+
+    /** @param  null|array{attachment: AiMessageAttachment, read: array}  $file  set when the question came with a file */
+    private function answerFromRecords(User $user, AiConversation $conversation, AiMessage $userMessage, ?string $topic, callable $emit, ?callable $aborted, float $started, ?array $file = null): ?AiMessage
     {
         $question = $userMessage->content;
-        $emit('status', ['stage' => 'reading', 'label' => 'Reading your records']);
+        $emit('status', ['stage' => 'reading', 'label' => $file === null ? 'Reading your records' : 'Reading your file']);
 
         $history = $this->history($user, $conversation, $userMessage);
-        $intent = $this->resolveIntent($user, $question, $topic, $conversation, $userMessage);
-        $det = $this->askAi->deterministicAnswer($user, $question, $intent);
+        $intent = $file === null ? $this->resolveIntent($user, $question, $topic, $conversation, $userMessage) : 'attached_file';
+        $det = $file === null ? $this->askAi->deterministicAnswer($user, $question, $intent) : $this->fileAnswer($file['read']);
         $payloadBase = $this->cleanPayload($user, $det);
         $linkCheck = $this->linkCheck($user);
         $memories = AiMemory::ownedBy($user)->orderBy('id')->limit(AiMemory::LIMIT)->pluck('content')->all();
         $facts = $this->facts($user, $question, $intent, $payloadBase, $det, $memories);
+        if ($file !== null) {
+            // What Claude read from the file is a fact like any other, so a figure printed on the file may be quoted and an invented one may not.
+            $facts['attached_file'] = $file['read'];
+        }
         $deterministicText = trim(AnswerMarkdown::sanitize(AnswerMarkdown::escape((string) $det['answer']), $linkCheck));
         // An answer that matched nothing has no records behind it for a writer to put into words.
-        $allowedModel = $this->askAi->canAsk($user, $intent) && empty($det['no_answer']);
+        $allowedModel = $file !== null || ($this->askAi->canAsk($user, $intent) && empty($det['no_answer']));
 
         $messages = $this->modelMessages($history, $facts, $question);
         // Numbers may come from the facts built for this question, which carry the question itself, and nowhere else:
@@ -519,7 +603,9 @@ class AskAiChatService
         if ($allowedModel) {
             $emit('status', ['stage' => 'thinking', 'label' => 'Thinking it through']);
             try {
-                $result = $this->ai->converse(AiInstructions::askAiChat(), $messages, 1400, $onEvent);
+                $result = $file !== null
+                    ? $this->attachments()->converse($messages, 1400, $onEvent, $file['attachment'])
+                    : $this->ai->converse(AiInstructions::askAiChat(), $messages, 1400, $onEvent);
             } catch (ChatInterrupted) {
                 $result = null;
             } catch (Throwable $e) {
@@ -557,6 +643,17 @@ class AskAiChatService
         }
 
         $modelText = $result === null ? '' : trim(AnswerMarkdown::sanitize($raw === '' ? (string) $result['text'] : $raw, $linkCheck));
+        if ($file !== null && ($result === null || $modelText === '')) {
+            // Only Claude can read a file, so there is no other writer to try: say so and keep nothing.
+            if ($released !== '') {
+                $emit('replace', ['text' => self::FILE_UNREAD, 'notice' => null]);
+            } else {
+                $this->emitLines(self::FILE_UNREAD, $emit, ! $wrote);
+            }
+
+            return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, self::FILE_UNREAD, $started, null, 'file_unread');
+        }
+
         if ($result === null || $modelText === '') {
             // Without a key nothing failed: the answer was never going to be written by a model.
             $why = $allowedModel
@@ -637,8 +734,8 @@ class AskAiChatService
         $summary = $reasoningText === '' ? null : mb_substr($reasoningText, 0, 1500);
 
         $steps = $this->steps($intent, $det);
-        $steps[] = $status === 'stopped' ? 'Writing stopped before the end; kept the checked part' : 'Wrote the answer in plain words from those records';
-        $steps[] = 'Checked every number in the answer against those records';
+        $steps[] = $status === 'stopped' ? 'Writing stopped before the end; kept the checked part' : ($intent === 'attached_file' ? 'Wrote the answer in plain words from what the file shows' : 'Wrote the answer in plain words from those records');
+        $steps[] = $intent === 'attached_file' ? 'Checked every number in the answer against what was read from the file' : 'Checked every number in the answer against those records';
 
         $engine = $this->engineFor($result['model'] ?? null);
 
@@ -655,6 +752,7 @@ class AskAiChatService
         } else {
             $steps[] = match ($why) {
                 'guard' => 'Found a figure that did not match your records, so used the verified summary instead',
+                'file_unread' => 'The AI service that reads files did not answer, so nothing was read or saved',
                 'provider' => 'The writing service did not finish, so this is the summary from your records',
                 'no_key' => 'Answered directly from your records. No AI writer was used.',
                 default => 'Wrote the answer directly from your records',
@@ -955,6 +1053,10 @@ class AskAiChatService
     /** @return array<int, string> */
     private function steps(string $intent, array $det): array
     {
+        if ($intent === 'attached_file') {
+            return ['Received the file you attached', 'Read the file with the AI service that can see photos and PDFs'];
+        }
+
         $steps = [
             isset(self::INTENT_PHRASES[$intent])
                 ? 'Understood this as a question about '.self::INTENT_PHRASES[$intent]

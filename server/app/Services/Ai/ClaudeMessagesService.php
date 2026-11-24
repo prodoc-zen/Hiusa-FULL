@@ -124,6 +124,28 @@ class ClaudeMessagesService implements TextGenerator
         int $maxOutputTokens = 1800,
         float $temperature = 0.2,
     ): ?array {
+        return $this->structured($instructions, $input, $schemaName, $schema, $maxOutputTokens, null);
+    }
+
+    /**
+     * generateStructured with a file the model reads first, as an image or document block ahead of the input.
+     *
+     * @param  array{mime: string, data: string}  $file  data is base64
+     */
+    public function generateStructuredFromFile(
+        string $instructions,
+        array $input,
+        string $schemaName,
+        array $schema,
+        array $file,
+        int $maxOutputTokens = 1800,
+    ): ?array {
+        return $this->structured($instructions, $input, $schemaName, $schema, $maxOutputTokens, $file);
+    }
+
+    /** @param  null|array{mime: string, data: string}  $file */
+    private function structured(string $instructions, array $input, string $schemaName, array $schema, int $maxOutputTokens, ?array $file): ?array
+    {
         $message = $this->request(
             $instructions,
             (string) json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -132,6 +154,7 @@ class ClaudeMessagesService implements TextGenerator
                 effort: $this->effort(),
                 format: JSONOutputFormat::with(schema: $this->apiSchema($schema)),
             ),
+            $file,
         );
         if ($message === null) {
             return null;
@@ -163,6 +186,22 @@ class ClaudeMessagesService implements TextGenerator
      * carries extra room for it. An exception thrown by $onEvent (the caller aborting) is rethrown untouched.
      */
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        return $this->stream($instructions, $messages, $maxOutputTokens, $onEvent, null);
+    }
+
+    /**
+     * converse with a file sent on the last turn as an image or document block. No other provider can read one.
+     *
+     * @param  array{mime: string, data: string}  $file  data is base64
+     */
+    public function converseWithFile(string $instructions, array $messages, array $file, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
+    {
+        return $this->stream($instructions, $messages, $maxOutputTokens, $onEvent, $file);
+    }
+
+    /** @param  null|array{mime: string, data: string}  $file */
+    private function stream(string $instructions, array $messages, int $maxOutputTokens, ?callable $onEvent, ?array $file): ?array
     {
         $this->lastStopReason = null;
         $this->unreachable = false;
@@ -207,7 +246,7 @@ class ClaudeMessagesService implements TextGenerator
                 }
             })->messages->createStream(
                 maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
-                messages: array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
+                messages: $this->turns($messages, $file),
                 model: $this->model(),
                 outputConfig: OutputConfig::with(effort: $this->chatEffort()),
                 system: [['type' => 'text', 'text' => $instructions, 'cacheControl' => ['type' => 'ephemeral']]],
@@ -267,7 +306,36 @@ class ClaudeMessagesService implements TextGenerator
         ];
     }
 
-    private function request(string $instructions, string $input, int $maxOutputTokens, OutputConfig $outputConfig): ?Message
+    /**
+     * The turns as the API wants them. The file rides on the last turn only, ahead of its text, because the file is
+     * what that turn is about.
+     *
+     * @param  null|array{mime: string, data: string}  $file
+     */
+    private function turns(array $messages, ?array $file): array
+    {
+        $turns = array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages));
+        if ($file !== null && $turns !== []) {
+            $last = array_key_last($turns);
+            $turns[$last]['content'] = $this->withFile($turns[$last]['content'], $file);
+        }
+
+        return $turns;
+    }
+
+    /** @param  array{mime: string, data: string}  $file */
+    private function withFile(string $text, array $file): array
+    {
+        $source = ['type' => 'base64', 'mediaType' => $file['mime'], 'data' => $file['data']];
+
+        return [
+            ['type' => $file['mime'] === 'application/pdf' ? 'document' : 'image', 'source' => $source],
+            ['type' => 'text', 'text' => $text],
+        ];
+    }
+
+    /** @param  null|array{mime: string, data: string}  $file */
+    private function request(string $instructions, string $input, int $maxOutputTokens, OutputConfig $outputConfig, ?array $file = null): ?Message
     {
         $this->lastStopReason = null;
         $this->unreachable = false;
@@ -283,7 +351,7 @@ class ClaudeMessagesService implements TextGenerator
         try {
             $message = $this->client($apiKey)->messages->create(
                 maxTokens: max(64, (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM)),
-                messages: [['role' => 'user', 'content' => $input]],
+                messages: $this->turns([['role' => 'user', 'content' => $input]], $file),
                 model: $this->model(),
                 outputConfig: $outputConfig,
                 system: $instructions,

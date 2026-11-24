@@ -35,7 +35,7 @@ class OrganizationDeletionService
         'merchandise' => ['public' => ['image_url'], 'uploads' => ['image_url']],
         'merchandise_variants' => ['public' => ['image_url'], 'uploads' => ['image_url']],
         'orders' => ['public' => ['payment_proof_url'], 'uploads' => ['payment_proof_url'], 'local' => ['payment_proof_url']],
-        'transactions' => ['public' => ['receipt_file_url']],
+        'transactions' => ['public' => ['receipt_file_url'], 'local' => ['receipt_file_url']],
         'financial_reports' => ['public' => ['pdf_url', 'excel_url'], 'local' => ['letterhead_path', 'supporting_documents']],
         'organization_compliance_submissions' => ['local' => ['file_path']],
         'event_requirement_files' => ['local' => ['path']],

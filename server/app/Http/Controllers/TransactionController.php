@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\ReceiptPdfService;
+use App\Services\TransactionReceiptFiles;
 use App\Support\FilterValues;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
@@ -334,6 +335,26 @@ class TransactionController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /** Opens the private receipt file kept for a transaction, for the people who can read that organization's ledger. */
+    public function receiptFile(Request $request, TransactionReceiptFiles $files, int $id)
+    {
+        $transaction = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request))->find($id);
+        $path = $transaction?->receipt_file_url;
+
+        if (! $transaction || ! $files->isOurs($path) || ! str_starts_with($path, 'finance-receipts/'.$transaction->organization_id.'/') || ! $files->exists($path)) {
+            return response()->json(['message' => 'Receipt file not found.'], 404);
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $type = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'pdf' => 'application/pdf'][$extension] ?? 'application/octet-stream';
+        $response = response()->file($files->absolutePath($path), ['Content-Type' => $type, 'X-Content-Type-Options' => 'nosniff']);
+        $response->setContentDisposition('inline', 'receipt-'.$transaction->id.'.'.$extension);
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function destroy(Request $request, $id)

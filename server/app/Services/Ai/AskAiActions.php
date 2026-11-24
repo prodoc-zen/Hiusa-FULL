@@ -7,11 +7,13 @@ use App\Http\Middleware\EnsureRole;
 use App\Models\AccountProfile;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
+use App\Models\AiMessageAttachment;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\User;
 use App\Services\Dashboard\ClientRouteAccess;
 use App\Services\TaskDelegationService;
+use App\Services\TransactionReceiptFiles;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Contracts\Http\Kernel;
@@ -29,6 +31,9 @@ use Illuminate\Support\Facades\Facade;
 class AskAiActions
 {
     public const EXPIRES_MINUTES = 30;
+
+    /** The categories the Finance page offers for a transaction; a receipt is only ever sorted into one of these. */
+    public const EXPENSE_CATEGORIES = ['Operations', 'Events', 'Elections', 'Merchandise', 'General'];
 
     private const ZONE = 'Asia/Manila';
 
@@ -76,7 +81,8 @@ class AskAiActions
     /** @return array<int, string> the titles of the actions this person can use, for the capabilities answer */
     public function titlesFor(User $user): array
     {
-        return array_values(array_map(fn (array $definition) => $definition['title'], $this->forUser($user)));
+        // A card that is only ever offered from an attached file has no words to ask for it, so it is not listed as a request.
+        return array_values(array_map(fn (array $definition) => $definition['title'], array_filter($this->forUser($user), fn (array $definition) => $definition['verbs'] !== [])));
     }
 
     public function definitionFor(User $user, string $key): ?array
@@ -99,6 +105,11 @@ class AskAiActions
             return false;
         }
 
+        // A card the role list alone cannot decide, such as an officer who may write the ledger only with the finance duty.
+        if (isset($definition['gate']) && ! ($definition['gate'])($user)) {
+            return false;
+        }
+
         return ! ($user->isCollegeOfficeStaff() && in_array($definition['route'][0].' '.ltrim($definition['route'][1], '/'), EnsureRole::DEAN_ONLY, true));
     }
 
@@ -113,6 +124,7 @@ class AskAiActions
             'file_grievance' => $this->fileGrievance(),
             'allow_applicant' => $this->allowApplicant(),
             'add_college' => $this->addCollege(),
+            'record_expense' => $this->recordExpense(),
         ];
     }
 
@@ -178,6 +190,42 @@ class AskAiActions
                     'label' => 'Open tasks',
                 ];
             },
+        ];
+    }
+
+    /**
+     * Offered only from a receipt attached to a question, never by words, so it has no verbs to match. It posts to the
+     * same route as the Finance page's form, so whatever that route requires of the person applies here unchanged;
+     * the gate only keeps the card from being offered to someone that route would refuse.
+     */
+    private function recordExpense(): array
+    {
+        return [
+            'roles' => ['ADMIN', 'SBO_OFFICER'],
+            'gate' => fn (User $user): bool => $user->role === 'ADMIN' || (method_exists($user, 'canHandleFinance') && $user->canHandleFinance()),
+            'title' => 'Record expense',
+            'submit' => 'Record expense',
+            'intro' => 'I read your receipt. These values were read from the receipt and must be checked.',
+            'keeps_receipt' => true,
+            'verbs' => [],
+            'nouns' => [],
+            'fields' => [
+                $this->field('amount', 'Amount (PHP)', 'number', true, null, null, null, ['min' => 0.01, 'model' => false]),
+                $this->field('transaction_date', 'Date', 'date', true, null, null, null, ['model' => false]),
+                $this->field('description', 'Paid to, or what for', 'text', true, 255, null, null, ['model' => false]),
+                $this->field('category', 'Category', 'select', true, null, null, fn (): array => array_map(fn (string $name): array => ['value' => $name, 'label' => $name], self::EXPENSE_CATEGORIES), ['model' => false]),
+            ],
+            'route' => ['POST', '/api/transactions'],
+            'body' => fn (array $v): array => [
+                'type' => 'expense',
+                ...array_map('floatval', $this->present($v, ['amount'])),
+                ...$this->present($v, ['transaction_date', 'description', 'category']),
+            ],
+            'result' => fn (array $json, array $v): array => [
+                'message' => 'Expense recorded in the ledger with the receipt attached.',
+                'path' => '/dashboard/finance/transaction-history',
+                'label' => 'Open the ledger',
+            ],
         ];
     }
 
@@ -615,7 +663,55 @@ class AskAiActions
         $steps[] = $usedModel ? 'Read the details you stated in your message' : 'Filled in only what your message said';
         $steps[] = 'Nothing is saved until you press '.$definition['submit'];
 
-        $message = AiMessage::create([
+        $message = $this->storeCard($conversation, $key, $definition, $content, $steps, $this->presentFields($definition, $user, $values, $userMessage->content));
+
+        $emit('delta', ['text' => $content]);
+
+        return $message;
+    }
+
+    /**
+     * The card for a receipt attached to a question, with the values read from it. Null unless the file is a receipt
+     * and the person may record an expense. Values the model could not read are left out, so the card shows them empty.
+     *
+     * @param  array{is_receipt: bool, amount: ?float, date: ?string, payee_or_description: ?string, suggested_category: ?string, summary: string}  $read
+     * @param  callable(string, array): void  $emit
+     */
+    public function proposeExpense(User $user, AiConversation $conversation, AiMessageAttachment $attachment, array $read, callable $emit): ?AiMessage
+    {
+        $definition = $this->definitionFor($user, 'record_expense');
+        if ($definition === null || $read['is_receipt'] !== true) {
+            return null;
+        }
+
+        $values = array_filter([
+            'amount' => $read['amount'] === null ? null : number_format($read['amount'], 2, '.', ''),
+            'transaction_date' => $read['date'],
+            'description' => $read['payee_or_description'],
+            'category' => $read['suggested_category'],
+        ], fn ($value) => $value !== null);
+
+        $content = $definition['intro'].' Anything I could not read is left empty. Press '.$definition['submit'].' when it is right.';
+        $steps = [
+            'Understood the file you attached as a receipt',
+            'Read the amount, date, payee and category from the receipt, and left empty what I could not read',
+            'Nothing is saved until you press '.$definition['submit'],
+        ];
+
+        $message = $this->storeCard($conversation, 'record_expense', $definition, $content, $steps, $this->presentFields($definition, $user, $values), [
+            'receipt' => ['name' => $attachment->original_name, 'open_url' => $attachment->present()['open_url']],
+            'attachment_id' => $attachment->id,
+            'read_from' => 'receipt',
+        ]);
+        $emit('delta', ['text' => $content]);
+
+        return $message;
+    }
+
+    /** @param  array<string, mixed>  $extra  more keys for the card, beside the shared ones */
+    private function storeCard(AiConversation $conversation, string $key, array $definition, string $content, array $steps, array $fields, array $extra = []): AiMessage
+    {
+        return AiMessage::create([
             'conversation_id' => $conversation->id,
             'role' => 'assistant',
             'content' => $content,
@@ -636,19 +732,16 @@ class AskAiActions
                     'title' => $definition['title'],
                     'status' => 'awaiting_confirmation',
                     'submit_label' => $definition['submit'],
-                    'fields' => $this->presentFields($definition, $user, $values, $userMessage->content),
+                    'fields' => $fields,
                     'errors' => [],
                     'result' => null,
                     'expires_at' => now()->addMinutes(self::EXPIRES_MINUTES)->toIso8601String(),
+                    ...$extra,
                 ],
             ],
             'status' => 'completed',
             'created_at' => now(),
         ]);
-
-        $emit('delta', ['text' => $content]);
-
-        return $message;
     }
 
     /**
@@ -1068,7 +1161,7 @@ class AskAiActions
      *
      * @return array{outcome: string, message?: string, href?: ?string, action_label?: string, errors?: array<string, array<int, string>>, status?: int}
      */
-    public function execute(User $user, Request $original, array $definition, array $values): array
+    public function execute(User $user, Request $original, array $definition, array $values, ?AiMessage $card = null): array
     {
         [$method, $path] = $definition['route'];
         $path = preg_replace_callback('/\{(\w+)\}/', fn (array $match) => rawurlencode((string) ($values[$match[1]] ?? '')), $path);
@@ -1080,7 +1173,14 @@ class AskAiActions
             }
         }
 
-        $internal = Request::create($path, $method, [], [], [], $server, (string) json_encode(($definition['body'])($values, $user)));
+        $body = ($definition['body'])($values, $user);
+        // The receipt on the card is kept with the record: a private copy whose path goes in as the record's own receipt field.
+        $receiptPath = ($definition['keeps_receipt'] ?? false) && $card !== null ? $this->keepReceipt($user, $card) : null;
+        if ($receiptPath !== null) {
+            $body['receipt_file_url'] = $receiptPath;
+        }
+
+        $internal = Request::create($path, $method, [], [], [], $server, (string) json_encode($body));
 
         $outer = app('request');
         try {
@@ -1093,6 +1193,10 @@ class AskAiActions
         $status = $response->getStatusCode();
         $json = json_decode((string) $response->getContent(), true);
         $json = is_array($json) ? $json : [];
+
+        if ($receiptPath !== null && ($status < 200 || $status >= 300)) {
+            app(TransactionReceiptFiles::class)->discard($receiptPath);
+        }
 
         if ($status >= 200 && $status < 300) {
             $result = ($definition['result'])($json, $values, $user);
@@ -1116,6 +1220,15 @@ class AskAiActions
         }
 
         return ['outcome' => 'failed', 'message' => $this->failureSentence($status, $json), 'status' => $status];
+    }
+
+    /** Copies the card's attachment, only when it is the confirming person's own file. */
+    private function keepReceipt(User $user, AiMessage $card): ?string
+    {
+        $id = $card->payload['action']['attachment_id'] ?? null;
+        $attachment = is_int($id) ? AiMessageAttachment::ownedBy($user)->find($id) : null;
+
+        return $attachment === null ? null : app(TransactionReceiptFiles::class)->copyFromAttachment($user, $attachment);
     }
 
     /** @return array<string, array<int, string>> */
