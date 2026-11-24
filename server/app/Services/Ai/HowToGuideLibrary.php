@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
@@ -58,6 +59,7 @@ class HowToGuideLibrary
         '/dashboard/super-admin/academic-years' => ['Setup and records', 'Academic years', 'set the academic year and semester'],
         '/dashboard/super-admin/audit-logs' => ['Setup and records', 'Audit trail', 'trace who changed a record and when'],
         '/dashboard/super-admin/announcements' => ['Updates', 'University announcements', 'publish notices for the whole university'],
+        '/dashboard/organization-applications' => [null, 'Organization applications', 'review verified applications from the college or decide endorsed ones', ['SUPER_ADMIN' => ['Governance', 'Applications']]],
         '/dashboard/department-head/approvals' => [null, 'Approvals', 'review approval requests awaiting the dean'],
         '/dashboard/department-head/organizations' => [null, 'Organizations', 'review the student organizations in the college'],
         '/dashboard/department-head/people' => [null, 'People', 'see the students, office staff and organization leaders in the college'],
@@ -69,6 +71,8 @@ class HowToGuideLibrary
         '/dashboard/admin/users' => ['Members', 'People', 'search the organization directory and manage account access', ['SBO_OFFICER' => [null, 'Members and fingerprints']]],
         '/dashboard/admin/positions' => ['Members', 'Officer positions', 'maintain the titles available to administrators and officers'],
         '/dashboard/compliance' => ['Records', 'Compliance', 'submit and track the accreditation requirements'],
+        '/dashboard/records' => ['Records', 'Records', 'look back at a past school year: officers, files, events and elections', ['SUPER_ADMIN' => ['Setup and records', 'School year records'], 'DEPARTMENT_HEAD' => ['Records', 'School year records'], 'ADMIN' => ['Records', 'School year records'], 'SBO_OFFICER' => [null, 'Records']]],
+        '/dashboard/records/officer-transition' => ['Records', 'Officer transition', 'follow incoming and outgoing officers, the handover and the renewal deadline', ['SUPER_ADMIN' => ['Setup and records', 'Officer transition'], 'SBO_OFFICER' => [null, 'Officer transition']]],
         '/dashboard/grievances' => ['Records', 'Grievances', 'review confidential concerns filed against the organization'],
         '/dashboard/clearances' => ['Records', 'Clearance signing', 'clear, hold or reopen student clearance signatures'],
         '/dashboard/submitted-files' => ['Records', 'Submitted files', 'view documents submitted by the organization'],
@@ -111,6 +115,12 @@ class HowToGuideLibrary
         '/dashboard/my-clearance' => ['Support', 'My clearance', 'see which signatures you still need and why a clearance is on hold'],
         '/dashboard/profile' => [null, 'Profile', 'keep your personal details and account access current'],
     ];
+
+    // Finance pages only an officer whose position handles finance (and an Admin) has in the sidebar.
+    private const FINANCE_HANDLING_SCREENS = ['/dashboard/finance/collections', '/dashboard/finance/student-accounts'];
+
+    // Routes the dean's allowlist holds that the college office sidebar does not list (the approvals page is reached from Approvals).
+    private const COLLEGE_OFFICE_HIDDEN = ['/dashboard/approvals', '/dashboard/submitted-files'];
 
     /**
      * @return array<int, array<string, mixed>>
@@ -1253,22 +1263,40 @@ class HowToGuideLibrary
     }
 
     /**
-     * The screens this role may open, named the way the sidebar names them, for an answer's next steps.
+     * The screens this person's sidebar offers, named the way the sidebar names them, for an answer's next steps. It
+     * follows the client's getNavForRole: an officer's Finance group is "Finance" with Collections and advances and
+     * Student accounts only when the position handles finance (otherwise "Finance (view only)" without them), an officer
+     * whose position may not book venues is not offered venue booking, the dean's office staff get the college office
+     * pages (the dean's list) and an organization Admin gets none of the college pages.
      *
      * @return array<int, array{screen: string, href: string, use_it_to: string}>
      */
-    public function screensFor(string $role): array
+    public function screensFor(User $user): array
     {
-        $allowed = config("client_routes.{$role}", []);
+        $role = (string) $user->role;
+        $officeStaff = $user->isCollegeOfficeStaff();
+        $navRole = $officeStaff ? 'DEPARTMENT_HEAD' : $role;
+        $allowed = config("client_routes.{$navRole}", []);
+        $handlesFinance = $role === 'SBO_OFFICER' ? $user->canHandleFinance() : true;
+        $bookVenues = $role !== 'SBO_OFFICER' || $user->canBookVenues();
         $screens = [];
 
         foreach (self::SCREENS as $path => $entry) {
             if (! in_array($path, $allowed, true)) {
                 continue;
             }
+            if ($navRole === 'DEPARTMENT_HEAD' && in_array($path, self::COLLEGE_OFFICE_HIDDEN, true)) {
+                continue;
+            }
+            if ($role === 'ADMIN' && ! $officeStaff && (str_starts_with($path, '/dashboard/department-head/') || $path === '/dashboard/organization-applications')) {
+                continue;
+            }
+            if ($role === 'SBO_OFFICER' && ((! $handlesFinance && in_array($path, self::FINANCE_HANDLING_SCREENS, true)) || (! $bookVenues && $path === '/dashboard/venues'))) {
+                continue;
+            }
 
-            [$group, $title] = $entry[3][$role] ?? $entry;
-            if ($group === 'Finance' && $role === 'SBO_OFFICER') {
+            [$group, $title] = $entry[3][$navRole] ?? $entry;
+            if ($group === 'Finance' && $role === 'SBO_OFFICER' && ! $handlesFinance) {
                 $group = 'Finance (view only)';
             }
 

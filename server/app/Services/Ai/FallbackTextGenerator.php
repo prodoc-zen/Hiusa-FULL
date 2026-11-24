@@ -13,8 +13,10 @@ use Illuminate\Support\Facades\Log;
  * Claude outage, refusal or timeout lands on Groq and, after that, on the caller's own deterministic text.
  * Logs which provider served, never the prompt or the data in it.
  *
- * generate() and generateStructured() run inside a web request, so both attempts share one 30 second deadline: Claude,
- * which thinks before it answers, may use 25 of it and Groq (capped at 12 by its own service) gets what is left. A
+ * generate() and generateStructured() run inside a web request, so both attempts share one 37 second deadline: Claude,
+ * which thinks before it answers, may use 25 of it and Groq (capped at 12 by its own service) gets what is left, which
+ * after a Claude that used its whole cap is Groq's full 12 seconds. The deadline stays under the web server's 60 second
+ * read timeout. A
  * provider that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one
  * longer deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off. The event plan is
  * the one structured call that gets its own deadline (services.ai.plan_deadline_seconds), because a full plan is the
@@ -24,11 +26,17 @@ class FallbackTextGenerator implements TextGenerator
 {
     use GuardsGeneratedText;
 
-    // Both attempts together. Claude's own cap on one call is 25 seconds by default (30 at most); Groq's is 12.
-    private const DEADLINE_SECONDS = 30;
-
-    // Claude's part of the shared deadline: its default cap, which leaves Groq the remaining 5 seconds after a hung call.
+    // Claude's part of the shared deadline: its default cap on one call (30 at most, but the share is never more than this).
     private const PRIMARY_SECONDS = 25;
+
+    // Groq's part of the shared deadline: the cap GroqResponsesService puts on one call.
+    private const SECONDARY_SECONDS = 12;
+
+    // Both attempts together: a Claude that times out at its cap still leaves Groq its whole turn.
+    private const DEADLINE_SECONDS = self::PRIMARY_SECONDS + self::SECONDARY_SECONDS;
+
+    // The shortest deadline the event plan may be given, whatever services.ai.plan_deadline_seconds says.
+    private const PLAN_DEADLINE_FLOOR_SECONDS = 30;
 
     // The structured call that builds an event's to-do plan; EventController passes this schema name.
     public const EVENT_PLAN_SCHEMA = 'hiusa_event_workflow';
@@ -69,7 +77,7 @@ class FallbackTextGenerator implements TextGenerator
             return $this->serve('generateStructured', $call, true);
         }
 
-        $planSeconds = max(self::DEADLINE_SECONDS, min(120, (int) config('services.ai.plan_deadline_seconds', 30) ?: 30));
+        $planSeconds = max(self::PLAN_DEADLINE_FLOOR_SECONDS, min(120, (int) config('services.ai.plan_deadline_seconds', 30) ?: 30));
 
         return $this->serve('generateStructured', $call, true, $planSeconds, $planSeconds * self::PLAN_PRIMARY_SHARE, $planSeconds);
     }

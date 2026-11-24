@@ -13,8 +13,11 @@ trait GuardsGeneratedText
     // Digits glued to a letter ("PHP9999") count; codes such as Q4 pass only when the facts carry them.
     private const NUMBER_TOKEN = '/(?<![\pN.,])(?:-?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|-?\d+(?:\.\d+)?%?)/u';
 
-    // The most fact numbers a derived sum, difference or percentage is searched over; the exact check always sees them all.
+    // The most money figures a derived sum, difference or percentage is searched over; the exact check always sees them all.
     private const DERIVED_POOL = 200;
+
+    // The most money figures one fact object contributes to the percentage search.
+    private const GROUP_LIMIT = 200;
 
     /**
      * Reject explanatory copy that introduces numeric claims absent from the
@@ -22,9 +25,11 @@ trait GuardsGeneratedText
      * the model is only allowed to verbalize existing values.
      *
      * With $allowDerived (the Ask AI chat, whose prompt lets the writer add up or compare the figures it was given) a
-     * number that is also a sum of up to three fact numbers, the difference of two, or a share of one fact number in
-     * another (as a percentage) passes. A small whole number (under 100) must still appear in the facts: counts are
-     * never worked out, and a small integer is too easily the sum of two others by chance.
+     * number that is also the sum or the difference of two money figures in the facts, or a percentage that is one
+     * figure over another inside the same fact object (one row's own amounts, the highlights), passes. Only money
+     * figures take part: an amount with centavos or a thousands separator, or a whole number of 100 or more that is
+     * not a year. Counts, dates and years are never worked out, a percentage is never taken across two rows, and a
+     * small whole number must appear in the facts, because any of them is too easily a sum or a ratio by chance.
      */
     public function preservesNumericFacts(string $text, array $facts, bool $allowDerived = false): bool
     {
@@ -36,7 +41,7 @@ trait GuardsGeneratedText
             $this->withoutMarkdownSyntax($text)
         ) ?? $text;
         preg_match_all(self::NUMBER_TOKEN, $checked, $matches);
-        $pool = null;
+        $figures = null;
 
         foreach ($matches[0] ?? [] as $token) {
             $isPercentage = str_ends_with($token, '%');
@@ -45,7 +50,7 @@ trait GuardsGeneratedText
             if (collect($allowed)->contains(fn (float $allowedValue) => collect($candidates)->contains(fn (float $candidate) => abs($allowedValue - $candidate) < 0.005))) {
                 continue;
             }
-            if ($allowDerived && $this->isDerivedFrom($token, $value, $isPercentage, $pool ??= $this->derivedPool($allowed))) {
+            if ($allowDerived && $this->isDerivedFrom($token, $value, $isPercentage, $figures ??= $this->moneyFigures($facts))) {
                 continue;
             }
 
@@ -60,37 +65,109 @@ trait GuardsGeneratedText
     }
 
     /**
-     * The fact numbers in whole cents, each once and never zero, as a lookup set; money is worked out in cents so
-     * a sum of two amounts is compared exactly and never through floating point drift.
+     * The money figures of the facts in whole cents (money is worked out in cents, so a sum is compared exactly and never
+     * through floating point drift): 'pool' holds each one once, 'groups' holds them per fact object, where an object
+     * is an array's own scalar values and 'highlights' and 'ledger' count as one object each.
      *
-     * @param  array<int, float>  $allowed
-     * @return array<int, true>
+     * @return array{pool: array<int, true>, groups: array<int, array<int, int>>}
      */
-    private function derivedPool(array $allowed): array
+    private function moneyFigures(array $facts): array
     {
+        $groups = [];
+        $this->collectFigureGroups($facts, $groups);
+
         $pool = [];
-        foreach ($allowed as $number) {
-            $cents = (int) round($number * 100);
-            if ($cents !== 0) {
+        foreach ($groups as $group) {
+            foreach ($group as $cents) {
                 $pool[$cents] = true;
-            }
-            if (count($pool) >= self::DERIVED_POOL) {
-                break;
+                if (count($pool) >= self::DERIVED_POOL) {
+                    break 2;
+                }
             }
         }
 
-        return $pool;
+        return ['pool' => $pool, 'groups' => $groups];
+    }
+
+    /** @param array<int, array<int, int>> $groups */
+    private function collectFigureGroups(array $node, array &$groups): void
+    {
+        $own = [];
+        foreach ($node as $key => $child) {
+            if (is_array($child)) {
+                $this->collectFigureGroups($child, $groups);
+                if ($key === 'highlights' || $key === 'ledger') {
+                    $all = [];
+                    $this->flattenFigures($child, $all);
+                    $groups[] = array_slice(array_values(array_unique($all)), 0, self::GROUP_LIMIT);
+                }
+
+                continue;
+            }
+            array_push($own, ...$this->figuresIn($child));
+        }
+        if ($own !== []) {
+            $groups[] = array_slice(array_values(array_unique($own)), 0, self::GROUP_LIMIT);
+        }
+    }
+
+    /** @param array<int, int> $into */
+    private function flattenFigures(array $node, array &$into): void
+    {
+        foreach ($node as $child) {
+            if (is_array($child)) {
+                $this->flattenFigures($child, $into);
+            } else {
+                array_push($into, ...$this->figuresIn($child));
+            }
+        }
     }
 
     /**
-     * Whether $value is a total, a difference or a percentage of the numbers in $pool, to two decimal places.
+     * The money figures in one scalar, in cents. A number glued to a date by a dash, a slash or a colon is a date or time
+     * part, a bare whole number from 1900 to 2100 is a year, and a whole number under 100 is a count; none is money.
      *
-     * @param  array<int, true>  $pool  fact numbers in cents
+     * @return array<int, int>
      */
-    private function isDerivedFrom(string $token, float $value, bool $isPercentage, array $pool): bool
+    private function figuresIn(mixed $value): array
+    {
+        if (is_int($value)) {
+            return $value >= 100 && ! ($value >= 1900 && $value <= 2100) ? [$value * 100] : [];
+        }
+        if (is_float($value)) {
+            $value = abs($value);
+
+            return $value >= 100 || fmod($value, 1.0) !== 0.0 ? [(int) round($value * 100)] : [];
+        }
+        if (! is_string($value)) {
+            return [];
+        }
+
+        preg_match_all('/(?<![\pL\pN])(?<![\pN][-\/:])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\pN]|[-\/:]\pN)/u', $value, $matches);
+
+        $figures = [];
+        foreach ($matches[1] ?? [] as $token) {
+            $number = (float) str_replace(',', '', $token);
+            $hasCents = str_contains($token, '.') || str_contains($token, ',');
+            if ($number <= 0 || (! $hasCents && ($number < 100 || ($number >= 1900 && $number <= 2100)))) {
+                continue;
+            }
+            $figures[] = (int) round($number * 100);
+        }
+
+        return $figures;
+    }
+
+    /**
+     * Whether $value is the sum or the difference of two money figures, or a percentage of one figure in another within
+     * one fact object, to two decimal places.
+     *
+     * @param  array{pool: array<int, true>, groups: array<int, array<int, int>>}  $figures
+     */
+    private function isDerivedFrom(string $token, float $value, bool $isPercentage, array $figures): bool
     {
         if ($isPercentage) {
-            return $this->isShareOf($token, $value, $pool);
+            return $this->isShareOf($token, $value, $figures['groups']);
         }
 
         // A count such as 3 or 12 is never worked out: it is either in the facts or it is wrong.
@@ -98,37 +175,40 @@ trait GuardsGeneratedText
             return false;
         }
 
-        $target = (int) round($value * 100);
-        $numbers = array_keys($pool);
+        $target = (int) round(abs($value) * 100);
+        $pool = $figures['pool'];
 
-        foreach ($numbers as $a) {
+        foreach (array_keys($pool) as $a) {
             // a + b, a - b and b - a.
             if (isset($pool[$target - $a]) || isset($pool[$a - $target])) {
                 return true;
-            }
-            foreach ($numbers as $b) {
-                // a + b + c, a + b - c and a - b - c.
-                if (isset($pool[$target - $a - $b]) || isset($pool[$a + $b - $target]) || isset($pool[$a - $b - $target])) {
-                    return true;
-                }
             }
         }
 
         return false;
     }
 
-    /** A percentage that is one fact number over another, or what is left of 100 after one, rounded as the token is written. */
-    private function isShareOf(string $token, float $value, array $pool): bool
+    /**
+     * A percentage that is one figure over a larger one in the same fact object, or what is left of 100 after it, rounded
+     * as the token is written.
+     *
+     * @param  array<int, array<int, int>>  $groups
+     */
+    private function isShareOf(string $token, float $value, array $groups): bool
     {
         $decimals = str_contains($token, '.') ? strlen(rtrim(explode('.', $token)[1], '%')) : 0;
         $tolerance = 0.5 * (10 ** -$decimals) + 1e-9;
-        $positive = array_filter(array_keys($pool), fn (int $cents) => $cents > 0);
 
-        foreach ($positive as $part) {
-            foreach ($positive as $whole) {
-                $share = $part / $whole * 100;
-                if (abs($share - $value) <= $tolerance || abs(100 - $share - $value) <= $tolerance) {
-                    return true;
+        foreach ($groups as $group) {
+            foreach ($group as $part) {
+                foreach ($group as $whole) {
+                    if ($part > $whole) {
+                        continue;
+                    }
+                    $share = $part / $whole * 100;
+                    if (abs($share - $value) <= $tolerance || abs(100 - $share - $value) <= $tolerance) {
+                        return true;
+                    }
                 }
             }
         }
