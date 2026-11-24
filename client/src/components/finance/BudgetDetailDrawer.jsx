@@ -36,7 +36,7 @@ export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit
         <NextStep {...nextStep} />
         <div className="space-y-4 border-t border-line pt-4">
           <BudgetFigures budget={budget} size="md" />
-          {figures.released && figures.hasBreakdown && figures.allocated > 0 && (
+          {figures.hasBreakdown && figures.allocated > 0 && (
             <ProgressMeter label="Budget used" value={figures.spent} max={figures.allocated} valueLabel={`${peso(figures.spent)} of ${peso(figures.allocated)} spent`} />
           )}
           <dl className="text-sm">
