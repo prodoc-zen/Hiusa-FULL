@@ -135,8 +135,10 @@ export function EventBudgetsList({ rows, renderBudget, canCreateBudget, onCreate
             <p className="text-sm font-semibold text-ink">{formatDisplayText(row.title)}</p>
             {eventMeta(row) && <p className="text-xs text-ink-muted">{eventMeta(row)}</p>}
           </div>
-          {row.budget ? (
-            <div className="mt-3">{renderBudget(row.budget)}</div>
+          {(row.budgets ?? (row.budget ? [row.budget] : [])).length > 0 ? (
+            <div className="mt-3 space-y-4">
+              {(row.budgets ?? [row.budget]).map((budget) => <div key={budget.id}>{renderBudget(budget)}</div>)}
+            </div>
           ) : (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <p className="text-sm text-ink-muted">No budget yet</p>
