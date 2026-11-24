@@ -5278,6 +5278,7 @@ class AskAiService
         if ($showFinance) {
             $transactions = DB::table('transactions')
                 ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
+                ->whereNull('transactions.archived_at')
                 ->whereIn('transactions.organization_id', $orgIds)
                 ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('transactions.archived_at'))
                 ->orderByDesc('transactions.transaction_date')

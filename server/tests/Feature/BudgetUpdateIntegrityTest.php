@@ -64,6 +64,17 @@ class BudgetUpdateIntegrityTest extends TestCase
         $this->assertSame('approved', $this->budget->fresh()->submission_status);
     }
 
+    public function test_the_event_of_a_budget_whose_only_entries_are_archived_cannot_change_either(): void
+    {
+        $entry = $this->entry('expense', 200);
+        Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereKey($entry->id)->update(['archived_at' => now()]);
+
+        $this->putJson("/api/budgets/{$this->budget->id}", ['event_id' => $this->otherEvent->id])->assertConflict()
+            ->assertJsonPath('message', 'This budget already has ledger entries, so it can no longer be moved to a different event.');
+
+        $this->assertSame($this->event->id, $this->budget->fresh()->event_id);
+    }
+
     public function test_a_budget_with_ledger_entries_still_takes_edits_that_keep_its_event(): void
     {
         $this->entry('expense', 200);

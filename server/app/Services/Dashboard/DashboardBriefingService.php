@@ -852,7 +852,7 @@ class DashboardBriefingService
         $budgets = (clone $approved)->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining')->first();
         // Spending and income come from the entries recorded against the budgets, not from
         // allocation minus remaining, which hides spending whenever income was added too.
-        $linked = DB::table('transactions')->whereIn('budget_id', (clone $approved)->select('id'))
+        $linked = DB::table('transactions')->whereNull('archived_at')->whereIn('budget_id', (clone $approved)->select('id'))
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END),0) as spent, COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END),0) as income")
             ->first();
 
@@ -882,6 +882,7 @@ class DashboardBriefingService
     private function netTransactions(int $organizationId, Carbon $from, Carbon $to): float
     {
         $row = DB::table('transactions')->where('organization_id', $organizationId)
+            ->whereNull('archived_at')
             ->whereBetween('transaction_date', [$from, $to])
             ->selectRaw("COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) as income, COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) as expense")
             ->first();
@@ -1407,6 +1408,7 @@ class DashboardBriefingService
             ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated')
             ->groupBy('organization_id')->get()->keyBy('organization_id');
         $budgetSpending = DB::table('transactions')->join('budgets', 'budgets.id', '=', 'transactions.budget_id')
+            ->whereNull('transactions.archived_at')
             ->whereIn('budgets.organization_id', $organizationIds)->where('budgets.submission_status', 'approved')->where('transactions.type', 'expense')
             ->select('budgets.organization_id')->selectRaw('SUM(transactions.amount) as spent')
             ->groupBy('budgets.organization_id')->pluck('spent', 'organization_id');

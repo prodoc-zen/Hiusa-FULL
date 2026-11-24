@@ -148,9 +148,9 @@ class FinanceReadAccessTest extends TestCase
             $this->deleteJson('/api/budgets/'.$records['budget']->id)->assertForbidden();
             $this->postJson('/api/budgets/'.$records['budget']->id.'/advice')->assertForbidden();
 
-            $this->postJson('/api/transactions', ['type' => 'income', 'amount' => 1, 'category' => 'x', 'description' => 'x', 'transaction_date' => now()->toDateString()])->assertForbidden();
-            $this->putJson('/api/transactions/'.$records['transaction']->id, ['amount' => 2])->assertForbidden();
-            $this->deleteJson('/api/transactions/'.$records['transaction']->id)->assertForbidden();
+            $this->postTransaction(['type' => 'income', 'amount' => 1, 'category' => 'x', 'description' => 'x', 'transaction_date' => now()->toDateString()])->assertForbidden();
+            $this->putJson('/api/transactions/'.$records['transaction']->id, ['edit_reason' => 'Corrected after review', 'amount' => 2])->assertForbidden();
+            $this->patchJson('/api/transactions/'.$records['transaction']->id.'/archive', ['reason' => 'Archived in the test'])->assertForbidden();
 
             $this->postJson('/api/forecasts/generate', ['months' => 6])->assertForbidden();
             $this->postJson('/api/forecasts', ['forecast_period' => '2026-01', 'predicted_income' => 1, 'predicted_expense' => 1])->assertForbidden();

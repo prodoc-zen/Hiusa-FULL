@@ -26,14 +26,43 @@ export const getTransactions = (params) =>
 export const getTransactionSummary = (params) =>
   api.get('/transactions/summary', { params });
 
+// A transaction can carry the official receipt file, so it travels as multipart form data. A cleared link or
+// reference goes as an empty value, which the server reads as null; a field left out would stay as it was.
+function transactionFormData(data) {
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (key === 'receipt_file') {
+      if (value) formData.append(key, value);
+      return;
+    }
+    formData.append(key, value === null ? '' : value);
+  });
+  return formData;
+}
+
+// Every event of the organization with its own income, expenses and budget, plus what belongs to no event. The totals
+// equal the summary above. It reads fresh each time, since the figures move with every transaction.
+export const getEventLedgers = (params) =>
+  api.get('/transactions/event-ledgers', { params, cache: false });
+
 export const createTransaction = (data) =>
-  api.post('/transactions', data);
+  api.post('/transactions', transactionFormData(data));
 
-export const updateTransaction = (id, data) =>
-  api.put(`/transactions/${id}`, data);
+// Laravel reads a multipart PUT only through method spoofing, so an edit is a POST that says _method=PUT.
+export const updateTransaction = (id, data) => {
+  const formData = transactionFormData(data);
+  formData.append('_method', 'PUT');
+  return api.post(`/transactions/${id}`, formData);
+};
 
-export const deleteTransaction = (id) =>
-  api.delete(`/transactions/${id}`);
+// An entry is archived, never deleted: it leaves every total and stays on record with who archived it and why.
+export const archiveTransaction = (id, reason) =>
+  api.patch(`/transactions/${id}/archive`, { reason });
+
+// The history answers a click, so it is never read from the short cache.
+export const getTransactionHistory = (id) =>
+  api.get(`/transactions/${id}/history`, { cache: false });
 
 export const getPersonalReceipts = () =>
   api.get('/transactions/personal-receipts');

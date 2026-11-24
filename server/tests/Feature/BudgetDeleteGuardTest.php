@@ -75,6 +75,23 @@ class BudgetDeleteGuardTest extends TestCase
         $this->assertModelExists($budget);
     }
 
+    public function test_a_budget_whose_only_entries_are_archived_still_cannot_be_deleted(): void
+    {
+        $budget = $this->budget('pending_department_head');
+        $entry = Transaction::create([
+            'organization_id' => $budget->organization_id, 'recorded_by' => $this->admin->school_id, 'budget_id' => $budget->id,
+            'type' => 'expense', 'amount' => '100.00', 'category' => 'Supplies', 'description' => 'Supplies', 'transaction_date' => '2026-10-05',
+        ]);
+        Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereKey($entry->id)->update(['archived_at' => now()]);
+
+        $this->deleteJson("/api/budgets/{$budget->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'Cannot delete a budget that has existing transactions. Remove all transactions first.');
+
+        $this->assertModelExists($budget);
+        $this->assertSame($budget->id, Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->find($entry->id)->budget_id);
+    }
+
     public function test_an_approval_that_lands_after_the_budget_was_read_still_blocks_the_delete(): void
     {
         $budget = $this->budget('pending_department_head');

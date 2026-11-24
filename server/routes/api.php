@@ -308,13 +308,15 @@ Route::middleware(['auth:sanctum', 'account.profile', 'view.only', 'org.module',
 
     // Finance Routes - Transactions
     Route::get('/transactions/summary', [TransactionController::class, 'summary'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/transactions/event-ledgers', [TransactionController::class, 'eventLedgers'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/transactions/personal-receipts', [TransactionController::class, 'personalReceipts'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/transactions/personal-receipts/{id}/pdf', [TransactionController::class, 'personalReceiptPdf'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT'])->whereNumber('id');
     Route::get('/transactions', [TransactionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/transactions/{id}/history', [TransactionController::class, 'history'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD'])->whereNumber('id');
     Route::get('/transactions/{id}/receipt-file', [TransactionController::class, 'receiptFile'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD'])->whereNumber('id');
     Route::post('/transactions', [TransactionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer']);
     Route::put('/transactions/{id}', [TransactionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer']);
-    Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer']);
+    Route::patch('/transactions/{id}/archive', [TransactionController::class, 'archive'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', 'finance.writer'])->whereNumber('id');
 
     // Financial accountability: collections are ledgered only after verification; remittances are custody movements.
     Route::get('/financial-dashboard', [FinancialAccountabilityController::class, 'dashboard'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);

@@ -21,7 +21,7 @@ class FinanceValidationMessagesTest extends TestCase
         ]);
         Sanctum::actingAs($admin);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'income', 'category' => 'Dues', 'description' => 'Second', 'amount' => 50,
             'transaction_date' => today()->toDateString(), 'receipt_reference' => 'OR-100',
         ])->assertStatus(422)->assertJsonPath('errors.receipt_reference.0', 'This receipt reference is already used. Enter a different one.');
