@@ -263,7 +263,7 @@ describe('FinancePage financial report lifecycle', () => {
     ['DEPARTMENT_HEAD', 'pending_department_head', 'Review this report', 'Open approvals'],
     ['DEPARTMENT_HEAD', 'pending_sao', 'Waiting for SAO approval', null],
     ['DEPARTMENT_HEAD', 'rejected', 'Returned to the Admin for changes', null],
-    ['SBO_OFFICER', 'draft', 'Waiting for the Admin to submit the report', null],
+    ['SBO_OFFICER', 'draft', 'Waiting for the Admin to submit the report', 'Submit for review'],
     ['SBO_OFFICER', 'pending_department_head', 'Waiting for Department Head approval', null],
     ['SBO_OFFICER', 'approved', 'Approved', null],
   ];

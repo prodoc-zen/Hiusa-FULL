@@ -2147,7 +2147,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       <ReportDetailDrawer
         report={selectedReport}
         viewerRole={currentUserRole}
-        canHandleFinance={canHandle}
         onClose={() => setRecordId(null)}
         files={selectedReport ? reportFiles[selectedReport.id] || [] : []}
         onFilesChange={(files) => setReportFiles((current) => ({ ...current, [selectedReport.id]: files }))}
