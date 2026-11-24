@@ -42,10 +42,11 @@ class Budget extends Model
         return $this->belongsTo(FinancialSemester::class);
     }
 
-    /** What is left to spend: the allocation, plus income recorded against it, minus what was spent from it. */
+    /** What is left to spend: the allocation, plus income recorded against it, minus what was spent from it. Archived entries count for nothing. */
     public function recomputedRemaining(): float
     {
         $totals = $this->transactions()
+            ->whereNull('transactions.archived_at')
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense")
             ->first();
 
@@ -53,14 +54,66 @@ class Budget extends Model
     }
 
     /**
-     * Spent per budget id as a two decimal string, in one query. Expenses only and cash advance
-     * movements left out, because income recorded against a budget raises its remaining amount
-     * and must not net off what was spent.
+     * Spent per budget id as a two decimal string, in one query. Expenses only, with cash advance
+     * movements and archived entries left out, because income recorded against a budget raises its
+     * remaining amount and must not net off what was spent.
      *
      * @param  iterable<int>  $ids
      * @return array<int, string>
      */
     public static function spentAmounts(iterable $ids): array
+    {
+        return self::linkedTotals($ids, 'expense');
+    }
+
+    /**
+     * Income recorded against each budget id as a two decimal string, counted by the same rule as spentAmounts.
+     *
+     * @param  iterable<int>  $ids
+     * @return array<int, string>
+     */
+    public static function incomeAmounts(iterable $ids): array
+    {
+        return self::linkedTotals($ids, 'income');
+    }
+
+    /**
+     * The four figures a budget shows, as two decimal strings, keyed by budget id. Only an approved budget is
+     * released: it adds income and takes off what was spent. Any other budget shows nothing spent, no income and its
+     * whole allocation as remaining, whatever an older entry might still be linked to it.
+     *
+     * @param  iterable<Budget>  $budgets
+     * @return array<int, array{allocated_amount: string, spent_amount: string, income_amount: string, remaining_amount: string, is_released: bool}>
+     */
+    public static function figuresFor(iterable $budgets): array
+    {
+        $budgets = collect($budgets);
+        $releasedIds = $budgets->filter(fn (Budget $budget) => $budget->submission_status === 'approved')->pluck('id');
+        $spent = self::spentAmounts($releasedIds);
+        $income = self::incomeAmounts($releasedIds);
+        $money = fn (float $amount) => number_format($amount, 2, '.', '');
+
+        return $budgets->mapWithKeys(function (Budget $budget) use ($releasedIds, $spent, $income, $money) {
+            $released = $releasedIds->contains($budget->id);
+            $allocated = (float) $budget->allocated_amount;
+            $spentAmount = $released ? (float) $spent[$budget->id] : 0.0;
+            $incomeAmount = $released ? (float) $income[$budget->id] : 0.0;
+
+            return [$budget->id => [
+                'allocated_amount' => $money($allocated),
+                'spent_amount' => $money($spentAmount),
+                'income_amount' => $money($incomeAmount),
+                'remaining_amount' => $money($allocated + $incomeAmount - $spentAmount),
+                'is_released' => $released,
+            ]];
+        })->all();
+    }
+
+    /**
+     * @param  iterable<int>  $ids
+     * @return array<int, string>
+     */
+    private static function linkedTotals(iterable $ids, string $type): array
     {
         $ids = collect($ids)->unique()->values();
 
@@ -69,7 +122,8 @@ class Budget extends Model
         }
 
         $totals = Transaction::whereIn('budget_id', $ids)
-            ->where('type', 'expense')
+            ->where('type', $type)
+            ->whereNull('transactions.archived_at')
             ->excludingCashAdvances()
             ->selectRaw('budget_id, SUM(amount) as total')
             ->groupBy('budget_id')
