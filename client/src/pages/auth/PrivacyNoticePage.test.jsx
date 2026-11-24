@@ -34,6 +34,17 @@ describe('PrivacyNoticePage', () => {
     expect(within(collected).getByText(/Finance records/)).toBeInTheDocument();
   });
 
+  it('says voice typing is done by the browser and that attached files go to the AI service', () => {
+    renderPage();
+
+    const collected = screen.getByRole('region', { name: 'What the system collects' });
+    expect(within(collected).getByText(/voice typing is done by your browser/i)).toBeInTheDocument();
+    expect(within(collected).getByText(/not stored by HIUSA/)).toBeInTheDocument();
+    const why = screen.getByRole('region', { name: 'Why we collect it' });
+    expect(within(why).getByText(/Anthropic/)).toBeInTheDocument();
+    expect(screen.getByText(/Version 2026-11/)).toBeInTheDocument();
+  });
+
   it('opens without signing in and offers a way to sign in', () => {
     renderPage();
 

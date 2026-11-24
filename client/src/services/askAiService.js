@@ -52,6 +52,18 @@ function endSession() {
   window.location.assign(hadSession ? '/login' : '/');
 }
 
+// The JSON fields travel as form fields beside the file; a value that is not set is left out, not sent as the text "null".
+function chatForm({ conversationId, message, topic, regenerate, source, attachment }) {
+  const form = new FormData();
+  if (conversationId != null) form.append('conversation_id', String(conversationId));
+  if (message != null) form.append('message', message);
+  if (topic) form.append('topic', topic);
+  form.append('regenerate', regenerate ? '1' : '0');
+  form.append('source', source === 'typed' ? 'typed' : 'link');
+  form.append('attachment', attachment, attachment.name);
+  return form;
+}
+
 function parseBlock(block) {
   let name = 'message';
   const dataLines = [];
@@ -104,11 +116,12 @@ export function createSseParser(onEvent) {
   };
 }
 
-export async function streamAiChat({ conversationId = null, message, topic = null, regenerate = false, source = 'link', signal, onEvent } = {}) {
+export async function streamAiChat({ conversationId = null, message, topic = null, regenerate = false, source = 'link', attachment = null, signal, onEvent } = {}) {
   const headers = {
     Accept: 'text/event-stream, application/json',
-    'Content-Type': 'application/json',
   };
+  // With a file the body is multipart and the browser sets the boundary, so no content type is given.
+  if (!attachment) headers['Content-Type'] = 'application/json';
   const token = localStorage.getItem('auth_token');
   if (token) headers.Authorization = `Bearer ${token}`;
   const period = readSelectedPeriod();
@@ -123,13 +136,15 @@ export async function streamAiChat({ conversationId = null, message, topic = nul
     headers,
     signal,
     redirect: 'manual',
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      message: message ?? null,
-      topic,
-      regenerate: Boolean(regenerate),
-      source: source === 'typed' ? 'typed' : 'link',
-    }),
+    body: attachment
+      ? chatForm({ conversationId, message, topic, regenerate, source, attachment })
+      : JSON.stringify({
+        conversation_id: conversationId,
+        message: message ?? null,
+        topic,
+        regenerate: Boolean(regenerate),
+        source: source === 'typed' ? 'typed' : 'link',
+      }),
   });
 
   if (response.type === 'opaqueredirect') throw streamError(GENERIC_ERROR, 422);
