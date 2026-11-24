@@ -73,6 +73,7 @@ const statusLabel = {
 };
 
 const budgetApprovalTone = {
+  draft: 'neutral',
   pending: 'warning',
   approved: 'success',
   rejected: 'danger',
@@ -2021,7 +2022,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           <li key={budget.id} className="py-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="font-semibold text-ink">{formatDisplayText(budget.title)}</p>
-                              <BudgetApproval status={budget.approval_status} />
+                              <BudgetApproval status={budget.submission_status === 'draft' ? 'draft' : budget.approval_status} />
                             </div>
                             {['pending_department_head', 'pending_sao'].includes(budget.submission_status) && <p className="mt-1 text-xs text-ink-muted-strong">{budgetLifecycle(budget, currentUserRole).nextAction.title}</p>}
                             <p className="mt-1 text-xs tabular-nums text-ink-muted">Allocated {formatCurrency(budget.allocated_amount)} · Spent {formatCurrency(budget.spent_amount)} · Income {formatCurrency(budget.income_amount)} · Remaining {formatCurrency(budget.remaining_amount)} · {budget.transactions_count ?? 0} transaction(s)</p>

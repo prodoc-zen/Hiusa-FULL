@@ -51,4 +51,12 @@ describe('BudgetDetailDrawer drafts', () => {
 
     expect(onEdit).toHaveBeenCalledTimes(1);
   });
+
+  it.each([['draft', 'Edit draft'], ['rejected', 'Edit budget']])('shows an officer without the finance switch a %s budget as switched off, with the reason', (status, label) => {
+    open(status, 'SBO_OFFICER');
+
+    expect(screen.getByRole('button', { name: label })).toBeDisabled();
+    expect(screen.getByText('Your position cannot handle finance')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
+  });
 });

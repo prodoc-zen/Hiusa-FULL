@@ -10,7 +10,9 @@ export function budgetNextStepProps(budget, viewerRole, onEdit, onSubmit) {
   const status = budget.submission_status;
   if (!props.primary) return props;
   if (viewerRole === 'SBO_OFFICER') {
-    if (onEdit && ['draft', 'rejected'].includes(status)) props.primary = { label: props.primary.label, onClick: onEdit };
+    if (['draft', 'rejected'].includes(status)) {
+      props.primary = onEdit ? { label: props.primary.label, onClick: onEdit } : { label: props.primary.label, disabledReason: 'Your position cannot handle finance' };
+    }
   } else if (status === 'rejected' && onEdit) {
     props.primary = { label: 'Edit and resubmit', onClick: onEdit };
   } else if (status === 'draft' && onSubmit) {
