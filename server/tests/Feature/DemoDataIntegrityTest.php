@@ -201,7 +201,7 @@ class DemoDataIntegrityTest extends TestCase
             ->firstOrFail();
         Sanctum::actingAs($admin);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'budget_id' => $approvedBudget->id,
             'type' => 'income',
             'category' => 'Demo Integrity Check',

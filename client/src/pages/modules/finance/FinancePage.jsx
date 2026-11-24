@@ -7,12 +7,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Archive,
   ChevronLeft,
   ChevronRight,
   Download,
   Eye,
   FileSpreadsheet,
   FileText,
+  History,
   Paperclip,
   Pencil,
   Plus,
@@ -26,9 +28,10 @@ import TableRowActions from '../../../components/TableRowActions';
 import {
   getTransactions,
   getTransactionSummary,
+  getEventLedgers,
   createTransaction,
   updateTransaction,
-  deleteTransaction,
+  archiveTransaction,
   deleteBudget,
   deleteForecast,
   getPersonalReceipts,
@@ -66,8 +69,13 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
 import BudgetDetailDrawer from '../../../components/finance/BudgetDetailDrawer';
+import ArchiveTransactionModal, { reasonIsGiven, MAX_REASON_LENGTH } from '../../../components/finance/ArchiveTransactionModal';
+import ReceiptFileField, { RECEIPT_REQUIRED_MESSAGE } from '../../../components/finance/ReceiptFileField';
+import TransactionHistoryModal from '../../../components/finance/TransactionHistoryModal';
+import BudgetFigures from '../../../components/finance/BudgetFigures';
+import EventLedgersPanel, { EventBudgetsList, EventLedgerHeader } from '../../../components/finance/EventLedgersPanel';
 import ReportDetailDrawer, { withDraftDefault } from '../../../components/finance/ReportDetailDrawer';
-import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SegmentedControl, SkeletonTable, StatusBadge, Textarea } from '../../../components/ui';
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
@@ -75,6 +83,17 @@ import { canHandleFinance } from '../../../utils/financeAccess';
 import { readUserModules } from '../../../utils/userModules';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
+
+const LEDGER_VIEWS = [{ value: 'all', label: 'All transactions' }, { value: 'event', label: 'By event' }];
+
+// The event ledgers are read on their own, so a failure there leaves the rest of the page loading; the Budgets tab then
+// falls back to the events it already has.
+function readEventLedgers(scope) {
+  return Promise.resolve()
+    .then(() => getEventLedgers(scope))
+    .then((response) => (Array.isArray(response.data?.data) ? response.data : null))
+    .catch(() => null);
+}
 
 // Opened from the request selector, the budget form is the whole page. Cancel goes back to the request
 // types and a saved proposal lands on the budgets.
@@ -146,7 +165,6 @@ const allocationStatusTone = {
 const deleteLabels = {
   budget: { title: 'Delete this budget?', confirm: 'Delete budget', done: 'Budget deleted.', failed: 'This budget could not be deleted.' },
   forecast: { title: 'Delete this forecast?', confirm: 'Delete forecast', done: 'Forecast deleted.', failed: 'This forecast could not be deleted.' },
-  transaction: { title: 'Delete this transaction?', confirm: 'Delete transaction', done: 'Transaction deleted.', failed: 'This transaction could not be deleted.' },
 };
 
 const invoiceColumns = [
@@ -300,6 +318,15 @@ function ledgerLockNote(transaction) {
   return null;
 }
 
+// The kept official receipt of an entry. The server gives an open link and never the storage path; older entries kept it in receipt_file_url.
+function receiptOpenUrl(transaction) {
+  return transaction.receipt_file_open_url || (keptReceiptFile(transaction) ? `/transactions/${transaction.id}/receipt-file` : null);
+}
+
+function byline(name, at) {
+  return [name && `by ${name}`, at && `on ${formatLedgerDate(at)}`].filter(Boolean).join(' ');
+}
+
 function receiptLabel(transaction) {
   if (transaction.receipt_reference) return transaction.receipt_reference;
   if (transaction.receipt_number) return `Receipt #${transaction.receipt_number}`;
@@ -438,6 +465,20 @@ function downloadBlobResponse(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
+const blankTransactionForm = (overrides = {}) => ({
+  description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '', receipt_file: null, edit_reason: '', ...overrides,
+});
+
+// The totals never count an archived entry, so the summary read never carries the archived switch.
+function withoutArchived(query) {
+  return Object.fromEntries(Object.entries(query).filter(([key]) => key !== 'archived'));
+}
+
+// A search or any filter beyond the organization scope narrows the ledger totals below the whole ledger.
+function isNarrowedLedger(activeFilters, organizationScope, searchTerm) {
+  return Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
+}
+
 // A new transaction starts on today's date, so the form only needs a description and an amount.
 function todayInputValue() {
   const now = new Date();
@@ -445,7 +486,7 @@ function todayInputValue() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
+export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false, startRecord = null }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [transactions, setTransactions] = useState([]);
@@ -458,6 +499,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [studentDebt, setStudentDebt] = useState(null);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [overallSummary, setOverallSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
+  const [budgetsLedgerSummary, setBudgetsLedgerSummary] = useState(null);
+  const [eventLedgers, setEventLedgers] = useState(null);
+  const [ledgerView, setLedgerView] = useState('all');
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -466,7 +510,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const loadTicket = useRef(0);
   const ledgerTicket = useRef(0);
-  const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
+  const eventLedgerTicket = useRef(0);
+  const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '', archived: '' });
   const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
@@ -489,8 +534,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [reportPdfDownloading, setReportPdfDownloading] = useState(null);
   const [reportExcelDownloading, setReportExcelDownloading] = useState(null);
 
-  const [form, setForm] = useState({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+  const [form, setForm] = useState(blankTransactionForm());
   const [editingTransaction, setEditingTransaction] = useState(null);
+  // A record opened from one event's ledger keeps that event: the entry belongs to it and cannot be moved.
+  const [eventLocked, setEventLocked] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState(null);
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
@@ -578,10 +629,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setLedgerLoading(true);
     setError(null);
     const term = searchTerm.trim();
-    const query = { ...ledgerScope(filters, organizationFilter).activeFilters, ...(term ? { search: term } : {}) };
-    Promise.all([getTransactions({ page, ...query }), getTransactionSummary(query)])
+    const { organizationScope, activeFilters } = ledgerScope(filters, organizationFilter);
+    const query = { ...activeFilters, ...(term ? { search: term } : {}) };
+    Promise.all([getTransactions({ page, ...query }), getTransactionSummary(withoutArchived(query))])
       .then(([txRes, sumRes]) => {
-        if (ticket === ledgerTicket.current) showTransactions(txRes, sumRes);
+        if (ticket !== ledgerTicket.current) return;
+        showTransactions(txRes, sumRes);
+        // Read with no search or filter, the summary is the whole ledger, so the Budgets figure takes it too.
+        if (!isNarrowedLedger(activeFilters, organizationScope, term)) {
+          setOverallSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
+          setBudgetsLedgerSummary(sumRes.data ?? null);
+          refreshEventLedgers(organizationScope);
+        }
       })
       .catch(() => {
         if (ticket === ledgerTicket.current) setError('Failed to load financial data.');
@@ -589,6 +648,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       .finally(() => {
         if (ticket === ledgerTicket.current) setLedgerLoading(false);
       });
+  }
+
+  // The By event panel and an opened event's header read these totals, so every ledger read that can change them reads them
+  // again; a newer read or a full load makes an older answer stale.
+  function refreshEventLedgers(organizationScope) {
+    if (!canViewTransactions) return;
+    const ticket = ++eventLedgerTicket.current;
+    readEventLedgers(organizationScope).then((ledgers) => {
+      if (ticket === eventLedgerTicket.current && ledgers) setEventLedgers(ledgers);
+    });
   }
 
   function applySearch(term) {
@@ -608,6 +677,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter, { refresh = false } = {}) {
     const ticket = ++loadTicket.current;
     const ledgerAtStart = ++ledgerTicket.current;
+    eventLedgerTicket.current += 1;
     setLedgerLoading(false);
     if (!refresh) setLoading(true);
     setError(null);
@@ -624,30 +694,38 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     ]);
     // The ledger totals follow the search and filters, but the Reports tab and the category export are not narrowed by them,
     // so they read their own summary that carries the organization scope and nothing else.
+    // The budgets response carries the whole ledger's totals, read at the same moment as the budgets beside them.
+    let ledgerSummaryFromBudgets = null;
     const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
-    const ledgerSummary = canViewTransactions ? getTransactionSummary({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve(emptySummary);
-    const isNarrowed = Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
+    const ledgerSummary = canViewTransactions ? getTransactionSummary(withoutArchived({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) })) : Promise.resolve(emptySummary);
+    const isNarrowed = isNarrowedLedger(activeFilters, organizationScope, searchTerm);
     const allTimeSummary = canViewTransactions && isNarrowed ? getTransactionSummary({ ...organizationScope }) : ledgerSummary;
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       ledgerSummary,
       allTimeSummary,
-      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
+      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => {
+        ledgerSummaryFromBudgets ??= r.data?.ledger_summary ?? null;
+        return r.data;
+      }), organizationScope) : Promise.resolve([]),
       // The events only fill the event dropdown, and an officer ticked for Finance but not Events is refused them.
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)).catch(() => []) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+      canViewTransactions ? readEventLedgers(organizationScope) : Promise.resolve(null),
     ])
-      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes]) => {
+      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes, eventLedgersRes]) => {
         if (ticket !== loadTicket.current) return;
         // What the screen shows first lands as soon as it is read, so a saved budget is on the list
         // without waiting for the slower forecast and report reads.
         if (ledgerAtStart === ledgerTicket.current) showTransactions(txRes, sumRes);
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setBudgets(budgetsList);
+        setBudgetsLedgerSummary(ledgerSummaryFromBudgets);
         setEvents(eventsList);
+        setEventLedgers(eventLedgersRes);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
@@ -680,15 +758,35 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setDeleteError(null);
     try {
       if (kind === 'budget') await deleteBudget(record.id);
-      else if (kind === 'forecast') await deleteForecast(record.id);
-      else await deleteTransaction(record.id);
+      else await deleteForecast(record.id);
       showFeedback('success', deleteLabels[kind].done);
       setDeleteTarget(null);
-      refreshAfterSave(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+      refreshAfterSave(txMeta.current_page);
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, deleteLabels[kind].failed));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  function askArchive(transaction) {
+    setArchiveError(null);
+    setArchiveTarget(transaction);
+  }
+
+  async function confirmArchive(reason) {
+    const transaction = archiveTarget;
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      await archiveTransaction(transaction.id, reason);
+      showFeedback('success', 'Transaction archived.');
+      setArchiveTarget(null);
+      refreshAfterSave(transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+    } catch (err) {
+      setArchiveError(getApiErrorMessage(err, 'This transaction could not be archived.'));
+    } finally {
+      setArchiveBusy(false);
     }
   }
 
@@ -700,6 +798,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       warning_threshold: budget.warning_threshold ?? '',
       event_id: budget.event_id ? String(budget.event_id) : '',
     } : { title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+    setBudgetFormError(null);
+    setShowBudgetForm(true);
+  }
+
+  // Create budget on an event with none: the usual budget form, with that event already chosen.
+  function createBudgetForEvent(eventId) {
+    setEditingBudget(null);
+    setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: String(eventId) });
     setBudgetFormError(null);
     setShowBudgetForm(true);
   }
@@ -817,6 +923,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       return;
     }
 
+    if (editingTransaction && !reasonIsGiven(form.edit_reason)) {
+      const message = 'Give the reason for this edit.';
+      setFormError(message);
+      showFeedback('error', message);
+      return;
+    }
+
+    if (!editingTransaction && form.type === 'expense' && !form.receipt_file) {
+      setFormError(RECEIPT_REQUIRED_MESSAGE);
+      showFeedback('error', RECEIPT_REQUIRED_MESSAGE);
+      return;
+    }
+
     setFormSubmitting(true);
     setFormError(null);
     try {
@@ -829,15 +948,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         budget_id: form.budget_id || null,
         event_id: form.event_id || null,
         receipt_reference: form.receipt_reference || null,
+        receipt_file: form.receipt_file,
       };
       if (editingTransaction) {
-        await updateTransaction(editingTransaction.id, payload);
+        await updateTransaction(editingTransaction.id, { ...payload, edit_reason: form.edit_reason.trim() });
       } else {
         await createTransaction(payload);
       }
       setShowForm(false);
       setEditingTransaction(null);
-      setForm({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
+      setEventLocked(false);
+      setForm(blankTransactionForm());
       showFeedback('success', `Transaction ${editingTransaction ? 'updated' : 'recorded'} successfully.`);
       refreshAfterSave(editingTransaction ? txMeta.current_page : 1);
     } catch (err) {
@@ -965,7 +1086,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   async function openKeptReceipt(transaction) {
     setLedgerFileError({ id: null, message: '' });
     try {
-      await openProtectedFile(`/transactions/${transaction.id}/receipt-file`);
+      await openProtectedFile(receiptOpenUrl(transaction) || `/transactions/${transaction.id}/receipt-file`);
     } catch (err) {
       setLedgerFileError({ id: transaction.id, message: getApiErrorMessage(err, 'Could not open this receipt file.') });
     }
@@ -1191,7 +1312,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   function openTransactionForm(tx = null) {
     setEditingTransaction(tx);
-    setForm(tx ? {
+    setEventLocked(false);
+    setForm(tx ? blankTransactionForm({
       description: tx.description || '',
       amount: tx.amount || '',
       type: tx.type || 'expense',
@@ -1200,12 +1322,96 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       budget_id: tx.budget_id || '',
       event_id: tx.event_id || '',
       receipt_reference: tx.receipt_reference || '',
-    } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: todayInputValue(), budget_id: '', event_id: '', receipt_reference: '' });
+    }) : blankTransactionForm({ transaction_date: todayInputValue() }));
     setFormError(null);
     setShowForm(true);
   }
 
+  // The one way to start a new record from outside the ledger list. An event can be preset, and locked so the
+  // record stays in that event's own ledger.
+  function openRecordTransaction({ eventId = null, lockEvent = false } = {}) {
+    setEditingTransaction(null);
+    setEventLocked(Boolean(eventId) && lockEvent);
+    setForm(blankTransactionForm({ transaction_date: todayInputValue(), event_id: eventId ? String(eventId) : '' }));
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function closeTransactionForm() {
+    setShowForm(false);
+    setEditingTransaction(null);
+    setEventLocked(false);
+  }
+
+  // A route can open the Record transaction form with an event preset (and locked): the same entry an event's own ledger uses.
+  useEffect(() => {
+    if (!startRecord || !canManageLedger) return;
+    openRecordTransaction(startRecord);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(startRecord), startRecord?.eventId, startRecord?.lockEvent, canManageLedger]);
+
+  // The event view reads the same ledger filtered to one event, so an opened event is just the event filter set: the
+  // rows, the pages and the totals are the ledger's own.
+  function changeLedgerView(view) {
+    setLedgerView(view);
+    if (view === 'event') refreshEventLedgers(ledgerScope(txFilters, organizationFilter).organizationScope);
+    if (view === 'event' && txFilters.event_id) {
+      const next = { ...txFilters, event_id: '' };
+      setTxFilters(next);
+      loadLedger(1, next);
+    }
+  }
+
+  function showEventLedger(eventId) {
+    const next = { ...txFilters, event_id: eventId === null ? '' : String(eventId) };
+    setTxFilters(next);
+    refreshEventLedgers(ledgerScope(next, organizationFilter).organizationScope);
+    loadLedger(1, next);
+  }
+
   const filtered = transactions;
+  const archivedView = txFilters.archived === '1';
+
+  // The three-dot menu of a ledger row. Entries other modules posted and entries in a submitted report are not changed here, so they have none.
+  // An archived entry is on record only: its history and its receipt can be opened, nothing else.
+  function ledgerRowActions(tx, lockNote) {
+    const viewReceipt = receiptOpenUrl(tx) && { label: 'View receipt', icon: Paperclip, onClick: () => openKeptReceipt(tx) };
+    const viewHistory = { label: 'View history', icon: History, onClick: () => setHistoryTarget(tx) };
+    if (tx.archived_at) return [viewHistory, viewReceipt].filter(Boolean);
+    if (!canManageLedger || lockNote) return [];
+    return [
+      { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+      viewHistory,
+      viewReceipt,
+      { label: 'Archive transaction', icon: Archive, danger: true, onClick: () => askArchive(tx) },
+    ].filter(Boolean);
+  }
+
+  // Under the description: a text badge for an edited entry (who and when beside it), and who archived an entry, when and why.
+  function ledgerRowTrail(tx) {
+    if (tx.archived_at) {
+      return (
+        <div className="mt-1 space-y-1 text-xs text-ink-muted">
+          <p className="flex flex-wrap items-center gap-2"><StatusBadge label="Archived" tone="neutral" /><span>{byline(tx.archived_by_name, tx.archived_at)}</span></p>
+          {tx.archive_reason && <p>Reason: {tx.archive_reason}</p>}
+        </div>
+      );
+    }
+    if (!(tx.edit_count > 0)) return null;
+    return (
+      <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <button
+          type="button"
+          title="View what changed"
+          onClick={() => setHistoryTarget(tx)}
+          className="relative inline-flex h-6 items-center whitespace-nowrap rounded bg-warning-tint px-2 text-xs font-medium text-warning-strong after:absolute after:-inset-x-2 after:-inset-y-3 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        >
+          Edited
+        </button>
+        <span>{byline(tx.last_edited_by_name, tx.last_edited_at)}</span>
+      </p>
+    );
+  }
 
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
@@ -1215,10 +1421,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     txFilters.event_id && `Event: ${filterLabel(txFilters.event_id, (value) => events.find((event) => String(event.id) === value)?.title || value)}`,
     txFilters.from && `From: ${txFilters.from}`,
     txFilters.to && `To: ${txFilters.to}`,
+    archivedView && 'Showing archived',
   ].filter(Boolean);
 
   const clearTransactionFilters = () => {
-    const cleared = { type: '', event_id: '', from: '', to: '' };
+    const cleared = { type: '', event_id: '', from: '', to: '', archived: '' };
     setTxFilters(cleared);
     setSearch('');
     setAppliedSearch('');
@@ -1230,6 +1437,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     && matchesFilter(reportFilter.event_id, report.event_id));
   const clearReportFilters = () => setReportFilter({ search: '', status: '', event_id: '' });
   const reportFiltersActive = Boolean(reportFilter.search || reportFilter.status || reportFilter.event_id);
+
+  const openedEvent = ledgerView === 'event' && txFilters.event_id && eventLedgers
+    ? eventLedgers.data.find((row) => String(row.event_id) === String(txFilters.event_id)) ?? null
+    : null;
+  const fullBudget = (budget) => budgets.find((item) => item.id === budget.id) ?? budget;
+  // The Budgets tab lists every event, from the event ledgers, with every budget of that event inside its row. If the
+  // ledgers cannot be read it lists the events the page already holds. A budget whose event no row carries stays in
+  // General budgets, so none disappears.
+  const eventRowsSource = eventLedgers
+    ? eventLedgers.data
+    : events.map((event) => ({ event_id: event.id, title: event.title, start_time: event.start_time, status: event.status }));
+  const eventBudgetRows = eventRowsSource.map((row) => {
+    const own = budgets.filter((budget) => String(budget.event_id) === String(row.event_id));
+    return { ...row, budgets: own.length > 0 || !row.budget ? own : [fullBudget(row.budget)] };
+  });
+  const eventRowIds = new Set(eventBudgetRows.map((row) => String(row.event_id)));
+  const generalBudgets = budgets.filter((budget) => !budget.event_id || !eventRowIds.has(String(budget.event_id)));
 
   const selectedBudget = activeTab === 'budgets' && recordId ? budgets.find((budget) => String(budget.id) === recordId) : null;
   const selectedReport = activeTab === 'reports' && recordId ? reports.find((report) => String(report.id) === recordId) : null;
@@ -1262,7 +1486,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   } else if (activeTab === 'reports' && canPrepareReport) {
     headerPrimary = reportFormVisible || loading ? null : <Button leftIcon={FileText} onClick={() => setReportFormOpen(true)}>Prepare a report</Button>;
   } else if (activeTab === 'transactions' && canManageLedger) {
-    headerPrimary = <Button leftIcon={Plus} onClick={() => openTransactionForm()}>Record transaction</Button>;
+    headerPrimary = openedEvent ? null : <Button leftIcon={Plus} onClick={() => openRecordTransaction()}>Record transaction</Button>;
   } else if (activeTab === 'budgets' && canProposeBudget) {
     headerPrimary = <Button leftIcon={Plus} onClick={() => openBudgetForm()}>Propose budget</Button>;
   } else if (activeTab === 'forecasting' && canGenerateForecast) {
@@ -1312,6 +1536,99 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     </form>
   );
 
+  // One budget's card: title, approval stage, its four figures, the advice, and the actions.
+  const renderBudgetCard = (b, { inEvent = false } = {}) => {
+    const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
+    const adviceStale = b.advice_stale === true;
+    const adviceInputs = adviceDetail?.advice?.inputs;
+    return (
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setRecordId(b.id)} className="rounded-control text-left text-sm font-semibold text-ink hover:underline">{formatDisplayText(b.title)}</button>
+            {/* Approved is the default state of a budget, so only the others carry a badge. */}
+            {(b.approval_status ?? b.submission_status) !== 'approved' && <StatusBadge status={b.submission_status === 'draft' ? 'draft' : b.approval_status || 'pending'} />}
+          </div>
+          {b.event && !inEvent && <p className="mt-1 text-xs text-ink-muted">{formatDisplayText(b.event.title)}</p>}
+          {b.financial_semester && <p className="mt-1 text-xs text-ink-muted">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
+          <BudgetFigures budget={b} className="mt-3" />
+          {b.overspending_risk && (
+            <p className={`mt-2 text-xs font-medium ${b.overspending_risk === 'high' ? 'text-danger-strong' : b.overspending_risk === 'medium' ? 'text-warning-strong' : 'text-success-strong'}`}>
+              {sentence(b.overspending_risk)} overspending risk
+            </p>
+          )}
+          {adviceStale && (
+            <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+              The advice from {manilaDate(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
+            </p>
+          )}
+          {!adviceStale && b.recommended_allocation != null && (
+            <p className="mt-1 text-xs text-ink-muted">
+              Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
+            </p>
+          )}
+          {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {manilaDate(b.advice_generated_at)}</p>}
+          {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
+          {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
+            <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">
+              <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{budgetAdviceErrors[b.id]}</span>
+              <Button variant="secondary" size="sm" onClick={() => handleGenerateBudgetAdvice(b.id)}>Retry</Button>
+            </div>
+          )}
+          {adviceDetail?.advice && !adviceStale && (
+            <div className="mt-3 max-w-3xl border-t border-line pt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <EngineBadge engine={adviceDetail.engine} />
+                {adviceDetail.advice.allocation_status && (
+                  <StatusBadge tone={allocationStatusTone[adviceDetail.advice.allocation_status] || 'neutral'} label={allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status} />
+                )}
+                {adviceDetail.advice.xai_model && (
+                  <span className="text-xs text-ink-muted">Explained by {adviceDetail.advice.xai_model}</span>
+                )}
+                {adviceDetail.advice.xai_status === 'unavailable' && (
+                  <span className="text-xs font-medium text-warning-strong">The written explanation is unavailable. The figures and advice are calculated from your ledger; use Get advice to retry.</span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                {adviceDetail.advice.reserve_amount != null && (
+                  <span className="text-ink-muted">Reserve <strong className="block font-semibold text-ink">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
+                )}
+                {adviceDetail.advice.expense_to_income_ratio != null && (
+                  <span className="text-ink-muted">Expense/income ratio <strong className="block font-semibold text-ink">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
+                )}
+              </div>
+              <RulesDisclosure
+                label="How this was calculated"
+                items={[
+                  ...(adviceInputs
+                    ? [
+                      `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
+                      adviceInputs.forecast_status === 'used'
+                        ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
+                        : adviceInputs.forecast_status === 'not_applied'
+                          ? 'This budget is outside the current semester, so no forecast income or expenses were used.'
+                          : 'No current forecast was available, so no forecast income or expenses were used.',
+                    ]
+                    : []),
+                  ...(adviceDetail.advice.deterministic_advice
+                    ? [`Calculated advice before the written rewrite: "${adviceDetail.advice.deterministic_advice}"`]
+                    : []),
+                  ...(Array.isArray(adviceDetail.advice.rules_applied) ? adviceDetail.advice.rules_applied : []),
+                ]}
+              />
+            </div>
+          )}
+        </div>
+        <TableRowActions subject={formatDisplayText(b.title)} actions={[
+          { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
+          canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
+          canHandle && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('budget', b) },
+        ]} />
+      </div>
+    );
+  };
+
   const budgetFormButtons = (
     <>
       <Button variant="secondary" onClick={cancelBudgetForm}>Cancel</Button>
@@ -1346,11 +1663,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {canViewTransactions && !error && !inlineBudgetForm && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (
         <p className="text-sm text-ink-muted">
-          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt(overallSummary.net_balance)}</strong>
+          Ledger net balance <strong className="ml-1 font-semibold tabular-nums text-ink" aria-live="polite">{loading ? 'Loading…' : fmt((budgetsLedgerSummary ?? overallSummary).net_balance)}</strong>
         </p>
       )}
 
-      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && (
+      {activeTab === 'transactions' && canViewTransactions && !error && (
+        <SegmentedControl options={LEDGER_VIEWS} value={ledgerView} onChange={changeLedgerView} />
+      )}
+
+      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && archivedView && (
+        <p role="status" className="rounded-card border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+          Archived entries are on record only. They are read only and are not counted in any total.
+        </p>
+      )}
+
+      {activeTab === 'transactions' && canViewTransactions && ledgerView === 'all' && !loading && !ledgerLoading && !error && !archivedView && (
         <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Income</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-success-strong">{fmt(summary.total_income)}</dd></div>
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Expenses</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
@@ -1358,9 +1685,32 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </dl>
       )}
 
+      {activeTab === 'transactions' && canViewTransactions && ledgerView === 'all' && !loading && !ledgerLoading && !error && !archivedView && activeTransactionFilters.length > 0 && (
+        <p className="-mt-2 text-xs text-ink-muted">Totals for the filtered entries only.</p>
+      )}
+
       {error && <ErrorState title="Financial data did not load" description={error} onRetry={() => load()} />}
 
-      {activeTab === 'transactions' && (
+      {activeTab === 'transactions' && ledgerView === 'event' && !error && (
+        loading ? <SkeletonTable rows={4} columns={4} />
+          : !eventLedgers ? (
+            <p role="status" className="flex flex-wrap items-center gap-3 rounded-control border border-warning/40 bg-warning-tint px-4 py-3 text-sm text-ink">
+              The event ledgers did not load.
+              <Button size="sm" variant="secondary" onClick={() => load()}>Try again</Button>
+            </p>
+          ) : openedEvent ? (
+            <EventLedgerHeader
+              ledger={openedEvent}
+              budget={openedEvent.budget ? fullBudget(openedEvent.budget) : null}
+              onBack={() => showEventLedger(null)}
+              onRecordTransaction={canManageLedger ? openRecordTransaction : undefined}
+            />
+          ) : (
+            <EventLedgersPanel ledgers={eventLedgers} onOpenEvent={(row) => showEventLedger(row.event_id)} />
+          )
+      )}
+
+      {activeTab === 'transactions' && (ledgerView === 'all' || openedEvent) && (
         <section aria-label="Ledger" className="overflow-hidden rounded-card border border-line bg-surface">
           <TableFilterBar
             searchValue={search}
@@ -1375,6 +1725,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultCount={txMeta.total}
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            actions={(
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink-muted transition-colors duration-150 hover:bg-subtle md:min-h-10">
+                <input
+                  type="checkbox"
+                  checked={archivedView}
+                  onChange={(e) => { const next = { ...txFilters, archived: e.target.checked ? '1' : '' }; setTxFilters(next); load(1, next); }}
+                  className="h-4 w-4 accent-brand-600"
+                />
+                Show archived
+              </label>
+            )}
           >
             <HiusaSelect filter
               value={txFilters.type}
@@ -1411,7 +1772,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <div className="p-4"><SkeletonTable rows={5} columns={5} className="border-0" /></div>
           ) : filtered.length === 0 ? (
             <div className="px-4 sm:px-5">
-              {activeTransactionFilters.length > 0 ? (
+              {archivedView && activeTransactionFilters.length === 1 ? (
+                <EmptyState icon={Archive} title="No archived transactions" description="An entry you archive from the ledger is listed here, with who archived it and why." />
+              ) : activeTransactionFilters.length > 0 ? (
                 <EmptyState kind="filtered" title="No matching transactions" description="Try a different search or clear the filters." onClearFilters={clearTransactionFilters} />
               ) : canManageLedger ? (
                 <EmptyState
@@ -1445,17 +1808,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {receipt && <p>Reference {receipt}</p>}
                       </div>
                     )}
-                    {keptReceiptFile(tx) && (
+                    {ledgerRowTrail(tx)}
+                    {receiptOpenUrl(tx) && (
                       <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-control text-sm font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
                         <Paperclip size={16} aria-hidden="true" /> Open receipt file
                       </button>
                     )}
                     {ledgerFileError.id === tx.id && <p role="alert" className="mt-1 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
-                    {canManageLedger && lockNote && <p className="mt-3 text-xs text-ink-muted">{lockNote}</p>}
-                    {canManageLedger && !lockNote && <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={[
-                      { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                      { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                    ]} />}
+                    {canManageLedger && lockNote && !tx.archived_at && <p className="mt-3 text-xs text-ink-muted">{lockNote}</p>}
+                    <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={ledgerRowActions(tx, lockNote)} />
                   </li>;
                 })}
               </ul>
@@ -1470,7 +1831,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <th scope="col" className="hidden 2xl:table-cell px-4 py-2.5">Payer / Recorder</th>
                     <th scope="col" className="px-4 py-2.5">Category</th>
                     <th scope="col" className="px-4 py-2.5 text-right">Amount</th>
-                    {canManageLedger && <th scope="col" className="px-4 py-2.5 text-right">Actions</th>}
+                    {(canManageLedger || archivedView) && <th scope="col" className="px-4 py-2.5 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft text-sm">
@@ -1488,13 +1849,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <p className="font-semibold text-ink">{tx.description}</p>
                         {receipt && <p className="mt-0.5 text-xs text-ink-muted">{receipt}</p>}
                         {meta.length > 0 && <p className="mt-0.5 text-xs text-ink-muted 2xl:hidden">{meta.join(' · ')}</p>}
-                        {keptReceiptFile(tx) && (
+                        {ledgerRowTrail(tx)}
+                        {receiptOpenUrl(tx) && (
                           <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-control text-xs font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
                             <Paperclip size={14} aria-hidden="true" /> Open receipt file
                           </button>
                         )}
                         {ledgerFileError.id === tx.id && <p role="alert" className="mt-0.5 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
-                        {canManageLedger && lockNote && <p className="mt-0.5 text-xs text-ink-muted">{lockNote}</p>}
+                        {canManageLedger && lockNote && !tx.archived_at && <p className="mt-0.5 text-xs text-ink-muted">{lockNote}</p>}
                       </td>
                       <td className="hidden px-4 py-2.5 2xl:table-cell">
                         {sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate text-ink">{source}</p>)}
@@ -1507,14 +1869,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <td className={`whitespace-nowrap px-4 py-2.5 text-right tabular-nums ${tx.type === 'income' ? 'text-success-strong' : 'text-ink'}`}>
                         {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                       </td>
-                      {canManageLedger && (
+                      {(canManageLedger || archivedView) && (
                         <td className="px-4 py-2.5 text-right">
-                          {lockNote ? <span className="text-xs text-ink-muted">Locked</span> : (
+                          {lockNote && !tx.archived_at ? <span className="text-xs text-ink-muted">Locked</span> : (
                             <div className="flex justify-end">
-                              <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
-                                { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                                { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                              ]} />
+                              <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={ledgerRowActions(tx, lockNote)} />
                             </div>
                           )}
                         </td>
@@ -1582,7 +1941,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
           {loading ? (
             <div className="p-4"><SkeletonTable rows={3} columns={4} className="border-0" /></div>
-          ) : budgets.length === 0 ? (
+          ) : budgets.length === 0 && eventBudgetRows.length === 0 ? (
             <div className="px-4 sm:px-5">
               {canProposeBudget ? (
                 <EmptyState
@@ -1599,105 +1958,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               )}
             </div>
           ) : (
-            <ul className="divide-y divide-line" aria-label="Budgets">
-              {budgets.map((b) => {
-                const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
-                const adviceStale = b.advice_stale === true;
-                const adviceInputs = adviceDetail?.advice?.inputs;
-                // Remaining counts income recorded against the budget, so it can sit above Allocated.
-                const aboveAllocated = Number(b.remaining_amount) > Number(b.allocated_amount);
-                return (
-                <li key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => setRecordId(b.id)} className="rounded-control text-left text-sm font-semibold text-ink hover:underline">{formatDisplayText(b.title)}</button>
-                      {/* Approved is the default state of a budget, so only the others carry a badge. */}
-                      {b.approval_status !== 'approved' && <StatusBadge status={b.submission_status === 'draft' ? 'draft' : b.approval_status || 'pending'} />}
-                    </div>
-                    {b.event && <p className="mt-1 text-xs text-ink-muted">{formatDisplayText(b.event.title)}</p>}
-                    {b.financial_semester && <p className="mt-1 text-xs text-ink-muted">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
-                    <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
-                      <div><dt className="text-ink-muted">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.allocated_amount)}</dd></div>
-                      <div><dt className="text-ink-muted">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.remaining_amount)}</dd></div>
-                    </dl>
-                    {aboveAllocated && <p className="mt-1 text-xs text-ink-muted">Remaining includes income recorded against this budget.</p>}
-                    {b.overspending_risk && (
-                      <p className={`mt-2 text-xs font-medium ${b.overspending_risk === 'high' ? 'text-danger-strong' : b.overspending_risk === 'medium' ? 'text-warning-strong' : 'text-success-strong'}`}>
-                        {sentence(b.overspending_risk)} overspending risk
-                      </p>
-                    )}
-                    {adviceStale && (
-                      <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
-                        <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-                        The advice from {manilaDate(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
-                      </p>
-                    )}
-                    {!adviceStale && b.recommended_allocation != null && (
-                      <p className="mt-1 text-xs text-ink-muted">
-                        Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
-                      </p>
-                    )}
-                    {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {manilaDate(b.advice_generated_at)}</p>}
-                    {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
-                    {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
-                      <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">
-                        <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{budgetAdviceErrors[b.id]}</span>
-                        <Button variant="secondary" size="sm" onClick={() => handleGenerateBudgetAdvice(b.id)}>Retry</Button>
-                      </div>
-                    )}
-                    {adviceDetail?.advice && !adviceStale && (
-                      <div className="mt-3 max-w-3xl border-t border-line pt-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <EngineBadge engine={adviceDetail.engine} />
-                          {adviceDetail.advice.allocation_status && (
-                            <StatusBadge tone={allocationStatusTone[adviceDetail.advice.allocation_status] || 'neutral'} label={allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status} />
-                          )}
-                          {adviceDetail.advice.xai_model && (
-                            <span className="text-xs text-ink-muted">Explained by {adviceDetail.advice.xai_model}</span>
-                          )}
-                          {adviceDetail.advice.xai_status === 'unavailable' && (
-                            <span className="text-xs font-medium text-warning-strong">The written explanation is unavailable. The figures and advice are calculated from your ledger; use Get advice to retry.</span>
-                          )}
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                          {adviceDetail.advice.reserve_amount != null && (
-                            <span className="text-ink-muted">Reserve <strong className="block font-semibold text-ink">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
-                          )}
-                          {adviceDetail.advice.expense_to_income_ratio != null && (
-                            <span className="text-ink-muted">Expense/income ratio <strong className="block font-semibold text-ink">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
-                          )}
-                        </div>
-                        <RulesDisclosure
-                          label="How this was calculated"
-                          items={[
-                            ...(adviceInputs
-                              ? [
-                                `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
-                                adviceInputs.forecast_status === 'used'
-                                  ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
-                                  : adviceInputs.forecast_status === 'not_applied'
-                                    ? 'This budget is outside the current semester, so no forecast income or expenses were used.'
-                                    : 'No current forecast was available, so no forecast income or expenses were used.',
-                              ]
-                              : []),
-                            ...(adviceDetail.advice.deterministic_advice
-                              ? [`Calculated advice before the written rewrite: "${adviceDetail.advice.deterministic_advice}"`]
-                              : []),
-                            ...(Array.isArray(adviceDetail.advice.rules_applied) ? adviceDetail.advice.rules_applied : []),
-                          ]}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <TableRowActions subject={formatDisplayText(b.title)} actions={[
-                    { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
-                    canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
-                    canHandle && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('budget', b) },
-                  ]} />
-                </li>
-                );
-              })}
-            </ul>
+            <div>
+              {eventBudgetRows.length > 0 && (
+                <>
+                  <h2 className="border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:px-5">Event budgets</h2>
+                  <EventBudgetsList rows={eventBudgetRows} renderBudget={(budget) => renderBudgetCard(budget, { inEvent: true })} canCreateBudget={canProposeBudget} onCreateBudget={createBudgetForEvent} />
+                </>
+              )}
+              {generalBudgets.length > 0 && (
+                <>
+                  <h2 className={`border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:px-5 ${eventBudgetRows.length > 0 ? 'border-t' : ''}`}>General budgets</h2>
+                  <ul className="divide-y divide-line" aria-label="General budgets">
+                    {generalBudgets.map((budget) => <li key={budget.id} className="p-4 sm:p-5">{renderBudgetCard(budget)}</li>)}
+                  </ul>
+                </>
+              )}
+            </div>
           )}
         </section>
       )}
@@ -2092,11 +2368,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <Drawer
           open
           title={editingTransaction ? 'Edit transaction' : 'Record transaction'}
-          onClose={() => { setShowForm(false); setEditingTransaction(null); }}
+          onClose={closeTransactionForm}
           footer={(
             <>
-              <Button variant="secondary" onClick={() => { setShowForm(false); setEditingTransaction(null); }}>Cancel</Button>
-              <Button type="submit" form="transaction-form" loading={formSubmitting} disabled={!form.description || !form.amount || !form.transaction_date}>
+              <Button variant="secondary" onClick={closeTransactionForm}>Cancel</Button>
+              <Button type="submit" form="transaction-form" loading={formSubmitting} disabled={!form.description || !form.amount || !form.transaction_date || (Boolean(editingTransaction) && !reasonIsGiven(form.edit_reason))}>
                 {editingTransaction ? 'Update transaction' : 'Save transaction'}
               </Button>
             </>
@@ -2136,19 +2412,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   onChange={(e) => {
                     const budgetId = e.target.value;
                     const linkedBudget = budgets.find((budget) => String(budget.id) === String(budgetId));
-                    setForm({ ...form, budget_id: budgetId, event_id: linkedBudget?.event_id || form.event_id });
+                    setForm({ ...form, budget_id: budgetId, event_id: eventLocked ? form.event_id : (linkedBudget?.event_id || form.event_id) });
                   }}
                 >
                   <option value="">No linked budget</option>
-                  {budgets.map((budget) => (
+                  {budgets.filter((budget) => !eventLocked || !budget.event_id || String(budget.event_id) === String(form.event_id)).map((budget) => (
                     <option key={budget.id} value={budget.id} disabled={budget.approval_status !== 'approved'}>
                       {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.submission_status === 'draft' ? 'draft' : budget.approval_status || 'pending'})` : ''}
                     </option>
                   ))}
                 </HiusaSelect>
               </Field>
-              <Field label="Linked event" optional>
-                <HiusaSelect value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
+              <Field label="Linked event" optional={!eventLocked} hint={eventLocked ? 'This entry stays in the ledger of this event.' : undefined}>
+                <HiusaSelect value={form.event_id} disabled={eventLocked} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
                   <option value="">No linked event</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>
@@ -2159,6 +2435,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <Field label="Receipt reference" optional>
               <Input type="text" value={form.receipt_reference} onChange={(e) => setForm({ ...form, receipt_reference: e.target.value })} placeholder="GCash reference, OR number, or payment note" />
             </Field>
+            <ReceiptFileField
+              file={form.receipt_file}
+              onChange={(file) => setForm((current) => ({ ...current, receipt_file: file }))}
+              required={!editingTransaction && form.type === 'expense'}
+              hint={editingTransaction ? (receiptOpenUrl(editingTransaction) ? 'An official receipt is on file. Choose one only to replace it.' : 'No official receipt file is on record. JPG, PNG, WEBP or PDF up to 5 MB.') : 'JPG, PNG, WEBP or PDF up to 5 MB.'}
+            />
+            {editingTransaction && (
+              <Field label="Reason for this edit" hint="Saved with the change, so the ledger shows who edited it and why. At least 5 characters.">
+                <Textarea rows={3} maxLength={MAX_REASON_LENGTH} value={form.edit_reason} onChange={(e) => setForm({ ...form, edit_reason: e.target.value })} placeholder="e.g. Typed the wrong amount" />
+              </Field>
+            )}
             {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
           </form>
         </Drawer>
@@ -2193,11 +2480,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         submitting={selectedReport ? reportSubmitting === selectedReport.id : false}
       />
 
+      {archiveTarget && (
+        <ArchiveTransactionModal
+          key={archiveTarget.id}
+          transaction={archiveTarget}
+          busy={archiveBusy}
+          error={archiveError}
+          onCancel={() => setArchiveTarget(null)}
+          onConfirm={confirmArchive}
+        />
+      )}
+      {historyTarget && <TransactionHistoryModal key={historyTarget.id} transaction={historyTarget} onClose={() => setHistoryTarget(null)} />}
+
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title={deleteTarget ? deleteLabels[deleteTarget.kind].title : ''}
-        message={deleteTarget?.kind === 'forecast' ? 'The forecast is removed for good. Generate a new one from the current ledger whenever you need it. This cannot be undone.' : deleteTarget?.kind === 'budget' ? 'The budget is removed for good. This cannot be undone. An approved budget or one that already has transactions cannot be deleted.' : 'The entry is removed from the ledger and its budget balance is adjusted. This cannot be undone. Entries created by collections, cash advances, invoices or orders must be changed where they came from.'}
-        recordName={deleteTarget?.kind === 'forecast' ? `Forecast for ${deleteTarget.record.forecast_period}` : deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
+        message={deleteTarget?.kind === 'forecast' ? 'The forecast is removed for good. Generate a new one from the current ledger whenever you need it. This cannot be undone.' : 'The budget is removed for good. This cannot be undone. An approved budget or one that already has transactions cannot be deleted.'}
+        recordName={deleteTarget?.kind === 'forecast' ? `Forecast for ${deleteTarget.record.forecast_period}` : deleteTarget?.record.title}
         confirmText={deleteTarget ? deleteLabels[deleteTarget.kind].confirm : 'Delete'}
         variant="danger"
         busy={deleteBusy}

@@ -42,10 +42,11 @@ class Budget extends Model
         return $this->belongsTo(FinancialSemester::class);
     }
 
-    /** What is left to spend: the allocation, plus income recorded against it, minus what was spent from it. */
+    /** What is left to spend: the allocation, plus income recorded against it, minus what was spent from it. Archived entries count for nothing. */
     public function recomputedRemaining(): float
     {
         $totals = $this->transactions()
+            ->whereNull('transactions.archived_at')
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense")
             ->first();
 
@@ -53,14 +54,65 @@ class Budget extends Model
     }
 
     /**
-     * Spent per budget id as a two decimal string, in one query. Expenses only and cash advance
-     * movements left out, because income recorded against a budget raises its remaining amount
-     * and must not net off what was spent.
+     * Spent per budget id as a two decimal string, in one query. Expenses only, with cash advance
+     * movements and archived entries left out, because income recorded against a budget raises its
+     * remaining amount and must not net off what was spent.
      *
      * @param  iterable<int>  $ids
      * @return array<int, string>
      */
     public static function spentAmounts(iterable $ids): array
+    {
+        return self::linkedTotals($ids, 'expense');
+    }
+
+    /**
+     * Income recorded against each budget id as a two decimal string, counted by the same rule as spentAmounts.
+     *
+     * @param  iterable<int>  $ids
+     * @return array<int, string>
+     */
+    public static function incomeAmounts(iterable $ids): array
+    {
+        return self::linkedTotals($ids, 'income');
+    }
+
+    /**
+     * The four figures a budget shows, as two decimal strings, keyed by budget id. Spent and income count the linked
+     * entries that are not archived, whatever the budget's status, so a budget sent back for approval keeps what was
+     * already spent. Only an approved budget is released: is_released says whether more can be spent from it.
+     *
+     * @param  iterable<Budget>  $budgets
+     * @return array<int, array{allocated_amount: string, spent_amount: string, income_amount: string, remaining_amount: string, is_released: bool}>
+     */
+    public static function figuresFor(iterable $budgets): array
+    {
+        $budgets = collect($budgets);
+        $ids = $budgets->pluck('id');
+        $spent = self::spentAmounts($ids);
+        $income = self::incomeAmounts($ids);
+        $money = fn (float $amount) => number_format($amount, 2, '.', '');
+
+        return $budgets->mapWithKeys(function (Budget $budget) use ($spent, $income, $money) {
+            $allocated = (float) $budget->allocated_amount;
+            $spentAmount = (float) $spent[$budget->id];
+            $incomeAmount = (float) $income[$budget->id];
+
+            return [$budget->id => [
+                'allocated_amount' => $money($allocated),
+                'spent_amount' => $money($spentAmount),
+                'income_amount' => $money($incomeAmount),
+                'remaining_amount' => $money($allocated + $incomeAmount - $spentAmount),
+                'is_released' => $budget->submission_status === 'approved',
+            ]];
+        })->all();
+    }
+
+    /**
+     * @param  iterable<int>  $ids
+     * @return array<int, string>
+     */
+    private static function linkedTotals(iterable $ids, string $type): array
     {
         $ids = collect($ids)->unique()->values();
 
@@ -69,7 +121,8 @@ class Budget extends Model
         }
 
         $totals = Transaction::whereIn('budget_id', $ids)
-            ->where('type', 'expense')
+            ->where('type', $type)
+            ->whereNull('transactions.archived_at')
             ->excludingCashAdvances()
             ->selectRaw('budget_id, SUM(amount) as total')
             ->groupBy('budget_id')

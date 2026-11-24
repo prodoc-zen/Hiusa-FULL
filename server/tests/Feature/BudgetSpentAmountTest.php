@@ -93,11 +93,20 @@ class BudgetSpentAmountTest extends TestCase
         $created = $this->postJson('/api/budgets', ['title' => 'New', 'allocated_amount' => 1000, 'warning_threshold' => 100])->assertCreated();
         $created->assertJsonPath('spent_amount', '0.00');
 
+        // Only an approved budget is released, so only then does it count what was spent from it.
         $budget = Budget::findOrFail($created->json('id'));
+        $budget->update(['submission_status' => 'approved']);
         $this->entry($budget, 'expense', '120.00');
         $this->entry($budget, 'income', '40.00');
 
-        $this->putJson('/api/budgets/'.$budget->id, ['title' => 'Renamed'])->assertOk()->assertJsonPath('spent_amount', '120.00');
+        // A change to an approved budget sends it back for approval, and until it is approved again it is not released, but what was already spent stays counted.
+        $this->putJson('/api/budgets/'.$budget->id, ['title' => 'Renamed'])->assertOk()
+            ->assertJsonPath('spent_amount', '120.00')
+            ->assertJsonPath('income_amount', '40.00')
+            ->assertJsonPath('is_released', false);
+
+        Budget::whereKey($budget->id)->update(['submission_status' => 'approved']);
+        $this->assertSame('120.00', $this->row($this->getJson('/api/budgets')->json('data'), $budget->id)['spent_amount']);
     }
 
     public function test_an_events_linked_budget_shows_the_same_spent_amount_as_the_budget_payload(): void

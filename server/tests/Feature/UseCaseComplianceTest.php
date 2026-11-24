@@ -347,15 +347,15 @@ class UseCaseComplianceTest extends TestCase
             'transaction_date' => now()->toDateString(),
         ];
 
-        $this->postJson('/api/transactions', $transaction)->assertUnprocessable();
+        $this->postTransaction($transaction)->assertUnprocessable();
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
         $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
-        $transactionId = $this->postJson('/api/transactions', $transaction)->assertCreated()->json('id');
+        $transactionId = $this->postTransaction($transaction)->assertCreated()->json('id');
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'remaining_amount' => -50, 'overspending_risk' => 'high']);
-        $this->deleteJson("/api/transactions/{$transactionId}")->assertOk();
+        $this->patchJson("/api/transactions/{$transactionId}/archive", ['reason' => 'Archived in the test'])->assertOk();
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'remaining_amount' => 100, 'overspending_risk' => 'low']);
     }
 
@@ -399,11 +399,11 @@ class UseCaseComplianceTest extends TestCase
             'transaction_date' => now()->toDateString(),
         ];
 
-        $this->postJson('/api/transactions', [...$transaction, 'event_id' => $otherEvent->id])
+        $this->postTransaction([...$transaction, 'event_id' => $otherEvent->id])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'The selected budget is linked to a different event.');
 
-        $this->postJson('/api/transactions', $transaction)
+        $this->postTransaction($transaction)
             ->assertCreated()
             ->assertJsonPath('event_id', $event->id);
     }
@@ -430,7 +430,7 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('approval_requests', ['id' => $dhApproval->id, 'status' => 'pending', 'required_role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'submission_status' => 'pending_department_head', 'department_head_approved_by' => null]);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'budget_id' => $budgetId,
             'type' => 'expense',
             'amount' => 25,

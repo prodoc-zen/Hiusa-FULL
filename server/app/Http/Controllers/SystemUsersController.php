@@ -141,6 +141,8 @@ class SystemUsersController extends Controller
         'task_progress_updates.updated_by' => 'task progress updates',
         'task_recommendations.officer_id' => 'task recommendations',
         'tasks.created_by' => 'tasks created',
+        'transactions.archived_by' => 'transactions archived',
+        'transactions.last_edited_by' => 'transactions edited',
         'transactions.payer_id' => 'transactions paid',
         'transactions.recorded_by' => 'transactions recorded',
         'venue_bookings.requested_by' => 'venue bookings requested',

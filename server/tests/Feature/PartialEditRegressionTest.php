@@ -46,7 +46,7 @@ class PartialEditRegressionTest extends TestCase
             'payer_id' => null,
         ]);
 
-        $this->putJson("/api/transactions/{$transaction->id}", ['description' => 'Membership fees, first and second week'])
+        $this->putJson("/api/transactions/{$transaction->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Membership fees, first and second week'])
             ->assertOk()
             ->assertJsonPath('description', 'Membership fees, first and second week');
         $this->assertEquals(500, (float) $transaction->fresh()->amount);

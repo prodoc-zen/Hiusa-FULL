@@ -84,12 +84,12 @@ Mobile: cards stack
 Tiles: Income | Expenses | Net balance | Ledger entries
 Filters: search "Search transactions..."; "Filter by transaction type" (All types | Income | Expense); "Filter by event" (All events | <events>); Filter from date; Filter to date; Apply; Clear; "<n> transactions"
 Table "Ledger": Date | Description | Source | Payer / Recorder | Category | Type | Amount | (Actions)
-Row actions: Edit transaction | Delete transaction (locked rows show a lock note instead; entries from collections, cash advances, invoices, orders are locked)
+Row actions: Edit transaction | View history | View receipt (when a receipt file is kept) | Archive transaction (locked rows show a lock note instead; entries from collections, cash advances, invoices, orders are locked). An edited row carries an Edited badge with who and when; the badge opens the history. "Show archived" lists archived rows read only (Archived badge, who, when, why) and replaces the totals with a note
 Status badges: Type Income = green, Expense = grey; Amount +green for income
 Bulk/Toolbar: Record transaction
 Paging: 10 ("Showing a-b of n", prev/next)   Empty: "No transactions recorded yet" / "No matching transactions"
-Mobile: list cards (description, date, category, +/- amount, sources, receipt, Payer, Recorded by, Edit transaction, Delete transaction); at 768 to 1023 px Source and Payer/Recorder columns fold into the Description cell
-  Modal "Record Transaction"/"Edit Transaction": Description * ("e.g. Event supplies purchase") | Amount (PHP) * | Type * (Expense | Income) | Category (Operations | Events | Elections | Merchandise | General) | Date * | Linked Budget (No linked budget) | Linked Event (No linked event) | Receipt Reference ("GCash reference, OR number, or payment note") | Cancel | Save Transaction / Update Transaction
+Mobile: list cards (description, date, category, +/- amount, sources, receipt, Payer, Recorded by, Edit transaction, View history, Archive transaction); at 768 to 1023 px Source and Payer/Recorder columns fold into the Description cell
+  Modal "Record Transaction"/"Edit Transaction": Description * ("e.g. Event supplies purchase") | Amount (PHP) * | Type * (Expense | Income) | Category (Operations | Events | Elections | Merchandise | General) | Date * | Linked Budget (No linked budget) | Linked Event (No linked event) | Receipt Reference ("GCash reference, OR number, or payment note") | Official receipt (file; required for an Expense on create) | Reason for this edit * (edit only, 5 characters minimum) | Cancel | Save Transaction / Update Transaction
 
 ## Finance > Collections and advances (/dashboard/finance/collections)
 Tiles: Available funds | Verified collections | Remitted | Awaiting remittance

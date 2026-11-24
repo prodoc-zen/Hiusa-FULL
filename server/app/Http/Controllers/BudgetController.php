@@ -10,9 +10,11 @@ use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
+use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
 use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
+use App\Support\LedgerScope;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,11 +42,12 @@ class BudgetController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $organizationIds = $this->readableOrganizationIds($request);
+
         $budgets = Budget::with(['event:id,title', 'financialSemester:id,name,starts_on,ends_on'])
-            ->whereIn('organization_id', $this->readableOrganizationIds($request))
+            ->whereIn('organization_id', $organizationIds)
             ->tap(fn ($query) => SemesterScope::budgets($query, AcademicSemester::selected($request)))
-            ->withCount('transactions')
-            ->withSum('transactions', 'amount')
+            ->withCount(['transactions' => fn ($transactions) => $transactions->whereNull('transactions.archived_at')])
             ->orderBy('created_at', 'desc')
             ->orderBy('id')
             ->paginate($paging['per_page'] ?? 20);
@@ -53,7 +56,11 @@ class BudgetController extends Controller
         $this->attachSpentAmount($budgets->items());
         $this->attachAdviceDetails($budgets->items());
 
-        return response()->json($budgets);
+        // The ledger net balance printed beside the budgets is the Ledger summary itself, never a second sum.
+        return response()->json([
+            ...$budgets->toArray(),
+            'ledger_summary' => LedgerScope::totals(LedgerScope::query($request, $organizationIds)),
+        ]);
     }
 
     public function store(Request $request)
@@ -136,7 +143,7 @@ class BudgetController extends Controller
 
             if (array_key_exists('event_id', $data)
                 && (int) ($data['event_id'] ?? 0) !== (int) ($budget->event_id ?? 0)
-                && $budget->transactions()->exists()) {
+                && $budget->transactions()->withoutGlobalScope(Transaction::NOT_ARCHIVED)->exists()) {
                 return response()->json([
                     'message' => 'This budget already has ledger entries, so it can no longer be moved to a different event.',
                 ], 409);
@@ -152,8 +159,8 @@ class BudgetController extends Controller
             }
 
             if (array_key_exists('allocated_amount', $data)) {
-                $spent = $budget->transactions()->where('type', 'expense')->sum('amount');
-                $income = $budget->transactions()->where('type', 'income')->sum('amount');
+                $spent = $budget->transactions()->whereNull('transactions.archived_at')->where('type', 'expense')->sum('amount');
+                $income = $budget->transactions()->whereNull('transactions.archived_at')->where('type', 'income')->sum('amount');
                 $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
             }
 
@@ -240,7 +247,7 @@ class BudgetController extends Controller
             if ($locked->submission_status === 'approved') {
                 return 'Cannot delete an approved budget. It stays on record as the allocation that was approved.';
             }
-            if ($locked->transactions()->exists()) {
+            if ($locked->transactions()->withoutGlobalScope(Transaction::NOT_ARCHIVED)->exists()) {
                 return 'Cannot delete a budget that has existing transactions. Remove all transactions first.';
             }
 
@@ -426,13 +433,16 @@ class BudgetController extends Controller
         }
     }
 
-    /** @param  iterable<Budget>  $budgets */
+    /** Puts the four figures on each budget: allocated, spent, income and remaining, with whether the budget is released. */
     private function attachSpentAmount(iterable $budgets): void
     {
-        $spent = Budget::spentAmounts(collect($budgets)->pluck('id'));
+        $figures = Budget::figuresFor($budgets);
 
         foreach ($budgets as $budget) {
-            $budget->spent_amount = $spent[$budget->id];
+            $budget->spent_amount = $figures[$budget->id]['spent_amount'];
+            $budget->income_amount = $figures[$budget->id]['income_amount'];
+            $budget->remaining_amount = $figures[$budget->id]['remaining_amount'];
+            $budget->is_released = $figures[$budget->id]['is_released'];
         }
     }
 

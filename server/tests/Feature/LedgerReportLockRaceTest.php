@@ -71,7 +71,7 @@ class LedgerReportLockRaceTest extends TestCase
     public function test_update_reads_the_report_lock_inside_the_database_transaction(): void
     {
         $levels = $this->reportQueryLevels(
-            fn () => $this->putJson('/api/transactions/'.$this->entry->id, ['amount' => 99])->assertStatus(409)
+            fn () => $this->putJson('/api/transactions/'.$this->entry->id, ['edit_reason' => 'Corrected after review', 'amount' => 99])->assertStatus(409)
         );
 
         $this->assertNotEmpty($levels);
@@ -81,7 +81,7 @@ class LedgerReportLockRaceTest extends TestCase
     public function test_destroy_reads_the_report_lock_inside_the_database_transaction(): void
     {
         $levels = $this->reportQueryLevels(
-            fn () => $this->deleteJson('/api/transactions/'.$this->entry->id)->assertStatus(409)
+            fn () => $this->patchJson('/api/transactions/'.$this->entry->id.'/archive', ['reason' => 'Archived in the test'])->assertStatus(409)
         );
 
         $this->assertNotEmpty($levels);

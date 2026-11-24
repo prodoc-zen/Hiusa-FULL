@@ -473,7 +473,7 @@ class AskAiAttachmentsTest extends TestCase
         $this->assertSame(1, Transaction::count());
     }
 
-    public function test_the_result_sentence_claims_a_receipt_only_when_one_was_kept(): void
+    public function test_a_card_whose_receipt_file_is_gone_records_nothing_because_an_expense_needs_its_receipt(): void
     {
         $this->claude([$this->jsonMessage($this->receipt())]);
         Sanctum::actingAs($this->admin());
@@ -487,13 +487,12 @@ class AskAiAttachmentsTest extends TestCase
         $second = $this->send(['message' => 'Record this receipt', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk()->json('message');
         Storage::disk('local')->delete(AiMessageAttachment::latest('id')->firstOrFail()->path);
 
-        $without = $this->postJson("/api/ai/assistant/messages/{$second['id']}/action/confirm", ['fields' => $fields])->assertOk();
-        $this->assertSame('done', $without->json('message.payload.action.status'));
-        $this->assertStringNotContainsString('receipt attached', $without->json('message.content'));
-        $this->assertNull(Transaction::latest('id')->firstOrFail()->receipt_file_url);
+        $without = $this->postJson("/api/ai/assistant/messages/{$second['id']}/action/confirm", ['fields' => $fields]);
+        $this->assertNotSame('done', $without->json('message.payload.action.status'));
+        $this->assertSame(1, Transaction::count());
     }
 
-    public function test_deleting_the_transaction_deletes_the_receipt_copy_kept_for_it(): void
+    public function test_archiving_the_transaction_keeps_the_receipt_copy_kept_for_it(): void
     {
         $this->claude([$this->jsonMessage($this->receipt())]);
         Sanctum::actingAs($this->admin());
@@ -504,13 +503,16 @@ class AskAiAttachmentsTest extends TestCase
         $transaction = Transaction::firstOrFail();
         Storage::disk('local')->assertExists($transaction->receipt_file_url);
 
-        $this->deleteJson("/api/transactions/{$transaction->id}")->assertOk();
+        $path = $transaction->receipt_file_url;
+
+        $this->patchJson("/api/transactions/{$transaction->id}/archive", ['reason' => 'Archived in the test'])->assertOk();
 
         $this->assertSame(0, Transaction::count());
-        $this->assertSame([], collect(Storage::disk('local')->allFiles())->filter(fn (string $path) => str_starts_with($path, 'finance-receipts/'))->all());
+        Storage::disk('local')->assertExists($path);
+        $this->getJson("/api/transactions/{$transaction->id}/receipt-file")->assertOk();
     }
 
-    public function test_a_refused_delete_keeps_the_receipt_copy(): void
+    public function test_a_refused_archive_keeps_the_receipt_copy(): void
     {
         $this->claude([$this->jsonMessage($this->receipt())]);
         Sanctum::actingAs($this->admin());
@@ -521,7 +523,7 @@ class AskAiAttachmentsTest extends TestCase
         $transaction = Transaction::firstOrFail();
         Sanctum::actingAs($this->officer('Treasurer'));
 
-        $this->deleteJson("/api/transactions/{$transaction->id}")->assertNotFound();
+        $this->patchJson("/api/transactions/{$transaction->id}/archive", ['reason' => 'Archived in the test'])->assertNotFound();
 
         Storage::disk('local')->assertExists($transaction->receipt_file_url);
     }

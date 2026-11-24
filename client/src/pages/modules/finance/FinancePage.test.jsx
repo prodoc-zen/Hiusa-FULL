@@ -40,7 +40,7 @@ const financeMocks = vi.hoisted(() => ({
   submitFinancialReport: vi.fn(),
   deleteBudget: vi.fn(),
   deleteForecast: vi.fn(),
-  deleteTransaction: vi.fn(),
+  archiveTransaction: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -648,7 +648,7 @@ describe('FinancePage transaction search', () => {
   }, 20000);
 });
 
-describe('FinancePage deleting budgets and transactions', () => {
+describe('FinancePage deleting budgets and archiving transactions', () => {
   const budget = { id: 4, title: 'Sports Fest Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' };
   const transaction = { id: 7, transaction_date: '2026-09-08T10:30:00.000000Z', description: 'Venue reservation', category: 'Events', type: 'expense', amount: 2500 };
 
@@ -672,11 +672,12 @@ describe('FinancePage deleting budgets and transactions', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete budget' }));
   }
 
-  async function confirmTransactionDelete() {
+  async function confirmTransactionArchive() {
     render(<FinancePage initialTab="transactions" />);
-    fireEvent.click(await findRowAction('Delete transaction'));
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete transaction' }));
+    fireEvent.click(await findRowAction('Archive transaction'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
+    fireEvent.change(within(dialog).getByLabelText('Reason for archiving'), { target: { value: 'Recorded twice' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive transaction' }));
   }
 
   it('deletes a budget after confirmation and reloads the budgets', async () => {
@@ -696,21 +697,23 @@ describe('FinancePage deleting budgets and transactions', () => {
     expect(financeMocks.getBudgets).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes a transaction after confirmation and reloads the ledger', async () => {
-    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
-    await confirmTransactionDelete();
+  it('archives a transaction with its reason and reloads the ledger', async () => {
+    financeMocks.archiveTransaction.mockResolvedValue({ data: { message: 'Transaction archived.' } });
+    await confirmTransactionArchive();
 
-    await waitFor(() => expect(financeMocks.deleteTransaction).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(financeMocks.archiveTransaction).toHaveBeenCalledWith(7, 'Recorded twice'));
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
   });
 
   it('holds the old ledger rows, not a loading state, until the refreshed ones arrive', async () => {
     let finish;
-    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
+    financeMocks.archiveTransaction.mockResolvedValue({ data: { message: 'Transaction archived.' } });
     render(<FinancePage initialTab="transactions" />);
-    fireEvent.click(await findRowAction('Delete transaction'));
+    fireEvent.click(await findRowAction('Archive transaction'));
     financeMocks.getTransactions.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Delete this transaction?' })).getByRole('button', { name: 'Delete transaction' }));
+    const archiveDialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
+    fireEvent.change(within(archiveDialog).getByLabelText('Reason for archiving'), { target: { value: 'Recorded twice' } });
+    fireEvent.click(within(archiveDialog).getByRole('button', { name: 'Archive transaction' }));
 
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
@@ -719,10 +722,10 @@ describe('FinancePage deleting budgets and transactions', () => {
   });
 
   it('shows the server message for a ledger entry owned by another module', async () => {
-    financeMocks.deleteTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
-    await confirmTransactionDelete();
+    financeMocks.archiveTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
+    await confirmTransactionArchive();
 
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Change it from Collections.');
   });
 
@@ -937,12 +940,12 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(system).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(await findRowAction('Edit transaction')).toBeInTheDocument();
-    expect(await findRowAction('Delete transaction')).toBeInTheDocument();
+    expect(await findRowAction('Archive transaction')).toBeInTheDocument();
     expect(within(system).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
-    expect(within(system).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: 'Archive transaction' })).not.toBeInTheDocument();
     expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
-    expect(within(locked).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Archive transaction' })).not.toBeInTheDocument();
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
   });
 
@@ -1537,6 +1540,59 @@ describe('FinancePage all-time category summary', () => {
 
     expect(await screen.findByText('Membership fees')).toBeInTheDocument();
     expect(screen.getByText(/Ledger net balance/).textContent).toContain('800');
+  });
+
+  it('refreshes the Budgets ledger net balance when a search is cleared and the ledger has changed since the last full load', async () => {
+    const tree = (tab) => <MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab={tab} /></MemoryRouter>;
+    financeMocks.getBudgets.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 100, ledger_summary: { total_income: 900, total_expense: 100, net_balance: 800 } } });
+    const { rerender } = renderUi(tree('transactions'));
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledTimes(1));
+
+    const CHANGED = { total_income: 1300, total_expense: 100, net_balance: 1200, by_category: [] };
+    financeMocks.getTransactionSummary.mockImplementation((params) => Promise.resolve({ data: params?.search ? FILTERED : CHANGED }));
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith(expect.objectContaining({ search: 'supplies' })));
+    fireEvent.change(search, { target: { value: '' } });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenLastCalledWith({}));
+    expect(await screen.findByText('Income')).toBeInTheDocument();
+
+    rerender(tree('forecasting'));
+
+    await waitFor(() => expect(screen.getByText(/Ledger net balance/).textContent).toContain('1,200'));
+  });
+
+  it('keeps the Budgets ledger net balance at the whole ledger while a search narrows the Ledger totals', async () => {
+    const tree = (tab) => <MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab={tab} /></MemoryRouter>;
+    financeMocks.getBudgets.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 100, ledger_summary: { total_income: 900, total_expense: 100, net_balance: 800 } } });
+    const { rerender } = renderUi(tree('transactions'));
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith(expect.objectContaining({ search: 'supplies' })));
+    expect(await screen.findByText('Income')).toBeInTheDocument();
+
+    rerender(tree('forecasting'));
+
+    await waitFor(() => expect(screen.getByText(/Ledger net balance/).textContent).toContain('800'));
+  });
+
+  it('says the Ledger totals cover the filtered entries only while a search or filter narrows them, and says nothing otherwise', async () => {
+    renderUi(<MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab="transactions" /></MemoryRouter>);
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByText('Net balance')).toBeInTheDocument();
+    expect(screen.queryByText('Totals for the filtered entries only.')).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findByText('Totals for the filtered entries only.')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: '' } });
+
+    await waitFor(() => expect(screen.queryByText('Totals for the filtered entries only.')).not.toBeInTheDocument());
+    expect(screen.getByText('Net balance')).toBeInTheDocument();
   });
 
   it('describes the quick exports as the semester selected at the top, not all time', async () => {
