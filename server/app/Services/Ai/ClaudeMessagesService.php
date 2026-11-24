@@ -2,6 +2,12 @@
 
 namespace App\Services\Ai;
 
+use Anthropic\Beta\Messages\BetaOutputConfig;
+use Anthropic\Beta\Messages\BetaRawContentBlockDeltaEvent;
+use Anthropic\Beta\Messages\BetaRawMessageDeltaEvent;
+use Anthropic\Beta\Messages\BetaRawMessageStartEvent;
+use Anthropic\Beta\Messages\BetaTextDelta;
+use Anthropic\Beta\Messages\BetaThinkingDelta;
 use Anthropic\Client;
 use Anthropic\Core\Exceptions\APIConnectionException;
 use Anthropic\Core\Exceptions\APIException;
@@ -10,12 +16,6 @@ use Anthropic\Core\Exceptions\APITimeoutException;
 use Anthropic\Core\Exceptions\AuthenticationException;
 use Anthropic\Core\Exceptions\BadRequestException;
 use Anthropic\Core\Exceptions\RateLimitException;
-use Anthropic\Beta\Messages\BetaOutputConfig;
-use Anthropic\Beta\Messages\BetaRawContentBlockDeltaEvent;
-use Anthropic\Beta\Messages\BetaRawMessageDeltaEvent;
-use Anthropic\Beta\Messages\BetaRawMessageStartEvent;
-use Anthropic\Beta\Messages\BetaTextDelta;
-use Anthropic\Beta\Messages\BetaThinkingDelta;
 use Anthropic\Messages\JSONOutputFormat;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\OutputConfig;
