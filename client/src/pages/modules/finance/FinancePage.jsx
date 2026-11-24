@@ -1408,13 +1408,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     ? eventLedgers.data.find((row) => String(row.event_id) === String(txFilters.event_id)) ?? null
     : null;
   const fullBudget = (budget) => budgets.find((item) => item.id === budget.id) ?? budget;
-  // The Budgets tab lists every event, from the event ledgers. If those cannot be read it lists the events the page
-  // already holds. A budget that no event row carries stays in General budgets, so none disappears.
-  const eventBudgetRows = eventLedgers
-    ? eventLedgers.data.map((row) => ({ ...row, budget: row.budget ? fullBudget(row.budget) : null }))
-    : events.map((event) => ({ event_id: event.id, title: event.title, start_time: event.start_time, status: event.status, budget: budgets.find((budget) => String(budget.event_id) === String(event.id)) ?? null }));
-  const eventBudgetIds = new Set(eventBudgetRows.filter((row) => row.budget).map((row) => row.budget.id));
-  const generalBudgets = budgets.filter((budget) => !eventBudgetIds.has(budget.id));
+  // The Budgets tab lists every event, from the event ledgers, with every budget of that event inside its row. If the
+  // ledgers cannot be read it lists the events the page already holds. A budget whose event no row carries stays in
+  // General budgets, so none disappears.
+  const eventRowsSource = eventLedgers
+    ? eventLedgers.data
+    : events.map((event) => ({ event_id: event.id, title: event.title, start_time: event.start_time, status: event.status }));
+  const eventBudgetRows = eventRowsSource.map((row) => {
+    const own = budgets.filter((budget) => String(budget.event_id) === String(row.event_id));
+    return { ...row, budgets: own.length > 0 || !row.budget ? own : [fullBudget(row.budget)] };
+  });
+  const eventRowIds = new Set(eventBudgetRows.map((row) => String(row.event_id)));
+  const generalBudgets = budgets.filter((budget) => !budget.event_id || !eventRowIds.has(String(budget.event_id)));
 
   const selectedBudget = activeTab === 'budgets' && recordId ? budgets.find((budget) => String(budget.id) === recordId) : null;
   const selectedReport = activeTab === 'reports' && recordId ? reports.find((report) => String(report.id) === recordId) : null;

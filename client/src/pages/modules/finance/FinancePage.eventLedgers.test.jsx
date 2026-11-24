@@ -118,6 +118,21 @@ describe('Budgets tab', () => {
     expect(within(screen.getByRole('list', { name: 'Event budgets' })).queryByText('General Operations Fund')).not.toBeInTheDocument();
   });
 
+  it('lists every budget of an event inside that event, and none of them under General budgets', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [
+      ...budgets,
+      { ...budgets[0], id: 14, title: 'Seminar snacks budget', approval_status: 'pending', submission_status: 'pending_department_head', is_released: false, allocated_amount: '800.00', spent_amount: '0.00', income_amount: '0.00', remaining_amount: '800.00' },
+    ] });
+    renderPage('budgets');
+
+    const rows = within(await screen.findByRole('list', { name: 'Event budgets' })).getAllByRole('listitem');
+    expect(within(rows[0]).getByText('Seminar budget')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Seminar snacks budget')).toBeInTheDocument();
+    const general = screen.getByRole('list', { name: 'General budgets' });
+    expect(within(general).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(general).queryByText('Seminar snacks budget')).not.toBeInTheDocument();
+  });
+
   it('shows the four figures and the arithmetic on a budget card', async () => {
     renderPage('budgets');
 

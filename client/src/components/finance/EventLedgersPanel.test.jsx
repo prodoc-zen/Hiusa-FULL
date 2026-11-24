@@ -133,6 +133,15 @@ describe('EventBudgetsList', () => {
     expect(onCreateBudget).toHaveBeenCalledWith(3);
   });
 
+  it('renders every budget a row carries', () => {
+    const row = { ...seminar, budgets: [seminar.budget, { id: 14, title: 'Seminar snacks budget' }] };
+    render(<EventBudgetsList rows={[row]} renderBudget={renderBudget} canCreateBudget onCreateBudget={vi.fn()} />);
+
+    expect(screen.getByText('Card for Seminar budget')).toBeInTheDocument();
+    expect(screen.getByText('Card for Seminar snacks budget')).toBeInTheDocument();
+    expect(screen.queryByText('No budget yet')).not.toBeInTheDocument();
+  });
+
   it('shows No budget yet without a Create budget action to someone who cannot create budgets', () => {
     render(<EventBudgetsList rows={[induction]} renderBudget={renderBudget} canCreateBudget={false} onCreateBudget={vi.fn()} />);
 
