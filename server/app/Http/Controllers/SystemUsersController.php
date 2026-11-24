@@ -230,7 +230,7 @@ class SystemUsersController extends Controller
         abort_if($request->user()->school_id === $user->school_id, 422, 'You cannot delete your own account.');
 
         try {
-            $removed = DB::transaction(function () use ($request, $user, $data) {
+            [$removed, $files] = DB::transaction(function () use ($request, $user, $data) {
                 $activeSaoIds = $user->getRawOriginal('role') === 'SUPER_ADMIN' ? $this->lockActiveSaoRows() : null;
                 $locked = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
                 if ($locked->getRawOriginal('role') === 'SUPER_ADMIN') {
@@ -252,8 +252,8 @@ class SystemUsersController extends Controller
                 $this->transferInstitutionalRecords($locked->school_id, $request->user()->school_id);
                 // A token is keyed by school ID only, so one left behind would sign in as whoever is later given the same ID.
                 $locked->tokens()->delete();
-                // The files they attached to Ask AI questions sit on disk; the rows go with their conversations.
-                AiMessageAttachment::eraseFiles(AiMessageAttachment::ownedBy($locked));
+                // The files they attached to Ask AI questions sit on disk and the rows go with their conversations; the files are removed only once the delete has committed.
+                $files = AiMessageAttachment::fileList(AiMessageAttachment::ownedBy($locked));
                 // The questions and answers are the person's own text; the foreign keys only null them.
                 AiOutput::query()->where('feature_type', 'ASK_AI_ASSISTANT')->where(fn ($owned) => $owned
                     ->where('requested_by', $locked->school_id)
@@ -274,7 +274,7 @@ class SystemUsersController extends Controller
                     'created_at' => now(),
                 ]);
 
-                return $plainCounts;
+                return [$plainCounts, $files];
             });
         } catch (QueryException $exception) {
             if (! in_array((string) $exception->getCode(), ['23000', '23503', '19'], true)) {
@@ -282,6 +282,8 @@ class SystemUsersController extends Controller
             }
             abort(409, 'This account still has a protected linked record and could not be deleted.');
         }
+
+        AiMessageAttachment::deleteFiles($files);
 
         return response()->json(['message' => 'User deleted.', 'removed' => $removed]);
     }
