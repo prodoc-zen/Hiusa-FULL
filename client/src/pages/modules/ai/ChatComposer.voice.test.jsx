@@ -65,6 +65,14 @@ describe('ChatComposer voice input', () => {
     expect(screen.getByText('Listening. Tap the mic to stop.')).toBeInTheDocument();
   });
 
+  it('keeps the white icon on blue while listening, even under the pointer', () => {
+    window.SpeechRecognition = FakeRecognition;
+    render(<ChatComposer onSend={vi.fn()} onStop={vi.fn()} />);
+    fireEvent.click(mic());
+    expect(mic()).toHaveClass('bg-brand-700', 'text-white', 'hover:bg-brand-800');
+    expect(mic().className).not.toMatch(/hover:bg-subtle|hover:text-ink/);
+  });
+
   it('puts the transcript in the box, interim first, and never sends it', () => {
     window.SpeechRecognition = FakeRecognition;
     const onSend = vi.fn();
