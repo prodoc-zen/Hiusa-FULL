@@ -26,6 +26,7 @@ import TableRowActions from '../../../components/TableRowActions';
 import {
   getTransactions,
   getTransactionSummary,
+  getEventLedgers,
   createTransaction,
   updateTransaction,
   deleteTransaction,
@@ -66,8 +67,10 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
 import BudgetDetailDrawer from '../../../components/finance/BudgetDetailDrawer';
+import BudgetFigures from '../../../components/finance/BudgetFigures';
+import EventLedgersPanel, { EventBudgetsList, EventLedgerHeader } from '../../../components/finance/EventLedgersPanel';
 import ReportDetailDrawer, { withDraftDefault } from '../../../components/finance/ReportDetailDrawer';
-import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SkeletonTable, StatusBadge } from '../../../components/ui';
+import { Button, DataTable, Drawer, EmptyState, ErrorState, Field, FlowStepper, Input, PageHeader, SegmentedControl, SkeletonTable, StatusBadge } from '../../../components/ui';
 import { financialReportLifecycle } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
@@ -75,6 +78,17 @@ import { canHandleFinance } from '../../../utils/financeAccess';
 import { readUserModules } from '../../../utils/userModules';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
+
+const LEDGER_VIEWS = [{ value: 'all', label: 'All transactions' }, { value: 'event', label: 'By event' }];
+
+// The event ledgers are read on their own, so a failure there leaves the rest of the page loading; the Budgets tab then
+// falls back to the events it already has.
+function readEventLedgers(scope) {
+  return Promise.resolve()
+    .then(() => getEventLedgers(scope))
+    .then((response) => (Array.isArray(response.data?.data) ? response.data : null))
+    .catch(() => null);
+}
 
 // Opened from the request selector, the budget form is the whole page. Cancel goes back to the request
 // types and a saved proposal lands on the budgets.
@@ -458,6 +472,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [studentDebt, setStudentDebt] = useState(null);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [overallSummary, setOverallSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
+  const [eventLedgers, setEventLedgers] = useState(null);
+  const [ledgerView, setLedgerView] = useState('all');
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -491,6 +507,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   const [form, setForm] = useState({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [eventLocked, setEventLocked] = useState(false);
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
@@ -639,8 +656,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+      canViewTransactions ? readEventLedgers(organizationScope) : Promise.resolve(null),
     ])
-      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes]) => {
+      .then(async ([txRes, sumRes, allTimeRes, budgetsList, eventsList, receiptRes, invoiceRes, clearanceRes, debtRes, eventLedgersRes]) => {
         if (ticket !== loadTicket.current) return;
         // What the screen shows first lands as soon as it is read, so a saved budget is on the list
         // without waiting for the slower forecast and report reads.
@@ -648,6 +666,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setOverallSummary(allTimeRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setBudgets(budgetsList);
         setEvents(eventsList);
+        setEventLedgers(eventLedgersRes);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
@@ -700,6 +719,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       warning_threshold: budget.warning_threshold ?? '',
       event_id: budget.event_id ? String(budget.event_id) : '',
     } : { title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+    setBudgetFormError(null);
+    setShowBudgetForm(true);
+  }
+
+  // Create budget on an event with none: the usual budget form, with that event already chosen.
+  function createBudgetForEvent(eventId) {
+    setEditingBudget(null);
+    setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: String(eventId) });
     setBudgetFormError(null);
     setShowBudgetForm(true);
   }
@@ -1201,8 +1228,35 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       event_id: tx.event_id || '',
       receipt_reference: tx.receipt_reference || '',
     } : { description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: todayInputValue(), budget_id: '', event_id: '', receipt_reference: '' });
+    setEventLocked(false);
     setFormError(null);
     setShowForm(true);
+  }
+
+  // The one way into the Record transaction form. Opened from an event's own ledger it presets that event and, with
+  // lockEvent, fixes it, so the transaction cannot be filed under another event.
+  function openRecordTransaction({ eventId = '', lockEvent = false } = {}) {
+    openTransactionForm();
+    if (!eventId) return;
+    setForm((current) => ({ ...current, event_id: String(eventId) }));
+    setEventLocked(lockEvent);
+  }
+
+  // The event view reads the same ledger filtered to one event, so an opened event is just the event filter set: the
+  // rows, the pages and the totals are the ledger's own.
+  function changeLedgerView(view) {
+    setLedgerView(view);
+    if (view === 'event' && txFilters.event_id) {
+      const next = { ...txFilters, event_id: '' };
+      setTxFilters(next);
+      loadLedger(1, next);
+    }
+  }
+
+  function showEventLedger(eventId) {
+    const next = { ...txFilters, event_id: eventId === null ? '' : String(eventId) };
+    setTxFilters(next);
+    loadLedger(1, next);
   }
 
   const filtered = transactions;
@@ -1230,6 +1284,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     && matchesFilter(reportFilter.event_id, report.event_id));
   const clearReportFilters = () => setReportFilter({ search: '', status: '', event_id: '' });
   const reportFiltersActive = Boolean(reportFilter.search || reportFilter.status || reportFilter.event_id);
+
+  const openedEvent = ledgerView === 'event' && txFilters.event_id && eventLedgers
+    ? eventLedgers.data.find((row) => String(row.event_id) === String(txFilters.event_id)) ?? null
+    : null;
+  const fullBudget = (budget) => budgets.find((item) => item.id === budget.id) ?? budget;
+  // The Budgets tab lists every event, from the event ledgers. If those cannot be read it lists the events the page
+  // already holds. A budget that no event row carries stays in General budgets, so none disappears.
+  const eventBudgetRows = eventLedgers
+    ? eventLedgers.data.map((row) => ({ ...row, budget: row.budget ? fullBudget(row.budget) : null }))
+    : events.map((event) => ({ event_id: event.id, title: event.title, start_time: event.start_time, status: event.status, budget: budgets.find((budget) => String(budget.event_id) === String(event.id)) ?? null }));
+  const eventBudgetIds = new Set(eventBudgetRows.filter((row) => row.budget).map((row) => row.budget.id));
+  const generalBudgets = budgets.filter((budget) => !eventBudgetIds.has(budget.id));
 
   const selectedBudget = activeTab === 'budgets' && recordId ? budgets.find((budget) => String(budget.id) === recordId) : null;
   const selectedReport = activeTab === 'reports' && recordId ? reports.find((report) => String(report.id) === recordId) : null;
@@ -1262,7 +1328,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   } else if (activeTab === 'reports' && canPrepareReport) {
     headerPrimary = reportFormVisible || loading ? null : <Button leftIcon={FileText} onClick={() => setReportFormOpen(true)}>Prepare a report</Button>;
   } else if (activeTab === 'transactions' && canManageLedger) {
-    headerPrimary = <Button leftIcon={Plus} onClick={() => openTransactionForm()}>Record transaction</Button>;
+    headerPrimary = openedEvent ? null : <Button leftIcon={Plus} onClick={() => openRecordTransaction()}>Record transaction</Button>;
   } else if (activeTab === 'budgets' && canProposeBudget) {
     headerPrimary = <Button leftIcon={Plus} onClick={() => openBudgetForm()}>Propose budget</Button>;
   } else if (activeTab === 'forecasting' && canGenerateForecast) {
@@ -1312,6 +1378,99 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     </form>
   );
 
+  // One budget's card: title, approval stage, its four figures, the advice, and the actions.
+  const renderBudgetCard = (b, { inEvent = false } = {}) => {
+    const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
+    const adviceStale = b.advice_stale === true;
+    const adviceInputs = adviceDetail?.advice?.inputs;
+    return (
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setRecordId(b.id)} className="rounded-control text-left text-sm font-semibold text-ink hover:underline">{formatDisplayText(b.title)}</button>
+            {/* Approved is the default state of a budget, so only the others carry a badge. */}
+            {(b.approval_status ?? b.submission_status) !== 'approved' && <StatusBadge status={b.submission_status === 'draft' ? 'draft' : b.approval_status || 'pending'} />}
+          </div>
+          {b.event && !inEvent && <p className="mt-1 text-xs text-ink-muted">{formatDisplayText(b.event.title)}</p>}
+          {b.financial_semester && <p className="mt-1 text-xs text-ink-muted">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
+          <BudgetFigures budget={b} className="mt-3" />
+          {b.overspending_risk && (
+            <p className={`mt-2 text-xs font-medium ${b.overspending_risk === 'high' ? 'text-danger-strong' : b.overspending_risk === 'medium' ? 'text-warning-strong' : 'text-success-strong'}`}>
+              {sentence(b.overspending_risk)} overspending risk
+            </p>
+          )}
+          {adviceStale && (
+            <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+              The advice from {manilaDate(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
+            </p>
+          )}
+          {!adviceStale && b.recommended_allocation != null && (
+            <p className="mt-1 text-xs text-ink-muted">
+              Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
+            </p>
+          )}
+          {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {manilaDate(b.advice_generated_at)}</p>}
+          {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
+          {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
+            <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">
+              <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{budgetAdviceErrors[b.id]}</span>
+              <Button variant="secondary" size="sm" onClick={() => handleGenerateBudgetAdvice(b.id)}>Retry</Button>
+            </div>
+          )}
+          {adviceDetail?.advice && !adviceStale && (
+            <div className="mt-3 max-w-3xl border-t border-line pt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <EngineBadge engine={adviceDetail.engine} />
+                {adviceDetail.advice.allocation_status && (
+                  <StatusBadge tone={allocationStatusTone[adviceDetail.advice.allocation_status] || 'neutral'} label={allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status} />
+                )}
+                {adviceDetail.advice.xai_model && (
+                  <span className="text-xs text-ink-muted">Explained by {adviceDetail.advice.xai_model}</span>
+                )}
+                {adviceDetail.advice.xai_status === 'unavailable' && (
+                  <span className="text-xs font-medium text-warning-strong">The written explanation is unavailable. The figures and advice are calculated from your ledger; use Get advice to retry.</span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                {adviceDetail.advice.reserve_amount != null && (
+                  <span className="text-ink-muted">Reserve <strong className="block font-semibold text-ink">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
+                )}
+                {adviceDetail.advice.expense_to_income_ratio != null && (
+                  <span className="text-ink-muted">Expense/income ratio <strong className="block font-semibold text-ink">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
+                )}
+              </div>
+              <RulesDisclosure
+                label="How this was calculated"
+                items={[
+                  ...(adviceInputs
+                    ? [
+                      `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
+                      adviceInputs.forecast_status === 'used'
+                        ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
+                        : adviceInputs.forecast_status === 'not_applied'
+                          ? 'This budget is outside the current semester, so no forecast income or expenses were used.'
+                          : 'No current forecast was available, so no forecast income or expenses were used.',
+                    ]
+                    : []),
+                  ...(adviceDetail.advice.deterministic_advice
+                    ? [`Calculated advice before the written rewrite: "${adviceDetail.advice.deterministic_advice}"`]
+                    : []),
+                  ...(Array.isArray(adviceDetail.advice.rules_applied) ? adviceDetail.advice.rules_applied : []),
+                ]}
+              />
+            </div>
+          )}
+        </div>
+        <TableRowActions subject={formatDisplayText(b.title)} actions={[
+          { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
+          canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
+          canHandle && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('budget', b) },
+        ]} />
+      </div>
+    );
+  };
+
   const budgetFormButtons = (
     <>
       <Button variant="secondary" onClick={cancelBudgetForm}>Cancel</Button>
@@ -1350,7 +1509,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </p>
       )}
 
-      {activeTab === 'transactions' && canViewTransactions && !loading && !ledgerLoading && !error && (
+      {activeTab === 'transactions' && canViewTransactions && !error && (
+        <SegmentedControl options={LEDGER_VIEWS} value={ledgerView} onChange={changeLedgerView} />
+      )}
+
+      {activeTab === 'transactions' && canViewTransactions && ledgerView === 'all' && !loading && !ledgerLoading && !error && (
         <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Income</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-success-strong">{fmt(summary.total_income)}</dd></div>
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Expenses</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
@@ -1360,7 +1523,26 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {error && <ErrorState title="Financial data did not load" description={error} onRetry={() => load()} />}
 
-      {activeTab === 'transactions' && (
+      {activeTab === 'transactions' && ledgerView === 'event' && !error && (
+        loading ? <SkeletonTable rows={4} columns={4} />
+          : !eventLedgers ? (
+            <p role="status" className="flex flex-wrap items-center gap-3 rounded-control border border-warning/40 bg-warning-tint px-4 py-3 text-sm text-ink">
+              The event ledgers did not load.
+              <Button size="sm" variant="secondary" onClick={() => load()}>Try again</Button>
+            </p>
+          ) : openedEvent ? (
+            <EventLedgerHeader
+              ledger={openedEvent}
+              budget={openedEvent.budget ? fullBudget(openedEvent.budget) : null}
+              onBack={() => showEventLedger(null)}
+              onRecordTransaction={canManageLedger ? openRecordTransaction : undefined}
+            />
+          ) : (
+            <EventLedgersPanel ledgers={eventLedgers} onOpenEvent={(row) => showEventLedger(row.event_id)} />
+          )
+      )}
+
+      {activeTab === 'transactions' && (ledgerView === 'all' || openedEvent) && (
         <section aria-label="Ledger" className="overflow-hidden rounded-card border border-line bg-surface">
           <TableFilterBar
             searchValue={search}
@@ -1582,7 +1764,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
           {loading ? (
             <div className="p-4"><SkeletonTable rows={3} columns={4} className="border-0" /></div>
-          ) : budgets.length === 0 ? (
+          ) : budgets.length === 0 && eventBudgetRows.length === 0 ? (
             <div className="px-4 sm:px-5">
               {canProposeBudget ? (
                 <EmptyState
@@ -1599,105 +1781,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               )}
             </div>
           ) : (
-            <ul className="divide-y divide-line" aria-label="Budgets">
-              {budgets.map((b) => {
-                const adviceDetail = budgetAdviceDetails[b.id] || b.advice_details;
-                const adviceStale = b.advice_stale === true;
-                const adviceInputs = adviceDetail?.advice?.inputs;
-                // Remaining counts income recorded against the budget, so it can sit above Allocated.
-                const aboveAllocated = Number(b.remaining_amount) > Number(b.allocated_amount);
-                return (
-                <li key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => setRecordId(b.id)} className="rounded-control text-left text-sm font-semibold text-ink hover:underline">{formatDisplayText(b.title)}</button>
-                      {/* Approved is the default state of a budget, so only the others carry a badge. */}
-                      {b.approval_status !== 'approved' && <StatusBadge status={b.submission_status === 'draft' ? 'draft' : b.approval_status || 'pending'} />}
-                    </div>
-                    {b.event && <p className="mt-1 text-xs text-ink-muted">{formatDisplayText(b.event.title)}</p>}
-                    {b.financial_semester && <p className="mt-1 text-xs text-ink-muted">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
-                    <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
-                      <div><dt className="text-ink-muted">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.allocated_amount)}</dd></div>
-                      <div><dt className="text-ink-muted">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{fmt(b.remaining_amount)}</dd></div>
-                    </dl>
-                    {aboveAllocated && <p className="mt-1 text-xs text-ink-muted">Remaining includes income recorded against this budget.</p>}
-                    {b.overspending_risk && (
-                      <p className={`mt-2 text-xs font-medium ${b.overspending_risk === 'high' ? 'text-danger-strong' : b.overspending_risk === 'medium' ? 'text-warning-strong' : 'text-success-strong'}`}>
-                        {sentence(b.overspending_risk)} overspending risk
-                      </p>
-                    )}
-                    {adviceStale && (
-                      <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-xs font-medium text-warning-strong">
-                        <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-                        The advice from {manilaDate(b.advice_generated_at)} is out of date because this budget&apos;s balance changed.{canGenerateBudgetAdvice && b.submission_status === 'approved' ? ' Use Get advice to refresh it.' : ''}
-                      </p>
-                    )}
-                    {!adviceStale && b.recommended_allocation != null && (
-                      <p className="mt-1 text-xs text-ink-muted">
-                        Recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
-                      </p>
-                    )}
-                    {!adviceStale && b.advice_generated_at && <p className="mt-1 text-xs text-ink-muted">Advice from {manilaDate(b.advice_generated_at)}</p>}
-                    {!adviceStale && b.advisory_note && <p className="mt-1 max-w-3xl text-xs text-ink-muted">{b.advisory_note}</p>}
-                    {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
-                      <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-xs font-medium text-danger-strong">
-                        <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{budgetAdviceErrors[b.id]}</span>
-                        <Button variant="secondary" size="sm" onClick={() => handleGenerateBudgetAdvice(b.id)}>Retry</Button>
-                      </div>
-                    )}
-                    {adviceDetail?.advice && !adviceStale && (
-                      <div className="mt-3 max-w-3xl border-t border-line pt-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <EngineBadge engine={adviceDetail.engine} />
-                          {adviceDetail.advice.allocation_status && (
-                            <StatusBadge tone={allocationStatusTone[adviceDetail.advice.allocation_status] || 'neutral'} label={allocationStatusLabel[adviceDetail.advice.allocation_status] || adviceDetail.advice.allocation_status} />
-                          )}
-                          {adviceDetail.advice.xai_model && (
-                            <span className="text-xs text-ink-muted">Explained by {adviceDetail.advice.xai_model}</span>
-                          )}
-                          {adviceDetail.advice.xai_status === 'unavailable' && (
-                            <span className="text-xs font-medium text-warning-strong">The written explanation is unavailable. The figures and advice are calculated from your ledger; use Get advice to retry.</span>
-                          )}
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                          {adviceDetail.advice.reserve_amount != null && (
-                            <span className="text-ink-muted">Reserve <strong className="block font-semibold text-ink">{fmt(adviceDetail.advice.reserve_amount)}</strong></span>
-                          )}
-                          {adviceDetail.advice.expense_to_income_ratio != null && (
-                            <span className="text-ink-muted">Expense/income ratio <strong className="block font-semibold text-ink">{(Number(adviceDetail.advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
-                          )}
-                        </div>
-                        <RulesDisclosure
-                          label="How this was calculated"
-                          items={[
-                            ...(adviceInputs
-                              ? [
-                                `Budget balance used: ${fmt(adviceInputs.current_available_budget)}.`,
-                                adviceInputs.forecast_status === 'used'
-                                  ? `Forecast used: ${adviceInputs.forecast_period}, this budget's ${(Number(adviceInputs.budget_share) * 100).toFixed(1)}% share of the approved allocations, which is expected income ${fmt(adviceInputs.predicted_income)} and expenses ${fmt(adviceInputs.predicted_expense)}.`
-                                  : adviceInputs.forecast_status === 'not_applied'
-                                    ? 'This budget is outside the current semester, so no forecast income or expenses were used.'
-                                    : 'No current forecast was available, so no forecast income or expenses were used.',
-                              ]
-                              : []),
-                            ...(adviceDetail.advice.deterministic_advice
-                              ? [`Calculated advice before the written rewrite: "${adviceDetail.advice.deterministic_advice}"`]
-                              : []),
-                            ...(Array.isArray(adviceDetail.advice.rules_applied) ? adviceDetail.advice.rules_applied : []),
-                          ]}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <TableRowActions subject={formatDisplayText(b.title)} actions={[
-                    { label: `View details for ${formatDisplayText(b.title)}`, icon: Eye, onClick: () => setRecordId(b.id) },
-                    canGenerateBudgetAdvice && b.submission_status === 'approved' && { label: 'Get advice', disabled: budgetAdviceGenerating === b.id, onClick: () => handleGenerateBudgetAdvice(b.id) },
-                    canHandle && b.submission_status !== 'approved' && { label: 'Delete budget', icon: Trash2, danger: true, disabled: !isAdmin, onClick: () => askDelete('budget', b) },
-                  ]} />
-                </li>
-                );
-              })}
-            </ul>
+            <div>
+              {eventBudgetRows.length > 0 && (
+                <>
+                  <h2 className="border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:px-5">Event budgets</h2>
+                  <EventBudgetsList rows={eventBudgetRows} renderBudget={(budget) => renderBudgetCard(budget, { inEvent: true })} canCreateBudget={canProposeBudget} onCreateBudget={createBudgetForEvent} />
+                </>
+              )}
+              {generalBudgets.length > 0 && (
+                <>
+                  <h2 className={`border-b border-line bg-subtle px-4 py-2.5 text-xs font-semibold text-ink-muted sm:px-5 ${eventBudgetRows.length > 0 ? 'border-t' : ''}`}>General budgets</h2>
+                  <ul className="divide-y divide-line" aria-label="General budgets">
+                    {generalBudgets.map((budget) => <li key={budget.id} className="p-4 sm:p-5">{renderBudgetCard(budget)}</li>)}
+                  </ul>
+                </>
+              )}
+            </div>
           )}
         </section>
       )}
@@ -2136,7 +2235,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   onChange={(e) => {
                     const budgetId = e.target.value;
                     const linkedBudget = budgets.find((budget) => String(budget.id) === String(budgetId));
-                    setForm({ ...form, budget_id: budgetId, event_id: linkedBudget?.event_id || form.event_id });
+                    setForm({ ...form, budget_id: budgetId, event_id: eventLocked ? form.event_id : linkedBudget?.event_id || form.event_id });
                   }}
                 >
                   <option value="">No linked budget</option>
@@ -2147,8 +2246,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   ))}
                 </HiusaSelect>
               </Field>
-              <Field label="Linked event" optional>
-                <HiusaSelect value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
+              <Field label="Linked event" optional hint={eventLocked ? 'Recorded in the ledger of the event you opened.' : undefined}>
+                <HiusaSelect value={form.event_id} disabled={eventLocked} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
                   <option value="">No linked event</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>
