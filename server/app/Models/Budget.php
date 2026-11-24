@@ -78,9 +78,9 @@ class Budget extends Model
     }
 
     /**
-     * The four figures a budget shows, as two decimal strings, keyed by budget id. Only an approved budget is
-     * released: it adds income and takes off what was spent. Any other budget shows nothing spent, no income and its
-     * whole allocation as remaining, whatever an older entry might still be linked to it.
+     * The four figures a budget shows, as two decimal strings, keyed by budget id. Spent and income count the linked
+     * entries that are not archived, whatever the budget's status, so a budget sent back for approval keeps what was
+     * already spent. Only an approved budget is released: is_released says whether more can be spent from it.
      *
      * @param  iterable<Budget>  $budgets
      * @return array<int, array{allocated_amount: string, spent_amount: string, income_amount: string, remaining_amount: string, is_released: bool}>
@@ -88,23 +88,22 @@ class Budget extends Model
     public static function figuresFor(iterable $budgets): array
     {
         $budgets = collect($budgets);
-        $releasedIds = $budgets->filter(fn (Budget $budget) => $budget->submission_status === 'approved')->pluck('id');
-        $spent = self::spentAmounts($releasedIds);
-        $income = self::incomeAmounts($releasedIds);
+        $ids = $budgets->pluck('id');
+        $spent = self::spentAmounts($ids);
+        $income = self::incomeAmounts($ids);
         $money = fn (float $amount) => number_format($amount, 2, '.', '');
 
-        return $budgets->mapWithKeys(function (Budget $budget) use ($releasedIds, $spent, $income, $money) {
-            $released = $releasedIds->contains($budget->id);
+        return $budgets->mapWithKeys(function (Budget $budget) use ($spent, $income, $money) {
             $allocated = (float) $budget->allocated_amount;
-            $spentAmount = $released ? (float) $spent[$budget->id] : 0.0;
-            $incomeAmount = $released ? (float) $income[$budget->id] : 0.0;
+            $spentAmount = (float) $spent[$budget->id];
+            $incomeAmount = (float) $income[$budget->id];
 
             return [$budget->id => [
                 'allocated_amount' => $money($allocated),
                 'spent_amount' => $money($spentAmount),
                 'income_amount' => $money($incomeAmount),
                 'remaining_amount' => $money($allocated + $incomeAmount - $spentAmount),
-                'is_released' => $released,
+                'is_released' => $budget->submission_status === 'approved',
             ]];
         })->all();
     }

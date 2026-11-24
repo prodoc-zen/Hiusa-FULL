@@ -73,9 +73,6 @@ class BudgetFiguresTest extends TestCase
         $pending = $this->makeBudget('Sports Fest 2024 Budget', 'pending_department_head', $event, '25000.00');
         $returned = $this->makeBudget('Returned Budget', 'rejected', null, '9000.00');
         $draft = $this->makeBudget('Draft Budget', 'draft', null, '4000.00');
-        // Legacy rows that were linked while the budget was pending must not move its figures.
-        $this->makeEntry('expense', '3800.00', $pending);
-        $this->makeEntry('income', '500.00', $returned);
 
         foreach ([[$pending, '25000.00'], [$returned, '9000.00'], [$draft, '4000.00']] as [$budget, $allocated]) {
             $row = $this->row($budget->id);
@@ -85,6 +82,21 @@ class BudgetFiguresTest extends TestCase
             $this->assertSame($allocated, $row['remaining_amount']);
             $this->assertFalse($row['is_released']);
         }
+    }
+
+    public function test_a_budget_sent_back_for_approval_keeps_what_was_already_spent_and_received(): void
+    {
+        $budget = $this->makeBudget('General Operations Fund', 'approved', null, '50000.00');
+        $this->makeEntry('expense', '13500.00', $budget);
+        $this->makeEntry('income', '43500.00', $budget);
+        $this->archivedEntry('expense', '9999.00', $budget);
+        $budget->update(['submission_status' => 'pending_department_head']);
+
+        $row = $this->row($budget->id);
+        $this->assertFalse($row['is_released']);
+        $this->assertSame('13500.00', $row['spent_amount']);
+        $this->assertSame('43500.00', $row['income_amount']);
+        $this->assertSame('80000.00', $row['remaining_amount']);
     }
 
     public function test_nothing_can_be_linked_to_a_budget_that_is_not_approved(): void
