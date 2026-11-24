@@ -51,7 +51,7 @@ return new class extends Migration
         }
     }
 
-    /** The budgets whose approval was reopened after it had been approved: the audit row of the resubmission holds the old status. */
+    /** The budgets whose approval was reopened after it had been approved: any audit row of a resubmission may hold the old status 'approved', since a returned budget is reopened again later. */
     private function budgetIdsApprovedBefore(): array
     {
         $approvals = DB::table('approval_requests')->where('entity_type', 'budget')->pluck('entity_id', 'id');
@@ -63,10 +63,10 @@ return new class extends Migration
                 ->where('action', 'resubmitted')
                 ->where('record_type', ApprovalRequest::class)
                 ->whereIn('record_id', $ids->all())
-                ->pluck('old_values', 'record_id')
-                ->each(function ($oldValues, $approvalId) use ($approvals, &$budgetIds) {
-                    if ((json_decode((string) $oldValues, true)['status'] ?? null) === 'approved') {
-                        $budgetIds[] = $approvals[$approvalId];
+                ->get(['record_id', 'old_values'])
+                ->each(function ($row) use ($approvals, &$budgetIds) {
+                    if ((json_decode((string) $row->old_values, true)['status'] ?? null) === 'approved') {
+                        $budgetIds[] = $approvals[$row->record_id];
                     }
                 });
         }

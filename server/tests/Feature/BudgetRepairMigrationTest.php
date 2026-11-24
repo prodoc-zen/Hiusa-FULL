@@ -84,9 +84,23 @@ class BudgetRepairMigrationTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'budget_unlinked')->where('record_id', $legacy->id)->count());
     }
 
-    private function resubmittedAfterApproval($budget, string $previousStatus = 'approved'): void
+    public function test_a_re_approval_budget_returned_once_still_keeps_its_entries(): void
     {
-        $approval = ApprovalRequest::create([
+        $budget = $this->makeBudget('General Operations Fund', 'rejected', null, '50000.00');
+        $spent = $this->makeEntry('expense', '13500.00', $budget);
+        $approval = $this->resubmittedAfterApproval($budget);
+        $this->resubmittedAfterApproval($budget, 'rejected', $approval);
+
+        $this->runRepair();
+
+        $this->assertSame($budget->id, $spent->fresh()->budget_id);
+        $this->assertSame(0, AuditLog::where('action', 'budget_unlinked')->where('record_id', $spent->id)->count());
+        $this->assertSame('36500.00', $budget->fresh()->remaining_amount);
+    }
+
+    private function resubmittedAfterApproval($budget, string $previousStatus = 'approved', ?ApprovalRequest $approval = null): ApprovalRequest
+    {
+        $approval ??= ApprovalRequest::create([
             'organization_id' => $budget->organization_id,
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
@@ -104,6 +118,8 @@ class BudgetRepairMigrationTest extends TestCase
             'new_values' => ['entity_type' => 'budget', 'entity_id' => $budget->id, 'status' => 'pending'],
             'created_at' => now(),
         ]);
+
+        return $approval;
     }
 
     public function test_remaining_is_recomputed_for_every_budget_from_entries_that_are_not_archived(): void

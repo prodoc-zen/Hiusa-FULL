@@ -1542,6 +1542,59 @@ describe('FinancePage all-time category summary', () => {
     expect(screen.getByText(/Ledger net balance/).textContent).toContain('800');
   });
 
+  it('refreshes the Budgets ledger net balance when a search is cleared and the ledger has changed since the last full load', async () => {
+    const tree = (tab) => <MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab={tab} /></MemoryRouter>;
+    financeMocks.getBudgets.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 100, ledger_summary: { total_income: 900, total_expense: 100, net_balance: 800 } } });
+    const { rerender } = renderUi(tree('transactions'));
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledTimes(1));
+
+    const CHANGED = { total_income: 1300, total_expense: 100, net_balance: 1200, by_category: [] };
+    financeMocks.getTransactionSummary.mockImplementation((params) => Promise.resolve({ data: params?.search ? FILTERED : CHANGED }));
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith(expect.objectContaining({ search: 'supplies' })));
+    fireEvent.change(search, { target: { value: '' } });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenLastCalledWith({}));
+    expect(await screen.findByText('Income')).toBeInTheDocument();
+
+    rerender(tree('forecasting'));
+
+    await waitFor(() => expect(screen.getByText(/Ledger net balance/).textContent).toContain('1,200'));
+  });
+
+  it('keeps the Budgets ledger net balance at the whole ledger while a search narrows the Ledger totals', async () => {
+    const tree = (tab) => <MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab={tab} /></MemoryRouter>;
+    financeMocks.getBudgets.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 100, ledger_summary: { total_income: 900, total_expense: 100, net_balance: 800 } } });
+    const { rerender } = renderUi(tree('transactions'));
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(financeMocks.getTransactionSummary).toHaveBeenCalledWith(expect.objectContaining({ search: 'supplies' })));
+    expect(await screen.findByText('Income')).toBeInTheDocument();
+
+    rerender(tree('forecasting'));
+
+    await waitFor(() => expect(screen.getByText(/Ledger net balance/).textContent).toContain('800'));
+  });
+
+  it('says the Ledger totals cover the filtered entries only while a search or filter narrows them, and says nothing otherwise', async () => {
+    renderUi(<MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab="transactions" /></MemoryRouter>);
+    const search = await screen.findByPlaceholderText('Search transactions...');
+    expect(await screen.findByText('Net balance')).toBeInTheDocument();
+    expect(screen.queryByText('Totals for the filtered entries only.')).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'supplies' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findByText('Totals for the filtered entries only.')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: '' } });
+
+    await waitFor(() => expect(screen.queryByText('Totals for the filtered entries only.')).not.toBeInTheDocument());
+    expect(screen.getByText('Net balance')).toBeInTheDocument();
+  });
+
   it('describes the quick exports as the semester selected at the top, not all time', async () => {
     renderUi(<MemoryRouter initialEntries={['/dashboard/finance']}><FinancePage initialTab="reports" /></MemoryRouter>);
 
