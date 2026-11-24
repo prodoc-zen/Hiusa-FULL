@@ -60,3 +60,38 @@ describe('BudgetDetailDrawer drafts', () => {
     expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
   });
 });
+
+describe('BudgetDetailDrawer figures', () => {
+  const approved = { id: 9, title: 'General Operations Fund', submission_status: 'approved', is_released: true, allocated_amount: 50000, spent_amount: 13500, income_amount: 43500, remaining_amount: 80000, warning_threshold: 5000 };
+
+  function openWith(row) {
+    render(
+      <MemoryRouter>
+        <BudgetDetailDrawer budget={row} viewerRole="ADMIN" onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('shows Allocated, Spent, Income and Remaining with the arithmetic', () => {
+    openWith(approved);
+
+    expect(screen.getByText('Spent').nextSibling).toHaveTextContent('₱13,500.00');
+    expect(screen.getByText('Income').nextSibling).toHaveTextContent('₱43,500.00');
+    expect(screen.getByText('50,000.00 allocated - 13,500.00 spent + 43,500.00 income = 80,000.00 remaining')).toBeInTheDocument();
+  });
+
+  it('words the progress with the same spent figure', () => {
+    openWith(approved);
+
+    expect(screen.getByText('₱13,500.00 of ₱50,000.00 spent')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Budget used' })).toHaveAttribute('aria-valuenow', '13500');
+  });
+
+  it('shows a budget that is not approved as untouched, with no progress', () => {
+    openWith({ ...approved, submission_status: 'pending_department_head', is_released: false, remaining_amount: 21200, allocated_amount: 25000 });
+
+    expect(screen.getByText('Remaining').nextSibling).toHaveTextContent('₱25,000.00');
+    expect(screen.getByText('Not released until approved. Nothing can be spent from it yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+});

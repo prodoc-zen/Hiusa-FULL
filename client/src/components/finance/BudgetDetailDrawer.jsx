@@ -1,7 +1,8 @@
-import { Drawer, FlowStepper, NextStep } from '../ui';
+import { Drawer, FlowStepper, NextStep, ProgressMeter } from '../ui';
 import { budgetLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import { peso } from '../../lib/format';
 import { formatDisplayText } from '../../utils/displayText.js';
+import BudgetFigures, { budgetFigures } from './BudgetFigures';
 
 // A draft or returned budget is edited on this page, so its button opens the form instead of linking back here. An
 // officer only ever edits (the budget stays a draft); the Admin submits a draft and resubmits a returned one.
@@ -25,6 +26,7 @@ export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit
   if (!budget) return null;
   const lifecycle = budgetLifecycle(budget, viewerRole);
   const nextStep = budgetNextStepProps(budget, viewerRole, onEdit ? () => onEdit(budget) : undefined, onSubmit ? () => onSubmit(budget) : undefined);
+  const figures = budgetFigures(budget);
   const context = [budget.event && formatDisplayText(budget.event.title), budget.financial_semester && `Semester: ${formatDisplayText(budget.financial_semester.name)}`].filter(Boolean).join(' · ');
 
   return (
@@ -32,11 +34,15 @@ export default function BudgetDetailDrawer({ budget, viewerRole, onClose, onEdit
       <div className="space-y-5">
         <FlowStepper variant="full" steps={lifecycle.steps} ariaLabel="Budget progress" />
         <NextStep {...nextStep} />
-        <dl className="grid grid-cols-1 gap-3 border-t border-line pt-4 text-sm sm:grid-cols-3">
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.allocated_amount)}</dd></div>
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.remaining_amount)}</dd></div>
-          <div><dt className="text-xs font-semibold text-ink-muted-strong">Warning at</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.warning_threshold)}</dd></div>
-        </dl>
+        <div className="space-y-4 border-t border-line pt-4">
+          <BudgetFigures budget={budget} size="md" />
+          {figures.released && figures.hasBreakdown && figures.allocated > 0 && (
+            <ProgressMeter label="Budget used" value={figures.spent} max={figures.allocated} valueLabel={`${peso(figures.spent)} of ${peso(figures.allocated)} spent`} />
+          )}
+          <dl className="text-sm">
+            <div><dt className="text-xs font-semibold text-ink-muted-strong">Warning at</dt><dd className="mt-0.5 font-semibold tabular-nums text-ink">{peso(budget.warning_threshold)}</dd></div>
+          </dl>
+        </div>
       </div>
     </Drawer>
   );
