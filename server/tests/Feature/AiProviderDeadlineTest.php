@@ -93,19 +93,20 @@ class AiProviderDeadlineTest extends TestCase
         $this->assertEqualsWithDelta(12.0, $this->seconds(new GroqResponsesService), 0.001, 'the cap Groq is owed');
     }
 
-    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_the_ordinary_one(): void
+    public function test_the_event_plan_gets_a_deadline_at_least_the_ordinary_one_and_every_other_call_keeps_the_ordinary_one(): void
     {
         $primary = new ClaudeProbe(null, 1_100_000);
         $secondary = new GroqProbe(['data' => [], 'text' => '{}', 'model' => 'g', 'response_id' => null]);
         (new FallbackTextGenerator($primary, $secondary))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
 
-        // Claude gets three quarters of the 30 second default, and its HTTP timeout is lifted to the whole deadline.
-        $this->assertEqualsWithDelta(22.5, $primary->budget, 0.05);
-        $this->assertSame(30.0, $primary->ceiling);
+        // Claude gets the 45 second default minus Groq's 12, and its HTTP timeout is lifted to the whole deadline.
+        $this->assertEqualsWithDelta(33.0, $primary->budget, 0.05);
+        $this->assertGreaterThanOrEqual(25.0, $primary->budget, 'never less than the ordinary Claude share');
+        $this->assertSame(45.0, $primary->ceiling);
         // Groq gets what is left of the deadline (Claude spent 1.1 seconds), with the same lifted ceiling.
-        $this->assertGreaterThan(28.0, $secondary->budget);
-        $this->assertLessThan(29.0, $secondary->budget);
-        $this->assertSame(30.0, $secondary->ceiling);
+        $this->assertGreaterThan(43.0, $secondary->budget);
+        $this->assertLessThan(44.0, $secondary->budget);
+        $this->assertSame(45.0, $secondary->ceiling);
 
         foreach (['generate', 'other schema'] as $kind) {
             $primary = new ClaudeProbe(null, 1_100_000);
@@ -122,19 +123,35 @@ class AiProviderDeadlineTest extends TestCase
 
     public function test_the_plan_deadline_is_configurable_and_never_shorter_than_the_ordinary_one(): void
     {
-        $this->assertSame(30, config('services.ai.plan_deadline_seconds'));
+        $this->assertSame(45, config('services.ai.plan_deadline_seconds'));
+        $this->assertStringContainsString('AI_PLAN_DEADLINE_SECONDS=45', (string) file_get_contents(base_path('.env.example')));
 
-        config()->set('services.ai.plan_deadline_seconds', 40);
+        config()->set('services.ai.plan_deadline_seconds', 50);
         $primary = new ClaudeProbe(['data' => [], 'text' => '{}', 'model' => 'c', 'response_id' => null]);
         (new FallbackTextGenerator($primary, new GroqProbe(null)))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
-        $this->assertEqualsWithDelta(30.0, $primary->budget, 0.05);
-        $this->assertSame(40.0, $primary->ceiling);
+        $this->assertEqualsWithDelta(38.0, $primary->budget, 0.05);
+        $this->assertSame(50.0, $primary->ceiling);
 
         config()->set('services.ai.plan_deadline_seconds', 5);
         $primary = new ClaudeProbe(['data' => [], 'text' => '{}', 'model' => 'c', 'response_id' => null]);
         (new FallbackTextGenerator($primary, new GroqProbe(null)))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
-        $this->assertEqualsWithDelta(22.5, $primary->budget, 0.05);
-        $this->assertSame(30.0, $primary->ceiling);
+        $this->assertEqualsWithDelta(25.0, $primary->budget, 0.05, 'the floor is the ordinary 37 second deadline');
+        $this->assertSame(37.0, $primary->ceiling);
+    }
+
+    public function test_after_a_claude_timeout_on_the_event_plan_groq_still_gets_at_least_its_own_cap(): void
+    {
+        foreach ([45, 5] as $configured) {
+            config()->set('services.ai.plan_deadline_seconds', $configured);
+            $started = microtime(true);
+            $primary = new ClaudeProbe(null, 1_100_000);
+            $secondary = new GroqProbe(['data' => [], 'text' => '{}', 'model' => 'g', 'response_id' => null]);
+            (new FallbackTextGenerator($primary, $secondary))->generateStructured('i', [], FallbackTextGenerator::EVENT_PLAN_SCHEMA, []);
+            $spent = microtime(true) - $started;
+
+            // Had Claude used its whole budget instead of the ~1 second it used here, Groq would still be left 12 seconds.
+            $this->assertGreaterThanOrEqual(11.5, $secondary->budget - ($primary->budget - $spent), 'configured '.$configured);
+        }
     }
 
     public function test_a_lifted_ceiling_lets_the_http_timeout_follow_the_plan_deadline(): void
