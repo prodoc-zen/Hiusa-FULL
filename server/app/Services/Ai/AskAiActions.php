@@ -99,6 +99,11 @@ class AskAiActions
             return false;
         }
 
+        // A finance action is the Admin's, or an officer whose position has the "Can handle finance" switch on.
+        if (($definition['finance'] ?? false) && $user->role !== 'ADMIN' && ! $user->canHandleFinance()) {
+            return false;
+        }
+
         return ! ($user->isCollegeOfficeStaff() && in_array($definition['route'][0].' '.ltrim($definition['route'][1], '/'), EnsureRole::DEAN_ONLY, true));
     }
 
@@ -184,7 +189,8 @@ class AskAiActions
     private function proposeBudget(): array
     {
         return [
-            'roles' => ['ADMIN'],
+            'roles' => ['ADMIN', 'SBO_OFFICER'],
+            'finance' => true,
             'title' => 'Propose a budget',
             'submit' => 'Propose budget',
             'intro' => 'Here is the budget I can propose.',

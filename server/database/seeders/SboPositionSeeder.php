@@ -31,6 +31,7 @@ class SboPositionSeeder extends Seeder
                     $position = SboPosition::firstOrNew(['organization_id' => $organization->id, 'role' => $role, 'title' => $title]);
                     if (! $position->exists) {
                         $position->can_book_venues = SboPosition::bookingDefaultFor($title);
+                        $position->can_handle_finance = SboPosition::financeDefaultFor($title);
                     }
                     $position->is_active = true;
                     $position->save();

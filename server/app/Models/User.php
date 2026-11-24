@@ -157,6 +157,7 @@ class User extends Authenticatable
         // Only the signed-in payload says it; a user marked as listed among others never costs a position or membership lookup.
         if ($this->activeAccountProfile && ! $this->listedAmongOthers) {
             $attributes['can_book_venues'] = $this->canBookVenues();
+            $attributes['can_handle_finance'] = $this->canHandleFinance();
             $attributes['in_student_organization'] = $this->inStudentOrganization();
             $attributes['view_only'] = (bool) $this->activeAccountProfile->view_only;
         }
@@ -225,11 +226,43 @@ class User extends Authenticatable
             return false;
         }
 
-        $wanted = SboPosition::normaliseTitle($title);
-        $rows = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->get(['title', 'can_book_venues', 'is_active']);
-        $position = $rows->firstWhere('title', $title) ?? $rows->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
+        $position = $this->listedPosition($title, ['title', 'can_book_venues', 'is_active']);
 
         return $position ? $position->is_active && $position->can_book_venues : SboPosition::bookingDefaultFor($title);
+    }
+
+    /**
+     * Admins always handle finance. An officer does when the position on the active profile has its "Can handle finance"
+     * switch on; a title the list does not hold follows the position default, and no title never does.
+     */
+    public function canHandleFinance(): bool
+    {
+        return match ($this->profileRole()) {
+            'ADMIN' => true,
+            'SBO_OFFICER' => $this->officerCanHandleFinance(),
+            default => false,
+        };
+    }
+
+    private function officerCanHandleFinance(): bool
+    {
+        $title = trim((string) $this->position_title);
+        if ($title === '') {
+            return false;
+        }
+
+        $position = $this->listedPosition($title, ['title', 'can_handle_finance', 'is_active']);
+
+        return $position ? $position->is_active && $position->can_handle_finance : SboPosition::financeDefaultFor($title);
+    }
+
+    /** The officer position of this organization with the given title, by exact title and then by normalised title. */
+    private function listedPosition(string $title, array $columns): ?SboPosition
+    {
+        $wanted = SboPosition::normaliseTitle($title);
+        $rows = SboPosition::where('organization_id', $this->organization_id)->where('role', 'SBO_OFFICER')->get($columns);
+
+        return $rows->firstWhere('title', $title) ?? $rows->first(fn (SboPosition $row) => SboPosition::normaliseTitle($row->title) === $wanted);
     }
 
     public function activeProfile(): ?AccountProfile
