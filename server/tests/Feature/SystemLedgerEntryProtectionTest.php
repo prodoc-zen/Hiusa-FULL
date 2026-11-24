@@ -45,13 +45,13 @@ class SystemLedgerEntryProtectionTest extends TestCase
         $before = Transaction::findOrFail($transactionId);
 
         Sanctum::actingAs($this->admin);
-        $this->putJson("/api/transactions/{$transactionId}", ['description' => 'Quietly rewritten', 'amount' => 1])
+        $this->putJson("/api/transactions/{$transactionId}", ['edit_reason' => 'Corrected after review', 'description' => 'Quietly rewritten', 'amount' => 1])
             ->assertStatus(409)->assertJsonPath('message', $expectedMessage);
-        $this->deleteJson("/api/transactions/{$transactionId}")
+        $this->patchJson("/api/transactions/{$transactionId}/archive", ['reason' => 'Archived in the test'])
             ->assertStatus(409)->assertJsonPath('message', $expectedMessage);
 
         Sanctum::actingAs($this->verifier);
-        $this->deleteJson("/api/transactions/{$transactionId}")
+        $this->patchJson("/api/transactions/{$transactionId}/archive", ['reason' => 'Archived in the test'])
             ->assertStatus(409)->assertJsonPath('message', $expectedMessage);
 
         $after = Transaction::findOrFail($transactionId);
@@ -122,17 +122,18 @@ class SystemLedgerEntryProtectionTest extends TestCase
         );
     }
 
-    public function test_a_manual_ledger_entry_can_still_be_edited_and_deleted(): void
+    public function test_a_manual_ledger_entry_can_still_be_edited_and_archived(): void
     {
         Sanctum::actingAs($this->admin);
-        $id = $this->postJson('/api/transactions', [
+        $id = $this->postTransaction([
             'type' => 'expense', 'amount' => 80, 'category' => 'Supplies', 'description' => 'Markers',
             'transaction_date' => now()->toDateString(),
         ])->assertCreated()->json('id');
 
-        $this->putJson("/api/transactions/{$id}", ['description' => 'Markers and tape', 'amount' => 95])->assertOk();
+        $this->putJson("/api/transactions/{$id}", ['edit_reason' => 'Corrected after review', 'description' => 'Markers and tape', 'amount' => 95])->assertOk();
         $this->assertSame('Markers and tape', Transaction::findOrFail($id)->description);
-        $this->deleteJson("/api/transactions/{$id}")->assertOk();
-        $this->assertDatabaseMissing('transactions', ['id' => $id]);
+        $this->patchJson("/api/transactions/{$id}/archive", ['reason' => 'Archived in the test'])->assertOk();
+        $this->assertNotNull(Transaction::withoutGlobalScopes()->findOrFail($id)->archived_at);
+        $this->assertNull(Transaction::find($id));
     }
 }

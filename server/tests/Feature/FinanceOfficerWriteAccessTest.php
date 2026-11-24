@@ -98,8 +98,8 @@ class FinanceOfficerWriteAccessTest extends TestCase
 
         return match ($key) {
             'transaction.store' => ['POST', '/api/transactions', ['type' => 'income', 'amount' => '50.00', 'category' => 'Dues', 'description' => 'Booth sales', 'transaction_date' => now()->toDateString()], 201],
-            'transaction.update' => ['PUT', "/api/transactions/{$this->transaction->id}", ['description' => 'Corrected entry'], 200],
-            'transaction.destroy' => ['DELETE', "/api/transactions/{$this->transaction->id}", [], 200],
+            'transaction.update' => ['PUT', "/api/transactions/{$this->transaction->id}", ['description' => 'Corrected entry', 'edit_reason' => 'Corrected after review'], 200],
+            'transaction.archive' => ['PATCH', "/api/transactions/{$this->transaction->id}/archive", ['reason' => 'Archived in the test'], 200],
             'collection.store' => ['POST', '/api/collections', ['amount_collected' => '75.00', 'source' => 'Membership'], 201],
             'remittance.store' => ['POST', "/api/collections/{$this->verifiedCollection->id}/remittances", ['amount' => '50.00'], 201],
             'invoice.store' => ['POST', '/api/invoices', ['student_id' => $this->student->school_id, 'description' => 'Shirt', 'amount_due' => '150.00'], 201],
@@ -115,7 +115,7 @@ class FinanceOfficerWriteAccessTest extends TestCase
     public static function openedRoutes(): array
     {
         return array_map(fn (string $key) => [$key], [
-            'transaction.store', 'transaction.update', 'transaction.destroy', 'collection.store', 'remittance.store', 'invoice.store',
+            'transaction.store', 'transaction.update', 'transaction.archive', 'collection.store', 'remittance.store', 'invoice.store',
             'invoice.payment', 'budget.store', 'budget.update', 'budget.advice', 'report.generate', 'forecast.generate',
         ]);
     }
@@ -175,7 +175,7 @@ class FinanceOfficerWriteAccessTest extends TestCase
     {
         Sanctum::actingAs($this->otherTreasurer);
 
-        $this->postJson('/api/transactions', ['type' => 'expense', 'amount' => '20.00', 'category' => 'Supplies', 'description' => 'Paper', 'transaction_date' => now()->toDateString()])->assertCreated()
+        $this->postTransaction(['type' => 'expense', 'amount' => '20.00', 'category' => 'Supplies', 'description' => 'Paper', 'transaction_date' => now()->toDateString()])->assertCreated()
             ->assertJsonPath('organization_id', $this->other->id)->assertJsonPath('recorded_by', $this->otherTreasurer->id);
         $collectionId = $this->postJson('/api/collections', ['amount_collected' => '10.00', 'source' => 'Dues'])->assertCreated()->assertJsonPath('organization_id', $this->other->id)->json('id');
         $budgetId = $this->postJson('/api/budgets', ['title' => 'Other budget', 'allocated_amount' => '100.00', 'warning_threshold' => '10.00'])->assertCreated()
@@ -285,12 +285,12 @@ class FinanceOfficerWriteAccessTest extends TestCase
         ]);
         Sanctum::actingAs($this->treasurer);
 
-        $this->putJson("/api/transactions/{$entry->id}", ['amount' => '0.01'])
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'amount' => '0.01'])
             ->assertForbidden()->assertJsonPath('message', 'You can only change transactions you recorded.');
         $this->assertSame('500.00', number_format((float) $entry->fresh()->amount, 2, '.', ''));
 
         Sanctum::actingAs($this->admin);
-        $this->putJson("/api/transactions/{$entry->id}", ['description' => 'Admin corrected'])->assertOk();
+        $this->putJson("/api/transactions/{$entry->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Admin corrected'])->assertOk();
     }
 
     public function test_ask_ai_offers_the_budget_action_and_the_finance_tools_only_to_an_officer_with_the_switch(): void

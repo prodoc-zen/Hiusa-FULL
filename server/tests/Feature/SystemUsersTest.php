@@ -568,7 +568,7 @@ class SystemUsersTest extends TestCase
             'task_progress_updates' => fn ($u) => DB::table('task_progress_updates')->insert(['task_id' => $task()->id, 'organization_id' => $organization(), 'updated_by' => $u('updated_by'), 'status' => 'in_progress', ...$stamps]),
             'task_recommendations' => fn ($u) => DB::table('task_recommendations')->insert(['task_id' => $task()->id, 'organization_id' => $organization(), 'officer_id' => $u('officer_id'), 'weights' => json_encode([]), 'eligibility_result' => 'eligible']),
             'tasks' => fn ($u) => Task::factory()->create(['created_by' => $u('created_by'), 'assigned_to' => null]),
-            'transactions' => fn ($u) => Transaction::factory()->create(['budget_id' => null, 'organization_id' => $organization(), 'recorded_by' => $u('recorded_by'), 'payer_id' => $u('payer_id')]),
+            'transactions' => fn ($u) => Transaction::factory()->create(['budget_id' => null, 'organization_id' => $organization(), 'recorded_by' => $u('recorded_by'), 'payer_id' => $u('payer_id'), 'archived_by' => $u('archived_by'), 'last_edited_by' => $u('last_edited_by')]),
             'venue_bookings' => fn ($u) => DB::table('venue_bookings')->insert(['venue_id' => DB::table('venues')->insertGetId(['name' => 'Gym '.uniqid(), 'location' => 'Main building', ...$stamps]), 'organization_id' => $organization(), 'start_time' => now()->addDay(), 'end_time' => now()->addDay()->addHours(2), 'requested_by' => $u('requested_by'), 'reviewed_by' => $u('reviewed_by'), ...$stamps]),
             'votes' => fn ($u) => Vote::factory()->create(['voter_id' => $u('voter_id')]),
         ];

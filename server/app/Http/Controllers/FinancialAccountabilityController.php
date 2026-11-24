@@ -636,7 +636,7 @@ class FinancialAccountabilityController extends Controller
             $affectedUser = User::where('organization_id', $organizationId)->find($log->record_id);
             $subject = $affectedUser ? 'User account: '.$this->userLabel($affectedUser) : 'User account #'.$log->record_id;
         } elseif ($recordType === Transaction::class) {
-            $record = Transaction::with('payer:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId)->find($log->record_id);
+            $record = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->with('payer:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId)->find($log->record_id);
             $affectedUser = $record?->payer;
             $subject = $record ? 'Ledger entry: '.$record->description : 'Ledger entry #'.$log->record_id;
         } elseif ($recordType === Order::class) {

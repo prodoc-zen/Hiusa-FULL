@@ -41,7 +41,7 @@ class BudgetReapprovalTest extends TestCase
 
     private function spend(Budget $budget, string $type, float $amount): int
     {
-        return $this->postJson('/api/transactions', [
+        return $this->postTransaction([
             'type' => $type, 'amount' => $amount, 'category' => 'Supplies', 'description' => "{$type} {$amount}",
             'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
         ])->assertCreated()->json('id');
@@ -59,7 +59,7 @@ class BudgetReapprovalTest extends TestCase
         $this->approveAsHead($budget);
         $this->assertEquals(600, (float) $budget->fresh()->remaining_amount, 'Re-approval must not erase the 400 already spent.');
 
-        $this->deleteJson("/api/transactions/{$expense}")->assertOk();
+        $this->patchJson("/api/transactions/{$expense}/archive", ['reason' => 'Archived in the test'])->assertOk();
         $this->assertEquals(1000, (float) $budget->fresh()->remaining_amount);
     }
 

@@ -63,7 +63,7 @@ class ViewOnlySeatTest extends TestCase
         $this->putJson("/api/events/{$event->id}", ['title' => 'Renamed'])->assertForbidden();
         $this->deleteJson("/api/events/{$event->id}")->assertForbidden();
         $this->postJson('/api/announcements', ['title' => 'Notice', 'body' => 'Text.', 'target_role' => 'all', 'is_published' => true])->assertForbidden();
-        $this->postJson('/api/transactions', ['type' => 'income', 'amount' => 100, 'description' => 'Dues'])->assertForbidden();
+        $this->postTransaction(['type' => 'income', 'amount' => 100, 'description' => 'Dues'])->assertForbidden();
 
         $this->assertSame('Foundation Day', $event->fresh()->title);
         $this->assertSame(0, Transaction::count());
