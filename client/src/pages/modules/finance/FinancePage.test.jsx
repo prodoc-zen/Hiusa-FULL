@@ -40,7 +40,7 @@ const financeMocks = vi.hoisted(() => ({
   submitFinancialReport: vi.fn(),
   deleteBudget: vi.fn(),
   deleteForecast: vi.fn(),
-  deleteTransaction: vi.fn(),
+  archiveTransaction: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -648,7 +648,7 @@ describe('FinancePage transaction search', () => {
   }, 20000);
 });
 
-describe('FinancePage deleting budgets and transactions', () => {
+describe('FinancePage deleting budgets and archiving transactions', () => {
   const budget = { id: 4, title: 'Sports Fest Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' };
   const transaction = { id: 7, transaction_date: '2026-09-08T10:30:00.000000Z', description: 'Venue reservation', category: 'Events', type: 'expense', amount: 2500 };
 
@@ -672,11 +672,12 @@ describe('FinancePage deleting budgets and transactions', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete budget' }));
   }
 
-  async function confirmTransactionDelete() {
+  async function confirmTransactionArchive() {
     render(<FinancePage initialTab="transactions" />);
-    fireEvent.click(await findRowAction('Delete transaction'));
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete transaction' }));
+    fireEvent.click(await findRowAction('Archive transaction'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
+    fireEvent.change(within(dialog).getByLabelText('Reason for archiving'), { target: { value: 'Recorded twice' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive transaction' }));
   }
 
   it('deletes a budget after confirmation and reloads the budgets', async () => {
@@ -696,21 +697,23 @@ describe('FinancePage deleting budgets and transactions', () => {
     expect(financeMocks.getBudgets).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes a transaction after confirmation and reloads the ledger', async () => {
-    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
-    await confirmTransactionDelete();
+  it('archives a transaction with its reason and reloads the ledger', async () => {
+    financeMocks.archiveTransaction.mockResolvedValue({ data: { message: 'Transaction archived.' } });
+    await confirmTransactionArchive();
 
-    await waitFor(() => expect(financeMocks.deleteTransaction).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(financeMocks.archiveTransaction).toHaveBeenCalledWith(7, 'Recorded twice'));
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
   });
 
   it('holds the old ledger rows, not a loading state, until the refreshed ones arrive', async () => {
     let finish;
-    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
+    financeMocks.archiveTransaction.mockResolvedValue({ data: { message: 'Transaction archived.' } });
     render(<FinancePage initialTab="transactions" />);
-    fireEvent.click(await findRowAction('Delete transaction'));
+    fireEvent.click(await findRowAction('Archive transaction'));
     financeMocks.getTransactions.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Delete this transaction?' })).getByRole('button', { name: 'Delete transaction' }));
+    const archiveDialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
+    fireEvent.change(within(archiveDialog).getByLabelText('Reason for archiving'), { target: { value: 'Recorded twice' } });
+    fireEvent.click(within(archiveDialog).getByRole('button', { name: 'Archive transaction' }));
 
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
@@ -719,10 +722,10 @@ describe('FinancePage deleting budgets and transactions', () => {
   });
 
   it('shows the server message for a ledger entry owned by another module', async () => {
-    financeMocks.deleteTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
-    await confirmTransactionDelete();
+    financeMocks.archiveTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
+    await confirmTransactionArchive();
 
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Archive this transaction?' });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Change it from Collections.');
   });
 
@@ -937,12 +940,12 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(system).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(await findRowAction('Edit transaction')).toBeInTheDocument();
-    expect(await findRowAction('Delete transaction')).toBeInTheDocument();
+    expect(await findRowAction('Archive transaction')).toBeInTheDocument();
     expect(within(system).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
-    expect(within(system).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: 'Archive transaction' })).not.toBeInTheDocument();
     expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
-    expect(within(locked).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Archive transaction' })).not.toBeInTheDocument();
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
   });
 
