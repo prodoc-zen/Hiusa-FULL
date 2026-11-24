@@ -1370,7 +1370,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           type="button"
           title="View what changed"
           onClick={() => setHistoryTarget(tx)}
-          className="relative inline-flex h-6 items-center whitespace-nowrap rounded bg-amber-50 px-2 text-xs font-medium text-amber-800 after:absolute after:-inset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          className="relative inline-flex h-6 items-center whitespace-nowrap rounded bg-warning-tint px-2 text-xs font-medium text-warning-strong after:absolute after:-inset-x-2 after:-inset-y-3 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
         >
           Edited
         </button>
