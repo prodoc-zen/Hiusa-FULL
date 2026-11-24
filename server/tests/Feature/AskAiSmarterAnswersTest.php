@@ -17,7 +17,6 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\Support\AskAiChatFakeGenerator;
@@ -251,6 +250,28 @@ class AskAiSmarterAnswersTest extends TestCase
         $this->assertSame('/dashboard/finance/financial-ledger', $materials['href']);
     }
 
+    public function test_the_finance_facts_net_equals_the_ledger_summary_net_with_an_archived_entry_present(): void
+    {
+        $org = $this->org();
+        $admin = $this->admin($org);
+        $budget = Budget::create(['organization_id' => $org->id, 'title' => 'General Fund', 'allocated_amount' => 20000, 'remaining_amount' => 18000, 'warning_threshold' => 100, 'submission_status' => 'approved']);
+        Transaction::factory()->create(['budget_id' => $budget->id, 'organization_id' => $org->id, 'type' => 'expense', 'amount' => 2000, 'transaction_date' => 'now']);
+        $this->unlinked($org, 'income', 5000, 'membership');
+        $this->unlinked($org, 'expense', 750.25, 'materials');
+        $this->unlinked($org, 'expense', 9999, 'materials')->forceFill(['archived_at' => now(), 'archive_reason' => 'Entered twice by mistake'])->save();
+        Sanctum::actingAs($admin);
+
+        $summary = $this->getJson('/api/transactions/summary')->assertOk()->json();
+        $payload = $this->app->make(AskAiService::class)->deterministicAnswer($admin, 'How is our finance?', 'finance_health');
+        $labels = array_column($payload['highlights'], 'value', 'label');
+
+        $this->assertSame(2249.75, round((float) $summary['net_balance'], 2));
+        $this->assertSame('₱'.number_format((float) $summary['net_balance'], 2), $labels['Ledger net']);
+        $this->assertSame('₱'.number_format((float) $summary['total_income'], 2), $labels['Ledger income']);
+        $this->assertSame('₱'.number_format((float) $summary['total_expense'], 2), $labels['Ledger expenses']);
+        $this->assertStringNotContainsString('9,999', json_encode($payload));
+    }
+
     public function test_entries_linked_to_a_budget_and_entries_that_are_not_both_count_and_the_split_is_stated(): void
     {
         $org = $this->org();
@@ -284,9 +305,8 @@ class AskAiSmarterAnswersTest extends TestCase
         $this->assertStringNotContainsString('11,000', $figures);
     }
 
-    public function test_archived_ledger_entries_are_left_out_when_the_table_has_an_archived_at_column(): void
+    public function test_archived_ledger_entries_are_left_out_of_the_finance_facts(): void
     {
-        Schema::table('transactions', fn ($table) => $table->timestamp('archived_at')->nullable());
         $org = $this->org();
         $admin = $this->admin($org);
         $this->unlinked($org, 'income', 3000, 'membership');

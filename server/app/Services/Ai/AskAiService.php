@@ -28,13 +28,13 @@ use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
 use App\Services\EventApprovalChain;
 use App\Services\StudentAccountBalances;
+use App\Support\LedgerScope;
 use App\Support\SemesterScope;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class AskAiService
@@ -3319,18 +3319,15 @@ class AskAiService
     /**
      * What the ledger itself holds for the selected semester, whether or not an entry is linked to a budget. A manual
      * entry, a verified collection or an invoice payment often carries no budget, so a picture built from approved
-     * budgets alone reads 0.00 for an organization that has recorded money. It follows the Ledger page's own summary
-     * (organization and semester), and leaves out archived entries when the table has an archived_at column.
+     * budgets alone reads 0.00 for an organization that has recorded money. It reads through LedgerScope, the same scope
+     * behind the Ledger summary (organization, semester, no archived entry), so its net equals the Ledger page's.
      *
      * @param  array<int, int>  $orgIds
      * @return array{count: int, income: float, expense: float, unlinked_income: float, unlinked_expense: float, categories: array<int, array{category: string, income: float, expense: float, entries: int}>}
      */
     private function ledgerPicture(array $orgIds): array
     {
-        $entries = Transaction::query()
-            ->whereIn('organization_id', $orgIds)
-            ->tap(fn ($query) => SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected()))
-            ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('archived_at'));
+        $entries = LedgerScope::query(request(), $orgIds);
 
         $sum = fn (string $type, bool $unlinkedOnly = false) => "COALESCE(SUM(CASE WHEN type = '{$type}'".($unlinkedOnly ? ' AND budget_id IS NULL' : '').' THEN amount ELSE 0 END), 0)';
         $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense, {$sum('income', true)} as unlinked_income, {$sum('expense', true)} as unlinked_expense")->first();
@@ -5280,7 +5277,6 @@ class AskAiService
                 ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
                 ->whereNull('transactions.archived_at')
                 ->whereIn('transactions.organization_id', $orgIds)
-                ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('transactions.archived_at'))
                 ->orderByDesc('transactions.transaction_date')
                 ->limit(25)
                 ->get([
