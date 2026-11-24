@@ -133,6 +133,22 @@ describe('Budgets tab', () => {
     expect(within(general).queryByText('Seminar snacks budget')).not.toBeInTheDocument();
   });
 
+  it('prints the ledger net balance the budgets response carries, not a second read of the summary', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: { data: budgets, current_page: 1, last_page: 1, total: 3, per_page: 100, ledger_summary: { total_income: 4000, total_expense: 1000, net_balance: 3000 } } });
+    renderPage('budgets');
+
+    const strip = (await screen.findByText('Ledger net balance')).closest('p');
+    await waitFor(() => expect(within(strip).getByText('₱3,000.00')).toBeInTheDocument());
+    expect(within(strip).queryByText('₱1,300.00')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the ledger summary read when the budgets response carries none', async () => {
+    renderPage('budgets');
+
+    const strip = (await screen.findByText('Ledger net balance')).closest('p');
+    await waitFor(() => expect(within(strip).getByText('₱1,300.00')).toBeInTheDocument());
+  });
+
   it('shows the four figures and the arithmetic on a budget card', async () => {
     renderPage('budgets');
 
