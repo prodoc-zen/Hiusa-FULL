@@ -139,6 +139,8 @@ return [
         '/dashboard/events/check-in',
         '/dashboard/events/activity-calendar',
         '/dashboard/finance/financial-ledger',
+        '/dashboard/finance/collections',
+        '/dashboard/finance/student-accounts',
         '/dashboard/finance/budget-allocation',
         '/dashboard/finance/financial-insights',
         '/dashboard/finance/transaction-history',

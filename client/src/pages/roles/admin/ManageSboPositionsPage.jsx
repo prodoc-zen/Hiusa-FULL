@@ -11,6 +11,11 @@ import { createSboPosition, deleteSboPosition, getSboPositions, updateSboPositio
 
 const EMPTY_FORM = { role: 'ADMIN', title: '', description: '', is_active: true };
 const ROLE_LABELS = { ADMIN: 'Admin', SBO_OFFICER: 'SBO officer' };
+// What an Admin can switch on per officer position; an Admin position always has both.
+const SWITCH_COLUMNS = [
+  { field: 'can_book_venues', header: 'Can book venues' },
+  { field: 'can_handle_finance', header: 'Can handle finance' },
+];
 const ADMIN_TITLES = ['President', 'Department Secretary', 'Secretary', 'Vice President', 'Treasurer', 'Auditor', 'Co-Administrator', 'Executive Secretary', 'Chief of Developer'];
 
 function firstError(error, fallback) {
@@ -76,12 +81,12 @@ export default function ManageSboPositionsPage() {
     finally { setBusy(false); }
   };
 
-  // The booking switch saves on its own: only that field is sent, and it moves once the server has taken it.
-  const toggleBooking = async (position, canBook) => {
-    setSwitchingId(position.id);
+  // A switch saves on its own: only that field is sent, and it moves once the server has taken it.
+  const toggleSwitch = async (position, field, value) => {
+    setSwitchingId(`${field}-${position.id}`);
     try {
-      await updateSboPosition(position.id, { can_book_venues: canBook });
-      setPositions((current) => current.map((row) => (row.id === position.id ? { ...row, can_book_venues: canBook } : row)));
+      await updateSboPosition(position.id, { [field]: value });
+      setPositions((current) => current.map((row) => (row.id === position.id ? { ...row, [field]: value } : row)));
     } catch (requestError) {
       setFeedback({ open: true, type: 'error', message: firstError(requestError, 'Unable to save this change.') });
     } finally { setSwitchingId(null); }
@@ -104,7 +109,7 @@ export default function ManageSboPositionsPage() {
   // Responsibilities and the inactive flag sit under the title so a row has no empty cells; the account
   // role gets a column only while the list holds more than one role.
   const mixedRoles = new Set(filtered.map((position) => position.role)).size > 1;
-  // An Admin can always book, so the switch column only appears while the list holds officer positions.
+  // An Admin can always book and handle finance, so the switch columns only appear while the list holds officer positions.
   const hasOfficers = filtered.some((position) => position.role === 'SBO_OFFICER');
   const columns = [
     {
@@ -119,22 +124,22 @@ export default function ManageSboPositionsPage() {
       ),
     },
     ...(mixedRoles ? [{ key: 'role', header: 'Account role', render: (position) => ROLE_LABELS[position.role] || position.role }] : []),
-    ...(hasOfficers ? [{
-      key: 'can_book_venues',
-      header: 'Can book venues',
+    ...(hasOfficers ? SWITCH_COLUMNS.map(({ field, header }) => ({
+      key: field,
+      header,
       render: (position) => (position.role === 'ADMIN'
         ? <span className="text-xs text-ink-muted">Always</span>
         : (
           <StatusToggleSwitch
-            checked={Boolean(position.can_book_venues)}
-            onChange={(canBook) => toggleBooking(position, canBook)}
-            disabled={switchingId === position.id}
-            label={`Can book venues: ${position.title}`}
+            checked={Boolean(position[field])}
+            onChange={(value) => toggleSwitch(position, field, value)}
+            disabled={switchingId === `${field}-${position.id}`}
+            label={`${header}: ${position.title}`}
             activeText="Yes"
             inactiveText="No"
           />
         )),
-    }] : []),
+    })) : []),
   ];
 
   const filters = (

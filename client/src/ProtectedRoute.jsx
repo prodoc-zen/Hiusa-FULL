@@ -46,7 +46,8 @@ function officeStaffMayOpen(pathname) {
 }
 
 // requireVenueBooking: an SBO officer gets in only while their position can book venues (user.can_book_venues).
-export default function ProtectedRoute({ allowedRoles = null, requireVenueBooking = false, children = null }) {
+// requireFinanceWriter: an SBO officer gets in only while their position can handle finance (user.can_handle_finance).
+export default function ProtectedRoute({ allowedRoles = null, requireVenueBooking = false, requireFinanceWriter = false, children = null }) {
   const token = localStorage.getItem("auth_token");
   const location = useLocation();
   const user = getStoredUser();
@@ -73,6 +74,10 @@ export default function ProtectedRoute({ allowedRoles = null, requireVenueBookin
   }
 
   if (requireVenueBooking && role === "SBO_OFFICER" && user?.can_book_venues === false) {
+    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
+  }
+
+  if (requireFinanceWriter && role === "SBO_OFFICER" && user?.can_handle_finance !== true) {
     return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 

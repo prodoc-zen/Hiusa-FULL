@@ -5,6 +5,7 @@ import CashAdvancesSection from '../../../components/finance/CashAdvancesSection
 import ConfirmModal from '../../../components/ConfirmModal';
 import { createCollection, getCollections, getFinancialDashboard, recordRemittance, verifyCollection } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { effectiveRole, storedUser } from '../../../utils/collegeIdentity';
 import { Button, DataTable, Drawer, EmptyState, Field, Input, PageHeader, Select, StatusBadge, Textarea } from '../../../components/ui';
 
 const EMPTY_COLLECTION = { source: '', amount_collected: '', expected_amount: '', notes: '' };
@@ -24,6 +25,8 @@ export default function FinancialCollectionsPage() {
   const [remitAmount, setRemitAmount] = useState('');
   const [verifyTarget, setVerifyTarget] = useState(null);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  // Recording and remitting are the Admin's and the finance-enabled officer's; verifying stays with the Admin, so an officer sees it switched off.
+  const isAdmin = effectiveRole(storedUser()) === 'ADMIN';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,7 +113,7 @@ export default function FinancialCollectionsPage() {
   const rowActions = (collection) => (
     <>
       {collection.status === 'pending' && Number(collection.collected_by) !== Number(user.school_id) && (
-        <Button variant="secondary" disabled={busy} onClick={() => { setError(''); setVerifyTarget(collection); }}>Verify</Button>
+        <Button variant="secondary" disabled={busy || !isAdmin} title={isAdmin ? undefined : 'An Admin verifies collections'} onClick={() => { setError(''); setVerifyTarget(collection); }}>Verify</Button>
       )}
       {collection.status === 'verified' && Number(collection.unremitted_balance) > 0 && (
         <Button variant="secondary" disabled={busy} onClick={() => { setError(''); setRemit(collection); setRemitAmount(''); }}>Remit</Button>
@@ -132,7 +135,8 @@ export default function FinancialCollectionsPage() {
     <PageHeader primary={createOpen || remit ? null : <Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
     {error && !createOpen && !remit && !verifyTarget && <p role="alert" className="rounded-card border border-line bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-card border border-line bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-    {!loading && dashboard?.admin_count === 1 && <p className="rounded-card border border-line bg-subtle p-3 text-sm text-ink">You are the only admin, so you cannot verify your own collections or approve your own cash advances. Ask your {dashboard.second_admin_named_by || 'Department Head'} to name a second organization head under People and access.</p>}
+    {!isAdmin && <p className="rounded-card border border-line bg-subtle p-3 text-sm text-ink">An Admin verifies collections before they reach the ledger. You can record collections and remittances.</p>}
+    {!loading && isAdmin && dashboard?.admin_count === 1 && <p className="rounded-card border border-line bg-subtle p-3 text-sm text-ink">You are the only admin, so you cannot verify your own collections or approve your own cash advances. Ask your {dashboard.second_admin_named_by || 'Department Head'} to name a second organization head under People and access.</p>}
     {!loading && dashboard && (
       <dl className="grid grid-cols-1 divide-y divide-line rounded-card border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {[['Available funds', dashboard.available_funds], ['Awaiting remittance', dashboard.unremitted_collections], ['Remitted', dashboard.total_remitted]].map(([label, value]) => (
@@ -167,7 +171,7 @@ export default function FinancialCollectionsPage() {
         stickyHeader={false}
       />
     </section>
-    <CashAdvancesSection onLedgerChange={load} />
+    <CashAdvancesSection onLedgerChange={load} readOnly={!isAdmin} />
     <ConfirmModal
       open={Boolean(verifyTarget)}
       title="Verify this collection?"

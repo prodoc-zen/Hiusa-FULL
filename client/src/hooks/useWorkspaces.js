@@ -38,8 +38,8 @@ async function followRoleChange(profiles, activeProfileId) {
   }
 }
 
-// An officer's modules and venue booking are read from the stored user, so a change the Admin makes while the
-// officer is signed in shows only after the stored user is read again. The tab reloads once when either differs.
+// An officer's modules, venue booking and finance handling are read from the stored user, so a change the Admin makes while the
+// officer is signed in shows only after the stored user is read again. The tab reloads once when any differs.
 let accessCheck = null;
 
 async function followAccessChange() {
@@ -55,7 +55,8 @@ async function followAccessChange() {
       }
       const modulesChanged = JSON.stringify(fresh.modules ?? null) !== JSON.stringify(before.modules ?? null);
       const bookingChanged = (fresh.can_book_venues !== false) !== (before.can_book_venues !== false);
-      if (modulesChanged || bookingChanged) window.location.reload();
+      const financeChanged = (fresh.can_handle_finance === true) !== (before.can_handle_finance === true);
+      if (modulesChanged || bookingChanged || financeChanged) window.location.reload();
     } catch {
       // The menu stays as it is; the next return to the tab tries again.
     } finally {

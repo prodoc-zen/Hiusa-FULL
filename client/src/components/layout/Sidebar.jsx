@@ -10,6 +10,7 @@ import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import useActiveSubAccount from '../../hooks/useActiveSubAccount';
 import { useApplicantAccess } from '../../hooks/useApplicantAccess';
 import { readCanBookVenues, readUserModules } from '../../utils/userModules';
+import { readCanHandleFinance } from '../../utils/financeAccess';
 import { effectiveRole } from '../../utils/collegeIdentity';
 import { APPLY_ORGANIZATION, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getOrgSpaceNav, getVisibleChildren, navRoleFor, resolveItemPath, withApplicantAccess } from './navigation';
 
@@ -180,13 +181,14 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const orgSpace = effectiveRole(user) === 'DEPARTMENT_HEAD' ? subAccount : null;
   const modules = useMemo(() => readUserModules(), []);
   const canBookVenues = useMemo(() => readCanBookVenues(), []);
+  const canHandleFinance = useMemo(() => readCanHandleFinance(), []);
   const { visible: canApply } = useApplicantAccess(role);
   const showApply = role === 'STUDENT' && canApply;
   const navRole = navRoleFor(user) || role;
-  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(navRole, modules, canBookVenues), showApply)), [orgSpace, navRole, modules, canBookVenues, showApply]);
+  const nav = useMemo(() => (orgSpace ? getOrgSpaceNav(orgSpace.id) : withApplicantAccess(getNavForRole(navRole, modules, canBookVenues, canHandleFinance), showApply)), [orgSpace, navRole, modules, canBookVenues, canHandleFinance, showApply]);
   const activeId = useMemo(
-    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(navRole, modules, canBookVenues), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
-    [orgSpace, nav, navRole, modules, canBookVenues, showApply, location.pathname, location.search],
+    () => findActiveNavId(orgSpace ? nav : [...getNavLeaves(navRole, modules, canBookVenues, canHandleFinance), ...(showApply ? [APPLY_ORGANIZATION] : []), ...footerNav], location.pathname, location.search),
+    [orgSpace, nav, navRole, modules, canBookVenues, canHandleFinance, showApply, location.pathname, location.search],
   );
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 

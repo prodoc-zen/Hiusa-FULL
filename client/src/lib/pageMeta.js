@@ -1,5 +1,6 @@
 import { ROLE_HOME_PATHS, getNavForRole, resolveItemPath } from '../components/layout/navigation';
 import { effectiveRole } from '../utils/collegeIdentity';
+import { readCanHandleFinance } from '../utils/financeAccess';
 
 // The single source of truth for what each dashboard route is called: its title, a one-line purpose
 // (120 characters at most, plain words, never shown as a lead line), the sidebar group it belongs to
@@ -12,6 +13,7 @@ import { effectiveRole } from '../utils/collegeIdentity';
 
 const MY_ACTIVITY = { ADMIN: { group: 'My activity' }, SBO_OFFICER: { group: 'My activity' } };
 const FINANCE_VIEW_ONLY = { SBO_OFFICER: { group: 'Finance (view only)' } };
+const FINANCE_VIEW_ONLY_GROUP = 'Finance (view only)';
 const ELECTIONS_STEP = { ADMIN: { parents: [{ label: 'Elections', to: '/dashboard/elections/manage-elections' }] } };
 
 const PAGE_META = {
@@ -224,6 +226,8 @@ export function getPageMeta(pathname, role) {
   if (!entry) return FALLBACK;
 
   const merged = { ...entry, ...(entry.byRole?.[role] || {}) };
+  // An officer whose position handles finance works in Finance, not in a view only group.
+  if (role === 'SBO_OFFICER' && merged.group === FINANCE_VIEW_ONLY_GROUP && readCanHandleFinance()) merged.group = 'Finance';
   return {
     title: merged.title,
     purpose: merged.purpose,
@@ -237,7 +241,7 @@ export function getPageMeta(pathname, role) {
 // A group links to the page its sidebar row opens, which is also where clicking that row goes. It is
 // plain text when the role's sidebar has no such row or the link would lead to the page you are on.
 function groupLink(group, role, pathname) {
-  const row = getNavForRole(role).find((item) => item.label === group);
+  const row = getNavForRole(role, null, true, readCanHandleFinance()).find((item) => item.label === group);
   if (!row) return undefined;
 
   const target = resolveItemPath(row);
