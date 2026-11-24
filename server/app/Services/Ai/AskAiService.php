@@ -287,7 +287,7 @@ class AskAiService
     /**
      * Who is asking and when, in the words the model is allowed to repeat.
      *
-     * @return array{first_name: string, role: string, scope: string, today: string, semester: ?string}
+     * @return array{first_name: string, role: string, position: ?string, scope: string, today: string, semester: ?string}
      */
     public function chatContext(User $user): array
     {
@@ -300,10 +300,19 @@ class AskAiService
         return [
             'first_name' => (string) $user->first_name,
             'role' => $this->roleName($user->role),
+            'position' => $this->positionTitle($user),
             'scope' => $this->scopeLabel($user),
             'today' => now()->format('l, F j, Y'),
             'semester' => $label,
         ];
+    }
+
+    /** The title the person holds in their organization, or null: a student without one is never given a made-up title. */
+    private function positionTitle(User $user): ?string
+    {
+        $title = trim((string) $user->position_title);
+
+        return $title === '' ? null : $title;
     }
 
     /** @return array<int, array{id: string, label: string, question: string, topic: string}> */
@@ -351,6 +360,25 @@ class AskAiService
             'follow_ups' => array_map(fn (array $q) => ['topic' => $q['topic'], 'label' => $q['label'], 'question' => $q['question']], array_slice($prompts, 0, 3)),
             'model_name' => null,
         ], 'capabilities');
+    }
+
+    /** Who the account is: role, organization and officer position, read from the account and needing no model. */
+    public function identityAnswer(User $user): array
+    {
+        $position = $this->positionTitle($user);
+        $answer = 'You are signed in as '.$this->roleName($user->role).' for '.AnswerMarkdown::escape($this->scopeLabel($user)).'.'
+            .($position !== null
+                ? ' Your position is '.AnswerMarkdown::escape($position).'.'
+                : ($user->role === 'STUDENT' ? ' There is no officer position on your account.' : ' There is no position title on your account.'));
+
+        return $this->enrichWithFormattedBlocksAndCharts([
+            'title' => 'Who you are in HIUSA',
+            'answer' => $answer,
+            'highlights' => [],
+            'sections' => [],
+            'follow_ups' => array_map(fn (array $q) => ['topic' => $q['topic'], 'label' => $q['label'], 'question' => $q['question']], array_slice($this->starterPrompts($user), 0, 3)),
+            'model_name' => null,
+        ], 'identity');
     }
 
     /** A short answer for a greeting or thanks, still carrying the role's first prompts as chips. */
@@ -1596,7 +1624,7 @@ class AskAiService
     /** Where the facts in an answer came from, in plain words a person can check. */
     public function sourcesFor(User $user, string $intent, array $payload = []): string
     {
-        if (in_array($intent, ['greeting', 'capabilities', 'memory'], true)) {
+        if (in_array($intent, ['greeting', 'capabilities', 'memory', 'identity'], true)) {
             return self::NO_RECORD_SOURCES;
         }
         if (! empty($payload['no_answer'])) {

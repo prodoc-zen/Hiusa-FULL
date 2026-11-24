@@ -39,12 +39,13 @@ class AskAiChatService
 
     public const INTERRUPTED = 'I could not tell whether this went through. Check the page before trying again.';
 
-    private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory'];
+    private const LOCAL_INTENTS = ['greeting', 'capabilities', 'memory', 'identity'];
 
     private const LOCAL_PHRASES = [
         'greeting' => 'Understood this as a greeting',
         'capabilities' => 'Understood this as a question about what the assistant can do',
         'memory' => 'Understood this as a request about your saved memory',
+        'identity' => 'Understood this as a question about your own role and position',
     ];
 
     private const INTENT_PHRASES = [
@@ -316,6 +317,10 @@ class AskAiChatService
 
         if (preg_match('/^'.$polite.'(?:what\s+can\s+you\s+do|what\s+do\s+you\s+do|what\s+can\s+i\s+ask(?:\s+you)?|how\s+can\s+you\s+help(?:\s+me)?|what\s+can\s+you\s+help(?:\s+me)?\s+with|what\s+are\s+you\s+able\s+to\s+do|what\s+are\s+your\s+capabilities|who\s+are\s+you)(?:\s+for\s+me)?[\s?.!]*$/iu', $plain) === 1) {
             return ['intent' => 'capabilities', 'payload' => $this->askAi->capabilitiesAnswer($user)];
+        }
+
+        if (preg_match('/^'.$polite.'(?:who\s+am\s+i|what(?:\'s|\s+is)\s+my\s+(?:role|position|title)|what\s+(?:role|position|title)\s+do\s+i\s+(?:have|hold)|what\s+am\s+i)(?:\s+(?:here|in\s+(?:hiusa|the\s+system|this\s+(?:system|app|organi[sz]ation)|my\s+organi[sz]ation)))?[\s?.!]*$/iu', $plain) === 1) {
+            return ['intent' => 'identity', 'payload' => $this->askAi->identityAnswer($user)];
         }
 
         return null;
@@ -857,6 +862,7 @@ class AskAiChatService
             'question' => $question,
             'user_first_name' => $context['first_name'],
             'role' => $context['role'],
+            'position' => $context['position'] === null ? null : AnswerMarkdown::escape($context['position']),
             'scope' => $context['scope'],
             'today' => $context['today'],
             'semester' => $context['semester'],
