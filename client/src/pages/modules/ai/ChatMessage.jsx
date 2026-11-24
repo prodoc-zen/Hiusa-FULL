@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Check, Copy, Paperclip, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Tooltip } from '../../../components/ui';
 import AiMarkdown from '../../../components/ai/AiMarkdown';
 import AnswerBlocks from '../../../components/ai/AnswerBlocks';
@@ -7,6 +7,7 @@ import ActionCard from '../../../components/ai/ActionCard';
 import { actionCopyText, actionOf } from '../../../components/ai/actionState';
 import answerText from '../../../components/ai/answerText';
 import ReasoningDisclosure from '../../../components/ai/ReasoningDisclosure';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 
 const ACTION_CLASS =
   'inline-flex h-9 items-center gap-1.5 rounded-control px-2.5 text-xs font-semibold text-ink-muted-strong transition-colors hover:bg-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-[42px]';
@@ -72,6 +73,33 @@ function CopyAction({ getText }) {
   );
 }
 
+// The file a person attached to their question. It opens through the protected route, so only its owner can read it.
+function AttachmentLine({ attachment }) {
+  const [failed, setFailed] = useState(false);
+  const open = async () => {
+    setFailed(false);
+    try {
+      await openProtectedFile(attachment.open_url);
+    } catch {
+      setFailed(true);
+    }
+  };
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Open ${attachment.name}`}
+        onClick={open}
+        className="inline-flex min-h-[34px] max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-semibold text-ink hover:bg-subtle max-sm:min-h-[42px]"
+      >
+        <Paperclip size={12} aria-hidden="true" className="shrink-0" />
+        <span className="min-w-0 truncate">{attachment.name}</span>
+      </button>
+      {failed && <p role="alert" className="text-xs font-semibold text-danger-strong">Could not open that file.</p>}
+    </>
+  );
+}
+
 export default function ChatMessage({
   message,
   isLast = false,
@@ -91,7 +119,8 @@ export default function ChatMessage({
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-1.5">
+        {message.attachment?.open_url && <AttachmentLine attachment={message.attachment} />}
         <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-card bg-brand-50 px-3.5 py-2.5 text-sm font-medium leading-6 text-ink">
           {message.content}
         </p>

@@ -5,6 +5,8 @@ import ActionCard from './ActionCard';
 
 const service = vi.hoisted(() => ({ confirmAiAction: vi.fn(), cancelAiAction: vi.fn() }));
 vi.mock('../../services/askAiService', () => service);
+const receipt = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../utils/openProtectedFile', () => receipt);
 
 const future = () => new Date(Date.now() + 20 * 60000).toISOString();
 
@@ -385,5 +387,62 @@ describe('ActionCard', () => {
     const alert = screen.getByText('Pick yes.');
     expect(alert.id).toBeTruthy();
     expect(screen.getByRole('checkbox').getAttribute('aria-describedby')).toBe(alert.id);
+  });
+});
+
+describe('ActionCard record expense from a receipt', () => {
+  const EXPENSE_FIELDS = [
+    { name: 'amount', label: 'Amount', type: 'number', required: true, value: 245.5, max: null, help: null, options: null },
+    { name: 'date', label: 'Date', type: 'date', required: true, value: '', max: null, help: null, options: null },
+    { name: 'description', label: 'Payee or description', type: 'text', required: true, value: 'Jollibee Colon', max: 255, help: null, options: null },
+    { name: 'category', label: 'Category', type: 'select', required: true, value: 'Food', max: null, help: null, options: [{ value: 'Food', label: 'Food' }, { value: 'Supplies', label: 'Supplies' }] },
+  ];
+  const expense = () => message({
+    key: 'record_expense',
+    title: 'Record expense',
+    submit_label: 'Record expense',
+    fields: EXPENSE_FIELDS,
+    receipt: { name: 'lunch.jpg', open_url: '/ai/assistant/attachments/5' },
+  });
+
+  beforeEach(() => {
+    service.confirmAiAction.mockReset();
+    receipt.openProtectedFile.mockReset();
+  });
+
+  it('says the values were read from the receipt and must be checked, and names the file', () => {
+    renderCard({ msg: expense() });
+    expect(screen.getByText('These values were read from the receipt. Check each one before you confirm.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open lunch.jpg' })).toBeInTheDocument();
+  });
+
+  it('opens the receipt through the protected route', () => {
+    renderCard({ msg: expense() });
+    fireEvent.click(screen.getByRole('button', { name: 'Open lunch.jpg' }));
+    expect(receipt.openProtectedFile).toHaveBeenCalledWith('/ai/assistant/attachments/5');
+  });
+
+  it('shows pre-filled fields that can be edited and leaves an unread field empty', () => {
+    renderCard({ msg: expense() });
+    expect(screen.getByLabelText(/Amount/)).toHaveValue(245.5);
+    expect(screen.getByLabelText(/Date/)).toHaveValue('');
+    fireEvent.change(screen.getByLabelText(/Amount/), { target: { value: '250' } });
+    fireEvent.change(screen.getByLabelText(/Date/), { target: { value: '2026-11-20' } });
+    expect(screen.getByLabelText(/Amount/)).toHaveValue(250);
+    expect(screen.getByLabelText(/Date/)).toHaveValue('2026-11-20');
+  });
+
+  it('confirms with what is in the fields, and null for one left empty', async () => {
+    service.confirmAiAction.mockResolvedValue({ data: { message: { id: 8 } } });
+    renderCard({ msg: expense() });
+    fireEvent.click(screen.getByRole('button', { name: 'Record expense' }));
+    await waitFor(() => expect(service.confirmAiAction).toHaveBeenCalledWith(8, {
+      amount: 245.5, date: null, description: 'Jollibee Colon', category: 'Food',
+    }));
+  });
+
+  it('shows no receipt line on a card that has no receipt', () => {
+    renderCard();
+    expect(screen.queryByText(/read from the receipt/)).not.toBeInTheDocument();
   });
 });

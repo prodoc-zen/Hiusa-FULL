@@ -43,7 +43,7 @@ describe('ChatComposer', () => {
     const box = screen.getByLabelText('Message Ask AI');
     fireEvent.change(box, { target: { value: 'hello' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
-    expect(onSend).toHaveBeenCalledWith('hello');
+    expect(onSend).toHaveBeenCalledWith('hello', null);
     expect(box).toHaveValue('hello');
   });
 

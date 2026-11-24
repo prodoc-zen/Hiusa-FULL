@@ -128,6 +128,41 @@ describe('streamAiChat', () => {
     expect(JSON.parse(init.body)).toEqual({ conversation_id: 12, message: 'hi', topic: 'x', regenerate: false, source: 'link' });
   });
 
+  it('sends multipart with the file as attachment, the fields beside it, and no JSON content type', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse([sse('done', { conversation, message: doneMessage })]));
+    vi.stubGlobal('fetch', fetchMock);
+    const attachment = new File(['%PDF'], 'receipt.pdf', { type: 'application/pdf' });
+
+    await streamAiChat({ conversationId: 12, message: 'record this', source: 'typed', attachment });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBeInstanceOf(FormData);
+    expect(init.headers['Content-Type']).toBeUndefined();
+    expect(init.headers.Authorization).toBe('Bearer tok');
+    expect(init.body.get('attachment')).toBeInstanceOf(File);
+    expect(init.body.get('attachment').name).toBe('receipt.pdf');
+    expect(init.body.get('conversation_id')).toBe('12');
+    expect(init.body.get('message')).toBe('record this');
+    expect(init.body.get('regenerate')).toBe('0');
+    expect(init.body.get('source')).toBe('typed');
+    expect(init.body.has('topic')).toBe(false);
+  });
+
+  it('leaves out a conversation id that is not set when sending multipart', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse([sse('done', { conversation, message: doneMessage })]));
+    vi.stubGlobal('fetch', fetchMock);
+    await streamAiChat({ message: 'hi', attachment: new File(['x'], 'a.png', { type: 'image/png' }) });
+    expect(fetchMock.mock.calls[0][1].body.has('conversation_id')).toBe(false);
+  });
+
+  it('keeps sending JSON when there is no file', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse([sse('done', { conversation, message: doneMessage })]));
+    vi.stubGlobal('fetch', fetchMock);
+    await streamAiChat({ message: 'hi', attachment: null });
+    expect(typeof fetchMock.mock.calls[0][1].body).toBe('string');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+  });
+
   it('sends source typed only when asked to, and link otherwise', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => streamResponse([sse('done', { conversation, message: doneMessage })]));
     vi.stubGlobal('fetch', fetchMock);
