@@ -510,6 +510,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const loadTicket = useRef(0);
   const ledgerTicket = useRef(0);
+  const eventLedgerTicket = useRef(0);
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '', archived: '' });
   const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
@@ -638,6 +639,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         if (!isNarrowedLedger(activeFilters, organizationScope, term)) {
           setOverallSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
           setBudgetsLedgerSummary(sumRes.data ?? null);
+          refreshEventLedgers(organizationScope);
         }
       })
       .catch(() => {
@@ -646,6 +648,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       .finally(() => {
         if (ticket === ledgerTicket.current) setLedgerLoading(false);
       });
+  }
+
+  // The By event panel and an opened event's header read these totals, so every ledger read that can change them reads them
+  // again; a newer read or a full load makes an older answer stale.
+  function refreshEventLedgers(organizationScope) {
+    if (!canViewTransactions) return;
+    const ticket = ++eventLedgerTicket.current;
+    readEventLedgers(organizationScope).then((ledgers) => {
+      if (ticket === eventLedgerTicket.current && ledgers) setEventLedgers(ledgers);
+    });
   }
 
   function applySearch(term) {
@@ -665,6 +677,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   function load(page = 1, filters = txFilters, searchTerm = appliedSearch, organizationId = organizationFilter, { refresh = false } = {}) {
     const ticket = ++loadTicket.current;
     const ledgerAtStart = ++ledgerTicket.current;
+    eventLedgerTicket.current += 1;
     setLedgerLoading(false);
     if (!refresh) setLoading(true);
     setError(null);
@@ -1341,6 +1354,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   // rows, the pages and the totals are the ledger's own.
   function changeLedgerView(view) {
     setLedgerView(view);
+    if (view === 'event') refreshEventLedgers(ledgerScope(txFilters, organizationFilter).organizationScope);
     if (view === 'event' && txFilters.event_id) {
       const next = { ...txFilters, event_id: '' };
       setTxFilters(next);
@@ -1351,6 +1365,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   function showEventLedger(eventId) {
     const next = { ...txFilters, event_id: eventId === null ? '' : String(eventId) };
     setTxFilters(next);
+    refreshEventLedgers(ledgerScope(next, organizationFilter).organizationScope);
     loadLedger(1, next);
   }
 

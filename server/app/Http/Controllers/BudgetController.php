@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
+use App\Models\Transaction;
 use App\Services\Ai\AiInstructions;
 use App\Services\BudgetAdviceRules;
 use App\Services\HiusaAiService;
@@ -142,7 +143,7 @@ class BudgetController extends Controller
 
             if (array_key_exists('event_id', $data)
                 && (int) ($data['event_id'] ?? 0) !== (int) ($budget->event_id ?? 0)
-                && $budget->transactions()->exists()) {
+                && $budget->transactions()->withoutGlobalScope(Transaction::NOT_ARCHIVED)->exists()) {
                 return response()->json([
                     'message' => 'This budget already has ledger entries, so it can no longer be moved to a different event.',
                 ], 409);
@@ -246,7 +247,7 @@ class BudgetController extends Controller
             if ($locked->submission_status === 'approved') {
                 return 'Cannot delete an approved budget. It stays on record as the allocation that was approved.';
             }
-            if ($locked->transactions()->exists()) {
+            if ($locked->transactions()->withoutGlobalScope(Transaction::NOT_ARCHIVED)->exists()) {
                 return 'Cannot delete a budget that has existing transactions. Remove all transactions first.';
             }
 

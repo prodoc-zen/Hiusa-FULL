@@ -269,6 +269,47 @@ describe('Ledger by event', () => {
     expect(eventField).toBeDisabled();
   });
 
+  const freshLedgers = { ...ledgers, totals: { income: '3800.00', expense: '2000.00', net: '1800.00', transaction_count: 10 } };
+
+  it('reads the event ledgers again when By event is opened, so a change made since the page loaded shows', async () => {
+    financeMocks.getEventLedgers.mockResolvedValueOnce({ data: ledgers }).mockResolvedValue({ data: freshLedgers });
+    renderPage('transactions');
+    await screen.findByText('Net balance');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'By event' }));
+
+    const rows = within(await screen.findByRole('list', { name: 'Event ledgers' })).getAllByRole('listitem');
+    await waitFor(() => expect(within(rows[4]).getByText('Net').nextSibling).toHaveTextContent('₱1,800.00'));
+  });
+
+  it('reads the event ledgers again once a search is cleared and By event is opened', async () => {
+    financeMocks.getEventLedgers.mockResolvedValueOnce({ data: ledgers }).mockResolvedValue({ data: freshLedgers });
+    renderPage('transactions');
+    const searchBox = await screen.findByPlaceholderText('Search transactions...');
+    fireEvent.change(searchBox, { target: { value: 'paper' } });
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'paper' })));
+    fireEvent.change(searchBox, { target: { value: '' } });
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith(expect.not.objectContaining({ search: 'paper' })));
+
+    fireEvent.click(screen.getByRole('radio', { name: 'By event' }));
+
+    const rows = within(await screen.findByRole('list', { name: 'Event ledgers' })).getAllByRole('listitem');
+    await waitFor(() => expect(within(rows[4]).getByText('Net').nextSibling).toHaveTextContent('₱1,800.00'));
+  });
+
+  it('reads the event ledgers again when an event is opened, so its header carries the current totals', async () => {
+    const list = await openByEvent();
+    financeMocks.getEventLedgers.mockResolvedValue({ data: {
+      ...ledgers,
+      data: [{ ...ledgers.data[0], income: '2600.00', expense: '1500.00', net: '1100.00' }, ...ledgers.data.slice(1)],
+    } });
+
+    fireEvent.click(within(list).getByRole('button', { name: 'Leadership Seminar 2024' }));
+
+    const header = await screen.findByRole('region', { name: 'Event ledger' });
+    await waitFor(() => expect(within(within(header).getByLabelText('Event totals')).getByText('Net').nextSibling).toHaveTextContent('₱1,100.00'));
+  });
+
   it('leaves the event free on a transaction recorded from the header of All transactions', async () => {
     renderPage('transactions');
 
