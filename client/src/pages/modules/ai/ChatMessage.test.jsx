@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ChatMessage from './ChatMessage';
+
+const opener = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../../utils/openProtectedFile', () => opener);
 
 const answer = (extra = {}) => ({
   key: 'm-2',
@@ -252,5 +255,31 @@ describe('ChatMessage with a null payload', () => {
     delete message.payload;
     renderMessage(message);
     expect(screen.getByText('Fixed text.')).toBeInTheDocument();
+  });
+});
+
+describe('ChatMessage attachment', () => {
+  const asked = (extra = {}) => ({ key: 'u-1', id: 1, role: 'user', content: 'Record this expense', ...extra });
+
+  beforeEach(() => {
+    opener.openProtectedFile.mockReset();
+  });
+
+  it('shows the file name on the question and opens it through the protected route', () => {
+    renderMessage(asked({ attachment: { name: 'lunch.jpg', mime: 'image/jpeg', open_url: '/ai/assistant/attachments/5' } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open lunch.jpg' }));
+    expect(opener.openProtectedFile).toHaveBeenCalledWith('/ai/assistant/attachments/5');
+  });
+
+  it('says so when the file cannot be opened', async () => {
+    opener.openProtectedFile.mockRejectedValue(new Error('gone'));
+    renderMessage(asked({ attachment: { name: 'lunch.jpg', open_url: '/ai/assistant/attachments/5' } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open lunch.jpg' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not open that file.');
+  });
+
+  it('shows no file line on a question without one', () => {
+    renderMessage(asked());
+    expect(screen.queryByRole('button', { name: /^Open / })).not.toBeInTheDocument();
   });
 });
