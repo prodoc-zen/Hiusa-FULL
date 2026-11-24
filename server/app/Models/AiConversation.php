@@ -62,6 +62,11 @@ class AiConversation extends Model
         DB::transaction(function () use ($conversations): void {
             $ids = (clone $conversations)->select('ai_conversations.id');
 
+            // The files go first: the message rows that point to them are deleted in bulk below.
+            $attached = fn () => AiMessageAttachment::query()->whereIn('message_id', AiMessage::query()->select('id')->whereIn('conversation_id', $ids));
+            AiMessageAttachment::eraseFiles($attached());
+            $attached()->delete();
+
             AiOutput::query()->whereIn('id', AiMessage::query()
                 ->select('ai_output_id')
                 ->whereIn('conversation_id', $ids)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiConversation;
 use App\Models\AiMemory;
 use App\Models\AiMessage;
+use App\Models\AiMessageAttachment;
 use App\Services\Ai\AskAiChatService;
 use App\Services\Ai\AskAiService;
 use App\Services\Ai\FallbackTextGenerator;
@@ -12,6 +13,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -60,10 +62,16 @@ class AskAiController extends Controller
         try {
             $validated = $request->validate([
                 'conversation_id' => [Rule::requiredIf($regenerate), 'nullable', 'integer'],
-                'message' => [Rule::requiredIf(! $regenerate), 'nullable', 'string', 'min:1', 'max:2000'],
+                // A file can stand in for the words: the question is then "read this file".
+                'message' => [Rule::requiredIf(! $regenerate && ! $request->hasFile('attachment')), 'nullable', 'string', 'min:1', 'max:2000'],
                 'topic' => ['nullable', 'string', 'max:60'],
                 'source' => ['nullable', 'in:typed,link'],
                 'regenerate' => ['sometimes', 'boolean'],
+                'attachment' => ['nullable', 'file', 'mimes:'.implode(',', AiMessageAttachment::EXTENSIONS), 'max:'.AiMessageAttachment::MAX_KILOBYTES],
+            ], [
+                'attachment.mimes' => 'Attach a JPG, PNG or WebP photo, or a PDF.',
+                'attachment.max' => 'That file is over 5 MB. Choose a smaller one.',
+                'attachment.uploaded' => 'That file could not be uploaded. It may be over 5 MB.',
             ]);
 
             $conversation = null;
@@ -83,7 +91,8 @@ class AskAiController extends Controller
             return response()->json(['message' => collect($errors)->flatten()->first() ?? $e->getMessage(), 'errors' => $errors], 422);
         }
 
-        $message = $regenerate ? null : trim((string) $validated['message']);
+        $upload = $regenerate ? null : $request->file('attachment');
+        $message = $regenerate ? null : (trim((string) ($validated['message'] ?? '')) ?: ($upload !== null ? 'Please read the attached file.' : ''));
         $topic = $validated['topic'] ?? null;
         // The composer always says 'typed'; a request that names no source is not treated as typed, so it never gets a card.
         $source = $validated['source'] ?? 'link';
@@ -95,13 +104,15 @@ class AskAiController extends Controller
 
         if (! str_contains((string) $request->header('Accept'), 'text/event-stream')) {
             try {
-                return response()->json($this->chat->respond($user, $conversation, $message, $topic, $regenerate, static function (): void {}, null, $source));
+                return response()->json($upload !== null
+                    ? $this->chat->respondWithFile($user, $conversation, $message, $topic, static function (): void {}, null, $source, $upload)
+                    : $this->chat->respond($user, $conversation, $message, $topic, $regenerate, static function (): void {}, null, $source));
             } finally {
                 $lock->release();
             }
         }
 
-        return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate, $source, $lock): void {
+        return new StreamedResponse(function () use ($user, $conversation, $message, $topic, $regenerate, $source, $upload, $lock): void {
             ignore_user_abort(true);
             $lastWrite = microtime(true);
             $emit = function (string $event, array $data) use (&$lastWrite): void {
@@ -120,16 +131,9 @@ class AskAiController extends Controller
             };
 
             try {
-                $result = $this->chat->respond(
-                    $user,
-                    $conversation,
-                    $message,
-                    $topic,
-                    $regenerate,
-                    $emit,
-                    $gone,
-                    $source,
-                );
+                $result = $upload !== null
+                    ? $this->chat->respondWithFile($user, $conversation, $message, $topic, $emit, $gone, $source, $upload)
+                    : $this->chat->respond($user, $conversation, $message, $topic, $regenerate, $emit, $gone, $source);
 
                 if ($result['message'] !== null) {
                     $emit('done', ['conversation' => $result['conversation'], 'message' => $result['message']]);
@@ -189,7 +193,7 @@ class AskAiController extends Controller
         $validated = $request->validate(['before' => ['nullable', 'integer', 'min:1']]);
         $row = AiConversation::ownedBy($request->user())->withSummary()->findOrFail($conversation);
 
-        $page = $row->messages()->reorder()
+        $page = $row->messages()->reorder()->with('attachment')
             ->when(isset($validated['before']), fn ($messages) => $messages->where('id', '<', $validated['before']))
             ->orderByDesc('id')->limit(self::MESSAGE_PAGE + 1)->get();
         $more = $page->count() > self::MESSAGE_PAGE;
@@ -199,6 +203,21 @@ class AskAiController extends Controller
             'messages' => $page->take(self::MESSAGE_PAGE)->reverse()->values()->map(fn (AiMessage $message) => $this->chat->presentMessageFor($request->user(), $message))->all(),
             'has_more' => $more,
         ]);
+    }
+
+    /** Opens a file the signed-in person attached. Anyone else's file answers 404, the same as one that does not exist. */
+    public function attachment(Request $request, int $attachment): Response
+    {
+        $row = AiMessageAttachment::ownedBy($request->user())->findOrFail($attachment);
+        $disk = Storage::disk($row->disk);
+        abort_unless($disk->exists($row->path), 404);
+
+        $response = response()->file($disk->path($row->path), ['Content-Type' => $row->mime_type, 'X-Content-Type-Options' => 'nosniff']);
+        $response->setContentDisposition('inline', 'attachment-'.$row->id.'.'.pathinfo($row->path, PATHINFO_EXTENSION));
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function renameConversation(Request $request, int $conversation): JsonResponse

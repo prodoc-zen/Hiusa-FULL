@@ -20,7 +20,7 @@ class PrivacyConsentTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const VERSION = '2026-11';
+    private const VERSION = '2026-11-24';
 
     private StudentRegistryEntry $record;
 
