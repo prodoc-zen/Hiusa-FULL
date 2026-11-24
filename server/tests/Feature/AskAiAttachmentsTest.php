@@ -17,6 +17,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -681,6 +682,23 @@ class AskAiAttachmentsTest extends TestCase
 
         Storage::disk('local')->assertMissing($path);
         $this->assertSame(0, AiMessageAttachment::count());
+    }
+
+    public function test_a_refused_user_delete_keeps_the_files_the_person_attached(): void
+    {
+        $this->claude([new Response(500)]);
+        $student = $this->student();
+        Sanctum::actingAs($student);
+        $this->send(['message' => 'What is this?', 'source' => 'typed', 'attachment' => $this->jpeg()])->assertOk();
+        $path = AiMessageAttachment::firstOrFail()->path;
+
+        User::deleting(fn () => throw new QueryException('sqlite', 'delete from "users"', [], new \PDOException('FOREIGN KEY constraint failed', 19)));
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+        $this->deleteJson('/api/system/users/'.$student->school_id, ['school_id' => $student->school_id])->assertStatus(409);
+
+        $this->assertNotNull(User::find($student->school_id));
+        $this->assertSame(1, AiMessageAttachment::count());
+        Storage::disk('local')->assertExists($path);
     }
 
     public function test_the_attachments_table_can_be_rolled_back_and_built_again(): void
