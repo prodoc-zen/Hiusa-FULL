@@ -41,6 +41,11 @@ function transactionFormData(data) {
   return formData;
 }
 
+// Every event of the organization with its own income, expenses and budget, plus what belongs to no event. The totals
+// equal the summary above. It reads fresh each time, since the figures move with every transaction.
+export const getEventLedgers = (params) =>
+  api.get('/transactions/event-ledgers', { params, cache: false });
+
 export const createTransaction = (data) =>
   api.post('/transactions', transactionFormData(data));
 

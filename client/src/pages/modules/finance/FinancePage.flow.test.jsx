@@ -138,7 +138,7 @@ describe('FinancePage budget lifecycle', () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [budget(), budget({ id: 6, title: 'Foundation day budget', submission_status: 'approved', approval_status: 'approved' })] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
-    const rows = within(await screen.findByRole('list', { name: 'Budgets' })).getAllByRole('listitem');
+    const rows = within(await screen.findByRole('list', { name: 'General budgets' })).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('Pending')).toBeInTheDocument();
     expect(within(rows[1]).queryByText('Approved')).not.toBeInTheDocument();
@@ -146,16 +146,16 @@ describe('FinancePage budget lifecycle', () => {
     expect(screen.queryByText('Warning at')).not.toBeInTheDocument();
   });
 
-  it('explains a Remaining figure that sits above Allocated', async () => {
+  it('explains a Remaining figure that sits above Allocated with the arithmetic', async () => {
     financeMocks.getBudgets.mockResolvedValue({ data: [
-      budget({ id: 7, title: 'General operations', allocated_amount: 50000, remaining_amount: 80000, approval_status: 'approved', submission_status: 'approved' }),
-      budget({ id: 8, title: 'Merchandise fund', allocated_amount: 30000, remaining_amount: 26250, approval_status: 'approved', submission_status: 'approved' }),
+      budget({ id: 7, title: 'General operations', allocated_amount: 50000, spent_amount: 13500, income_amount: 43500, remaining_amount: 80000, approval_status: 'approved', submission_status: 'approved', is_released: true }),
+      budget({ id: 8, title: 'Merchandise fund', allocated_amount: 30000, spent_amount: 3750, income_amount: 0, remaining_amount: 26250, approval_status: 'approved', submission_status: 'approved', is_released: true }),
     ] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
-    const [general, merchandise] = within(await screen.findByRole('list', { name: 'Budgets' })).getAllByRole('listitem');
-    expect(within(general).getByText('Remaining includes income recorded against this budget.')).toBeInTheDocument();
-    expect(within(merchandise).queryByText(/Remaining includes income/)).not.toBeInTheDocument();
+    const [general, merchandise] = within(await screen.findByRole('list', { name: 'General budgets' })).getAllByRole('listitem');
+    expect(within(general).getByText('50,000.00 allocated - 13,500.00 spent + 43,500.00 income = 80,000.00 remaining')).toBeInTheDocument();
+    expect(within(merchandise).getByText('30,000.00 allocated - 3,750.00 spent + 0.00 income = 26,250.00 remaining')).toBeInTheDocument();
   });
 
   it('opens the detail from a row, puts the budget in ?record= and closes it again', async () => {
@@ -327,6 +327,7 @@ describe('FinancePage financial report lifecycle', () => {
 
 describe('FinancePage empty states', () => {
   it('names the Propose budget button and says why a budget matters on the first-run budget list', async () => {
+    eventMocks.getEvents.mockResolvedValue({ data: [] });
     renderPage('ADMIN', BUDGETS, { initialTab: 'budgets' });
 
     expect(await screen.findByText('No budgets yet')).toBeInTheDocument();
@@ -336,6 +337,7 @@ describe('FinancePage empty states', () => {
   });
 
   it('tells a role that cannot propose budgets who can', async () => {
+    eventMocks.getEvents.mockResolvedValue({ data: [] });
     renderPage('DEPARTMENT_HEAD', BUDGETS, { initialTab: 'budgets' });
 
     expect(await screen.findByText('No budgets to show yet')).toBeInTheDocument();
