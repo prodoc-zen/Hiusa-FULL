@@ -407,7 +407,7 @@ export default function AskAiPage() {
     atBottomRef.current = true;
   }, [cancelRun]);
 
-  const send = useCallback(async (rawText, { topic = null, regenerate = false, source = 'link' } = {}) => {
+  const send = useCallback(async (rawText, { topic = null, regenerate = false, source = 'link', attachment = null } = {}) => {
     if (sendingRef.current || loadingRef.current) return false;
     const text = (rawText ?? '').trim();
     if (!regenerate && (!text || text.length > 2000)) return false;
@@ -480,6 +480,7 @@ export default function AskAiPage() {
         topic,
         regenerate,
         source,
+        attachment,
         signal: controller.signal,
         onEvent,
       });
@@ -504,8 +505,8 @@ export default function AskAiPage() {
           if (m.key !== answerKey) return [m];
           return m.content ? [{ ...m, streaming: false, status: 'failed' }] : [];
         }));
-        if (restore) composerRef.current?.restore(text);
-        setSendError({ message: failureMessage(err), text, topic, source, regenerate: regenerate || metaReceived });
+        if (restore) composerRef.current?.restore(text, attachment);
+        setSendError({ message: failureMessage(err), text, topic, source, attachment: metaReceived ? null : attachment, regenerate: regenerate || metaReceived });
       }
     } finally {
       if (current()) {
@@ -516,7 +517,7 @@ export default function AskAiPage() {
       }
     }
     if (gone) {
-      if (!regenerate) sendRef.current(text, { topic, source });
+      if (!regenerate) sendRef.current(text, { topic, source, attachment });
       setNotice('That conversation is no longer available, so this is a new one.');
     }
     return true;
@@ -530,12 +531,12 @@ export default function AskAiPage() {
 
   const retry = useCallback(() => {
     if (!sendError || sendingRef.current) return;
-    const { text, topic, regenerate, source } = sendError;
+    const { text, topic, regenerate, source, attachment } = sendError;
     composerRef.current?.clearIf(text);
     if (!regenerate) {
       setMessages((list) => (list.at(-1)?.role === 'user' ? list.slice(0, -1) : list));
     }
-    send(text, { topic, regenerate, source });
+    send(text, { topic, regenerate, source, attachment });
   }, [send, sendError]);
 
   const regenerate = useCallback(() => {
@@ -731,9 +732,9 @@ export default function AskAiPage() {
     onLoadMore: loadMoreConversations,
   };
 
-  const sendFromComposer = (text) => {
+  const sendFromComposer = (text, attachment = null) => {
     if (sendingRef.current || loadingRef.current) return false;
-    send(text, { source: 'typed' });
+    send(text, { source: 'typed', attachment });
     return true;
   };
 

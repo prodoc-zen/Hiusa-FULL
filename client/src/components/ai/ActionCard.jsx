@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowRight, Check, Copy } from 'lucide-react';
+import { ArrowRight, Check, Copy, Paperclip } from 'lucide-react';
 import { Button, Field, Input, Select, Textarea } from '../ui';
 import { cancelAiAction, confirmAiAction } from '../../services/askAiService';
 import { actionDetailsText, effectiveStatus } from './actionState';
 import isSafePageHref from './safeHref';
+import { openProtectedFile } from '../../utils/openProtectedFile';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const INPUT_CLASS = 'h-11 read-only:bg-subtle read-only:text-ink-muted-strong';
@@ -126,6 +127,38 @@ function ActionField({ field, value, error, readOnly, onChange }) {
   );
 }
 
+// Shown on a card filled in from a file the person attached: the values are a reading of the file, so they have to be checked.
+function ReceiptNote({ receipt }) {
+  const [failed, setFailed] = useState(false);
+  const open = async () => {
+    setFailed(false);
+    try {
+      await openProtectedFile(receipt.open_url);
+    } catch {
+      setFailed(true);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium text-ink">These values were read from the receipt. Check each one before you confirm.</p>
+      {receipt.open_url && (
+        <div>
+          <button
+            type="button"
+            aria-label={`Open ${receipt.name}`}
+            onClick={open}
+            className="inline-flex min-h-[34px] max-w-full items-center gap-1.5 rounded-full border border-line bg-subtle px-3 text-xs font-semibold text-ink hover:bg-line max-sm:min-h-[42px]"
+          >
+            <Paperclip size={12} aria-hidden="true" className="shrink-0" />
+            <span className="min-w-0 truncate">{receipt.name}</span>
+          </button>
+        </div>
+      )}
+      {failed && <p role="alert" className="text-xs font-semibold text-danger-strong">Could not open that file.</p>}
+    </div>
+  );
+}
+
 function CopyDetails({ getText }) {
   const [copied, setCopied] = useState(false);
 
@@ -243,6 +276,7 @@ export default function ActionCard({ message, action, live = true, onChange, onV
       className="mt-3 flex flex-col gap-3 rounded-card border border-line bg-surface p-4"
     >
       <h3 className="text-sm font-semibold text-ink">{action.title}</h3>
+      {action.receipt && <ReceiptNote receipt={action.receipt} />}
       {fields.map((field) => (
         <ActionField
           key={field.name}
