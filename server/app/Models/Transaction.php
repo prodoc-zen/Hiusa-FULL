@@ -19,12 +19,46 @@ class Transaction extends Model
 
     protected $guarded = [];
 
+    /** The name of the global scope that keeps archived entries out of every money reader. */
+    public const NOT_ARCHIVED = 'not_archived';
+
+    protected static function booted(): void
+    {
+        // Qualified by table so a join in a reader cannot make the column ambiguous.
+        static::addGlobalScope(self::NOT_ARCHIVED, fn (Builder $query) => $query->whereNull($query->getModel()->getTable().'.archived_at'));
+    }
+
     protected function casts(): array
     {
         return [
             'amount' => 'decimal:2',
             'transaction_date' => 'datetime',
+            'archived_at' => 'datetime',
+            'last_edited_at' => 'datetime',
+            'edit_count' => 'integer',
         ];
+    }
+
+    /** The private path of a kept receipt file never leaves the server; the row says whether one is kept and where to open it. */
+    public function attributesToArray(): array
+    {
+        $attributes = parent::attributesToArray();
+
+        if (isset($attributes['receipt_file_url']) && str_starts_with((string) $attributes['receipt_file_url'], 'finance-receipts/')) {
+            unset($attributes['receipt_file_url']);
+        }
+
+        return $attributes;
+    }
+
+    public function archiver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'archived_by', 'school_id');
+    }
+
+    public function lastEditor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'last_edited_by', 'school_id');
     }
 
     public function budget(): BelongsTo

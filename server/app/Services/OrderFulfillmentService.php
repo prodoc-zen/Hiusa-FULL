@@ -291,7 +291,7 @@ class OrderFulfillmentService
         }
 
         $receiptReference = 'MERCH-ORD-'.$order->id;
-        $receiptNumber = ((int) Transaction::where('organization_id', $order->organization_id)
+        $receiptNumber = ((int) Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('organization_id', $order->organization_id)
             ->whereNull('event_id')
             ->lockForUpdate()
             ->max('receipt_number')) + 1;

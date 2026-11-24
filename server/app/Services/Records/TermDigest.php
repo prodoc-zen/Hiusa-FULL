@@ -206,7 +206,7 @@ final class TermDigest
      */
     public static function expenseByBudget(mixed $budgetIds): Collection
     {
-        return DB::table('transactions')->whereIn('budget_id', $budgetIds)->where('type', 'expense')
+        return DB::table('transactions')->whereNull('archived_at')->whereIn('budget_id', $budgetIds)->where('type', 'expense')
             ->select('budget_id')->selectRaw('SUM(amount) as spent')->groupBy('budget_id')->pluck('spent', 'budget_id');
     }
 

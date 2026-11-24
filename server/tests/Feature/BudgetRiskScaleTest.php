@@ -85,7 +85,7 @@ class BudgetRiskScaleTest extends TestCase
         Sanctum::actingAs($this->admin);
         $budget = $this->approvedBudget();
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'expense', 'amount' => 850, 'category' => 'Supplies', 'description' => 'Supplies',
             'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
         ])->assertCreated();
@@ -100,7 +100,7 @@ class BudgetRiskScaleTest extends TestCase
         Sanctum::actingAs($this->admin);
         $budget = $this->approvedBudget(['remaining_amount' => 150, 'overspending_risk' => 'high']);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'income', 'amount' => 500, 'category' => 'Sponsorship', 'description' => 'Sponsor',
             'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
         ])->assertCreated();
@@ -127,7 +127,7 @@ class BudgetRiskScaleTest extends TestCase
         $this->storeAdvice($budget, 'high');
         $this->assertCount(1, $this->insights());
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'expense', 'amount' => 100, 'category' => 'Supplies', 'description' => 'Supplies',
             'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
         ])->assertCreated();
