@@ -10,14 +10,15 @@ use Anthropic\Core\Exceptions\APITimeoutException;
 use Anthropic\Core\Exceptions\AuthenticationException;
 use Anthropic\Core\Exceptions\BadRequestException;
 use Anthropic\Core\Exceptions\RateLimitException;
+use Anthropic\Beta\Messages\BetaOutputConfig;
+use Anthropic\Beta\Messages\BetaRawContentBlockDeltaEvent;
+use Anthropic\Beta\Messages\BetaRawMessageDeltaEvent;
+use Anthropic\Beta\Messages\BetaRawMessageStartEvent;
+use Anthropic\Beta\Messages\BetaTextDelta;
+use Anthropic\Beta\Messages\BetaThinkingDelta;
 use Anthropic\Messages\JSONOutputFormat;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\OutputConfig;
-use Anthropic\Messages\RawContentBlockDeltaEvent;
-use Anthropic\Messages\RawMessageDeltaEvent;
-use Anthropic\Messages\RawMessageStartEvent;
-use Anthropic\Messages\TextDelta;
-use Anthropic\Messages\ThinkingDelta;
 use App\Contracts\TextGenerator;
 use App\Services\Ai\Concerns\GuardsGeneratedText;
 use GuzzleHttp\Client as GuzzleClient;
@@ -34,14 +35,25 @@ class ClaudeMessagesService implements TextGenerator
 {
     use GuardsGeneratedText;
 
-    // Every caller runs inside a web request, so one short attempt beats a long retry that stalls the page.
-    private const MAX_REQUEST_SECONDS = 12;
+    // Every caller runs inside a web request, so one attempt beats a long retry that stalls the page. A one-shot call
+    // thinks before it answers, so its cap is longer than Groq's 12 seconds: 25 by default, 30 at most.
+    private const MAX_REQUEST_SECONDS = 30;
+
+    private const DEFAULT_REQUEST_SECONDS = 25;
 
     // The budgets callers pass were sized for another model; Claude spends more tokens per word.
     private const TOKEN_HEADROOM = 1.5;
 
-    // Adaptive thinking draws on max_tokens before the answer starts.
-    private const THINKING_HEADROOM = 2048;
+    // Adaptive thinking draws on max_tokens before the answer starts, even when its text is not returned, so a limit
+    // sized for the JSON alone would cut the JSON off. Medium effort on a one-shot call thinks for a few thousand tokens
+    // at most; a conversation thinks longer at high effort. The request timeout, not these numbers, bounds the wait.
+    private const ONE_SHOT_THINKING_HEADROOM = 4096;
+
+    private const CHAT_THINKING_HEADROOM = 6144;
+
+    // Server-side refusal fallback: a request the safety classifiers decline is re-run by the API on its default
+    // substitute model instead of ending as a refusal. Beta, and only on the beta messages endpoint.
+    private const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
     private ?string $lastStopReason = null;
 
@@ -74,7 +86,7 @@ class ClaudeMessagesService implements TextGenerator
 
     /**
      * Seconds left in the fallback chain's shared deadline; null leaves only the configured timeout. $ceiling, set only
-     * for a deadline longer than the usual 12 seconds, replaces the configured timeout as the longest one attempt may run.
+     * for a deadline longer than the usual cap, replaces the configured timeout as the longest one attempt may run.
      */
     public function withTimeBudget(?float $seconds, ?float $ceiling = null): void
     {
@@ -182,8 +194,9 @@ class ClaudeMessagesService implements TextGenerator
     }
 
     /**
-     * Streams a conversation turn. Adaptive thinking spends output tokens before the first word, so the cap
-     * carries extra room for it. An exception thrown by $onEvent (the caller aborting) is rethrown untouched.
+     * Streams a conversation turn on the chat model with summarized adaptive thinking. Thinking spends output tokens
+     * before the first word, so the cap carries extra room for it. The turn opts into the server-side refusal fallback.
+     * An exception thrown by $onEvent (the caller aborting) is rethrown untouched.
      */
     public function converse(string $instructions, array $messages, int $maxOutputTokens = 1400, ?callable $onEvent = null): ?array
     {
@@ -219,7 +232,7 @@ class ClaudeMessagesService implements TextGenerator
         $this->budgeted = $seconds < $this->chatSeconds();
         $text = '';
         $reasoning = '';
-        $model = $this->model();
+        $model = $this->chatModel();
         $responseId = null;
         $stopReason = null;
         $callbackError = null;
@@ -244,28 +257,31 @@ class ClaudeMessagesService implements TextGenerator
                 if (microtime(true) - $lastEmit >= self::TICK_SECONDS) {
                     $emit('tick', '');
                 }
-            })->messages->createStream(
-                maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::THINKING_HEADROOM,
+            })->beta->messages->createStream(
+                maxTokens: (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM) + self::CHAT_THINKING_HEADROOM,
                 messages: $this->turns($messages, $file),
-                model: $this->model(),
-                outputConfig: OutputConfig::with(effort: $this->chatEffort()),
+                model: $this->chatModel(),
+                betas: [self::FALLBACK_BETA],
+                fallbacks: 'default',
+                outputConfig: BetaOutputConfig::with(effort: $this->chatEffort()),
                 system: [['type' => 'text', 'text' => $instructions, 'cacheControl' => ['type' => 'ephemeral']]],
                 thinking: ['type' => 'adaptive', 'display' => 'summarized'],
             );
 
             foreach ($stream as $event) {
-                if ($event instanceof RawMessageStartEvent) {
+                if ($event instanceof BetaRawMessageStartEvent) {
+                    // After a fallback this names the substitute model that is answering.
                     $model = $event->message->model;
                     $responseId = $event->message->id;
-                } elseif ($event instanceof RawContentBlockDeltaEvent) {
-                    if ($event->delta instanceof ThinkingDelta && $event->delta->thinking !== '') {
+                } elseif ($event instanceof BetaRawContentBlockDeltaEvent) {
+                    if ($event->delta instanceof BetaThinkingDelta && $event->delta->thinking !== '') {
                         $reasoning .= $event->delta->thinking;
                         $emit('reasoning', $event->delta->thinking);
-                    } elseif ($event->delta instanceof TextDelta && $event->delta->text !== '') {
+                    } elseif ($event->delta instanceof BetaTextDelta && $event->delta->text !== '') {
                         $text .= $event->delta->text;
                         $emit('text', $event->delta->text);
                     }
-                } elseif ($event instanceof RawMessageDeltaEvent) {
+                } elseif ($event instanceof BetaRawMessageDeltaEvent) {
                     $stopReason = $event->delta->stopReason ?? $stopReason;
                 }
             }
@@ -346,18 +362,21 @@ class ClaudeMessagesService implements TextGenerator
         }
 
         $started = microtime(true);
-        $this->budgeted = $this->timeBudget !== null && $this->timeBudget < $this->longestSeconds();
+        // Any shared deadline counts: the chain's share of 25 seconds equals Claude's own cap, but a slow answer under it
+        // still says nothing about whether Claude is down, and resting Claude would send every caller to Groq.
+        $this->budgeted = $this->timeBudget !== null;
+        $maxTokens = max(64, (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM)) + self::ONE_SHOT_THINKING_HEADROOM;
 
         try {
             $message = $this->client($apiKey)->messages->create(
-                maxTokens: max(64, (int) ceil($maxOutputTokens * self::TOKEN_HEADROOM)),
+                maxTokens: $maxTokens,
                 messages: $this->turns([['role' => 'user', 'content' => $input]], $file),
                 model: $this->model(),
                 outputConfig: $outputConfig,
                 system: $instructions,
-                // Sonnet 5.5 rejects thinking disabled; between_tools adds no reasoning pass to a one-shot call.
-                // It also rejects temperature, top_p and top_k, so none of them are ever sent.
-                thinking: ['type' => 'between_tools'],
+                // Opus 5.5 thinks on every call and rejects thinking disabled and a thinking budget, so effort sets how
+                // much. It also rejects temperature, top_p, top_k and a forced tool choice: none of them are ever sent.
+                thinking: ['type' => 'adaptive'],
             );
         } catch (APITimeoutException $exception) {
             return $this->failed($exception, $started);
@@ -381,14 +400,25 @@ class ClaudeMessagesService implements TextGenerator
         $this->lastStopReason = $message->stopReason;
         $latencyMs = (int) round((microtime(true) - $started) * 1000);
 
-        // A refusal or a cut-off answer must not be shown as if it were finished copy.
+        // A refusal or a cut-off answer must not be shown as if it were finished copy; the caller falls back.
         if ($message->stopReason !== 'end_turn') {
-            Log::warning('Claude did not finish an answer.', [
+            $context = [
                 'stop_reason' => $message->stopReason,
                 'model' => $message->model,
                 'response_id' => $message->id,
                 'latency_ms' => $latencyMs,
-            ]);
+            ];
+            if ($message->stopReason === 'max_tokens') {
+                // Thinking and the answer share max_tokens; seeing this means the headroom is too small for the prompt.
+                Log::warning('Claude ran out of output tokens before finishing.', $context + [
+                    'max_tokens' => $maxTokens,
+                    'output_tokens' => $message->usage->outputTokens ?? null,
+                ]);
+            } elseif ($message->stopReason === 'refusal') {
+                Log::warning('Claude refused the request.', $context);
+            } else {
+                Log::warning('Claude did not finish an answer.', $context);
+            }
 
             return null;
         }
@@ -456,7 +486,7 @@ class ClaudeMessagesService implements TextGenerator
 
     private function configuredSeconds(): float
     {
-        return (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::MAX_REQUEST_SECONDS));
+        return (float) max(1, min(self::MAX_REQUEST_SECONDS, (int) config('services.anthropic.timeout') ?: self::DEFAULT_REQUEST_SECONDS));
     }
 
     private function longestSeconds(): float
@@ -473,22 +503,27 @@ class ClaudeMessagesService implements TextGenerator
 
     private function model(): string
     {
-        return trim((string) config('services.anthropic.model')) ?: 'claude-sonnet-5-5';
+        return trim((string) config('services.anthropic.model')) ?: 'claude-opus-5-5';
+    }
+
+    private function chatModel(): string
+    {
+        return trim((string) config('services.anthropic.chat_model')) ?: 'claude-opus-5-5';
     }
 
     private function effort(): string
     {
-        // between_tools thinking is only valid at effort high or below.
-        $effort = strtolower(trim((string) config('services.anthropic.effort', 'low')));
+        // A one-shot call waits on a page, so xhigh and max are not offered: they think for minutes.
+        $effort = strtolower(trim((string) config('services.anthropic.effort', 'medium')));
 
-        return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'low';
+        return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'medium';
     }
 
     private function chatEffort(): string
     {
-        $effort = strtolower(trim((string) config('services.anthropic.chat_effort', 'medium')));
+        $effort = strtolower(trim((string) config('services.anthropic.chat_effort', 'high')));
 
-        return in_array($effort, ['low', 'medium', 'high', 'xhigh', 'max'], true) ? $effort : 'medium';
+        return in_array($effort, ['low', 'medium', 'high', 'xhigh', 'max'], true) ? $effort : 'high';
     }
 
     private function chatSeconds(): int

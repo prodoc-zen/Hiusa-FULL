@@ -34,7 +34,7 @@ class GroqConverseTest extends TestCase
         Http::assertSent(function (Request $request) use ($messages) {
             $body = $request->data();
 
-            return $body['instructions'] === 'Be brief.' && $body['input'] === $messages && $body['max_output_tokens'] === 700 && ! isset($body['stream']);
+            return $body['instructions'] === 'Be brief.' && $body['input'] === $messages && $body['max_output_tokens'] === 700 + 1536 && ! isset($body['stream']);
         });
     }
 

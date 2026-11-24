@@ -15,6 +15,10 @@ class GroqResponsesService implements TextGenerator
     // Every caller runs inside a web request, so one short attempt beats a long retry that stalls the page.
     private const MAX_REQUEST_SECONDS = 12;
 
+    // gpt-oss counts its reasoning tokens in max_output_tokens, so a budget sized for the answer alone is spent on
+    // thinking and the response comes back incomplete. At roughly 500 tokens a second this room costs seconds, not minutes.
+    private const REASONING_ROOM = ['low' => 0, 'medium' => 1536, 'high' => 3072];
+
     private ?float $timeBudget = null;
 
     private ?float $timeoutCeiling = null;
@@ -55,9 +59,8 @@ class GroqResponsesService implements TextGenerator
             'model' => (string) config('services.groq.model'),
             'instructions' => $instructions,
             'input' => $input,
-            'reasoning' => ['effort' => $this->reasoningEffort()],
+            ...$this->reasoningBudget($maxOutputTokens),
             'temperature' => $temperature,
-            'max_output_tokens' => $maxOutputTokens,
         ]);
 
         if ($payload === null) {
@@ -106,8 +109,7 @@ class GroqResponsesService implements TextGenerator
             'model' => (string) config('services.groq.model'),
             'instructions' => $instructions,
             'input' => array_map(fn (array $turn) => ['role' => $turn['role'], 'content' => $turn['content']], array_values($messages)),
-            'reasoning' => ['effort' => $this->reasoningEffort()],
-            'max_output_tokens' => $maxOutputTokens,
+            ...$this->reasoningBudget($maxOutputTokens),
         ]);
 
         if ($payload === null || data_get($payload, 'status') === 'incomplete') {
@@ -150,9 +152,8 @@ class GroqResponsesService implements TextGenerator
             'model' => (string) config('services.groq.model'),
             'instructions' => $instructions,
             'input' => json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            'reasoning' => ['effort' => $this->reasoningEffort()],
+            ...$this->reasoningBudget($maxOutputTokens),
             'temperature' => $temperature,
-            'max_output_tokens' => $maxOutputTokens,
             'text' => [
                 'format' => [
                     'type' => 'json_schema',
@@ -224,13 +225,28 @@ class GroqResponsesService implements TextGenerator
 
         $seconds = $this->requestSeconds();
         $budgeted = $this->timeBudget !== null && $this->timeBudget < $this->longestSeconds();
+        $started = microtime(true);
+        $send = fn (array $payload, int|float $limit) => Http::acceptJson()
+            ->withToken($apiKey)
+            ->connectTimeout(min($limit, max(1, (int) config('services.groq.connect_timeout', 5))))
+            ->timeout($limit)
+            ->post((string) config('services.groq.url'), $payload);
 
         try {
-            $response = Http::acceptJson()
-                ->withToken($apiKey)
-                ->connectTimeout(min($seconds, max(1, (int) config('services.groq.connect_timeout', 5))))
-                ->timeout($seconds)
-                ->post((string) config('services.groq.url'), $body);
+            $response = $send($body, $seconds);
+
+            // Groq documents the reasoning effort values for chat completions but not for this endpoint. A 400 at a
+            // higher effort is retried once at low with the original budget, so a rejected value costs one quick call
+            // and the fallback keeps answering instead of going dark.
+            $effort = (string) data_get($body, 'reasoning.effort');
+            if ($response->status() === 400 && $effort !== '' && $effort !== 'low' && isset(self::REASONING_ROOM[$effort])) {
+                Log::warning('Groq rejected the request at a higher reasoning effort; retrying once at low.', [
+                    'effort' => $effort,
+                    'request_id' => $response->header('x-request-id'),
+                ]);
+                $body = array_replace($body, $this->reasoningBudget((int) data_get($body, 'max_output_tokens') - self::REASONING_ROOM[$effort], 'low'));
+                $response = $send($body, max(1.0, $seconds - (microtime(true) - $started)));
+            }
 
             if (! $response->successful()) {
                 Log::warning('Groq Responses API request failed.', [
@@ -259,9 +275,20 @@ class GroqResponsesService implements TextGenerator
 
     private function reasoningEffort(): string
     {
-        $effort = strtolower(trim((string) config('services.groq.reasoning_effort', 'low')));
+        $effort = strtolower(trim((string) config('services.groq.reasoning_effort', 'medium')));
 
-        return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'low';
+        return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'medium';
+    }
+
+    /** The reasoning effort and the output cap that leaves the answer its full budget after the reasoning. */
+    private function reasoningBudget(int $maxOutputTokens, ?string $effort = null): array
+    {
+        $effort ??= $this->reasoningEffort();
+
+        return [
+            'reasoning' => ['effort' => $effort],
+            'max_output_tokens' => $maxOutputTokens + self::REASONING_ROOM[$effort],
+        ];
     }
 
     private function extractOutputText(array $payload): string

@@ -13,18 +13,22 @@ use Illuminate\Support\Facades\Log;
  * Claude outage, refusal or timeout lands on Groq and, after that, on the caller's own deterministic text.
  * Logs which provider served, never the prompt or the data in it.
  *
- * generate() and generateStructured() run inside a web request, so both attempts share one deadline. A provider
- * that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one longer
- * deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off. The event plan is the one
- * structured call that gets a longer deadline (services.ai.plan_deadline_seconds), because a full plan takes Claude
- * about 9 seconds and 12 shared with Groq left it too little.
+ * generate() and generateStructured() run inside a web request, so both attempts share one 30 second deadline: Claude,
+ * which thinks before it answers, may use 25 of it and Groq (capped at 12 by its own service) gets what is left. A
+ * provider that timed out or could not connect is skipped for services.ai.cooldown_seconds. converse() shares one
+ * longer deadline (the chat timeout plus 15 seconds) the same way and honours the same cooling-off. The event plan is
+ * the one structured call that gets its own deadline (services.ai.plan_deadline_seconds), because a full plan is the
+ * longest answer either provider writes.
  */
 class FallbackTextGenerator implements TextGenerator
 {
     use GuardsGeneratedText;
 
-    // Both attempts together; matches the cap each provider applies to a single call.
-    private const DEADLINE_SECONDS = 12;
+    // Both attempts together. Claude's own cap on one call is 25 seconds by default (30 at most); Groq's is 12.
+    private const DEADLINE_SECONDS = 30;
+
+    // Claude's part of the shared deadline: its default cap, which leaves Groq the remaining 5 seconds after a hung call.
+    private const PRIMARY_SECONDS = 25;
 
     // The structured call that builds an event's to-do plan; EventController passes this schema name.
     public const EVENT_PLAN_SCHEMA = 'hiusa_event_workflow';
@@ -108,12 +112,12 @@ class FallbackTextGenerator implements TextGenerator
     }
 
     /**
-     * $timeoutCeiling lifts each provider's own 12 second request cap to that many seconds, so a deadline longer
-     * than 12 is not cut short by the HTTP timeout; the budget still bounds every attempt.
+     * $timeoutCeiling lifts each provider's own request cap (30 seconds for Claude, 12 for Groq) to that many seconds,
+     * so a deadline longer than the cap is not cut short by the HTTP timeout; the budget still bounds every attempt.
      *
      * @param  \Closure(TextGenerator): ?array  $call
      */
-    private function serve(string $operation, \Closure $call, bool $bounded = false, int $deadlineSeconds = self::DEADLINE_SECONDS, float $primaryShare = self::DEADLINE_SECONDS * 2 / 3, ?float $timeoutCeiling = null): ?array
+    private function serve(string $operation, \Closure $call, bool $bounded = false, int $deadlineSeconds = self::DEADLINE_SECONDS, float $primaryShare = self::PRIMARY_SECONDS, ?float $timeoutCeiling = null): ?array
     {
         $deadline = microtime(true) + $deadlineSeconds;
 
