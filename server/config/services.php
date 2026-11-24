@@ -70,6 +70,8 @@ return [
         'effort' => env('ANTHROPIC_EFFORT', 'medium'),
         // Seconds for the whole call, capped at 30 in ClaudeMessagesService (a higher value has no effect). The SDK
         // enforces no timeout itself, so the HTTP transport carries it. ANTHROPIC_CHAT_TIMEOUT below is not capped at 30.
+        // Claude and Groq share one 37 second deadline per request (this 25 plus Groq's 12), so a timed-out Claude
+        // leaves Groq its whole turn; keep the web server's read timeout above 37 seconds.
         'timeout' => env('ANTHROPIC_TIMEOUT', 25),
         'connect_timeout' => env('ANTHROPIC_CONNECT_TIMEOUT', 3),
         // Ask AI conversations stream and think, so they get their own model, effort and a longer ceiling: chat_timeout is

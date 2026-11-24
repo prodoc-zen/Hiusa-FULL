@@ -15,9 +15,11 @@ use App\Services\Ai\Concerns\GuardsGeneratedText;
 use App\Services\Ai\HowToGuideLibrary;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\Support\AskAiChatFakeGenerator;
 use Tests\Support\ScriptedTextGenerator;
 use Tests\TestCase;
@@ -29,6 +31,7 @@ use Tests\TestCase;
  */
 class AskAiSmarterAnswersTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -94,10 +97,17 @@ class AskAiSmarterAnswersTest extends TestCase
 
         $this->assertTrue($this->guard()->preservesNumericFacts('Net is PHP 10,749.50.', $facts, true));
         $this->assertTrue($this->guard()->preservesNumericFacts('Income and fees together are PHP 16,200.25.', $facts, true));
-        $this->assertTrue($this->guard()->preservesNumericFacts('Income less expense and fees leaves PHP 9,549.25.', $facts, true));
         $this->assertTrue($this->guard()->preservesNumericFacts('You have used 45% of the budget.', $facts, true));
         $this->assertTrue($this->guard()->preservesNumericFacts('That leaves 55% unspent.', $facts, true));
         $this->assertTrue($this->guard()->preservesNumericFacts('Spending is 28.34% of income.', $facts, true));
+    }
+
+    public function test_a_figure_that_needs_three_fact_numbers_is_refused(): void
+    {
+        $facts = ['income' => 15000.00, 'expense' => 4250.50, 'fees' => 1200.25];
+
+        $this->assertFalse($this->guard()->preservesNumericFacts('Income less expense and fees leaves PHP 9,549.25.', $facts, true));
+        $this->assertTrue($this->guard()->preservesNumericFacts('Income less expense leaves PHP 10,749.50.', $facts, true));
     }
 
     public function test_the_same_derived_figures_are_still_refused_when_derived_figures_are_not_allowed(): void
@@ -117,6 +127,76 @@ class AskAiSmarterAnswersTest extends TestCase
         $this->assertFalse($this->guard()->preservesNumericFacts('Net is PHP 10,749.51.', $facts, true));
         $this->assertFalse($this->guard()->preservesNumericFacts('You have used 71% of the budget.', $facts, true));
         $this->assertFalse($this->guard()->preservesNumericFacts('Income is PHP 15,000.00 and the fund holds PHP 50,000.00.', $facts, true));
+    }
+
+    /** The finance_health facts of an organization with eight budgets, a ledger split by category, dates and counts. */
+    private function realisticFinanceFacts(): array
+    {
+        $budgets = [];
+        foreach ([20000, 15000, 12000, 8000, 5000, 3500, 2500, 10000] as $i => $allocated) {
+            $spent = round($allocated * (0.1 + 0.1 * $i), 2);
+            $budgets[] = [
+                'id' => 'budget-'.(40 + $i),
+                'primary' => "Budget {$i}",
+                'secondary' => sprintf('Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s', number_format($allocated, 2), number_format($spent, 2), number_format($allocated - $spent, 2)),
+                'meta' => 'Updated Nov '.(3 + $i).', 2026',
+            ];
+        }
+
+        return ['facts' => [
+            'role' => 'ADMIN',
+            'question' => 'How is our finance?',
+            'deterministic_answer' => "Your organization's approved budgets total ₱76,000.00 allocated with ₱51,230.00 remaining. 4 open invoices are unpaid. The ledger shows ₱17,500.00 income and ₱6,050.75 expenses, so ₱11,449.25 net.",
+            'highlights' => [['label' => 'Approved allocated', 'value' => '₱76,000.00'], ['label' => 'Remaining budget', 'value' => '₱51,230.00'], ['label' => 'Open student invoices', 'value' => '4']],
+            'sections' => [
+                ['rows' => $budgets],
+                ['rows' => [
+                    ['primary' => 'Membership', 'secondary' => 'Income: ₱17,500.00 · Expenses: ₱0.00', 'meta' => '7 entries'],
+                    ['primary' => 'Materials', 'secondary' => 'Income: ₱0.00 · Expenses: ₱4,250.50', 'meta' => '3 entries'],
+                    ['primary' => 'Venue', 'secondary' => 'Income: ₱0.00 · Expenses: ₱1,800.25', 'meta' => '2 entries'],
+                ]],
+            ],
+            'today' => '2026-11-25',
+            'semester' => '2026-2027 Semester 1',
+        ]];
+    }
+
+    public function test_on_a_realistic_finance_payload_an_invented_round_figure_and_an_invented_percentage_are_refused(): void
+    {
+        $facts = $this->realisticFinanceFacts();
+
+        $this->assertFalse($this->guard()->preservesNumericFacts('You could spend about PHP 12,300 more.', $facts, true));
+        $this->assertFalse($this->guard()->preservesNumericFacts('Set aside PHP 33,400 for the next event.', $facts, true));
+        $this->assertFalse($this->guard()->preservesNumericFacts('You have used 71% of the budget.', $facts, true));
+        $this->assertFalse($this->guard()->preservesNumericFacts('That is 63.4% of the total.', $facts, true));
+    }
+
+    public function test_on_a_realistic_finance_payload_a_figure_worked_out_from_one_budget_or_the_ledger_is_kept(): void
+    {
+        $facts = $this->realisticFinanceFacts();
+
+        // Spent over allocated of one budget row, and what is left of 100.
+        $this->assertTrue($this->guard()->preservesNumericFacts('Budget 1 has used 20% of its allocation.', $facts, true));
+        $this->assertTrue($this->guard()->preservesNumericFacts('Budget 1 has 80% left.', $facts, true));
+        // Income minus expense, and a sum of two ledger figures.
+        $this->assertTrue($this->guard()->preservesNumericFacts('Income less expenses leaves PHP 11,449.25.', $facts, true));
+        $this->assertTrue($this->guard()->preservesNumericFacts('Membership income plus the venue cost comes to PHP 19,300.25.', $facts, true));
+    }
+
+    public function test_a_percentage_is_never_taken_from_two_figures_in_different_rows(): void
+    {
+        $facts = ['rows' => [['amount' => 3000.00], ['amount' => 12000.00]]];
+
+        $this->assertFalse($this->guard()->preservesNumericFacts('That is 25% of the other row.', $facts, true));
+        $this->assertTrue($this->guard()->preservesNumericFacts('Together that is PHP 15,000.00.', $facts, true));
+    }
+
+    public function test_a_year_a_date_part_and_a_small_count_never_feed_a_derived_figure(): void
+    {
+        $facts = ['today' => '2026-11-25', 'amount' => 500.00, 'entries' => 12];
+
+        $this->assertFalse($this->guard()->preservesNumericFacts('That adds up to PHP 2,526.00.', $facts, true));
+        $this->assertFalse($this->guard()->preservesNumericFacts('That adds up to PHP 512.00.', $facts, true));
     }
 
     public function test_a_small_whole_number_is_never_accepted_as_a_sum_so_a_count_cannot_be_worked_out(): void
@@ -371,6 +451,94 @@ class AskAiSmarterAnswersTest extends TestCase
         $this->assertFalse($hrefs->contains('/dashboard/finance/financial-ledger'));
     }
 
+    // -------------------------------------------------------------------------
+    // The screens named in an answer follow the person's own sidebar
+    // -------------------------------------------------------------------------
+
+    private function screensOf(User $user): Collection
+    {
+        return collect(app(HowToGuideLibrary::class)->screensFor($user));
+    }
+
+    public function test_a_treasurer_is_told_finance_is_theirs_with_collections_and_student_accounts(): void
+    {
+        $treasurer = User::factory()->officer()->create(['organization_id' => $this->org()->id, 'position_title' => 'Treasurer']);
+        $screens = $this->screensOf($treasurer);
+
+        $this->assertSame('Finance → Ledger', $screens->firstWhere('href', '/dashboard/finance/financial-ledger')['screen']);
+        $this->assertSame('Finance → Collections and advances', $screens->firstWhere('href', '/dashboard/finance/collections')['screen']);
+        $this->assertSame('Finance → Student accounts', $screens->firstWhere('href', '/dashboard/finance/student-accounts')['screen']);
+        $this->assertSame([], $screens->filter(fn (array $screen) => str_contains($screen['screen'], 'view only'))->all());
+    }
+
+    public function test_a_pio_sees_finance_as_view_only_without_collections_or_student_accounts(): void
+    {
+        $pio = User::factory()->officer()->create(['organization_id' => $this->org()->id, 'position_title' => 'PIO']);
+        $screens = $this->screensOf($pio);
+
+        $this->assertSame('Finance (view only) → Ledger', $screens->firstWhere('href', '/dashboard/finance/financial-ledger')['screen']);
+        $this->assertSame('Finance (view only) → Budgets', $screens->firstWhere('href', '/dashboard/finance/budget-allocation')['screen']);
+        $this->assertNull($screens->firstWhere('href', '/dashboard/finance/collections'));
+        $this->assertNull($screens->firstWhere('href', '/dashboard/finance/student-accounts'));
+    }
+
+    public function test_an_officer_whose_position_may_not_book_venues_is_not_offered_venue_booking(): void
+    {
+        $pio = User::factory()->officer()->create(['organization_id' => $this->org()->id, 'position_title' => 'PIO']);
+        $president = User::factory()->officer()->create(['organization_id' => $this->org()->id, 'position_title' => 'President']);
+
+        $this->assertNull($this->screensOf($pio)->firstWhere('href', '/dashboard/venues'));
+        $this->assertNotNull($this->screensOf($president)->firstWhere('href', '/dashboard/venues'));
+    }
+
+    public function test_the_deans_office_staff_are_given_the_college_office_screens_and_an_organization_admin_is_not(): void
+    {
+        $college = $this->makeCollege('CCS');
+        $home = $this->makeCollegeHome($college);
+        $staff = User::factory()->admin()->create(['organization_id' => $home->id]);
+        $this->assertTrue($staff->isCollegeOfficeStaff());
+        $orgAdmin = $this->admin($this->org());
+
+        $staffScreens = $this->screensOf($staff);
+        $this->assertSame('Approvals', $staffScreens->firstWhere('href', '/dashboard/department-head/approvals')['screen']);
+        $this->assertNotNull($staffScreens->firstWhere('href', '/dashboard/department-head/compliance'));
+        $this->assertNotNull($staffScreens->firstWhere('href', '/dashboard/organization-applications'));
+        $this->assertSame('Finance → Ledger', $staffScreens->firstWhere('href', '/dashboard/finance/financial-ledger')['screen']);
+        $this->assertNull($staffScreens->firstWhere('href', '/dashboard/finance/collections'));
+        $this->assertNull($staffScreens->firstWhere('href', '/dashboard/admin/users'));
+        $this->assertNull($staffScreens->firstWhere('href', '/dashboard/tasks/task-board'));
+
+        $adminScreens = $this->screensOf($orgAdmin);
+        $this->assertNotNull($adminScreens->firstWhere('href', '/dashboard/finance/collections'));
+        $this->assertNotNull($adminScreens->firstWhere('href', '/dashboard/admin/users'));
+        $this->assertSame([], $adminScreens->filter(fn (array $screen) => str_starts_with($screen['href'], '/dashboard/department-head/'))->all());
+        $this->assertNull($adminScreens->firstWhere('href', '/dashboard/organization-applications'));
+    }
+
+    public function test_the_chat_facts_for_office_staff_name_the_college_pages(): void
+    {
+        $college = $this->makeCollege('CBA');
+        $staff = User::factory()->admin()->create(['organization_id' => $this->makeCollegeHome($college)->id]);
+        Sanctum::actingAs($staff);
+        $fake = $this->fake(['Open the approvals.']);
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'How is our finance?'])->assertOk();
+
+        $hrefs = collect($this->factsOf($fake)['screens'])->pluck('href');
+        $this->assertTrue($hrefs->contains('/dashboard/department-head/compliance'));
+        $this->assertTrue($hrefs->contains('/dashboard/department-head/approvals'));
+        $this->assertFalse($hrefs->contains('/dashboard/admin/users'));
+    }
+
+    public function test_the_chat_facts_for_a_treasurer_name_finance_with_collections_and_not_view_only(): void
+    {
+        Sanctum::actingAs(User::factory()->officer()->create(['organization_id' => $this->org()->id, 'position_title' => 'Treasurer']));
+        $fake = $this->fake(['Open the ledger.']);
+        $this->postJson('/api/ai/assistant/chat', ['message' => 'How is our finance?'])->assertOk();
+
+        $screens = collect($this->factsOf($fake)['screens']);
+        $this->assertSame('Finance → Collections and advances', $screens->firstWhere('href', '/dashboard/finance/collections')['screen']);
+    }
+
     public function test_every_screen_in_the_directory_is_a_route_some_role_may_open(): void
     {
         $library = app(HowToGuideLibrary::class);
@@ -382,7 +550,7 @@ class AskAiSmarterAnswersTest extends TestCase
             $this->assertTrue($open->contains($path), "{$path} is not in any role's allowlist");
             $this->assertNotSame('', $screen[0], $path);
         }
-        $this->assertNotEmpty($library->screensFor('ADMIN'));
+        $this->assertNotEmpty($library->screensFor($this->admin($this->org())));
     }
 
     public function test_every_screen_title_matches_the_page_title_the_client_shows(): void

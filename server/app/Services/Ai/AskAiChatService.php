@@ -994,7 +994,7 @@ class AskAiChatService
     private function screens(User $user): array
     {
         return array_values(array_filter(
-            app(HowToGuideLibrary::class)->screensFor($user->role),
+            app(HowToGuideLibrary::class)->screensFor($user),
             fn (array $screen) => $this->pageHref($user, $screen['href']) !== null
         ));
     }
@@ -1050,7 +1050,9 @@ class AskAiChatService
      */
     private function pageHref(User $user, string $target): ?string
     {
-        $href = $this->routeAccess->hrefFor($user->role, $target);
+        // The dean's office staff hold the ADMIN role but open the dean's college pages, which the ADMIN list leaves out.
+        $href = $this->routeAccess->hrefFor($user->role, $target)
+            ?? ($user->isCollegeOfficeStaff() ? $this->routeAccess->hrefFor('DEPARTMENT_HEAD', $target) : null);
         if ($href === null) {
             return null;
         }

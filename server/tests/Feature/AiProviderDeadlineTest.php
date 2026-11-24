@@ -70,15 +70,30 @@ class AiProviderDeadlineTest extends TestCase
 
         (new FallbackTextGenerator($primary, $secondary))->generate('i', 'x');
 
-        // Claude may use 25 of the 30 seconds, so a hung Claude still leaves Groq a turn; Groq's own 12 second cap
-        // then bounds that turn.
+        // Claude may use 25 of the 37 seconds (its cap plus Groq's 12), so a hung Claude still leaves Groq its whole turn;
+        // Groq's own 12 second cap then bounds that turn.
         $this->assertEqualsWithDelta(25.0, $primary->budget, 0.05);
-        $this->assertGreaterThanOrEqual(1.0, $secondary->budget);
-        $this->assertLessThan(30.0, $secondary->budget);
-        $this->assertGreaterThan(27.0, $secondary->budget);
+        $this->assertGreaterThanOrEqual(12.0, $secondary->budget);
+        $this->assertLessThan(37.0, $secondary->budget);
+        $this->assertGreaterThan(34.0, $secondary->budget);
     }
 
-    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_the_thirty_second_one(): void
+    public function test_after_a_claude_timeout_that_used_its_whole_cap_groq_still_gets_its_twelve_seconds(): void
+    {
+        $started = microtime(true);
+        $primary = new ClaudeProbe(null, 1_100_000);
+        $secondary = new GroqProbe(['text' => 'ok', 'model' => 'g', 'response_id' => null]);
+        (new FallbackTextGenerator($primary, $secondary))->generate('i', 'x');
+        $spent = microtime(true) - $started;
+
+        // Groq's budget is what the shared deadline had left when Claude stopped. Had Claude used all of its 25
+        // seconds instead of the ~1 it used here, Groq would still be left at least its own 12 second cap.
+        $leftAfterAFullClaudeTimeout = $secondary->budget - ($primary->budget - $spent);
+        $this->assertGreaterThanOrEqual(11.5, $leftAfterAFullClaudeTimeout);
+        $this->assertEqualsWithDelta(12.0, $this->seconds(new GroqResponsesService), 0.001, 'the cap Groq is owed');
+    }
+
+    public function test_the_event_plan_gets_the_longer_shared_deadline_and_every_other_call_keeps_the_ordinary_one(): void
     {
         $primary = new ClaudeProbe(null, 1_100_000);
         $secondary = new GroqProbe(['data' => [], 'text' => '{}', 'model' => 'g', 'response_id' => null]);
@@ -101,7 +116,7 @@ class AiProviderDeadlineTest extends TestCase
             $this->assertLessThanOrEqual(25.0, $primary->budget, $kind);
             $this->assertNull($primary->ceiling, $kind);
             $this->assertNull($secondary->ceiling, $kind);
-            $this->assertLessThan(30.0, $secondary->budget, $kind);
+            $this->assertLessThan(37.0, $secondary->budget, $kind);
         }
     }
 
