@@ -513,7 +513,7 @@ class AskAiChatService
 
                 return true;
             }
-            if (! $this->ai->preservesNumericFacts($line, $guardFacts)) {
+            if (! $this->ai->preservesNumericFacts($line, $guardFacts, true)) {
                 return false;
             }
             $piece = ($released === '' ? '' : str_repeat("\n", $blanks + 1)).AnswerMarkdown::sanitize($line, $linkCheck);
@@ -689,7 +689,7 @@ class AskAiChatService
     /** One line of the model's thinking, cleaned and held to the same numbers as the answer; null drops it. */
     private function reasoningLine(string $line, array $guardFacts): ?string
     {
-        if (trim($line) === '' || ! $this->ai->preservesNumericFacts($line, $guardFacts)) {
+        if (trim($line) === '' || ! $this->ai->preservesNumericFacts($line, $guardFacts, true)) {
             return null;
         }
         $clean = trim(AnswerMarkdown::plainLine($line));
@@ -980,7 +980,23 @@ class AskAiChatService
             $facts['next_step'] = ['label' => $nextStep['action_label'] ?? $nextStep['title'] ?? null, 'href' => $nextStep['href']];
         }
 
+        $facts['screens'] = $this->screens($user);
+
         return $facts;
+    }
+
+    /**
+     * The screens this person may open, by their sidebar name, so a next step can name the real page and link it.
+     * Each one passes the same link check as every other href in an answer.
+     *
+     * @return array<int, array{screen: string, href: string, use_it_to: string}>
+     */
+    private function screens(User $user): array
+    {
+        return array_values(array_filter(
+            app(HowToGuideLibrary::class)->screensFor($user->role),
+            fn (array $screen) => $this->pageHref($user, $screen['href']) !== null
+        ));
     }
 
     /** Text people typed into records must not read as Markdown once it sits in an answer or in the facts. */
