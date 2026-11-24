@@ -34,6 +34,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class AskAiService
@@ -3258,6 +3259,7 @@ class AskAiService
             ->count();
 
         $budgetHref = $this->linkTo($user, '/dashboard/finance/budget-allocation');
+        $books = $this->ledgerPicture($orgIds);
 
         return [
             'title' => 'Budget Utilization & Financial Status',
@@ -3269,11 +3271,12 @@ class AskAiService
                 $unpaidInvoicesCount,
                 Str::plural('invoice', $unpaidInvoicesCount),
                 $unpaidInvoicesCount === 1 ? 'is' : 'are'
-            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : '').($working === null ? '' : ' Working: '.$working),
+            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : '').($working === null ? '' : ' Working: '.$working).$this->ledgerSentence($books),
             'highlights' => [
                 ['label' => 'Approved allocated', 'value' => '₱'.number_format($allocated, 2), 'tone' => 'primary'],
                 ['label' => 'Remaining budget', 'value' => '₱'.number_format($remaining, 2), 'tone' => 'success'],
                 ['label' => 'Open student invoices', 'value' => (string) $unpaidInvoicesCount, 'tone' => $unpaidInvoicesCount > 0 ? 'warning' : 'neutral'],
+                ...$this->ledgerHighlights($books),
             ],
             'sections' => [
                 [
@@ -3304,12 +3307,122 @@ class AskAiService
                         ];
                     })->all(),
                 ],
+                ...$this->ledgerSections($books, $this->linkTo($user, '/dashboard/finance/financial-ledger')),
             ],
             'follow_ups' => [
                 ['topic' => 'missing_submissions', 'label' => 'Missing financial reports', 'question' => "Which organizations haven't submitted compliance or financial reports?"],
                 ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
             ],
         ];
+    }
+
+    /**
+     * What the ledger itself holds for the selected semester, whether or not an entry is linked to a budget. A manual
+     * entry, a verified collection or an invoice payment often carries no budget, so a picture built from approved
+     * budgets alone reads 0.00 for an organization that has recorded money. It follows the Ledger page's own summary
+     * (organization and semester), and leaves out archived entries when the table has an archived_at column.
+     *
+     * @param  array<int, int>  $orgIds
+     * @return array{count: int, income: float, expense: float, unlinked_income: float, unlinked_expense: float, categories: array<int, array{category: string, income: float, expense: float, entries: int}>}
+     */
+    private function ledgerPicture(array $orgIds): array
+    {
+        $entries = Transaction::query()
+            ->whereIn('organization_id', $orgIds)
+            ->tap(fn ($query) => SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected()))
+            ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('archived_at'));
+
+        $sum = fn (string $type, bool $unlinkedOnly = false) => "COALESCE(SUM(CASE WHEN type = '{$type}'".($unlinkedOnly ? ' AND budget_id IS NULL' : '')." THEN amount ELSE 0 END), 0)";
+        $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense, {$sum('income', true)} as unlinked_income, {$sum('expense', true)} as unlinked_expense")->first();
+
+        $categories = (clone $entries)
+            ->selectRaw("category, COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense")
+            ->groupBy('category')
+            ->orderByRaw('SUM(amount) DESC')
+            ->orderBy('category')
+            ->limit(self::ROW_LIMIT)
+            ->get()
+            ->map(fn ($row) => [
+                'category' => (string) $row->category,
+                'income' => round((float) $row->income, 2),
+                'expense' => round((float) $row->expense, 2),
+                'entries' => (int) $row->entries,
+            ])
+            ->all();
+
+        return [
+            'count' => (int) ($totals->entries ?? 0),
+            'income' => round((float) ($totals->income ?? 0), 2),
+            'expense' => round((float) ($totals->expense ?? 0), 2),
+            'unlinked_income' => round((float) ($totals->unlinked_income ?? 0), 2),
+            'unlinked_expense' => round((float) ($totals->unlinked_expense ?? 0), 2),
+            'categories' => $categories,
+        ];
+    }
+
+    /** The ledger totals in a sentence, with the part that no budget accounts for; empty when the ledger holds nothing. */
+    private function ledgerSentence(array $books): string
+    {
+        if ($books['count'] === 0) {
+            return '';
+        }
+
+        $peso = fn (float $amount) => '₱'.number_format($amount, 2);
+        $sentence = sprintf(
+            ' The ledger shows %s income and %s expenses, so %s net.',
+            $peso($books['income']),
+            $peso($books['expense']),
+            $peso($books['income'] - $books['expense'])
+        );
+
+        if ($books['unlinked_income'] > 0 || $books['unlinked_expense'] > 0) {
+            $sentence .= sprintf(
+                ' Of that, %s income and %s expenses are not linked to a budget.',
+                $peso($books['unlinked_income']),
+                $peso($books['unlinked_expense'])
+            );
+        }
+
+        return $sentence;
+    }
+
+    private function ledgerHighlights(array $books): array
+    {
+        if ($books['count'] === 0) {
+            return [];
+        }
+
+        $net = $books['income'] - $books['expense'];
+
+        return [
+            ['label' => 'Ledger income', 'value' => '₱'.number_format($books['income'], 2), 'tone' => 'success'],
+            ['label' => 'Ledger expenses', 'value' => '₱'.number_format($books['expense'], 2), 'tone' => 'warning'],
+            ['label' => 'Ledger net', 'value' => '₱'.number_format($net, 2), 'tone' => $net < 0 ? 'danger' : 'primary'],
+        ];
+    }
+
+    private function ledgerSections(array $books, ?string $href): array
+    {
+        if ($books['categories'] === []) {
+            return [];
+        }
+
+        return [[
+            'id' => 'ledger-by-category',
+            'title' => 'Ledger by Category',
+            'description' => 'Largest total first.',
+            'empty_message' => 'No ledger entries are recorded yet.',
+            'rows' => array_map(fn (array $category) => [
+                'id' => 'ledger-category-'.Str::slug($category['category']),
+                'primary' => Str::headline($category['category']),
+                'secondary' => sprintf('Income: ₱%s · Expenses: ₱%s', number_format($category['income'], 2), number_format($category['expense'], 2)),
+                'status' => $category['income'] >= $category['expense'] ? 'Net in' : 'Net out',
+                'status_tone' => $category['income'] >= $category['expense'] ? 'success' : 'warning',
+                'meta' => $this->plural($category['entries'], 'entry'),
+                'href' => $href,
+                'action_label' => 'Open ledger',
+            ], $books['categories']),
+        ]];
     }
 
     // -------------------------------------------------------------------------
@@ -4595,6 +4708,7 @@ class AskAiService
 
         $facts = [
             'role' => $user->role,
+            'position' => $this->positionTitle($user),
             'question' => $question,
             'deterministic_answer' => $payload['answer'],
             'highlights' => $payload['highlights'],
@@ -5165,6 +5279,7 @@ class AskAiService
             $transactions = DB::table('transactions')
                 ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
                 ->whereIn('transactions.organization_id', $orgIds)
+                ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('transactions.archived_at'))
                 ->orderByDesc('transactions.transaction_date')
                 ->limit(25)
                 ->get([
