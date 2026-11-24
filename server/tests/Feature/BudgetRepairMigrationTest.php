@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
@@ -63,6 +64,46 @@ class BudgetRepairMigrationTest extends TestCase
 
         $this->assertSame('25000.00', $pending->fresh()->remaining_amount);
         $this->assertSame('9000.00', $returned->fresh()->remaining_amount);
+    }
+
+    public function test_a_budget_sent_back_for_re_approval_keeps_its_entries(): void
+    {
+        $sentBack = $this->makeBudget('General Operations Fund', 'pending_department_head', null, '50000.00');
+        $spent = $this->makeEntry('expense', '13500.00', $sentBack);
+        $never = $this->makeBudget('Sports Fest 2024 Budget', 'pending_department_head', null, '25000.00');
+        $legacy = $this->makeEntry('expense', '3800.00', $never);
+        $this->resubmittedAfterApproval($sentBack);
+        $this->resubmittedAfterApproval($never, 'rejected');
+
+        $this->runRepair();
+
+        $this->assertSame($sentBack->id, $spent->fresh()->budget_id);
+        $this->assertSame(0, AuditLog::where('action', 'budget_unlinked')->where('record_id', $spent->id)->count());
+        $this->assertSame('36500.00', $sentBack->fresh()->remaining_amount);
+        $this->assertNull($legacy->fresh()->budget_id);
+        $this->assertSame(1, AuditLog::where('action', 'budget_unlinked')->where('record_id', $legacy->id)->count());
+    }
+
+    private function resubmittedAfterApproval($budget, string $previousStatus = 'approved'): void
+    {
+        $approval = ApprovalRequest::create([
+            'organization_id' => $budget->organization_id,
+            'entity_type' => 'budget',
+            'entity_id' => $budget->id,
+            'requested_by' => $this->admin->id,
+            'required_role' => 'DEPARTMENT_HEAD',
+        ]);
+        AuditLog::create([
+            'organization_id' => $budget->organization_id,
+            'user_id' => $this->admin->id,
+            'module' => 'approvals',
+            'action' => 'resubmitted',
+            'record_type' => ApprovalRequest::class,
+            'record_id' => $approval->id,
+            'old_values' => ['status' => $previousStatus],
+            'new_values' => ['entity_type' => 'budget', 'entity_id' => $budget->id, 'status' => 'pending'],
+            'created_at' => now(),
+        ]);
     }
 
     public function test_remaining_is_recomputed_for_every_budget_from_entries_that_are_not_archived(): void

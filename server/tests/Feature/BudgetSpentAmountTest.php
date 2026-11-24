@@ -99,9 +99,10 @@ class BudgetSpentAmountTest extends TestCase
         $this->entry($budget, 'expense', '120.00');
         $this->entry($budget, 'income', '40.00');
 
-        // A change to an approved budget sends it back for approval, and until it is approved again it is not released.
+        // A change to an approved budget sends it back for approval, and until it is approved again it is not released, but what was already spent stays counted.
         $this->putJson('/api/budgets/'.$budget->id, ['title' => 'Renamed'])->assertOk()
-            ->assertJsonPath('spent_amount', '0.00')
+            ->assertJsonPath('spent_amount', '120.00')
+            ->assertJsonPath('income_amount', '40.00')
             ->assertJsonPath('is_released', false);
 
         Budget::whereKey($budget->id)->update(['submission_status' => 'approved']);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ApprovalRequest;
 use App\Models\Transaction;
 use App\Services\BudgetAdviceRules;
 use Illuminate\Database\Migrations\Migration;
@@ -7,7 +8,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * A budget that is not approved is not released, so nothing may be linked to it. Entries that were linked while it was
- * pending are unlinked (they keep their event, or take the budget's), each unlink is written to the audit log, and every
+ * pending are unlinked, except on a budget that was approved before and was only sent back for re-approval: what it had
+ * already spent stays linked (they keep their event, or take the budget's), each unlink is written to the audit log, and every
  * budget's remaining amount and risk are recomputed from its entries that are not archived. Safe to run again: a second
  * run finds nothing linked and recomputes the same figures.
  */
@@ -26,9 +28,11 @@ return new class extends Migration
 
     private function unlinkEntriesFromUnapprovedBudgets(): void
     {
+        $approvedBefore = $this->budgetIdsApprovedBefore();
         $budgets = DB::table('budgets')
             ->where(fn ($query) => $query->whereNull('submission_status')->orWhere('submission_status', '!=', 'approved'))
-            ->pluck('event_id', 'id');
+            ->pluck('event_id', 'id')
+            ->except($approvedBefore);
 
         if ($budgets->isEmpty()) {
             return;
@@ -45,6 +49,29 @@ return new class extends Migration
                     });
                 });
         }
+    }
+
+    /** The budgets whose approval was reopened after it had been approved: the audit row of the resubmission holds the old status. */
+    private function budgetIdsApprovedBefore(): array
+    {
+        $approvals = DB::table('approval_requests')->where('entity_type', 'budget')->pluck('entity_id', 'id');
+        $budgetIds = [];
+
+        foreach ($approvals->keys()->chunk(500) as $ids) {
+            DB::table('audit_logs')
+                ->where('module', 'approvals')
+                ->where('action', 'resubmitted')
+                ->where('record_type', ApprovalRequest::class)
+                ->whereIn('record_id', $ids->all())
+                ->pluck('old_values', 'record_id')
+                ->each(function ($oldValues, $approvalId) use ($approvals, &$budgetIds) {
+                    if ((json_decode((string) $oldValues, true)['status'] ?? null) === 'approved') {
+                        $budgetIds[] = $approvals[$approvalId];
+                    }
+                });
+        }
+
+        return $budgetIds;
     }
 
     private function unlink(object $entry, mixed $budgetEventId): void
