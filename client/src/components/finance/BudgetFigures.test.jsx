@@ -37,13 +37,24 @@ describe('BudgetFigures', () => {
   });
 
   it.each(['pending_department_head', 'draft', 'rejected'])('shows a %s budget as untouched until it is approved', (status) => {
-    render(<BudgetFigures budget={{ ...released, submission_status: status, is_released: false, remaining_amount: 21200, allocated_amount: 25000 }} />);
+    render(<BudgetFigures budget={{ ...released, submission_status: status, is_released: false, allocated_amount: 25000, spent_amount: 0, income_amount: 0, remaining_amount: 25000 }} />);
 
     expect(screen.getByText('Remaining').nextSibling).toHaveTextContent('₱25,000.00');
     expect(screen.getByText('Not released until approved. Nothing can be spent from it yet.')).toBeInTheDocument();
     expect(screen.queryByText('Spent')).not.toBeInTheDocument();
     expect(screen.queryByText('Income')).not.toBeInTheDocument();
     expect(screen.queryByText(/allocated -/)).not.toBeInTheDocument();
+  });
+
+  it.each(['pending_department_head', 'rejected'])('keeps what a %s budget already spent and shows how to read it', (status) => {
+    render(<BudgetFigures budget={{ ...released, submission_status: status, is_released: false }} />);
+
+    expect(screen.getByText('Spent').nextSibling).toHaveTextContent('₱13,500.00');
+    expect(screen.getByText('Income').nextSibling).toHaveTextContent('₱43,500.00');
+    expect(screen.getByText('Remaining').nextSibling).toHaveTextContent('₱80,000.00');
+    expect(screen.getByText('50,000.00 allocated - 13,500.00 spent + 43,500.00 income = 80,000.00 remaining')).toBeInTheDocument();
+    expect(screen.getByText('Sent back for approval. Nothing more can be spent until it is approved again.')).toBeInTheDocument();
+    expect(screen.queryByText(/Not released until approved/)).not.toBeInTheDocument();
   });
 
   it('falls back to the submission status when the row has no is_released flag', () => {
