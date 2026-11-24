@@ -345,8 +345,8 @@ function App() {
           <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
             <Route index element={<FinanceIndexRedirect />} />
             <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
-            <Route path="collections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancialCollectionsPage /></ProtectedRoute>} />
-            <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
+            <Route path="collections" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]} requireFinanceWriter><FinancialCollectionsPage /></ProtectedRoute>} />
+            <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]} requireFinanceWriter><StudentFinancialAccountsPage /></ProtectedRoute>} />
             <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
             <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
             <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />

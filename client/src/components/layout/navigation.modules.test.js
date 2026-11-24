@@ -19,6 +19,26 @@ describe('modules narrow an officer menu', () => {
     expect(labels(nav)).not.toContain('Members and fingerprints');
   });
 
+  it('keeps Finance view only for an officer whose position cannot handle finance', () => {
+    const finance = getNavForRole('SBO_OFFICER', null, true, false).find((item) => item.id === 'finance');
+    expect(finance.label).toBe('Finance (view only)');
+    expect(labels(finance.children)).toEqual(['Budgets', 'Ledger', 'Financial reports', 'Forecast']);
+    expect(getNavForRole('SBO_OFFICER')).toEqual(getNavForRole('SBO_OFFICER', null, true, false));
+  });
+
+  it('gives an officer whose position handles finance the full Finance group', () => {
+    const finance = getNavForRole('SBO_OFFICER', null, true, true).find((item) => item.id === 'finance');
+    expect(finance.label).toBe('Finance');
+    expect(labels(finance.children)).toEqual(['Budgets', 'Ledger', 'Collections and advances', 'Student accounts', 'Financial reports', 'Forecast']);
+    expect(getNavLeaves('SBO_OFFICER', null, true, true).map((page) => page.id)).toContain('collections');
+    expect(getFlatPages('SBO_OFFICER', null, true, true).map((page) => page.id)).toContain('student-accounts');
+  });
+
+  it('still narrows the finance pages by module for an officer who handles finance', () => {
+    const nav = getNavForRole('SBO_OFFICER', ['events'], true, true);
+    expect(nav.find((item) => item.id === 'finance')).toBeUndefined();
+  });
+
   it('drops single pages inside a group that has several', () => {
     const nav = getNavForRole('SBO_OFFICER', ['events']);
     const events = nav.find((item) => item.id === 'events-tasks');
