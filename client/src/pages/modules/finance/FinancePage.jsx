@@ -474,6 +474,11 @@ function withoutArchived(query) {
   return Object.fromEntries(Object.entries(query).filter(([key]) => key !== 'archived'));
 }
 
+// A search or any filter beyond the organization scope narrows the ledger totals below the whole ledger.
+function isNarrowedLedger(activeFilters, organizationScope, searchTerm) {
+  return Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
+}
+
 // A new transaction starts on today's date, so the form only needs a description and an amount.
 function todayInputValue() {
   const now = new Date();
@@ -623,10 +628,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setLedgerLoading(true);
     setError(null);
     const term = searchTerm.trim();
-    const query = { ...ledgerScope(filters, organizationFilter).activeFilters, ...(term ? { search: term } : {}) };
+    const { organizationScope, activeFilters } = ledgerScope(filters, organizationFilter);
+    const query = { ...activeFilters, ...(term ? { search: term } : {}) };
     Promise.all([getTransactions({ page, ...query }), getTransactionSummary(withoutArchived(query))])
       .then(([txRes, sumRes]) => {
-        if (ticket === ledgerTicket.current) showTransactions(txRes, sumRes);
+        if (ticket !== ledgerTicket.current) return;
+        showTransactions(txRes, sumRes);
+        // Read with no search or filter, the summary is the whole ledger, so the Budgets figure takes it too.
+        if (!isNarrowedLedger(activeFilters, organizationScope, term)) {
+          setOverallSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
+          setBudgetsLedgerSummary(sumRes.data ?? null);
+        }
       })
       .catch(() => {
         if (ticket === ledgerTicket.current) setError('Failed to load financial data.');
@@ -673,7 +685,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     let ledgerSummaryFromBudgets = null;
     const emptySummary = { data: { total_income: 0, total_expense: 0, net_balance: 0 } };
     const ledgerSummary = canViewTransactions ? getTransactionSummary(withoutArchived({ ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) })) : Promise.resolve(emptySummary);
-    const isNarrowed = Object.keys(activeFilters).some((key) => !(key in organizationScope)) || Boolean(searchTerm.trim());
+    const isNarrowed = isNarrowedLedger(activeFilters, organizationScope, searchTerm);
     const allTimeSummary = canViewTransactions && isNarrowed ? getTransactionSummary({ ...organizationScope }) : ledgerSummary;
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
@@ -1656,6 +1668,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Expenses</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.total_expense)}</dd></div>
           <div className="p-4"><dt className="text-xs font-medium text-ink-muted">Net balance</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-ink">{fmt(summary.net_balance)}</dd></div>
         </dl>
+      )}
+
+      {activeTab === 'transactions' && canViewTransactions && ledgerView === 'all' && !loading && !ledgerLoading && !error && !archivedView && activeTransactionFilters.length > 0 && (
+        <p className="-mt-2 text-xs text-ink-muted">Totals for the filtered entries only.</p>
       )}
 
       {error && <ErrorState title="Financial data did not load" description={error} onRetry={() => load()} />}
