@@ -3332,7 +3332,7 @@ class AskAiService
             ->tap(fn ($query) => SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected()))
             ->when(Schema::hasColumn('transactions', 'archived_at'), fn ($query) => $query->whereNull('archived_at'));
 
-        $sum = fn (string $type, bool $unlinkedOnly = false) => "COALESCE(SUM(CASE WHEN type = '{$type}'".($unlinkedOnly ? ' AND budget_id IS NULL' : '')." THEN amount ELSE 0 END), 0)";
+        $sum = fn (string $type, bool $unlinkedOnly = false) => "COALESCE(SUM(CASE WHEN type = '{$type}'".($unlinkedOnly ? ' AND budget_id IS NULL' : '').' THEN amount ELSE 0 END), 0)';
         $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense, {$sum('income', true)} as unlinked_income, {$sum('expense', true)} as unlinked_expense")->first();
 
         $categories = (clone $entries)
