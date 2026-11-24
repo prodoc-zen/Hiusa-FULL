@@ -15,7 +15,16 @@ class SboPosition extends Model
             if (! array_key_exists('can_book_venues', $position->getAttributes())) {
                 $position->can_book_venues = self::bookingDefaultFor((string) $position->title);
             }
+            if (! array_key_exists('can_handle_finance', $position->getAttributes())) {
+                $position->can_handle_finance = self::financeDefaultFor((string) $position->title);
+            }
         });
+    }
+
+    /** The Treasurer, the Auditor, the Business Manager and the Secretary (not Assistant Secretary) handle finance by default. */
+    public static function financeDefaultFor(string $title): bool
+    {
+        return in_array(self::normaliseTitle($title), ['treasurer', 'auditor', 'business manager', 'secretary'], true);
     }
 
     /** President, the Vice Presidents, Secretary (not Assistant Secretary) and Business Manager book venues by default. */
@@ -40,6 +49,6 @@ class SboPosition extends Model
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'can_book_venues' => 'boolean'];
+        return ['is_active' => 'boolean', 'can_book_venues' => 'boolean', 'can_handle_finance' => 'boolean'];
     }
 }

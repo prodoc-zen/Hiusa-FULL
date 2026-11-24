@@ -70,6 +70,14 @@ class AskAiRoleIntents
         'ADMIN' => 'you',
     ];
 
+    /** What an officer whose position handles finance is told for each finance tool, in place of the Admin-only wording. */
+    private const FINANCE_OFFICER_ACCESS = [
+        'forecast' => ['/dashboard/finance/financial-insights', 'Make one on the Financial insights page, then read it before you plan around it.', 'Open Financial insights'],
+        'budget_advice' => ['/dashboard/finance/budget-allocation', 'Open the budget and choose advice for a safe-spending limit.', 'Open Budget allocation'],
+        'report_summary' => ['/dashboard/finance/transaction-history', 'Build the report on the Financial reports page, and the summary comes with it.', 'Open Financial reports'],
+        'report_check' => ['/dashboard/finance/transaction-history', 'Open the report on the Financial reports page and read the checks under Before you send.', 'Open Financial reports'],
+    ];
+
     private const TOOLS = [
         'forecast' => [
             'title' => 'Financial forecast',
@@ -665,11 +673,27 @@ class AskAiRoleIntents
     // What an AI tool does and where it lives
     // -------------------------------------------------------------------------
 
+    /** The tools with the finance ones an officer may open: a position with "Can handle finance" makes the forecast, budget advice and report the way the Admin does. */
+    private function toolsFor(User $user): array
+    {
+        if ($user->role !== 'SBO_OFFICER' || ! $user->canHandleFinance()) {
+            return self::TOOLS;
+        }
+
+        $tools = self::TOOLS;
+        foreach (self::FINANCE_OFFICER_ACCESS as $toolKey => $access) {
+            $tools[$toolKey]['access']['SBO_OFFICER'] = $access;
+        }
+
+        return $tools;
+    }
+
     private function buildAiTools(User $user, string $question): array
     {
         $role = $user->role;
         $key = $this->toolFor($this->normalize($question));
-        $mine = array_filter(self::TOOLS, fn (array $tool) => isset($tool['access'][$role]));
+        $tools = $this->toolsFor($user);
+        $mine = array_filter($tools, fn (array $tool) => isset($tool['access'][$role]));
 
         $rowFor = function (string $toolKey, array $tool) use ($role) {
             [$route, , $label] = $tool['access'][$role];
@@ -690,8 +714,8 @@ class AskAiRoleIntents
             ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
         ];
 
-        if ($key !== null && ! isset(self::TOOLS[$key]['access'][$role])) {
-            $tool = self::TOOLS[$key];
+        if ($key !== null && ! isset($tools[$key]['access'][$role])) {
+            $tool = $tools[$key];
             $others = array_diff_key($mine, [$key => true]);
 
             return [
@@ -707,7 +731,7 @@ class AskAiRoleIntents
         }
 
         if ($key !== null) {
-            $tool = self::TOOLS[$key];
+            $tool = $tools[$key];
             $others = array_diff_key($mine, [$key => true]);
 
             return [

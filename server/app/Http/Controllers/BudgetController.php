@@ -22,6 +22,9 @@ class BudgetController extends Controller
 {
     private const BUDGET_GONE = 'budget_gone';
 
+    /** The statuses an officer may still edit: a draft, and a budget the reviewer returned. */
+    private const OFFICER_EDITABLE_STATUSES = ['draft', 'rejected'];
+
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly TextGenerator $ai,
@@ -114,6 +117,10 @@ class BudgetController extends Controller
 
         return DB::transaction(function () use ($request, $budget, $data) {
             $budget = Budget::whereKey($budget->id)->lockForUpdate()->firstOrFail();
+            // An officer prepares a budget the organization has not sent on: one that is submitted or approved is the Admin's to change.
+            if ($request->user()->role === 'SBO_OFFICER' && ! in_array($budget->submission_status, self::OFFICER_EDITABLE_STATUSES, true)) {
+                return response()->json(['message' => 'This budget has been submitted. Only your Admin can change it.'], 403);
+            }
             $oldValues = $this->auditableValues($budget);
 
             if (array_key_exists('event_id', $data)
