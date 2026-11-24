@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\ReceiptPdfService;
 use App\Services\TransactionReceiptFiles;
 use App\Support\FilterValues;
+use App\Support\LedgerScope;
 use App\Support\SemesterScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -118,58 +119,8 @@ class TransactionController extends Controller
             'event_search' => ['nullable', 'string', 'max:150'],
         ]);
 
-        $query = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request));
-
-        if (! empty($filters['academic_semester_id'])) {
-            SemesterScope::dated($query, 'transaction_date', AcademicSemester::whereIn('id', FilterValues::values($filters['academic_semester_id']))->get());
-        } else {
-            SemesterScope::selected($query, 'transaction_date', AcademicSemester::selected($request));
-        }
-
-        if (! empty($filters['budget_id'])) {
-            $query->whereIn('budget_id', FilterValues::values($filters['budget_id']));
-        }
-
-        if (! empty($filters['event_id'])) {
-            $query->whereIn('event_id', FilterValues::values($filters['event_id']));
-        }
-
-        if (! empty($filters['event_search'])) {
-            $eventSearch = trim($filters['event_search']);
-            $query->whereHas('event', fn ($event) => $event->where('title', 'like', "%{$eventSearch}%"));
-        }
-
-        if (! empty($filters['type'])) {
-            $query->whereIn('type', FilterValues::values($filters['type']));
-        }
-
-        if (! empty($filters['from'])) {
-            $query->whereDate('transaction_date', '>=', $filters['from']);
-        }
-
-        if (! empty($filters['to'])) {
-            $query->whereDate('transaction_date', '<=', $filters['to']);
-        }
-
-        if (! empty($filters['search'])) {
-            $search = trim($filters['search']);
-            $query->where(function ($nested) use ($search) {
-                $nested->where('description', 'like', "%{$search}%")
-                    ->orWhere('category', 'like', "%{$search}%")
-                    ->orWhere('receipt_reference', 'like', "%{$search}%")
-                    ->orWhereHas('event', fn ($event) => $event->where('title', 'like', "%{$search}%"))
-                    ->orWhereHas('budget', fn ($budget) => $budget->where('title', 'like', "%{$search}%"));
-
-                $nested->orWhereHas('payer', fn ($payer) => $payer->where('school_id', 'like', "%{$search}%")->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%")->orWhere('department', 'like', "%{$search}%")->orWhere('program', 'like', "%{$search}%")->orWhere('year_level', 'like', "%{$search}%"));
-
-                if (ctype_digit($search)) {
-                    $nested->orWhere('receipt_number', (int) $search);
-                }
-            });
-        }
-
-        $totalIncome = (clone $query)->where('type', 'income')->sum('amount');
-        $totalExpense = (clone $query)->where('type', 'expense')->sum('amount');
+        $query = LedgerScope::query($request, $this->readableOrganizationIds($request), $filters);
+        $totals = LedgerScope::totals($query);
 
         $byCategory = (clone $query)
             ->selectRaw('category, type, SUM(amount) as total')
@@ -178,11 +129,109 @@ class TransactionController extends Controller
             ->get();
 
         return response()->json([
-            'total_income' => round($totalIncome, 2),
-            'total_expense' => round($totalExpense, 2),
-            'net_balance' => round($totalIncome - $totalExpense, 2),
+            ...$totals,
             'by_category' => $byCategory,
         ]);
+    }
+
+    /**
+     * One ledger per event of the semester, the entries that belong to no event, and the totals row that adds them
+     * all up. The totals are the Ledger summary for the same semester: they come from the same scope and cover the same
+     * entries, so an event outside the semester that has entries dated inside it is listed too.
+     */
+    public function eventLedgers(Request $request)
+    {
+        $filters = $request->validate([
+            'academic_semester_id' => ['nullable', FilterValues::rule(['integer', 'exists:academic_semesters,id'])],
+        ]);
+        $organizationIds = $this->readableOrganizationIds($request);
+
+        $perEvent = LedgerScope::query($request, $organizationIds, $filters)
+            ->toBase()
+            ->selectRaw('transactions.event_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income")
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense")
+            ->selectRaw('COUNT(*) AS transaction_count')
+            ->groupBy('transactions.event_id')
+            ->get()
+            ->keyBy(fn ($row) => $row->event_id ?? 0);
+
+        $semesterIds = ! empty($filters['academic_semester_id'])
+            ? array_map('intval', FilterValues::values($filters['academic_semester_id']))
+            : array_filter([AcademicSemester::selected($request)?->id]);
+
+        $events = Event::whereIn('organization_id', $organizationIds)
+            ->when($semesterIds !== [], fn ($scoped) => $scoped->where(fn ($event) => $event
+                ->whereIn('academic_semester_id', $semesterIds)
+                ->orWhereIn('id', $perEvent->keys()->filter()->values()->all())))
+            ->orderBy('start_time')
+            ->orderBy('id')
+            ->get(['id', 'title', 'start_time', 'status']);
+
+        $budgets = $this->eventBudgetFigures($events->pluck('id')->all());
+
+        $money = fn (float $amount) => number_format($amount, 2, '.', '');
+        $figures = function ($row) use ($money) {
+            $income = (float) ($row->income ?? 0);
+            $expense = (float) ($row->expense ?? 0);
+
+            return [
+                'income' => $money($income),
+                'expense' => $money($expense),
+                'net' => $money($income - $expense),
+                'transaction_count' => (int) ($row->transaction_count ?? 0),
+            ];
+        };
+
+        $totals = (object) [
+            'income' => $perEvent->sum(fn ($row) => (float) $row->income),
+            'expense' => $perEvent->sum(fn ($row) => (float) $row->expense),
+            'transaction_count' => $perEvent->sum(fn ($row) => (int) $row->transaction_count),
+        ];
+
+        return response()->json([
+            'data' => $events->map(fn (Event $event) => [
+                'event_id' => $event->id,
+                'title' => $event->title,
+                'start_time' => $event->start_time,
+                'status' => $event->status,
+                ...$figures($perEvent->get($event->id)),
+                'budget' => $budgets[$event->id] ?? null,
+            ])->values(),
+            'unassigned' => $figures($perEvent->get(0)),
+            'totals' => $figures($totals),
+        ]);
+    }
+
+    /**
+     * The budget each event shows on its ledger: the approved one when there is one, otherwise the latest.
+     * A budget that is not approved is not released, so it reads nothing spent and its whole allocation left.
+     *
+     * @param  array<int>  $eventIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function eventBudgetFigures(array $eventIds): array
+    {
+        if ($eventIds === []) {
+            return [];
+        }
+
+        $chosen = Budget::whereIn('event_id', $eventIds)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('event_id')
+            ->map(fn ($budgets) => $budgets->firstWhere('submission_status', 'approved') ?? $budgets->last());
+        $figures = Budget::figuresFor($chosen->values());
+
+        return $chosen->map(fn (Budget $budget) => [
+            'id' => $budget->id,
+            'title' => $budget->title,
+            'submission_status' => $budget->submission_status,
+            'is_released' => $figures[$budget->id]['is_released'],
+            'allocated_amount' => $figures[$budget->id]['allocated_amount'],
+            'spent_amount' => $figures[$budget->id]['spent_amount'],
+            'remaining_amount' => $figures[$budget->id]['remaining_amount'],
+        ])->all();
     }
 
     public function store(Request $request)
