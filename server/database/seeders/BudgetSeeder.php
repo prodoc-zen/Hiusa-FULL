@@ -18,6 +18,7 @@ class BudgetSeeder extends Seeder
         $officer1 = User::where('school_id', 900001)->first();
         $assembly = Event::where('title', 'HIUSA General Assembly')->first();
         $sportsFest = Event::where('title', 'Sports Fest 2024')->first();
+        $seminar = Event::where('title', 'Leadership Seminar 2024')->first();
 
         $generalFund = Budget::create([
             'title' => 'General Operations Fund',
@@ -128,6 +129,7 @@ class BudgetSeeder extends Seeder
                 'transaction_date' => now()->subMonths(1)->startOfMonth(),
             ],
             [
+                'event_id' => $sportsFest?->id,
                 'budget_id' => $generalFund->id,
                 'recorded_by' => $officer1->id,
                 'type' => 'income',
@@ -147,6 +149,7 @@ class BudgetSeeder extends Seeder
             ],
             // Expense entries
             [
+                'event_id' => $assembly?->id,
                 'budget_id' => $generalFund->id,
                 'recorded_by' => $officer1->id,
                 'type' => 'expense',
@@ -156,6 +159,7 @@ class BudgetSeeder extends Seeder
                 'transaction_date' => now()->subWeeks(3),
             ],
             [
+                'event_id' => $assembly?->id,
                 'budget_id' => $generalFund->id,
                 'recorded_by' => $officer1->id,
                 'type' => 'expense',
@@ -194,6 +198,7 @@ class BudgetSeeder extends Seeder
                 'transaction_date' => now()->subMonths(2),
             ],
             [
+                'event_id' => $seminar?->id,
                 'budget_id' => $generalFund->id,
                 'recorded_by' => $officer1->id,
                 'type' => 'expense',

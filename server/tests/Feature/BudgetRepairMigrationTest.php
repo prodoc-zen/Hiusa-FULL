@@ -149,4 +149,23 @@ class BudgetRepairMigrationTest extends TestCase
         $sportsBudget = Budget::where('title', 'Sports Fest 2024 Budget')->firstOrFail();
         $this->assertSame('25000.00', $sportsBudget->remaining_amount);
     }
+
+    public function test_the_seeded_entries_named_for_an_event_carry_that_events_id(): void
+    {
+        Storage::fake('local');
+        $this->seed();
+
+        $expected = [
+            'AVR rental for General Assembly%' => 'HIUSA General Assembly',
+            'Snacks and drinks for General Assembly%' => 'HIUSA General Assembly',
+            'Van rental for Leadership Seminar%' => 'Leadership Seminar 2024',
+            'Sports equipment and medals%' => 'Sports Fest 2024',
+            'Corporate sponsorship from TechPH - Sports Fest%' => 'Sports Fest 2024',
+        ];
+        foreach ($expected as $description => $title) {
+            $entry = Transaction::where('description', 'like', $description)->firstOrFail();
+            $this->assertSame(Event::where('title', $title)->value('id'), $entry->event_id, $description);
+        }
+        $this->assertSame(Budget::where('title', 'General Operations Fund')->value('id'), Transaction::where('description', 'like', 'AVR rental%')->value('budget_id'));
+    }
 }
