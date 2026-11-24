@@ -16,7 +16,7 @@ describe('PrivacyNoticePage', () => {
     renderPage();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Data Privacy Notice' })).toBeInTheDocument();
-    expect(screen.getByText(/Version 2026-11/)).toBeInTheDocument();
+    expect(screen.getByText(/Version 2026-11-24/)).toBeInTheDocument();
     expect(screen.getByText(/Republic Act No\. 10173, the Data Privacy Act of 2012/)).toBeInTheDocument();
     const contact = screen.getByRole('region', { name: 'Who to contact' });
     expect(within(contact).getByText(/Student Affairs Office/)).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe('PrivacyNoticePage', () => {
     expect(within(collected).getByText(/not stored by HIUSA/)).toBeInTheDocument();
     const why = screen.getByRole('region', { name: 'Why we collect it' });
     expect(within(why).getByText(/Anthropic/)).toBeInTheDocument();
-    expect(screen.getByText(/Version 2026-11/)).toBeInTheDocument();
+    expect(screen.getByText(/Version 2026-11-24/)).toBeInTheDocument();
   });
 
   it('opens without signing in and offers a way to sign in', () => {
