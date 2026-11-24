@@ -56,7 +56,8 @@ function Dialog({ label, onClose, onSubmit, children, submitLabel, busy, error }
  * it, releasing it moves cash out of the ledger, and each repayment moves it
  * back in until the balance is cleared. None of it is income or expense.
  */
-export default function CashAdvancesSection({ onLedgerChange }) {
+// readOnly: an officer who handles finance sees the advances, but requesting, approving, releasing and repaying stay with the Admin.
+export default function CashAdvancesSection({ onLedgerChange, readOnly = false }) {
   const [status, setStatus] = useState('');
   const [state, setState] = useState({ loading: true, error: '', rows: [] });
   const [requestOpen, setRequestOpen] = useState(false);
@@ -126,9 +127,9 @@ export default function CashAdvancesSection({ onLedgerChange }) {
   function rowAction(advance) {
     if (advance.status === 'pending' && advance.borrower_id === me) return <p className="max-w-48 text-xs text-ink-muted sm:text-right">Another admin approves your request.</p>;
     return <TableRowActions subject={advance.purpose} actions={[
-      advance.status === 'pending' && { label: 'Approve', disabled: busy === `approve-${advance.id}`, onClick: () => run(`approve-${advance.id}`, () => approveCashAdvance(advance.id), 'Cash advance approved') },
-      advance.status === 'approved' && { label: 'Release funds', onClick: () => setReleaseTarget(advance) },
-      ['released', 'partially_repaid'].includes(advance.status) && { label: 'Record repayment', onClick: () => { setFormError(''); setRepayment(EMPTY_REPAYMENT); setRepayTarget(advance); } },
+      advance.status === 'pending' && { label: 'Approve', disabled: readOnly || busy === `approve-${advance.id}`, onClick: () => run(`approve-${advance.id}`, () => approveCashAdvance(advance.id), 'Cash advance approved') },
+      advance.status === 'approved' && { label: 'Release funds', disabled: readOnly, onClick: () => setReleaseTarget(advance) },
+      ['released', 'partially_repaid'].includes(advance.status) && { label: 'Record repayment', disabled: readOnly, onClick: () => { setFormError(''); setRepayment(EMPTY_REPAYMENT); setRepayTarget(advance); } },
     ]} />;
   }
 
@@ -146,7 +147,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
               {STATUS_FILTERS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
             </Select>
           </label>
-          <Button variant="secondary" leftIcon={Plus} onClick={() => { setFormError(''); setRequestOpen(true); }}>Request cash advance</Button>
+          <Button variant="secondary" leftIcon={Plus} disabled={readOnly} title={readOnly ? 'An Admin handles cash advances' : undefined} onClick={() => { setFormError(''); setRequestOpen(true); }}>Request cash advance</Button>
         </div>
       </div>
 

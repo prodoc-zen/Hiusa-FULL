@@ -281,11 +281,19 @@ function withoutVenueBooking(items) {
   });
 }
 
+// An officer whose position handles finance (user.can_handle_finance) gets the whole Finance group, collections and
+// student accounts included; any other officer keeps the read-only list.
+function withFinanceHandling(items) {
+  return items.map((item) => (item.id === 'finance'
+    ? { ...item, label: 'Finance', children: [L.budgets, L.ledger, L.collections, L.studentAccounts, L.reports, L.forecast] }
+    : item));
+}
+
 // Only an officer's pages are narrowed by modules and by position; an org head always has every module.
-export function getNavForRole(role, modules, canBookVenues = true) {
+export function getNavForRole(role, modules, canBookVenues = true, canHandleFinance = false) {
   const nav = NAV_BY_ROLE[role] || [];
   if (role !== 'SBO_OFFICER') return nav;
-  const byModules = filterNavByModules(nav, modules);
+  const byModules = filterNavByModules(canHandleFinance === true ? withFinanceHandling(nav) : nav, modules);
   return canBookVenues === false ? withoutVenueBooking(byModules) : byModules;
 }
 
@@ -302,8 +310,8 @@ export function getOrgSpaceNav(organizationId) {
 }
 
 // The clickable destinations of the sidebar: a group's children, or the row itself when it has none.
-export function getNavLeaves(role, modules, canBookVenues = true) {
-  return getNavForRole(role, modules, canBookVenues).flatMap((item) => (item.children ? item.children : [item]));
+export function getNavLeaves(role, modules, canBookVenues = true, canHandleFinance = false) {
+  return getNavForRole(role, modules, canBookVenues, canHandleFinance).flatMap((item) => (item.children ? item.children : [item]));
 }
 
 function splitTarget(target) {
@@ -349,10 +357,10 @@ export function findActiveNavId(items, pathname, search = '') {
 
 // Flattens the role's nav into individual pages for the command palette: leaf pages where a group
 // has children, the row itself otherwise, then the footer and the demoted pages that left the menu.
-export function getFlatPages(role, modules, canBookVenues = true) {
+export function getFlatPages(role, modules, canBookVenues = true, canHandleFinance = false) {
   const pages = [];
 
-  getNavForRole(role, modules, canBookVenues).forEach((item) => {
+  getNavForRole(role, modules, canBookVenues, canHandleFinance).forEach((item) => {
     const children = getVisibleChildren(item);
     if (children.length > 0) {
       children.forEach((child) => {

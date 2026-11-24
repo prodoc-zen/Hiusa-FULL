@@ -388,14 +388,14 @@ describe('FinancePage transaction search', () => {
     expect(screen.queryByRole('heading', { name: 'Propose budget' })).not.toBeInTheDocument();
   });
 
-  it('shows an SBO officer the forecasts without the admin-only generate action', async () => {
+  it('shows an SBO officer the forecasts with the generate action switched off', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
 
     render(<FinancePage initialTab="forecasting" />);
 
     expect(await screen.findByText('No forecasts to show yet')).toBeInTheDocument();
     expect(financeMocks.getForecasts).toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Generate forecast/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate forecast/ })).toBeDisabled();
   });
 
   it('loads the ledger for an officer ticked for Finance only, even though the events are refused', async () => {

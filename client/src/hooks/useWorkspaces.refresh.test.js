@@ -326,6 +326,30 @@ describe('useWorkspaces when the Admin changes an officer\'s access while they a
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 
+  it('reloads the tab when the finance switch differs', async () => {
+    signedIn({ modules: null, can_book_venues: true, can_handle_finance: false });
+    returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: null, can_book_venues: true, can_handle_finance: true });
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    fire(focus);
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+  });
+
+  it('treats a user stored before the finance flag existed as having it off', async () => {
+    signedIn({ modules: null, can_book_venues: true });
+    returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: null, can_book_venues: true, can_handle_finance: false });
+    const { result } = renderHook(() => useWorkspaces());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    fire(focus);
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('leaves the tab alone when nothing changed', async () => {
     signedIn({ modules: ['events'], can_book_venues: true });
     returnsUser({ school_id: 5, role: 'SBO_OFFICER', modules: ['events'], can_book_venues: true });
