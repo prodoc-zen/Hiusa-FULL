@@ -13,6 +13,7 @@ import {
   Eye,
   FileSpreadsheet,
   FileText,
+  Paperclip,
   Pencil,
   Plus,
   Printer,
@@ -308,6 +309,11 @@ function receiptLabel(transaction) {
 // A ledger row shows a reference only when it tells the reader something: one the Admin typed in. The
 // internal reference of an entry the system posted (MERCH-ORD-2 under "Merchandise order ORD-2") only
 // repeats the description.
+// A receipt file the system kept privately for an entry (Ask AI, record expense); older entries hold a public link instead.
+function keptReceiptFile(transaction) {
+  return typeof transaction?.receipt_file_url === 'string' && transaction.receipt_file_url.startsWith('finance-receipts/');
+}
+
 function ledgerReference(transaction) {
   const reference = receiptLabel(transaction);
   if (!reference || transaction.is_system_generated) return null;
@@ -446,6 +452,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [personalReceipts, setPersonalReceipts] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [receiptFileError, setReceiptFileError] = useState('');
+  const [ledgerFileError, setLedgerFileError] = useState({ id: null, message: '' });
   const [invoices, setInvoices] = useState([]);
   const [clearances, setClearances] = useState(null);
   const [studentDebt, setStudentDebt] = useState(null);
@@ -955,6 +962,24 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     }
   }
 
+  async function openKeptReceipt(transaction) {
+    setLedgerFileError({ id: null, message: '' });
+    try {
+      await openProtectedFile(`/transactions/${transaction.id}/receipt-file`);
+    } catch (err) {
+      setLedgerFileError({ id: transaction.id, message: getApiErrorMessage(err, 'Could not open this receipt file.') });
+    }
+  }
+
+  async function openKeptReceiptFromDrawer(transaction) {
+    setReceiptFileError('');
+    try {
+      await openProtectedFile(`/transactions/${transaction.id}/receipt-file`);
+    } catch (err) {
+      setReceiptFileError(getApiErrorMessage(err, 'Could not open this receipt file.'));
+    }
+  }
+
   async function openReceiptPdf(receipt) {
     setReceiptFileError('');
     try {
@@ -1420,6 +1445,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {receipt && <p>Reference {receipt}</p>}
                       </div>
                     )}
+                    {keptReceiptFile(tx) && (
+                      <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-control text-sm font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
+                        <Paperclip size={16} aria-hidden="true" /> Open receipt file
+                      </button>
+                    )}
+                    {ledgerFileError.id === tx.id && <p role="alert" className="mt-1 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
                     {canManageLedger && lockNote && <p className="mt-3 text-xs text-ink-muted">{lockNote}</p>}
                     {canManageLedger && !lockNote && <TableRowActions subject={tx.description || `Transaction ${tx.id}`} actions={[
                       { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
@@ -1457,6 +1488,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <p className="font-semibold text-ink">{tx.description}</p>
                         {receipt && <p className="mt-0.5 text-xs text-ink-muted">{receipt}</p>}
                         {meta.length > 0 && <p className="mt-0.5 text-xs text-ink-muted 2xl:hidden">{meta.join(' · ')}</p>}
+                        {keptReceiptFile(tx) && (
+                          <button type="button" onClick={() => openKeptReceipt(tx)} className="mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-control text-xs font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
+                            <Paperclip size={14} aria-hidden="true" /> Open receipt file
+                          </button>
+                        )}
+                        {ledgerFileError.id === tx.id && <p role="alert" className="mt-0.5 text-xs font-medium text-danger-strong">{ledgerFileError.message}</p>}
                         {canManageLedger && lockNote && <p className="mt-0.5 text-xs text-ink-muted">{lockNote}</p>}
                       </td>
                       <td className="hidden px-4 py-2.5 2xl:table-cell">
@@ -2013,9 +2050,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         footer={selectedReceipt ? (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={() => setSelectedReceipt(null)}>Close</Button>
-            {selectedReceipt.receipt_file_url && (
+            {selectedReceipt.receipt_file_url && (keptReceiptFile(selectedReceipt) ? (
+              <Button variant="secondary" leftIcon={Download} onClick={() => openKeptReceiptFromDrawer(selectedReceipt)}>Open receipt file</Button>
+            ) : (
               <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-control border border-line bg-surface px-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-subtle"><Download size={16} aria-hidden="true" /> Open receipt file</a>
-            )}
+            ))}
             {selectedReceipt.open_url && <Button variant="secondary" leftIcon={Download} onClick={() => openReceiptPdf(selectedReceipt)}>Download PDF</Button>}
             <Button leftIcon={Printer} onClick={() => printReceiptElement(document.querySelector('[data-finance-receipt] [data-receipt-document]'))}>Print receipt</Button>
           </div>

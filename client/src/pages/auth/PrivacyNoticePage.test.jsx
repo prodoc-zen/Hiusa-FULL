@@ -42,6 +42,8 @@ describe('PrivacyNoticePage', () => {
     expect(within(collected).getByText(/not stored by HIUSA/)).toBeInTheDocument();
     const why = screen.getByRole('region', { name: 'Why we collect it' });
     expect(within(why).getByText(/Anthropic/)).toBeInTheDocument();
+    expect(within(why).getByText(/until you delete the conversation\. If you record it as an expense, a copy is also kept with that ledger entry/)).toBeInTheDocument();
+    expect(within(collected).getByText(/such as Google, Apple or Microsoft/)).toBeInTheDocument();
     expect(screen.getByText(/Version 2026-11-24/)).toBeInTheDocument();
   });
 

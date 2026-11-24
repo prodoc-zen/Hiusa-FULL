@@ -65,6 +65,19 @@ describe('AskAiPage attachments', () => {
     }));
   });
 
+  it('sends a file with no question text and no message field', async () => {
+    service.streamAiChat.mockResolvedValue(null);
+    const { container } = renderPage();
+    await screen.findByText('Hi, Jade');
+    const receipt = new File(['x'], 'receipt.jpg', { type: 'image/jpeg' });
+    choose(container, receipt);
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(service.streamAiChat).toHaveBeenCalledTimes(1);
+    const call = service.streamAiChat.mock.calls[0][0];
+    expect(call.attachment).toBe(receipt);
+    expect(call.message).toBeUndefined();
+  });
+
   it('sends no attachment when none was chosen', async () => {
     service.streamAiChat.mockResolvedValue(null);
     renderPage();

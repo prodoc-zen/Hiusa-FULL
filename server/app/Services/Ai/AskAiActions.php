@@ -221,9 +221,9 @@ class AskAiActions
                 ...array_map('floatval', $this->present($v, ['amount'])),
                 ...$this->present($v, ['transaction_date', 'description', 'category']),
             ],
-            'result' => fn (array $json, array $v): array => [
-                'message' => 'Expense recorded in the ledger with the receipt attached.',
-                'path' => '/dashboard/finance/transaction-history',
+            'result' => fn (array $json, array $v, User $user, bool $receiptKept): array => [
+                'message' => $receiptKept ? 'Expense recorded in the ledger with the receipt attached.' : 'Expense recorded in the ledger. The receipt file could not be kept with it.',
+                'path' => '/dashboard/finance/financial-ledger',
                 'label' => 'Open the ledger',
             ],
         ];
@@ -1202,7 +1202,7 @@ class AskAiActions
         }
 
         if ($status >= 200 && $status < 300) {
-            $result = ($definition['result'])($json, $values, $user);
+            $result = ($definition['result'])($json, $values, $user, $receiptPath !== null);
             $recordId = data_get($json, 'id') ?? data_get($json, 'data.id');
 
             return [

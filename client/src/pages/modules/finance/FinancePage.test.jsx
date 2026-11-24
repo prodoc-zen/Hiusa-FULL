@@ -257,6 +257,49 @@ describe('FinancePage transaction search', () => {
     expect(screen.getAllByText(/Recorded by Marco Santos/).length).toBeGreaterThan(0);
   });
 
+  it('opens the receipt file kept with a ledger entry through the protected opener and shows an inline error when it fails', async () => {
+    fileMocks.openProtectedFile.mockReset();
+    fileMocks.openProtectedFile.mockResolvedValue(undefined);
+    financeMocks.getTransactions.mockResolvedValue({
+      data: {
+        data: [
+          { id: 31, transaction_date: '2026-11-20T10:30:00.000000Z', description: 'Mercury Drug first aid', category: 'Operations', type: 'expense', amount: 1250, receipt_file_url: 'finance-receipts/4/abc.jpg' },
+          { id: 32, transaction_date: '2026-11-19T10:30:00.000000Z', description: 'Booth rental', category: 'Events', type: 'expense', amount: 500, receipt_file_url: '/storage/receipts/old.pdf' },
+          { id: 33, transaction_date: '2026-11-18T10:30:00.000000Z', description: 'Dues', category: 'Dues', type: 'income', amount: 100 },
+        ],
+        current_page: 1, last_page: 1, total: 3, per_page: 10,
+      },
+    });
+
+    render(<FinancePage initialTab="transactions" />);
+
+    const ledgerTable = await screen.findByRole('table');
+    const open = within(ledgerTable).getAllByRole('button', { name: 'Open receipt file' });
+    expect(open).toHaveLength(1);
+    fireEvent.click(open[0]);
+    await waitFor(() => expect(fileMocks.openProtectedFile).toHaveBeenCalledWith('/transactions/31/receipt-file'));
+
+    fileMocks.openProtectedFile.mockRejectedValueOnce({ userMessage: 'Allow pop-ups to open this file.' });
+    fireEvent.click(open[0]);
+    expect(await within(ledgerTable).findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
+  });
+
+  it('opens a kept receipt file from the receipts drawer through the protected opener, never as a public link', async () => {
+    fileMocks.openProtectedFile.mockReset();
+    fileMocks.openProtectedFile.mockResolvedValue(undefined);
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{ id: 44, transaction_date: '2026-11-20T10:30:00.000000Z', description: 'Mercury Drug first aid', category: 'Operations', type: 'expense', amount: 1250, receipt_reference: 'HIUSA-1-00000044', receipt_file_url: 'finance-receipts/4/abc.jpg' }],
+    });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View receipt' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByRole('link', { name: 'Open receipt file' })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open receipt file' }));
+    await waitFor(() => expect(fileMocks.openProtectedFile).toHaveBeenCalledWith('/transactions/44/receipt-file'));
+  });
+
   it('downloads the receipt as a PDF through the protected file opener and keeps Print receipt', async () => {
     fileMocks.openProtectedFile.mockReset();
     fileMocks.openProtectedFile.mockResolvedValue(undefined);

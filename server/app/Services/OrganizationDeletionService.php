@@ -115,6 +115,15 @@ class OrganizationDeletionService
             if ($college) {
                 $this->collectFiles('colleges', collect([$college]), $files);
             }
+            // Ask AI files hang off conversations that the deletes below cascade away, so their paths are read first.
+            $conversationIds = DB::table('ai_conversations')->where(fn ($query) => $query->whereIn('organization_id', $ids)->orWhereIn('user_id', $orphanIds))->pluck('id');
+            foreach ($conversationIds->chunk(500) as $chunk) {
+                DB::table('ai_message_attachments')->join('ai_messages', 'ai_messages.id', '=', 'ai_message_attachments.message_id')
+                    ->whereIn('ai_messages.conversation_id', $chunk)->get(['ai_message_attachments.disk', 'ai_message_attachments.path'])
+                    ->each(fn ($file) => $files->push(['disk' => $file->disk, 'path' => $file->path]));
+            }
+            DB::table('ai_message_attachments')->whereIn('user_id', $orphanIds)->get(['disk', 'path'])
+                ->each(fn ($file) => $files->push(['disk' => $file->disk, 'path' => $file->path]));
             $profileIds = DB::table('account_profiles')->whereIn('organization_id', $ids)->pluck('id');
             DB::table('personal_access_tokens')->where(fn ($query) => $query->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $users->pluck('school_id')))->delete();
             DB::table('organization_applications')->whereIn('id', $applicationIds)->delete();
