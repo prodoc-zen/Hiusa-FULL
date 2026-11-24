@@ -178,7 +178,7 @@ class FinancialAccountabilityTest extends TestCase
         $superAdmin = $this->user('SUPER_ADMIN');
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'income',
             'amount' => '5000.00',
             'category' => 'Sponsorship',

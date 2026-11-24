@@ -5164,6 +5164,7 @@ class AskAiService
         if ($showFinance) {
             $transactions = DB::table('transactions')
                 ->join('organizations', 'organizations.id', '=', 'transactions.organization_id')
+                ->whereNull('transactions.archived_at')
                 ->whereIn('transactions.organization_id', $orgIds)
                 ->orderByDesc('transactions.transaction_date')
                 ->limit(25)

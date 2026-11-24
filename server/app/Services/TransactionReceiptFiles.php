@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\AiMessageAttachment;
+use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -29,6 +31,30 @@ class TransactionReceiptFiles
         $path = self::ROOT.$user->organization_id.'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
 
         return Storage::disk(self::DISK)->put($path, (string) $disk->get($attachment->path)) ? $path : null;
+    }
+
+    /** Keeps an uploaded official receipt in the organization's receipt folder, named from what the file is rather than what it was called. */
+    public function storeUploaded(int $organizationId, UploadedFile $file): ?string
+    {
+        $extension = strtolower((string) $file->guessExtension());
+        $extension = $extension === 'jpeg' ? 'jpg' : $extension;
+        $path = self::ROOT.$organizationId.'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
+
+        return Storage::disk(self::DISK)->put($path, (string) file_get_contents($file->getRealPath())) ? $path : null;
+    }
+
+    /** True when the path is a file this service kept for that organization and it is still on disk. */
+    public function isKeptFor(?string $path, int $organizationId): bool
+    {
+        return $this->isOurs($path) && str_starts_with($path, self::ROOT.$organizationId.'/') && $this->exists($path);
+    }
+
+    /** Removes a kept file once nothing refers to it, archived entries included. */
+    public function discardIfUnreferenced(?string $path, int $organizationId): void
+    {
+        if ($this->isKeptFor($path, $organizationId) && ! Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->where('receipt_file_url', $path)->exists()) {
+            $this->discard($path);
+        }
     }
 
     public function discard(string $path): void

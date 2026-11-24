@@ -310,7 +310,7 @@ class BudgetApprovalWorkflowTest extends TestCase
             'status' => 'approved',
         ]);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'budget_id' => $pendingSaoBudget->id,
             'type' => 'expense',
             'amount' => 50,
@@ -339,7 +339,7 @@ class BudgetApprovalWorkflowTest extends TestCase
             'status' => 'rejected',
         ]);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'budget_id' => $approvedBudget->id,
             'type' => 'expense',
             'amount' => 50,

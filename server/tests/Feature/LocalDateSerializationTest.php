@@ -51,7 +51,7 @@ class LocalDateSerializationTest extends TestCase
         $period = $this->getJson("/api/financial-reports/{$report->id}")->assertOk()->json();
         $this->assertStringStartsWith('2026-10-01', data_get($period, 'period_start') ?? data_get($period, 'report.period_start'));
 
-        $this->putJson("/api/transactions/{$transaction->id}", ['transaction_date' => substr($date, 0, 10)])->assertOk();
+        $this->putJson("/api/transactions/{$transaction->id}", ['edit_reason' => 'Corrected after review', 'description' => 'Corrected description', 'transaction_date' => substr($date, 0, 10)])->assertOk();
         $this->assertSame('2026-10-05', $transaction->fresh()->transaction_date->toDateString(), 'Saving the date the form shows keeps the same day.');
 
         Sanctum::actingAs($student);

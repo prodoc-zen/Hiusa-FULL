@@ -372,7 +372,7 @@ class FinanceAiAuditFixesTest extends TestCase
     {
         $budget = $this->budget(1000, 'approved', ['warning_threshold' => 0]);
 
-        $this->postJson('/api/transactions', [
+        $this->postTransaction([
             'type' => 'expense', 'amount' => 1000, 'category' => 'Supplies', 'description' => 'All of it',
             'budget_id' => $budget->id, 'transaction_date' => now()->toDateString(),
         ])->assertCreated();
