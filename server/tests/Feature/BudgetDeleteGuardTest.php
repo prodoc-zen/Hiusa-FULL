@@ -70,7 +70,7 @@ class BudgetDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/budgets/{$budget->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'Cannot delete a budget that has existing transactions. Remove all transactions first.');
+            ->assertJsonPath('message', 'This budget has ledger entries, archived ones included, so it stays on record.');
 
         $this->assertModelExists($budget);
     }
@@ -86,7 +86,7 @@ class BudgetDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/budgets/{$budget->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'Cannot delete a budget that has existing transactions. Remove all transactions first.');
+            ->assertJsonPath('message', 'This budget has ledger entries, archived ones included, so it stays on record.');
 
         $this->assertModelExists($budget);
         $this->assertSame($budget->id, Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->find($entry->id)->budget_id);
