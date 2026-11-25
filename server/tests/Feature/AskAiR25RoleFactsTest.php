@@ -354,6 +354,25 @@ class AskAiR25RoleFactsTest extends TestCase
         $this->assertStringContainsString('₱5,083.33', $this->rowText($this->section($payload, 'forecasts-on-file')['rows']));
     }
 
+    public function test_f3_next_month_is_found_even_when_three_newer_forecasts_cover_other_periods(): void
+    {
+        $org = $this->org();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $treasurer = $this->officer($org, 'Treasurer');
+        $this->decemberForecast($org, $admin)->forceFill(['updated_at' => '2026-11-01 08:00:00'])->saveQuietly();
+        foreach (['2026-09', '2026-10', '2026-11'] as $index => $period) {
+            $other = FinancialForecast::create(['organization_id' => $org->id, 'forecast_period' => $period, 'predicted_income' => 1000, 'predicted_expense' => 500, 'predicted_balance' => 500, 'safe_spending_limit' => 800, 'generated_by' => $admin->school_id, 'model_details' => ['engine' => 'php-fallback']]);
+            $other->forceFill(['updated_at' => '2026-11-0'.(2 + $index).' 08:00:00'])->saveQuietly();
+        }
+
+        $payload = $this->service()->deterministicAnswer($treasurer, 'What is the forecast for next month?', 'ai_tools');
+
+        $this->assertStringNotContainsString('no forecast for December 2026', $payload['answer']);
+        $this->assertStringContainsString('A forecast for December 2026 is on file', $payload['answer']);
+        $this->assertStringContainsString('₱9,250.00', $payload['answer']);
+        $this->assertCount(3, $this->section($payload, 'forecasts-on-file')['rows']);
+    }
+
     public function test_f3_with_no_forecast_for_next_month_the_facts_say_so_and_name_the_latest_one(): void
     {
         $org = $this->org();

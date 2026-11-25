@@ -3890,7 +3890,6 @@ class AskAiService
             ->map(fn (array $task) => Arr::except($task, ['at']));
     }
 
-    /** "Jun 1, 2026 to Dec 31, 2026", the span a report check reads. */
     /** What a ledger entry is called in an answer: its description, or its category when it has none. */
     private function entryLabel(Transaction $entry): string
     {
@@ -3899,6 +3898,7 @@ class AskAiService
         return Str::limit($description !== '' ? $description : Str::headline((string) $entry->category), 80);
     }
 
+    /** "Jun 1, 2026 to Dec 31, 2026", the span a report check reads. */
     private function periodLabel(string $from, string $to): string
     {
         return Carbon::parse($from)->format('M j, Y').' to '.Carbon::parse($to)->format('M j, Y');
@@ -5055,7 +5055,6 @@ class AskAiService
         ];
     }
 
-    /** What a voter can do in each election open to them: vote now, already voted, not on the voter list, or wait. */
     /** The finalized, uncancelled elections that are open or coming up in every organization the active profile votes in, closing soonest first. */
     private function memberElectionQuery(User $user): EloquentBuilder
     {
@@ -5069,6 +5068,7 @@ class AskAiService
             ->orderBy('end_time');
     }
 
+    /** What a voter can do in each election open to them: vote now, already voted, not on the voter list, or wait. */
     private function buildMemberElections(User $user): array
     {
         $schoolId = (int) $user->school_id;
