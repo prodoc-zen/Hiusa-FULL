@@ -1042,6 +1042,7 @@ class AskAiChatService
             'user_first_name' => $context['first_name'],
             'role' => $context['role'],
             'position' => $context['position'] === null ? null : AnswerMarkdown::escape($context['position']),
+            'finance_access' => $context['finance_access'] === null ? null : AnswerMarkdown::escape($context['finance_access']),
             'scope' => $context['scope'],
             'today' => $context['today'],
             'semester' => $context['semester'],

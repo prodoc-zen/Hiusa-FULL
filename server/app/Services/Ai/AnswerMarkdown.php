@@ -28,9 +28,44 @@ final class AnswerMarkdown
         $text = self::rewriteLinks($text, $linkAllowed, $links);
         $text = preg_replace('/^[ \t]{0,3}(?:>[ \t]*)*\[[^\]\n]+\]:[ \t]*\S.*$/mu', '', $text) ?? $text;
         $text = preg_replace('/(?<![\pL\pN])(?:(?:https?|ftp):\/\/|www\.)[^\s<>]*/iu', '', $text) ?? $text;
+        $text = self::wordPlaceholderSteps($text);
         $text = self::escapeBrackets($text);
 
         return strtr(strtr($text, $links), $blocks);
+    }
+
+    /**
+     * A step that tells the person what to do reads "[amount]" as a blank they cannot fill in, so in a list item the
+     * placeholder becomes the thing in words: "Send the details: [amount], [date]" reads "Send the details: the amount,
+     * the date". Text outside a list item (a message the person copies, a quoted draft) keeps its placeholders, and so do
+     * a task checkbox and a bracket the person typed, which arrives already escaped. Every quantifier is bounded, so a
+     * hostile line cannot make the match slow.
+     */
+    private static function wordPlaceholderSteps(string $text): string
+    {
+        $lines = explode("\n", $text);
+
+        foreach ($lines as $index => $line) {
+            if (! str_contains($line, '[') || preg_match('/^[ \t]{0,6}(?:[-*+]|\d{1,3}[.)])[ \t]{1,4}(?!\[[ xX]\])/u', $line) !== 1) {
+                continue;
+            }
+
+            $lines[$index] = preg_replace_callback(
+                '/(?<![\pL\pN])((?:the|your|a|an|this|that)[ \t]{1,3})?(?<!\\\\)\[([A-Za-z][A-Za-z0-9 \/\'-]{1,40})\](?![(\[:])/iu',
+                function (array $m): string {
+                    $word = trim($m[2]);
+                    // Lowercased after "the", except an acronym or a name that is already capitalised past its first letter.
+                    if (preg_match('/^\p{Lu}\p{Ll}/u', $word) === 1) {
+                        $word = mb_strtolower(mb_substr($word, 0, 1)).mb_substr($word, 1);
+                    }
+
+                    return ($m[1] !== '' ? $m[1] : 'the ').$word;
+                },
+                $line
+            ) ?? $line;
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
