@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
 use App\Models\College;
+use App\Models\FinancialForecast;
 use App\Models\Order;
 use App\Models\OrganizationApplication;
 use App\Models\StudentRegistryEntry;
@@ -733,15 +734,18 @@ class AskAiRoleIntents
         if ($key !== null) {
             $tool = $tools[$key];
             $others = array_diff_key($mine, [$key => true]);
+            // Asked about the forecast, a person who may read it is told what is on file before what the tool does.
+            $forecasts = $key === 'forecast' ? $this->forecastsOnFile($user) : null;
 
             return [
                 'title' => $tool['title'],
-                'answer' => $tool['does'].' '.$tool['access'][$role][1],
+                'answer' => ($forecasts === null ? '' : $forecasts['sentence'].' ').$tool['does'].' '.$tool['access'][$role][1],
                 'highlights' => [
                     ['label' => 'Tool', 'value' => $tool['title'], 'tone' => 'primary'],
                     ['label' => 'Who decides', 'value' => 'A person', 'tone' => 'success'],
                 ],
                 'sections' => [
+                    ...($forecasts === null ? [] : [$forecasts['section']]),
                     [
                         'id' => 'ai-tool-link',
                         'title' => 'Where It Lives',
@@ -765,6 +769,84 @@ class AskAiRoleIntents
             ],
             'sections' => [$this->otherToolsSection($mine, $rowFor, 'Tools You Can Open')],
             'follow_ups' => $followUps,
+        ];
+    }
+
+    /**
+     * The newest forecasts of the person's own organization, for the people who may act on them: an Admin, and an officer
+     * whose position has Can handle finance switched on. The sentence says what is on file for next month, or that
+     * nothing is and which month the latest one covers, so "what is the forecast" is never answered with "none exists"
+     * while a row sits in the table. Null for everyone else, so another role is never handed an organization's forecast.
+     *
+     * @return null|array{sentence: string, section: array<string, mixed>}
+     */
+    public function forecastsOnFile(User $user): ?array
+    {
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || ! $user->canHandleFinance() || $user->organization_id === null) {
+            return null;
+        }
+
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        $next = $thisMonth->copy()->addMonthNoOverflow()->format('Y-m');
+        $forecasts = FinancialForecast::query()
+            ->where('organization_id', (int) $user->organization_id)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get();
+
+        $peso = fn ($amount) => '₱'.number_format((float) $amount, 2);
+        $month = fn (string $period) => preg_match('/^\d{4}-(?:0[1-9]|1[0-2])$/', $period) === 1 ? Carbon::createFromFormat('!Y-m', $period)->format('F Y') : $period;
+        $describe = function (FinancialForecast $forecast) use ($peso) {
+            $text = sprintf('predicted income %s and predicted expense %s', $peso($forecast->predicted_income), $peso($forecast->predicted_expense));
+            if ($forecast->predicted_balance !== null) {
+                $text .= sprintf(', so a predicted balance of %s', $peso($forecast->predicted_balance));
+            }
+            if ($forecast->safe_spending_limit !== null) {
+                $text .= sprintf(', with a safe spending limit of %s', $peso($forecast->safe_spending_limit));
+            }
+
+            return $text;
+        };
+
+        $upcoming = $forecasts->firstWhere('forecast_period', $next);
+        $nextName = $month($next);
+        if ($upcoming !== null) {
+            $sentence = sprintf('A forecast for %s is on file: %s.', $nextName, $describe($upcoming));
+        } elseif ($forecasts->isNotEmpty()) {
+            $latest = $forecasts->first();
+            $sentence = sprintf('There is no forecast for %s on file. The latest one covers %s: %s.', $nextName, $month((string) $latest->forecast_period), $describe($latest));
+        } else {
+            $sentence = sprintf('There is no forecast for %s on file, and none has been made yet.', $nextName);
+        }
+
+        return [
+            'sentence' => $sentence,
+            'section' => [
+                'id' => 'forecasts-on-file',
+                'title' => 'Forecasts On File',
+                'description' => 'Newest first. A forecast is an estimate that people weigh before planning around it.',
+                'empty_message' => 'No forecast has been made for your organization yet.',
+                'rows' => $forecasts->map(fn (FinancialForecast $forecast) => [
+                    'id' => 'forecast-'.$forecast->id,
+                    'primary' => 'Forecast for '.$month((string) $forecast->forecast_period),
+                    'secondary' => implode(' · ', array_filter([
+                        'Predicted income: '.$peso($forecast->predicted_income),
+                        'Predicted expense: '.$peso($forecast->predicted_expense),
+                        $forecast->predicted_balance === null ? null : 'Predicted balance: '.$peso($forecast->predicted_balance),
+                        $forecast->safe_spending_limit === null ? null : 'Safe spending limit: '.$peso($forecast->safe_spending_limit),
+                    ])),
+                    'status' => match (true) {
+                        $forecast->forecast_period === $next => 'Next month',
+                        $forecast->forecast_period === $thisMonth->format('Y-m') => 'This month',
+                        default => 'Another period',
+                    },
+                    'status_tone' => $forecast->forecast_period === $next ? 'primary' : 'neutral',
+                    'meta' => 'Made '.$forecast->updated_at?->timezone('Asia/Manila')->format('M j, Y'),
+                    'href' => $this->routeAccess->hrefFor($user->role, '/dashboard/finance/financial-insights'),
+                    'action_label' => 'Open Financial insights',
+                ])->all(),
+            ],
         ];
     }
 

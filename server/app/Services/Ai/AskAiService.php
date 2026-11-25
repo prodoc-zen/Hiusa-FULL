@@ -300,7 +300,7 @@ class AskAiService
     /**
      * Who is asking and when, in the words the model is allowed to repeat.
      *
-     * @return array{first_name: string, role: string, position: ?string, scope: string, today: string, semester: ?string}
+     * @return array{first_name: string, role: string, position: ?string, finance_access: ?string, scope: string, today: string, semester: ?string}
      */
     public function chatContext(User $user): array
     {
@@ -314,10 +314,38 @@ class AskAiService
             'first_name' => (string) $user->first_name,
             'role' => $this->roleName($user->role),
             'position' => $this->positionTitle($user),
+            'finance_access' => $this->financeAccess($user),
             'scope' => $this->scopeLabel($user),
             'today' => now()->format('l, F j, Y'),
             'semester' => $label,
         ];
+    }
+
+    /**
+     * Whether this person may write finance entries (ledger entries, budgets, collections, invoices) and which position
+     * decides it, in the words the model repeats; null for a role that never writes them. The same rule the finance.writer
+     * middleware applies, so the answer cannot promise what the server would refuse.
+     */
+    private function financeAccess(User $user): ?string
+    {
+        $writes = 'finance entries (ledger entries, budgets, collections and invoices)';
+
+        if ($user->role === 'ADMIN') {
+            return "This person can record {$writes} because an Organization Admin always handles finance.";
+        }
+
+        if ($user->role !== 'SBO_OFFICER') {
+            return null;
+        }
+
+        $title = $this->positionTitle($user);
+        if ($title === null) {
+            return "This person cannot record {$writes} because the account has no position title, and only a position with Can handle finance switched on may. The Organization Admin can set the title and the switch.";
+        }
+
+        return $user->canHandleFinance()
+            ? "This person can record {$writes} because the {$title} position has Can handle finance switched on."
+            : "This person cannot record {$writes} because the {$title} position does not have Can handle finance switched on. The finance pages are open to read, and the Organization Admin can switch it on for the position.";
     }
 
     /** The title the person holds in their organization, or null: a student without one is never given a made-up title. */
@@ -897,13 +925,26 @@ class AskAiService
         return ! $applied && ! OrganizationApplicantGrant::query()->usable()->where('user_school_id', $user->school_id)->exists();
     }
 
-    private function buildHowToRequest(User $user, array $guide, bool $accessible, array $related): array
+    /**
+     * The Finance guides are written for the Admin, and an officer whose position has Can handle finance switched on does
+     * the same work: the finance.writer middleware lets that officer through the same routes.
+     */
+    private function financeOfficerMay(User $user, array $guide): bool
+    {
+        return $user->role === 'SBO_OFFICER'
+            && ($guide['category'] ?? null) === 'Finance'
+            && in_array('ADMIN', $guide['roles'] ?? [], true)
+            && ! in_array('SBO_OFFICER', $guide['roles'] ?? [], true)
+            && $user->canHandleFinance();
+    }
+
+    private function buildHowToRequest(User $user, array $guide, bool $accessible, array $related, string $question = ''): array
     {
         if (! $accessible) {
             return $this->buildHowToWhoCan($user, $guide, $related);
         }
 
-        $payload = $this->buildHowToGuide($user, $guide, true, $related);
+        $payload = $this->buildHowToGuide($user, $guide, true, $related, $question);
         $start = $this->howToStart($user, $guide);
         $single = $start !== null && $this->howToHasOneDestination($user, $guide, $start['href']);
 
@@ -925,18 +966,9 @@ class AskAiService
             $guide['summary']
         );
 
-        $stands = [];
-        foreach ($payload['sections'] as $section) {
-            if ($section['id'] !== 'how-to-readiness') {
-                continue;
-            }
-            foreach ($section['rows'] as $row) {
-                $stands[] = rtrim((string) $row['primary'], '. ').'.'
-                    .($row['status_tone'] === 'warning' && ! empty($row['secondary']) ? ' '.rtrim((string) $row['secondary'], '. ').'.' : '');
-            }
-        }
-        if ($stands !== []) {
-            $answer .= "\n\nFrom your records: ".implode(' ', $stands);
+        $stands = $this->howToStands($payload['sections']);
+        if ($stands !== '') {
+            $answer .= "\n\nFrom your records: ".$stands;
         }
         if ($start !== null) {
             $answer .= "\n\nThe \"".$start['label'].'" button below takes you there, and the steps are listed under it.';
@@ -950,6 +982,23 @@ class AskAiService
         }
 
         return $payload;
+    }
+
+    /** What the readiness rows say about this person's records, as sentences. */
+    private function howToStands(array $sections): string
+    {
+        $stands = [];
+        foreach ($sections as $section) {
+            if ($section['id'] !== 'how-to-readiness') {
+                continue;
+            }
+            foreach ($section['rows'] as $row) {
+                $stands[] = rtrim((string) $row['primary'], '. ').'.'
+                    .($row['status_tone'] === 'warning' && ! empty($row['secondary']) ? ' '.rtrim((string) $row['secondary'], '. ').'.' : '');
+            }
+        }
+
+        return implode(' ', $stands);
     }
 
     /** True when every step of the guide, and its start button, open the same page for this role. */
@@ -1009,6 +1058,15 @@ class AskAiService
         $nearest = $this->howToNearest($user, $guide, $related);
 
         $answer = sprintf('%s cannot %s in HIUSA; that is done by %s.', self::ROLE_SELF[$role] ?? 'Your role', $this->howToAction($guide), $this->joinPhrases($doers));
+        if ($role === 'SBO_OFFICER' && ($guide['category'] ?? null) === 'Finance' && in_array('ADMIN', $guide['roles'] ?? [], true)) {
+            $title = $this->positionTitle($user);
+            $answer = sprintf(
+                'Your %s cannot %s, because %s. The Organization Admin does it, and can switch Can handle finance on for the position.',
+                $title === null ? 'account' : "position, {$title},",
+                $this->howToAction($guide, true),
+                $title === null ? 'it has no position title and only a position with Can handle finance switched on may' : 'the position does not have Can handle finance switched on'
+            );
+        }
         if (! empty($guide['otherwise'])) {
             $answer .= ' '.$guide['otherwise'];
         }
@@ -1244,14 +1302,14 @@ class AskAiService
 
         if ($guide === null) {
             $payload = $this->buildHowToCatalog($user, $question, $request);
-        } elseif (! $result['accessible']) {
+        } elseif (! $result['accessible'] && ! $this->financeOfficerMay($user, $guide)) {
             // Steps written for another role name menus and pages this role does not have, so it gets the one sentence
             // and the closest page it can open instead.
             $payload = $this->buildHowToWhoCan($user, $guide, $result['related']);
         } elseif ($request) {
-            $payload = $this->buildHowToRequest($user, $guide, (bool) $result['accessible'], $result['related']);
+            $payload = $this->buildHowToRequest($user, $guide, true, $result['related'], $question);
         } else {
-            $payload = $this->buildHowToGuide($user, $guide, (bool) $result['accessible'], $result['related']);
+            $payload = $this->buildHowToGuide($user, $guide, true, $result['related'], $question);
         }
 
         $payload['model_name'] = null;
@@ -1272,7 +1330,7 @@ class AskAiService
         return $payload;
     }
 
-    private function buildHowToGuide(User $user, array $guide, bool $accessible, array $related): array
+    private function buildHowToGuide(User $user, array $guide, bool $accessible, array $related, string $question = ''): array
     {
         $role = $user->role;
         $blocked = $accessible && $this->applyingBlocked($user, $guide);
@@ -1312,7 +1370,7 @@ class AskAiService
 
         $sections = [];
 
-        $readinessRows = $accessible ? $this->howToReadinessRows($user, $guide) : [];
+        $readinessRows = $accessible ? $this->howToReadinessRows($user, $guide, $question) : [];
         if ($readinessRows !== []) {
             $sections[] = [
                 'id' => 'how-to-readiness',
@@ -1367,6 +1425,10 @@ class AskAiService
             if ($blocked) {
                 $answer = 'You cannot apply yet: your Department Head has not allowed you to apply. '.$answer;
             }
+            // Recording an entry and voting depend on what the records hold today, so those guides carry it in the answer.
+            if (in_array($guide['id'], self::GUIDES_WITH_RECORDS, true) && ($stands = $this->howToStands([['id' => 'how-to-readiness', 'rows' => $readinessRows]])) !== '') {
+                $answer .= "\n\nFrom your records: ".$stands;
+            }
         } else {
             $answer = sprintf(
                 'The %s role cannot do "%s". That is done by %s. Here are the steps so you know what they do. %s',
@@ -1405,7 +1467,10 @@ class AskAiService
         ];
     }
 
-    private function howToReadinessRows(User $user, array $guide): array
+    /** Guides whose answer also says what this person's records hold: who may write the ledger and which budgets take an entry, and which elections are open. */
+    private const GUIDES_WITH_RECORDS = ['admin-ledger', 'student-vote'];
+
+    private function howToReadinessRows(User $user, array $guide, string $question = ''): array
     {
         $rows = [];
         $checks = $guide['checks'] ?? [];
@@ -1443,7 +1508,113 @@ class AskAiService
             }
         }
 
-        return [...$rows, ...$this->howToRecordRows($user, $checks)];
+        return [
+            ...$rows,
+            ...$this->howToRecordRows($user, $checks),
+            ...($guide['id'] === 'admin-ledger' ? $this->howToLedgerRows($user, $question) : []),
+            ...($guide['id'] === 'student-vote' ? $this->howToElectionRows($user) : []),
+        ];
+    }
+
+    /**
+     * What the person who is about to record a ledger entry needs to know: that their position allows it, which budgets
+     * take an entry (the server links an entry only to an approved budget) and, when the question names one of the
+     * organization's events, that the entry can be recorded under the event with no budget at all.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function howToLedgerRows(User $user, string $question): array
+    {
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || ! $user->canHandleFinance()) {
+            return [];
+        }
+
+        $row = fn (string $id, string $primary, ?string $secondary, string $status, string $tone) => [
+            'id' => 'ready-'.$id, 'primary' => $primary, 'secondary' => $secondary, 'status' => $status, 'status_tone' => $tone, 'meta' => null, 'href' => null,
+        ];
+        $title = $this->positionTitle($user);
+        $rows = [$user->role === 'ADMIN'
+            ? $row('ledger-access', 'As the Organization Admin you can record ledger entries', null, 'Allowed', 'success')
+            : $row('ledger-access', "As {$title} you can record ledger entries: the {$title} position has Can handle finance switched on", null, 'Allowed', 'success'),
+        ];
+
+        $budgets = Budget::query()
+            ->where('organization_id', (int) $user->organization_id)
+            ->tap(fn ($query) => SemesterScope::budgets($query, AcademicSemester::selected()))
+            ->orderBy('id')
+            ->get(['id', 'title', 'submission_status']);
+        $approved = $budgets->where('submission_status', 'approved');
+        $names = fn (Collection $list) => $this->joinPhrases($list->take(3)->pluck('title')->all()).($list->count() > 3 ? ' and '.($list->count() - 3).' more' : '');
+
+        $rows[] = $approved->isEmpty()
+            ? $row('ledger-budgets', 'No budget is approved yet, so an entry cannot be linked to a budget', 'Record it with no budget, or under an event.', 'No budget', 'warning')
+            : $row('ledger-budgets', $names($approved).($approved->count() === 1 ? ' is approved, so an entry can be linked to it' : ' are approved, so an entry can be linked to them'), null, 'Can be linked', 'success');
+
+        foreach ($budgets->where('submission_status', '!=', 'approved') as $budget) {
+            $stage = match ($budget->submission_status) {
+                'pending_department_head' => 'waiting for the Department Head',
+                'pending_sao' => 'waiting for the SAO',
+                'draft' => 'still a draft',
+                default => 'not approved ('.Str::lower(Str::headline((string) $budget->submission_status)).')',
+            };
+            $rows[] = $row('ledger-budget-'.$budget->id, "{$budget->title} is {$stage}, so an entry cannot be linked yet", 'Until it is approved, record the entry with no budget or under its event.', 'Not approved', 'warning');
+        }
+
+        $events = Event::where('organization_id', (int) $user->organization_id)
+            ->where('status', '!=', 'cancelled')
+            ->orderByDesc('start_time')
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get(['id', 'title', 'start_time', 'end_time']);
+        foreach ($this->eventsNamedIn($events, $question) as $event) {
+            $rows[] = $row('ledger-event-'.$event->id, "{$event->title} is one of your events, so the entry can be recorded under the {$event->title} event without a budget", null, 'Can be recorded', 'success');
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The open elections this person can vote in or has voted in, with when each closes, so "how do I vote" is answered
+     * from the ballots that exist and not from the steps alone.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function howToElectionRows(User $user): array
+    {
+        $schoolId = (int) $user->school_id;
+        $rows = [];
+        foreach ($this->memberElectionQuery($user)->get() as $election) {
+            $round = $election->openRound();
+            if ($round === null) {
+                continue;
+            }
+
+            $closes = ($round === 2 ? $election->runoff_ends_at : $election->end_time)->format('M j, Y g:i A');
+            $state = match (true) {
+                ElectionBallot::hasVoted($election->id, $schoolId, $round) => 'voted',
+                ! $election->listsVoter($schoolId) => 'unlisted',
+                default => 'open',
+            };
+            [$primary, $status, $tone, $href] = match ($state) {
+                'voted' => ["You have already voted in {$election->title}, which closes {$closes}", 'You have voted', 'success', $this->linkTo($user, '/dashboard/elections/election-info', '/dashboard/elections')],
+                'unlisted' => ["You are not on the voter list for {$election->title}, which closes {$closes}", 'You are not on the voter list', 'warning', $this->linkTo($user, '/dashboard/elections/election-info', '/dashboard/elections')],
+                default => ["You can vote in {$election->title} now: it closes {$closes} and you have not voted yet", 'You can vote now', 'info', $this->linkTo($user, '/dashboard/elections/cast-vote', '/dashboard/elections')],
+            };
+            $rows[] = [
+                'id' => 'ready-election-'.$election->id,
+                'primary' => $primary,
+                'secondary' => $state === 'unlisted' ? 'Ask the election organizers to check the voter list.' : null,
+                'status' => $status,
+                'status_tone' => $tone,
+                'meta' => ($round === 2 ? 'Runoff closes ' : 'Closes ').$closes,
+                'href' => $href,
+                'action_label' => $state === 'open' ? 'Cast vote' : 'View details',
+            ];
+        }
+
+        return $rows === []
+            ? [['id' => 'ready-election-none', 'primary' => 'No election is open for you right now', 'secondary' => null, 'status' => 'Nothing to vote on', 'status_tone' => 'neutral', 'meta' => null, 'href' => null]]
+            : $rows;
     }
 
     private function semesterLabel(int $number): string
@@ -3385,6 +3556,9 @@ class AskAiService
 
         $budgetHref = $this->linkTo($user, '/dashboard/finance/budget-allocation');
         $books = $this->ledgerPicture($orgIds);
+        $months = $books['count'] === 0 ? [] : $this->ledgerMonths($orgIds);
+        $ledgerHref = $this->linkTo($user, '/dashboard/finance/financial-ledger');
+        $forecasts = $this->roleIntents->forecastsOnFile($user);
 
         return [
             'title' => 'Budget Utilization & Financial Status',
@@ -3396,12 +3570,13 @@ class AskAiService
                 $unpaidInvoicesCount,
                 Str::plural('invoice', $unpaidInvoicesCount),
                 $unpaidInvoicesCount === 1 ? 'is' : 'are'
-            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : '').($working === null ? '' : ' Working: '.$working).$this->ledgerSentence($books),
+            ).($remaining > $allocated ? ' The remaining amount is higher than the amount allocated because income recorded against a budget is added to it.' : '').($working === null ? '' : ' Working: '.$working).$this->ledgerSentence($books).$this->ledgerMonthsSentence($months),
             'highlights' => [
                 ['label' => 'Approved allocated', 'value' => '₱'.number_format($allocated, 2), 'tone' => 'primary'],
                 ['label' => 'Remaining budget', 'value' => '₱'.number_format($remaining, 2), 'tone' => 'success'],
                 ['label' => 'Open student invoices', 'value' => (string) $unpaidInvoicesCount, 'tone' => $unpaidInvoicesCount > 0 ? 'warning' : 'neutral'],
                 ...$this->ledgerHighlights($books),
+                ...$this->ledgerMonthHighlights($months),
             ],
             'sections' => [
                 [
@@ -3432,7 +3607,9 @@ class AskAiService
                         ];
                     })->all(),
                 ],
-                ...$this->ledgerSections($books, $this->linkTo($user, '/dashboard/finance/financial-ledger')),
+                ...$this->ledgerMonthSections($months, $ledgerHref),
+                ...$this->ledgerSections($books, $ledgerHref),
+                ...($forecasts === null ? [] : [$forecasts['section']]),
             ],
             'follow_ups' => [
                 ['topic' => 'missing_submissions', 'label' => 'Missing financial reports', 'question' => "Which organizations haven't submitted compliance or financial reports?"],
@@ -3482,14 +3659,22 @@ class AskAiService
         $highCount = count(array_filter($findings, fn (array $finding) => $finding['severity'] === 'high'));
         $receiptCount = count(array_filter($findings, fn (array $finding) => $finding['code'] === 'missing_receipt'));
 
-        $unlinkedCount = Transaction::query()
+        // The count and the list read the same query, so the entries named are exactly the entries counted. An entry
+        // linked to an event but not to a budget is not in it, whatever else the report checks say about that entry.
+        $unlinkedQuery = Transaction::query()
             ->where('organization_id', $orgId)
             ->excludingCashAdvances()
             ->whereNull('budget_id')
             ->whereNull('event_id')
             ->whereDate('transaction_date', '>=', $from)
-            ->whereDate('transaction_date', '<=', $to)
-            ->count();
+            ->whereDate('transaction_date', '<=', $to);
+        $unlinkedCount = (clone $unlinkedQuery)->count();
+        $unlinked = (clone $unlinkedQuery)
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->limit(self::ROW_LIMIT)
+            ->get(['id', 'type', 'category', 'description', 'amount', 'transaction_date']);
+        $unlinkedNames = $unlinked->take(3)->map(fn (Transaction $entry) => sprintf('%s (₱%s)', $this->entryLabel($entry), number_format((float) $entry->amount, 2)))->all();
 
         $waiting = Budget::query()
             ->where('organization_id', $orgId)
@@ -3524,7 +3709,7 @@ class AskAiService
             $parts[] = sprintf('%d %s no receipt reference.', $receiptCount, $receiptCount === 1 ? 'expense has' : 'expenses have');
         }
         if ($unlinkedCount > 0) {
-            $parts[] = sprintf('%d ledger %s not linked to a budget or an event.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are');
+            $parts[] = sprintf('%d ledger %s not linked to a budget or an event: %s.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are', $this->joinPhrases($unlinkedNames).($unlinkedCount > 3 ? ' and '.($unlinkedCount - 3).' more' : ''));
         }
         $parts[] = match (true) {
             $deadline === null => 'No financial report deadline has been set yet.',
@@ -3567,7 +3752,7 @@ class AskAiService
         $steps = array_values(array_filter([
             $findingCount > 0 ? $step('checks', 'Work through the report checks', sprintf('%d %s, most urgent first. Open the report and read the checks under Before you send.', $findingCount, $findingCount === 1 ? 'finding' : 'findings'), 'To do', 'warning', $reportsHref, 'Open Financial reports') : null,
             $receiptCount > 0 ? $step('receipts', 'Add the missing receipt references', sprintf('%d %s no receipt reference.', $receiptCount, $receiptCount === 1 ? 'expense has' : 'expenses have'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
-            $unlinkedCount > 0 ? $step('unlinked', 'Link the entries that belong to a budget or an event', sprintf('%d ledger %s not linked to a budget or an event.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
+            $unlinkedCount > 0 ? $step('unlinked', 'Link the entries that belong to a budget or an event', sprintf('%d ledger %s not linked to a budget or an event: %s.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are', $this->joinPhrases($unlinkedNames).($unlinkedCount > 3 ? ' and '.($unlinkedCount - 3).' more' : '')), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
             $waiting->isNotEmpty() ? $step('budgets', 'Get the waiting budgets approved', sprintf('%d %s waiting for a decision, and a budget counts only once it is approved.', $waiting->count(), $waiting->count() === 1 ? 'budget is' : 'budgets are'), 'Waiting', 'info', $budgetsHref, 'Open Budget allocation') : null,
             $overdueTasks->isNotEmpty() ? $step('tasks', 'Finish the overdue tasks', sprintf('%d %s past the deadline: %s.', $overdueTasks->count(), $overdueTasks->count() === 1 ? 'task is' : 'tasks are', $this->joinPhrases($overdueTasks->take(3)->pluck('title')->all()).($overdueTasks->count() > 3 ? ' and '.($overdueTasks->count() - 3).' more' : '')), 'Overdue', 'danger', $tasksHref, 'Open tasks') : null,
             $step('send', 'Generate the report and send it', $deadline === null ? 'No deadline is set yet, so send it when the checks are clear.' : 'Send it before the deadline on '.$deadlineDay->format('M j, Y').'.', 'Do last', 'primary', $reportsHref, 'Open Financial reports'),
@@ -3607,6 +3792,22 @@ class AskAiService
                         'href' => $reportsHref,
                         'action_label' => 'Open Financial reports',
                     ], array_slice($findings, 0, self::ROW_LIMIT)),
+                ],
+                [
+                    'id' => 'report-prep-unlinked',
+                    'title' => 'Entries With No Budget And No Event',
+                    'description' => trim('Only these entries are linked to neither a budget nor an event; an entry that has an event is not here, even when the report checks flag it for another reason. '.$this->showingFirst($unlinkedCount, 'oldest first')),
+                    'empty_message' => 'Every ledger entry is linked to a budget or an event.',
+                    'rows' => $unlinked->map(fn (Transaction $entry) => [
+                        'id' => 'report-prep-unlinked-'.$entry->id,
+                        'primary' => $this->entryLabel($entry),
+                        'secondary' => sprintf('%s · %s · ₱%s', Str::headline((string) $entry->category), Str::headline((string) $entry->type), number_format((float) $entry->amount, 2)),
+                        'status' => 'No budget or event',
+                        'status_tone' => 'warning',
+                        'meta' => Carbon::parse($entry->transaction_date)->format('M j, Y'),
+                        'href' => $ledgerHref,
+                        'action_label' => 'Open the ledger',
+                    ])->all(),
                 ],
                 [
                     'id' => 'report-prep-budgets',
@@ -3690,6 +3891,14 @@ class AskAiService
     }
 
     /** "Jun 1, 2026 to Dec 31, 2026", the span a report check reads. */
+    /** What a ledger entry is called in an answer: its description, or its category when it has none. */
+    private function entryLabel(Transaction $entry): string
+    {
+        $description = trim((string) $entry->description);
+
+        return Str::limit($description !== '' ? $description : Str::headline((string) $entry->category), 80);
+    }
+
     private function periodLabel(string $from, string $to): string
     {
         return Carbon::parse($from)->format('M j, Y').' to '.Carbon::parse($to)->format('M j, Y');
@@ -3734,6 +3943,106 @@ class AskAiService
             'unlinked_expense' => round((float) ($totals->unlinked_expense ?? 0), 2),
             'categories' => $categories,
         ];
+    }
+
+    /**
+     * This month and last month in the ledger, for the semester picked in the top bar, by category. A month runs from the
+     * first of the month at 00:00 to the first of the next at 00:00 in Asia/Manila, converted to the zone the dates are
+     * stored in, so an entry at 23:59 on the last day of a month stays in that month.
+     *
+     * @param  array<int, int>  $orgIds
+     * @return array<string, array{label: string, entries: int, income: float, expense: float, categories: array<int, array{category: string, income: float, expense: float, entries: int}>}>
+     */
+    private function ledgerMonths(array $orgIds): array
+    {
+        $thisMonth = now('Asia/Manila')->startOfMonth();
+        $months = [];
+
+        foreach (['this' => $thisMonth, 'last' => $thisMonth->copy()->subMonthNoOverflow()] as $key => $start) {
+            $from = $start->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+            $to = $start->copy()->addMonthNoOverflow()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+            $entries = LedgerScope::query(request(), $orgIds)->where('transactions.transaction_date', '>=', $from)->where('transactions.transaction_date', '<', $to);
+
+            $sum = fn (string $type) => "COALESCE(SUM(CASE WHEN type = '{$type}' THEN amount ELSE 0 END), 0)";
+            $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense")->first();
+            $categories = (clone $entries)
+                ->selectRaw("category, COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense")
+                ->groupBy('category')
+                ->orderByRaw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) DESC")
+                ->orderBy('category')
+                ->limit(self::ROW_LIMIT)
+                ->get()
+                ->map(fn ($row) => ['category' => (string) $row->category, 'income' => round((float) $row->income, 2), 'expense' => round((float) $row->expense, 2), 'entries' => (int) $row->entries])
+                ->all();
+
+            $months[$key] = [
+                'label' => $start->format('F Y'),
+                'entries' => (int) ($totals->entries ?? 0),
+                'income' => round((float) ($totals->income ?? 0), 2),
+                'expense' => round((float) ($totals->expense ?? 0), 2),
+                'categories' => $categories,
+            ];
+        }
+
+        return $months;
+    }
+
+    private function ledgerMonthsSentence(array $months): string
+    {
+        if ($months === []) {
+            return '';
+        }
+
+        $peso = fn (float $amount) => '₱'.number_format($amount, 2);
+        ['this' => $current, 'last' => $previous] = $months;
+
+        return sprintf(
+            ' %s; %s.',
+            $current['entries'] === 0
+                ? "No ledger entries were recorded this month ({$current['label']})"
+                : sprintf('This month (%s) the ledger shows %s income and %s expenses', $current['label'], $peso($current['income']), $peso($current['expense'])),
+            $previous['entries'] === 0
+                ? "none were recorded last month ({$previous['label']})"
+                : sprintf('last month (%s), %s income and %s expenses', $previous['label'], $peso($previous['income']), $peso($previous['expense']))
+        );
+    }
+
+    private function ledgerMonthHighlights(array $months): array
+    {
+        return array_values(array_map(
+            fn (array $month) => ['label' => 'Spent in '.$month['label'], 'value' => '₱'.number_format($month['expense'], 2), 'tone' => 'warning'],
+            $months
+        ));
+    }
+
+    private function ledgerMonthSections(array $months, ?string $href): array
+    {
+        $sections = [];
+        foreach (['this' => ['ledger-this-month', 'This Month'], 'last' => ['ledger-last-month', 'Last Month']] as $key => [$id, $heading]) {
+            if (! isset($months[$key])) {
+                continue;
+            }
+
+            $month = $months[$key];
+            $sections[] = [
+                'id' => $id,
+                'title' => "Ledger {$heading}: {$month['label']}",
+                'description' => 'Largest spending first.',
+                'empty_message' => "No ledger entries were recorded in {$month['label']}.",
+                'rows' => array_map(fn (array $category) => [
+                    'id' => $id.'-'.Str::slug($category['category']),
+                    'primary' => Str::headline($category['category']),
+                    'secondary' => sprintf('Income: ₱%s · Expenses: ₱%s', number_format($category['income'], 2), number_format($category['expense'], 2)),
+                    'status' => $category['income'] >= $category['expense'] ? 'Net in' : 'Net out',
+                    'status_tone' => $category['income'] >= $category['expense'] ? 'success' : 'warning',
+                    'meta' => $this->plural($category['entries'], 'entry'),
+                    'href' => $href,
+                    'action_label' => 'Open ledger',
+                ], $month['categories']),
+            ];
+        }
+
+        return $sections;
     }
 
     /** The ledger totals in a sentence, with the part that no budget accounts for; empty when the ledger holds nothing. */
@@ -4747,18 +5056,23 @@ class AskAiService
     }
 
     /** What a voter can do in each election open to them: vote now, already voted, not on the voter list, or wait. */
-    private function buildMemberElections(User $user): array
+    /** The finalized, uncancelled elections that are open or coming up in every organization the active profile votes in, closing soonest first. */
+    private function memberElectionQuery(User $user): EloquentBuilder
     {
-        $schoolId = (int) $user->school_id;
-        $elections = Election::with('organization:id,name,acronym')
+        return Election::with('organization:id,name,acronym')
             ->whereIn('organization_id', $user->votingOrganizationIds())
             ->whereNull('cancelled_at')
             ->whereNotNull('finalized_at')
             ->where(fn ($open) => $open->whereIn('status', ['active', 'upcoming'])->orWhere('phase', 'runoff'))
             ->when(AcademicSemester::selected()?->id, fn ($query, $semesterId) => $query
                 ->where(fn ($period) => $period->where('academic_semester_id', $semesterId)->orWhereNull('academic_semester_id')))
-            ->orderBy('end_time')
-            ->get();
+            ->orderBy('end_time');
+    }
+
+    private function buildMemberElections(User $user): array
+    {
+        $schoolId = (int) $user->school_id;
+        $elections = $this->memberElectionQuery($user)->get();
 
         $counts = ['open' => 0, 'voted' => 0, 'unlisted' => 0];
         $upcoming = 0;
