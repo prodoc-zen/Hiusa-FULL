@@ -236,10 +236,10 @@ class AskAiChatTest extends TestCase
         $this->assertSame('user', $messages[array_key_last($messages)]['role']);
     }
 
-    public function test_a_line_with_an_invented_number_replaces_the_answer_with_the_verified_text(): void
+    public function test_an_answer_that_opens_on_an_invented_number_is_replaced_with_the_verified_text(): void
     {
         Sanctum::actingAs($this->admin());
-        $this->fake(["Everything looks fine.\n", "Exactly 98765 members owe fees.\n", 'Done.']);
+        $this->fake(["Exactly 98765 members owe fees.\n", "Everything looks fine.\n", 'Done.']);
 
         [, $events] = $this->stream(['message' => 'What should I do today?']);
 

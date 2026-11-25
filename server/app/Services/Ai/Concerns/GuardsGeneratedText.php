@@ -34,6 +34,15 @@ trait GuardsGeneratedText
      */
     public function preservesNumericFacts(string $text, array $facts, bool $allowDerived = false): bool
     {
+        return $this->unverifiedFigure($text, $facts, $allowDerived) === null;
+    }
+
+    /**
+     * The first number in $text that the facts do not carry, as it is written in the text (sign and separators kept), or
+     * null when every number is accounted for. preservesNumericFacts() is this method read as a yes or no.
+     */
+    public function unverifiedFigure(string $text, array $facts, bool $allowDerived = false): ?string
+    {
         $allowed = $this->numericValues($facts);
         $codes = $this->letterDigitCodes($facts);
         $checked = preg_replace_callback(
@@ -43,6 +52,7 @@ trait GuardsGeneratedText
         ) ?? $text;
         preg_match_all(self::NUMBER_TOKEN, $checked, $matches);
         $figures = null;
+        $nets = null;
 
         foreach ($matches[0] ?? [] as $token) {
             $isPercentage = str_ends_with($token, '%');
@@ -54,15 +64,117 @@ trait GuardsGeneratedText
             if ($allowDerived && $this->isDerivedFrom($token, $value, $isPercentage, $figures ??= $this->moneyFigures($facts))) {
                 continue;
             }
+            if ($allowDerived && ! $isPercentage && $this->isSignedNet($value, $nets ??= $this->signedNets($facts))) {
+                continue;
+            }
 
             Log::warning('AI explanation introduced a numeric value not present in its facts.', [
                 'unexpected_value' => $value,
             ]);
 
-            return false;
+            return $token;
         }
 
-        return true;
+        return null;
+    }
+
+    /**
+     * The nets the rows of the facts work out to, signed: a row that states an income and an expense (or what was spent)
+     * nets to income minus expense, and rows of one list that share a word in their names (the "Merchandise" and the
+     * "Merchandise Sales" categories) net together. A net is a figure the writer is asked for ("are we in the red?"), so
+     * the loss of a group is as checkable as the loss of one row.
+     *
+     * @return array<int, float>
+     */
+    private function signedNets(array $facts): array
+    {
+        $nets = [];
+        $this->collectNets($facts, $nets);
+
+        return array_values(array_unique($nets));
+    }
+
+    /** @param array<int, float> $nets */
+    private function collectNets(array $node, array &$nets): void
+    {
+        $rows = [];
+        foreach ($node as $child) {
+            if (! is_array($child)) {
+                continue;
+            }
+            $this->collectNets($child, $nets);
+            $net = $this->rowNet($child);
+            if ($net !== null && count($rows) < self::GROUP_LIMIT) {
+                $rows[] = ['net' => $net, 'words' => $this->nameWords($child)];
+                $nets[] = $net;
+            }
+        }
+        if (count($rows) < 2) {
+            return;
+        }
+
+        $byWord = [];
+        foreach ($rows as $index => $row) {
+            foreach ($row['words'] as $word) {
+                $byWord[$word][] = $index;
+            }
+        }
+        foreach ($byWord as $indexes) {
+            if (count($indexes) >= 2 && count($indexes) < count($rows)) {
+                $nets[] = round(array_sum(array_map(fn (int $index) => $rows[$index]['net'], $indexes)), 2);
+            }
+        }
+    }
+
+    /** Income minus expense of a row that carries both as peso amounts with centavos ("Income: ₱255.00 · Expenses: ₱12,500.00"), else null. */
+    private function rowNet(array $row): ?float
+    {
+        $text = '';
+        foreach ($row as $value) {
+            if (is_string($value)) {
+                $text .= ' '.$value;
+            }
+        }
+        $amount = '₱?\s?(\d{1,3}(?:,\d{3}){0,6}\.\d{2}|\d{1,18}\.\d{2})';
+        if (preg_match('/\bincome(?: posted)?\s{0,3}:\s{0,3}'.$amount.'/iu', $text, $income) !== 1
+            || preg_match('/\b(?:expenses?|spent)\s{0,3}:\s{0,3}'.$amount.'/iu', $text, $expense) !== 1) {
+            return null;
+        }
+
+        return round((float) str_replace(',', '', $income[1]) - (float) str_replace(',', '', $expense[1]), 2);
+    }
+
+    /**
+     * The words of a row's name, lowercased, four letters or more.
+     *
+     * @return array<int, string>
+     */
+    private function nameWords(array $row): array
+    {
+        $name = (string) ($row['primary'] ?? $row['title'] ?? $row['label'] ?? '');
+        preg_match_all('/\pL{4,}/u', mb_strtolower($name), $words);
+
+        return array_values(array_unique($words[0] ?? []));
+    }
+
+    /**
+     * A negative figure must be a net that is negative; an unsigned one may be the size of a net either way, as for the
+     * loss "short by 3,495.00", the same latitude a difference of two figures already has.
+     *
+     * @param  array<int, float>  $nets
+     */
+    private function isSignedNet(float $value, array $nets): bool
+    {
+        foreach ($nets as $net) {
+            if (abs($net) < 1) {
+                continue;
+            }
+            if ($value < 0 ? abs($net - $value) < 0.005 : abs(abs($net) - $value) < 0.005) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
