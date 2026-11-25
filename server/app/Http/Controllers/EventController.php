@@ -41,7 +41,7 @@ class EventController extends Controller
 {
     private const BOOKING_BLOCKER = 'it has a venue booking that is still pending or approved';
 
-    private const LEDGER_BLOCKER = 'This event has ledger entries. Archive the event instead.';
+    private const LEDGER_BLOCKER = 'This event has ledger entries. Cancel it instead to keep the record.';
 
     private const EVENT_GONE = 'event_gone';
 
