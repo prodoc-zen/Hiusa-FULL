@@ -11,7 +11,8 @@ trait GuardsGeneratedText
 {
     // A comma is a thousands separator only when exactly three digits follow it, so "1,2" is two numbers.
     // Digits glued to a letter ("PHP9999") count; codes such as Q4 pass only when the facts carry them.
-    private const NUMBER_TOKEN = '/(?<![\pN.,])(?:-?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|-?\d+(?:\.\d+)?%?)/u';
+    // A hyphen straight after a letter joins the parts of a code ("HIUSA-2-00000015"), so it is no minus sign.
+    private const NUMBER_TOKEN = '/(?<![\pN.,])(?:(?:(?<!\pL)-)?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|(?:(?<!\pL)-)?\d+(?:\.\d+)?%?)/u';
 
     // The most money figures a derived sum, difference or percentage is searched over; the exact check always sees them all.
     private const DERIVED_POOL = 200;
@@ -47,7 +48,8 @@ trait GuardsGeneratedText
             $isPercentage = str_ends_with($token, '%');
             $value = (float) str_replace([',', '%'], '', $token);
             $candidates = $isPercentage ? [$value, $value / 100] : [$value];
-            if (collect($allowed)->contains(fn (float $allowedValue) => collect($candidates)->contains(fn (float $candidate) => abs($allowedValue - $candidate) < 0.005))) {
+            // A minus sign says which way a figure moved, not which figure it is, so -2,705.00 is the 2,705.00 the facts carry.
+            if (collect($allowed)->contains(fn (float $allowedValue) => collect($candidates)->contains(fn (float $candidate) => abs(abs($allowedValue) - abs($candidate)) < 0.005))) {
                 continue;
             }
             if ($allowDerived && $this->isDerivedFrom($token, $value, $isPercentage, $figures ??= $this->moneyFigures($facts))) {

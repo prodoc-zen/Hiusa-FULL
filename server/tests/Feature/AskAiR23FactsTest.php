@@ -433,6 +433,74 @@ class AskAiR23FactsTest extends TestCase
         $this->assertStringNotContainsString('AI tool', $payload['title']);
     }
 
+    private function reportTask(Organization $org, User $creator, ?User $assignee, string $title, string $status, string $deadline): Task
+    {
+        return Task::factory()->create(['organization_id' => $org->id, 'event_id' => null, 'academic_semester_id' => $this->semester->id, 'title' => $title, 'assigned_to' => $assignee?->school_id, 'created_by' => $creator->school_id, 'status' => $status, 'deadline' => $deadline]);
+    }
+
+    public function test_r24_the_report_preparation_facts_list_the_overdue_and_due_soon_tasks_with_finance_and_records_first(): void
+    {
+        [$org, $admin] = $this->reportOrg();
+        $vp = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $other = $this->org();
+
+        // The two prod shaped tasks are overdue; the older generic one must rank below them, and an unfinished task whose
+        // status was never flipped by the nightly mark is still overdue.
+        $this->reportTask($org, $admin, $vp, 'Order banners for the booth', 'overdue', '2026-11-01 09:00:00');
+        $this->reportTask($org, $admin, $vp, 'Follow up unpaid organizational fee list', 'overdue', '2026-11-10 09:00:00');
+        $this->reportTask($org, $admin, $admin, 'Update official member roster', 'overdue', '2026-11-12 09:00:00');
+        $this->reportTask($org, $admin, $admin, 'Print the receipts folder', 'pending', '2026-11-20 09:00:00');
+        $this->reportTask($org, $admin, $vp, 'Reserve the venue', 'pending', '2026-11-28 09:00:00');
+        $this->reportTask($org, $admin, $vp, 'Prepare the next semester plan', 'pending', '2026-12-30 09:00:00');
+        $this->reportTask($org, $admin, $vp, 'Closed out task', 'completed', '2026-11-05 09:00:00');
+        $this->reportTask($other, $admin, null, 'Another organization overdue task', 'overdue', '2026-11-02 09:00:00');
+
+        $payload = $this->service()->deterministicAnswer($admin, 'What should I do before submitting the financial report?', 'report_preparation');
+        $rows = $this->section($payload, 'report-prep-tasks')['rows'];
+        $titles = array_column($rows, 'primary');
+
+        $this->assertSame([
+            'Follow up unpaid organizational fee list',
+            'Update official member roster',
+            'Print the receipts folder',
+            'Order banners for the booth',
+            'Reserve the venue',
+        ], $titles);
+        $this->assertSame(['Overdue', 'Overdue', 'Overdue', 'Overdue', 'Due soon'], array_column($rows, 'status'));
+        $this->assertSame('4', array_column($payload['highlights'], 'value', 'label')['Overdue tasks']);
+        $this->assertStringContainsString('4 tasks are overdue', $payload['answer']);
+        $this->assertStringContainsString('Follow up unpaid organizational fee list', $payload['answer']);
+        $this->assertStringContainsString('1 more task is due within the next 7 days', $payload['answer']);
+        $this->assertStringContainsString('Finish the overdue tasks', $this->rowText($this->section($payload, 'report-prep-steps')['rows']));
+        $this->assertStringNotContainsString('Another organization', json_encode($payload));
+        $this->assertStringNotContainsString('Closed out task', json_encode($payload));
+        $this->assertStringNotContainsString('next semester plan', json_encode($payload));
+    }
+
+    public function test_r24_an_officer_is_told_only_about_their_own_overdue_tasks(): void
+    {
+        [$org, $admin] = $this->reportOrg();
+        $vp = User::factory()->officer()->create(['organization_id' => $org->id]);
+        $this->reportTask($org, $admin, $vp, 'Follow up unpaid organizational fee list', 'overdue', '2026-11-10 09:00:00');
+        $this->reportTask($org, $admin, $admin, 'Update official member roster', 'overdue', '2026-11-12 09:00:00');
+
+        $payload = $this->service()->deterministicAnswer($vp, 'What should I do before submitting the financial report?', 'report_preparation');
+
+        $this->assertSame(['Follow up unpaid organizational fee list'], array_column($this->section($payload, 'report-prep-tasks')['rows'], 'primary'));
+        $this->assertStringContainsString('assigned to you', $payload['answer']);
+    }
+
+    public function test_r24_a_report_with_no_overdue_task_does_not_mention_tasks_in_its_answer(): void
+    {
+        [, $admin] = $this->reportOrg();
+
+        $payload = $this->service()->deterministicAnswer($admin, 'What should I do before submitting the financial report?', 'report_preparation');
+
+        $this->assertStringNotContainsString('task', $payload['answer']);
+        $this->assertSame('0', array_column($payload['highlights'], 'value', 'label')['Overdue tasks']);
+        $this->assertSame([], $this->section($payload, 'report-prep-tasks')['rows']);
+    }
+
     public function test_p3_a_report_with_nothing_to_fix_says_so_instead_of_inventing_work(): void
     {
         $org = $this->org();
