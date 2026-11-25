@@ -241,6 +241,29 @@ describe('ChatMessage sources line', () => {
   });
 });
 
+describe('ChatMessage note for a line that was left out', () => {
+  const NOTE = 'One line was left out because its figure could not be checked against your records.';
+
+  it('keeps the answer and shows the note muted under it', () => {
+    renderMessage(answer({ payload: { title: 'Finance', notice: NOTE } }));
+    const note = screen.getByText(NOTE);
+    expect(note).toHaveClass('text-xs', 'font-medium', 'text-ink-muted-strong');
+    expect(screen.getByText('Three files are late.')).toBeInTheDocument();
+    const answerText = screen.getByText('Three files are late.');
+    expect(answerText.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the plural note as it is sent', () => {
+    renderMessage(answer({ payload: { title: 'Finance', notice: '2 lines were left out because their figures could not be checked against your records.' } }));
+    expect(screen.getByText('2 lines were left out because their figures could not be checked against your records.')).toBeInTheDocument();
+  });
+
+  it('shows no note when the payload carries none', () => {
+    renderMessage(answer({ payload: { title: 'Finance', notice: null } }));
+    expect(screen.queryByText(/left out/)).toBeNull();
+  });
+});
+
 describe('ChatMessage with a null payload', () => {
   it('renders the fixed text, Copy and feedback without reading payload fields', () => {
     renderMessage(answer({ content: 'You can no longer see this answer.', payload: null, status: 'completed' }));

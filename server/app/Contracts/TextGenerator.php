@@ -39,6 +39,12 @@ interface TextGenerator
     public function preservesNumericFacts(string $text, array $facts, bool $allowDerived = false): bool;
 
     /**
+     * The first number in $text that $facts do not carry, as written in the text, or null when every number is
+     * accounted for. Same rules as preservesNumericFacts().
+     */
+    public function unverifiedFigure(string $text, array $facts, bool $allowDerived = false): ?string;
+
+    /**
      * Strip Markdown from model-authored copy that is rendered as prose.
      */
     public function plainText(string $text): string;
