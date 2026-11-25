@@ -45,6 +45,10 @@ class MarkdownNumericGuardTest extends TestCase
             'real reference definition with a title' => ["See [the page][a] now.\n\n[a]: /dashboard/events/99 \"Event 99\"", $facts],
             'list numbering up to twenty' => ["19. Nineteenth step\n20) Twentieth step", $facts],
             'letter and digit code from the facts' => ['Q4 is the quarter in question.', ['period' => 'Q4 2026']],
+            'receipt number whose hyphens follow a letter' => ['The expense with receipt HIUSA-2-00000015 is the newest.', ['records' => [['secondary' => 'Expense · Category: Operations · Receipt: HIUSA-2-00000015 · Date: Nov 24, 2026']]]],
+            'receipt number inside parentheses' => ['Expense (HIUSA-2-00000015) was posted.', ['records' => [['secondary' => 'Receipt: HIUSA-2-00000015']]]],
+            'a minus sign on a figure the facts carry' => ['The net is -2,705.00 for the period.', ['net' => '2,705.00']],
+            'a minus sign on a count the facts carry' => ['Cash flow moved by -3 items.', ['items' => 3]],
         ];
     }
 
@@ -77,6 +81,8 @@ class MarkdownNumericGuardTest extends TestCase
             'amount glued to its currency' => ['The fund is short by PHP9999.', $facts],
             'code that the facts do not carry' => ['Q4 has 9 files.', $facts],
             'comma joins two invented numbers' => ['Members 41,7 are overdue.', $facts],
+            'receipt number with a number the facts lack' => ['Receipt HIUSA-7-00000015 is the newest.', ['records' => [['secondary' => 'Receipt: HIUSA-2-00000015']]]],
+            'a minus sign on a figure the facts lack' => ['The net is -4,100.00 for the period.', ['net' => '2,705.00']],
         ];
     }
 

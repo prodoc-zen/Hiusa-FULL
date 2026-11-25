@@ -35,6 +35,7 @@ use App\Support\LedgerScope;
 use App\Support\SemesterScope;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,12 @@ use Illuminate\Support\Str;
 class AskAiService
 {
     private const ROW_LIMIT = 12;
+
+    // How far ahead a task counts as due soon when the financial report is being prepared.
+    private const DUE_SOON_DAYS = 7;
+
+    // A task title about money or the member records, which a report is read against.
+    private const FINANCE_RECORDS_TASK_WORDS = '~\b(?:financ\w*|fees?|funds?|funding|budgets?|receipts?|ledger|payments?|dues|collect\w*|liquidat\w*|audit\w*|treasur\w*|roster|members?|membership|records?|reports?)\b~i';
 
     private const INTENT_MODULES = [
         'missing_submissions' => 'compliance',
@@ -3441,9 +3448,11 @@ class AskAiService
     /**
      * What an Admin or officer should settle before sending the financial report, read from the same rules the report
      * checks use (FinancialReportChecks) over the selected semester, plus the budgets still waiting for approval, the
-     * ledger entries linked to nothing, the deadline and the latest report. Nothing here is written or sent.
+     * ledger entries linked to nothing, the deadline, the latest report and the organization's overdue and due-soon tasks.
+     * Nothing here is written or sent.
      *
-     * Query plans measured with EXPLAIN ANALYZE on MySQL 8.0.46 on 2026-11-25: index lookups only, under 0.1 ms.
+     * Query plans measured with EXPLAIN ANALYZE on MySQL 8.0.46 on 2026-11-25: index lookups only, under 0.1 ms. The task
+     * lookup added in r24 (organization, unfinished status, soonest deadline, at most 60 rows) is UNMEASURED.
      */
     private function buildReportPreparation(User $user): array
     {
@@ -3490,6 +3499,10 @@ class AskAiService
         $daysLeft = $deadlineDay === null ? null : (int) today()->diffInDays($deadlineDay, false);
         $latest = FinancialReport::where('organization_id', $orgId)->orderByDesc('id')->first(['id', 'title', 'submission_status']);
 
+        $tasks = $this->reportPrepTasks($user, $orgId);
+        $overdueTasks = $tasks->where('late', true);
+        $dueSoonTasks = $tasks->where('late', false);
+
         $parts = [];
         $parts[] = $findingCount === 0
             ? 'The report checks found nothing to fix for '.$this->periodLabel($from, $to).'.'
@@ -3519,10 +3532,23 @@ class AskAiService
         $parts[] = $latest === null
             ? 'No financial report has been created for the organization yet.'
             : sprintf('The latest report, %s, is %s.', $latest->title, Str::lower(Str::headline((string) $latest->submission_status)));
+        if ($overdueTasks->isNotEmpty()) {
+            $parts[] = sprintf(
+                '%d %s overdue, %s: %s.',
+                $overdueTasks->count(),
+                $overdueTasks->count() === 1 ? 'task is' : 'tasks are',
+                $user->role === 'SBO_OFFICER' ? 'assigned to you' : 'most relevant to finance and records first',
+                $this->joinPhrases($overdueTasks->take(3)->pluck('title')->all()).($overdueTasks->count() > 3 ? ' and '.($overdueTasks->count() - 3).' more' : '')
+            );
+        }
+        if ($dueSoonTasks->isNotEmpty()) {
+            $parts[] = sprintf('%d more %s due within the next %d days.', $dueSoonTasks->count(), $dueSoonTasks->count() === 1 ? 'task is' : 'tasks are', self::DUE_SOON_DAYS);
+        }
 
         $reportsHref = $this->linkTo($user, '/dashboard/finance/transaction-history');
         $ledgerHref = $this->linkTo($user, '/dashboard/finance/financial-ledger');
         $budgetsHref = $this->linkTo($user, '/dashboard/finance/budget-allocation');
+        $tasksHref = $this->linkTo($user, $user->role === 'SBO_OFFICER' ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board');
 
         $step = fn (string $id, string $primary, string $secondary, string $status, string $tone, ?string $href, string $label) => [
             'id' => 'report-prep-'.$id,
@@ -3539,6 +3565,7 @@ class AskAiService
             $receiptCount > 0 ? $step('receipts', 'Add the missing receipt references', sprintf('%d %s no receipt reference.', $receiptCount, $receiptCount === 1 ? 'expense has' : 'expenses have'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
             $unlinkedCount > 0 ? $step('unlinked', 'Link the entries that belong to a budget or an event', sprintf('%d ledger %s not linked to a budget or an event.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
             $waiting->isNotEmpty() ? $step('budgets', 'Get the waiting budgets approved', sprintf('%d %s waiting for a decision, and a budget counts only once it is approved.', $waiting->count(), $waiting->count() === 1 ? 'budget is' : 'budgets are'), 'Waiting', 'info', $budgetsHref, 'Open Budget allocation') : null,
+            $overdueTasks->isNotEmpty() ? $step('tasks', 'Finish the overdue tasks', sprintf('%d %s past the deadline: %s.', $overdueTasks->count(), $overdueTasks->count() === 1 ? 'task is' : 'tasks are', $this->joinPhrases($overdueTasks->take(3)->pluck('title')->all()).($overdueTasks->count() > 3 ? ' and '.($overdueTasks->count() - 3).' more' : '')), 'Overdue', 'danger', $tasksHref, 'Open tasks') : null,
             $step('send', 'Generate the report and send it', $deadline === null ? 'No deadline is set yet, so send it when the checks are clear.' : 'Send it before the deadline on '.$deadlineDay->format('M j, Y').'.', 'Do last', 'primary', $reportsHref, 'Open Financial reports'),
         ]));
 
@@ -3551,6 +3578,7 @@ class AskAiService
                 ['label' => 'Budgets waiting', 'value' => (string) $waiting->count(), 'tone' => $waiting->isNotEmpty() ? 'warning' : 'success'],
                 ['label' => 'Expenses without a receipt', 'value' => (string) $receiptCount, 'tone' => $receiptCount > 0 ? 'warning' : 'success'],
                 ['label' => 'Entries not linked', 'value' => (string) $unlinkedCount, 'tone' => $unlinkedCount > 0 ? 'warning' : 'success'],
+                ['label' => 'Overdue tasks', 'value' => (string) $overdueTasks->count(), 'tone' => $overdueTasks->isNotEmpty() ? 'danger' : 'success'],
             ],
             'sections' => [
                 [
@@ -3592,12 +3620,69 @@ class AskAiService
                         'action_label' => 'Open Budget allocation',
                     ])->all(),
                 ],
+                [
+                    'id' => 'report-prep-tasks',
+                    'title' => 'Overdue And Due-Soon Tasks',
+                    'description' => 'Overdue tasks first, the ones about finance and records before the rest, then the earliest deadline. '.$this->showingFirst($tasks->count()),
+                    'empty_message' => 'No task is overdue or due within the next '.self::DUE_SOON_DAYS.' days.',
+                    'rows' => $tasks->take(self::ROW_LIMIT)->map(fn (array $task) => [
+                        'id' => 'report-prep-task-'.$task['id'],
+                        'primary' => $task['title'],
+                        'secondary' => 'Assigned to '.$task['assignee'].' · Due '.$task['due'],
+                        'status' => $task['late'] ? 'Overdue' : 'Due soon',
+                        'status_tone' => $task['late'] ? 'danger' : 'warning',
+                        'meta' => $task['relevant'] ? 'Finance or records' : 'Task',
+                        'href' => $tasksHref,
+                        'action_label' => 'Open task',
+                    ])->all(),
+                ],
             ],
             'follow_ups' => [
                 ['topic' => 'finance_health', 'label' => 'How is our finance?', 'question' => 'How is our finance?'],
                 ['topic' => 'my_submissions', 'label' => 'Where do our submissions stand?', 'question' => 'Where do our submissions stand?'],
             ],
         ];
+    }
+
+    /**
+     * The organization's unfinished tasks that are past their deadline or due within DUE_SOON_DAYS, ranked for someone
+     * about to send the financial report: overdue before due soon, the ones about finance and records (fees, funds,
+     * receipts, the member roster, reports) before the rest, then the earliest deadline. A task past its deadline and not
+     * finished is overdue even before the nightly mark. An officer sees only the tasks assigned to them, as on the task list.
+     *
+     * @return Collection<int, array{id: int, title: string, assignee: string, due: string, late: bool, relevant: bool}>
+     */
+    private function reportPrepTasks(User $user, int $orgId): Collection
+    {
+        $query = DB::table('tasks')
+            ->leftJoin('users', 'tasks.assigned_to', '=', 'users.school_id')
+            ->where('tasks.organization_id', $orgId)
+            ->whereIn('tasks.status', ['overdue', 'pending', 'in_progress'])
+            ->where('tasks.deadline', '<=', now()->addDays(self::DUE_SOON_DAYS)->endOfDay());
+        if ($user->role === 'SBO_OFFICER') {
+            $query->where('tasks.assigned_to', $user->school_id);
+        }
+        $this->inSelectedSemester($query, 'tasks.academic_semester_id');
+
+        return $query->orderBy('tasks.deadline')
+            ->limit(60)
+            ->get(['tasks.id', 'tasks.title', 'tasks.status', 'tasks.deadline', 'users.first_name', 'users.last_name'])
+            ->map(function ($task): array {
+                $deadline = Carbon::parse($task->deadline);
+
+                return [
+                    'id' => (int) $task->id,
+                    'title' => (string) $task->title,
+                    'assignee' => trim(($task->first_name ?? '').' '.($task->last_name ?? '')) ?: 'Unassigned',
+                    'due' => $deadline->format('M j, Y'),
+                    'late' => $task->status === 'overdue' || $deadline->isPast(),
+                    'relevant' => preg_match(self::FINANCE_RECORDS_TASK_WORDS, (string) $task->title) === 1,
+                    'at' => $deadline->getTimestamp(),
+                ];
+            })
+            ->sortBy([['late', 'desc'], ['relevant', 'desc'], ['at', 'asc']])
+            ->values()
+            ->map(fn (array $task) => Arr::except($task, ['at']));
     }
 
     /** "Jun 1, 2026 to Dec 31, 2026", the span a report check reads. */
@@ -5449,6 +5534,19 @@ class AskAiService
     /** The dean's office staff open documents where a Department Head opens college compliance. */
     private const CORPUS_FALLBACKS = ['compliance' => '/dashboard/department-head/documents'];
 
+    /** The sidebar name of the screen where this person reviews accreditation requirements, null when they have none. */
+    private function complianceScreenName(User $user): ?string
+    {
+        $href = $this->corpusHref($user, 'compliance');
+        if ($href === null) {
+            return null;
+        }
+        $path = parse_url($href, PHP_URL_PATH) ?: $href;
+        $screen = collect(app(HowToGuideLibrary::class)->screensFor($user))->first(fn (array $row) => $row['href'] === $path);
+
+        return $screen['screen'] ?? null;
+    }
+
     private function corpusHref(User $user, string $page): ?string
     {
         return $this->linkTo($user, ...array_filter([self::CORPUS_PAGES[$page][$user->role] ?? null, $user->role === 'DEPARTMENT_HEAD' ? (self::CORPUS_FALLBACKS[$page] ?? null) : null]));
@@ -5498,20 +5596,24 @@ class AskAiService
             ->get(['id', 'name', 'acronym', 'college', 'lifecycle_status', 'is_university_wide', 'review_remarks']);
 
         $accreditationByOrg = $this->accreditation->forOrganizations($organizations->pluck('id'));
+        $reviewScreen = $showCompliance ? $this->complianceScreenName($user) : null;
 
         foreach ($organizations as $org) {
             $accStatus = $accreditationByOrg[$org->id] ?? 'incomplete';
             $label = ($org->acronym ? "{$org->acronym} — " : '').$org->name;
+            // An accreditation that is not settled is read and followed up on the compliance screen, never on Organization applications, which only decides new organizations.
+            $followUp = $reviewScreen !== null && in_array($accStatus, ['incomplete', 'returned', 'pending_review'], true) ? ' · Review its accreditation in '.$reviewScreen : '';
 
             $corpus[] = [
                 'id' => 'rag-org-'.$org->id,
                 'domain' => 'Organizations & Accreditation',
                 'primary' => $label,
                 'secondary' => sprintf(
-                    'College: %s · Status: %s · Accreditation: %s',
+                    'College: %s · Status: %s · Accreditation: %s%s',
                     $org->college ?: ($org->is_university_wide ? 'University-wide' : 'General'),
                     Str::headline((string) $org->lifecycle_status),
-                    Str::headline((string) $accStatus)
+                    Str::headline((string) $accStatus),
+                    $followUp
                 ),
                 'excerpt' => $showCompliance && $org->review_remarks ? "Remarks: {$org->review_remarks}" : null,
                 'quotable' => true,
