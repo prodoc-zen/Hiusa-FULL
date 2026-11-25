@@ -48,8 +48,7 @@ trait GuardsGeneratedText
             $isPercentage = str_ends_with($token, '%');
             $value = (float) str_replace([',', '%'], '', $token);
             $candidates = $isPercentage ? [$value, $value / 100] : [$value];
-            // A minus sign says which way a figure moved, not which figure it is, so -2,705.00 is the 2,705.00 the facts carry.
-            if (collect($allowed)->contains(fn (float $allowedValue) => collect($candidates)->contains(fn (float $candidate) => abs(abs($allowedValue) - abs($candidate)) < 0.005))) {
+            if (collect($allowed)->contains(fn (float $allowedValue) => collect($candidates)->contains(fn (float $candidate) => abs($allowedValue - $candidate) < 0.005))) {
                 continue;
             }
             if ($allowDerived && $this->isDerivedFrom($token, $value, $isPercentage, $figures ??= $this->moneyFigures($facts))) {
