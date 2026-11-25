@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsurePrivacyConsent;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Organization;
@@ -9,6 +10,7 @@ use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -194,6 +196,26 @@ class PrivacyConsentTest extends TestCase
         $this->assertGreaterThan(0, User::count());
         $this->assertSame(0, User::whereNull('privacy_accepted_at')->count());
         $this->assertSame(0, User::where('privacy_notice_version', '!=', self::VERSION)->count());
+    }
+
+    public function test_the_gate_passes_every_seeded_account_and_still_stops_one_made_without_agreeing(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $gate = new EnsurePrivacyConsent;
+        $statusFor = function (User $user) use ($gate): int {
+            $request = Request::create('/api/ai/assistant');
+            $request->setUserResolver(fn () => $user);
+
+            return $gate->handle($request, fn () => response()->json(['ok' => true]))->getStatusCode();
+        };
+
+        $blocked = User::query()->get()->filter(fn (User $user) => $statusFor($user) !== 200);
+        $this->assertGreaterThan(0, User::count());
+        $this->assertSame([], $blocked->pluck('school_id')->all());
+
+        $later = User::factory()->withoutPrivacyConsent()->create(['organization_id' => Organization::query()->value('id')]);
+        $this->assertSame(403, $statusFor($later));
     }
 
     public function test_the_two_columns_are_hidden_by_default_and_added_back_only_for_the_signed_in_payload(): void
