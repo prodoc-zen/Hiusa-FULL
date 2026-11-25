@@ -61,6 +61,7 @@ class AskAiChatService
         'organizations_without_admin' => 'organizations without an admin',
         'tasks_workload' => 'tasks and workload',
         'finance_health' => 'finance',
+        'report_preparation' => 'what to do before sending the financial report',
         'merchandise_orders' => 'merchandise orders',
         'merchandise_stock' => 'merchandise stock',
         'events_attendance' => 'events and attendance',
