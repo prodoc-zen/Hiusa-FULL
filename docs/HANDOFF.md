@@ -1,5 +1,70 @@
 # Handoff: HIUSA, AI test + r20.4 + storyboard done, 2026-11-24 PHT (session 9)
 
+## r23 Ask AI facts, 2026-11-25
+
+r23 is on prod and origin/main. Prod HEAD `b5686ca2a70cf72f345d465219a9c1f0644ca57e`, `/up` and `/login` 200, `/api/health` reports sha `b5686ca2a70c`, database ok, and nginx, mysql, php8.3-fpm, hiusa-ai, hiusa-fingerprint, hiusa-queue and hiusa-scheduler are active. origin/main had not moved since r22, so main was fast-forwarded to release/r23 (f1acb23a to b5686ca2) with no merge and the suites were not re-run here; they were gated on the release branch. Deployed over ssh with `scripts/deploy-lightsail.sh` piped through `tr -d '\r'`; the script reported nothing to migrate and held stock for 0 pending orders.
+
+### What shipped
+
+| Sha | What |
+|---|---|
+| 9e659dfc | F1 and F2: a budget with ledger entries, archived ones included, says "This budget has ledger entries, archived ones included, so it stays on record."; an event with ledger entries cannot be deleted and says to cancel it instead. |
+| ccea245c | Ask AI facts: upcoming events with their tasks, pending budgets with amounts, a report preparation intent, the budget working on the record search. |
+| 4cf25a02, b5686ca2 | Review rounds 1 and 2: the event tasks route needs an upcoming phrase and keeps overdue, workload and own-task questions on the task list, an officer's event row counts every task, a cancelled event with ledger entries is told it is already cancelled. |
+| 6d0f2803 | QA sheets use the new budget delete message. |
+
+### Backups (host, /var/backups/hiusa)
+
+- `predeploy-r23-20261125T005750Z.sql.gz` (210,049 bytes, 85 CREATE TABLE lines) and `predeploy-r23-20261125T005750Z-files.tar.gz` (109,231,951 bytes), `gzip -t` passed on both.
+- The script's own `hiusa_db-pre-deploy-20261125T005809Z.sql.gz`.
+
+### Ask AI eval on prod, same 6 questions, same rubric
+
+Files in `D:/Claude/scratch/hiusa-r22/eval/`: `r23.json`, `truth-r23.json` (fresh from the database, archived rows skipped), `grading-r23.json`, `grading-r23.md`. Graded by the session against the database, not by the model that wrote the answers.
+
+| id | Question | Baseline | r22 | r23 | Guard replaced (baseline / r22 / r23) |
+|---|---|---|---|---|---|
+| q01 | How is our finance? | 6 | 10 | 7 | yes / no / yes |
+| q02 | Which budget is closest to running out? | 9 | 10 | 10 | no / no / no |
+| q03 | What should I do before submitting the financial report? | 5 | 5 | 9 | yes / yes / no |
+| q04 | What events are coming up and what tasks do they have? | 5 | 5 | 10 | no / no / no |
+| q13 | Which organizations need my approval? | 10 | 9 | 10 | no / no / no |
+| q14 | What budgets are waiting for me to approve and how much? | 6 | 6 | 10 | no / no / no |
+| Total | | 41 | 45 | 56 | 2 / 1 / 1 |
+
+Latency, first token then total in ms (baseline total about 3,300 on average):
+
+| id | r22 first | r22 total | r23 first | r23 total |
+|---|---|---|---|---|
+| q01 | 7505 | 13821 | 10229 | 15813 |
+| q02 | 5097 | 8797 | 5175 | 9590 |
+| q03 | 6866 | 8994 | 7989 | 14077 |
+| q04 | 7172 | 13065 | 6589 | 11925 |
+| q13 | 8774 | 11270 | 6143 | 9028 |
+| q14 | 8463 | 12478 | 5943 | 8857 |
+
+Mean total 11.4 s in r22 and 11.5 s in r23, all well under the 60 s chat limit. The 6 eval conversations (ids 29 to 34) were deleted through the app, status 200, none still listed. No audit_logs row was touched and no consent field was written.
+
+What is still wrong:
+
+- q01 hit the guard again and the user saw the fixed summary: no verdict, no next step. The log line is `unexpected_value -2.0`, the same value the baseline guard logged. Likely the model mentions the two archived 2.00 rows from the r21 live check, which are not in its facts (a guess, not verified). Look at `GuardsGeneratedText` and the facts for finance_health.
+- q03 no longer uses the fixed summary but omits the two overdue tasks (Follow up unpaid organizational fee list, Update official member roster for 2024-2025).
+- q13 sends the Returned accreditation to the Organization applications screen, which is the new-organization pipeline, so that link only half fits. The Returned accreditation itself is true.
+- q02 and q03 treat the two unlinked order income entries as something the Treasurer should link; arguably they are auto-created and need no action.
+
+### Live check F1 and F2 (PSITS President 900001)
+
+Neither new message could be shown live without writing to the ledger, so both are covered by `BudgetDeleteGuardTest` and `EventDeleteGuardTest` only.
+
+- F1: a ledger entry can only be linked to an approved budget (`TransactionController`, "must belong to this organization and be approved"), and an approved budget is refused earlier with "Cannot delete an approved budget". A throwaway draft budget therefore cannot hold archived entries, and the only entries that are archived (17 and 18, 2.00 each) have no budget. The new text is reachable only for a legacy unapproved budget that still has entries. No budget was created.
+- F2: read-only `GET /api/events` as 900001 returns `delete_blocked_reason` for each event: Leadership Seminar "it is ongoing", Sports Fest 2024 "it has already been reviewed in the approval workflow", General Assembly "it is completed", Induction and Recognition Ceremony null. Every event that has ledger entries is shadowed by an earlier blocker, so the ledger message cannot appear on current data. Showing it live needs a ledger entry on event 4 (the only deletable event), which would also leave event 4 undeletable for good. Not done; no DELETE was sent and no event was touched.
+
+### Open items
+
+- The Treasurer (900004) live check and the 8 other eval questions (q05 to q12) stay blocked by the Data Privacy Notice gate; nobody consented for those accounts and none was written.
+- The items under "What is still wrong" above.
+- Worktrees hiusa-r23, hiusa-r23-askai and hiusa-r23-fin were removed with `wt-remove.mjs`; the branches release/r23, feat/r23-askai-facts and fix/r23-finance-followups are kept.
+
 ## r21 finance fixes + r22 smarter AI, 2026-11-25
 
 Both releases are on prod and origin/main. Prod HEAD 1c89c462d406e4945cefc4003e8961b52db49adc, `/api/health` reports sha 1c89c462d406.
