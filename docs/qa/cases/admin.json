@@ -2114,7 +2114,7 @@
       "3. Ask a technical teammate to send a delete request for that budget, if the button is missing.",
       "4. Read the answer."
     ],
-    "expected": "The list gives no 'Delete budget' button for an approved budget. The request is refused with 409: 'Cannot delete an approved budget. It stays on record as the allocation that was approved.' A budget that is not approved but has entries is refused with 'Cannot delete a budget that has existing transactions. Remove all transactions first.' VERIFY which message appears for your budget.",
+    "expected": "The list gives no 'Delete budget' button for an approved budget. The request is refused with 409: 'Cannot delete an approved budget. It stays on record as the allocation that was approved.' A budget that is not approved but has entries is refused with 'This budget has ledger entries, archived ones included, so it stays on record.' VERIFY which message appears for your budget.",
     "priority": "High",
     "device": "Laptop",
     "type": "Negative",
