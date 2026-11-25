@@ -689,11 +689,11 @@ describe('FinancePage deleting budgets and archiving transactions', () => {
   });
 
   it('shows the server message when a budget already has transactions', async () => {
-    financeMocks.deleteBudget.mockRejectedValue({ response: { status: 409, data: { message: 'Cannot delete a budget that has existing transactions. Remove all transactions first.' } } });
+    financeMocks.deleteBudget.mockRejectedValue({ response: { status: 409, data: { message: 'This budget has ledger entries, archived ones included, so it stays on record.' } } });
     await confirmBudgetDelete();
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete this budget?' });
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cannot delete a budget that has existing transactions. Remove all transactions first.');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This budget has ledger entries, archived ones included, so it stays on record.');
     expect(financeMocks.getBudgets).toHaveBeenCalledTimes(1);
   });
 

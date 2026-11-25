@@ -248,7 +248,7 @@ class BudgetController extends Controller
                 return 'Cannot delete an approved budget. It stays on record as the allocation that was approved.';
             }
             if ($locked->transactions()->withoutGlobalScope(Transaction::NOT_ARCHIVED)->exists()) {
-                return 'Cannot delete a budget that has existing transactions. Remove all transactions first.';
+                return 'This budget has ledger entries, archived ones included, so it stays on record.';
             }
 
             $oldValues = $this->auditableValues($locked);
