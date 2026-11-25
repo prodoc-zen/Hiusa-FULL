@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -29,6 +30,8 @@ class AskAiChatService
     private const HIDDEN_ANSWER = 'This answer is no longer available for your access.';
 
     private const GUARD_NOTICE = 'The written answer was replaced with the verified summary.';
+
+    private const DROPPED_NOTICE_ONE = 'One line was left out because its figure could not be checked against your records.';
 
     private const FILE_UNREAD = 'I could not read that file right now, so nothing was saved. Try again in a moment.';
 
@@ -508,14 +511,30 @@ class AskAiChatService
         $wrote = false;
 
         $blanks = 0;
-        $release = function (string $line) use (&$released, &$blanks, $guardFacts, $linkCheck, $emit): bool {
+        $lines = 0;
+        $dropped = 0;
+        $gap = false;
+        // A line with a figure the records cannot vouch for is left out and the rest goes on. Only a first line that
+        // cannot be checked ends the stream, because an answer that opens on such a figure has nothing sound to build on.
+        $release = function (string $line) use (&$released, &$blanks, &$lines, &$dropped, &$gap, $guardFacts, $linkCheck, $emit): bool {
             if (trim($line) === '') {
                 $blanks++;
 
                 return true;
             }
-            if (! $this->ai->preservesNumericFacts($line, $guardFacts, true)) {
-                return false;
+            $lines++;
+            $figure = $this->ai->unverifiedFigure($line, $guardFacts, true);
+            if ($figure !== null) {
+                $dropped++;
+                $gap = true;
+                $this->logDroppedLine($figure, $line, $guardFacts);
+
+                return $lines > 1;
+            }
+            if ($gap) {
+                // The blank lines on both sides of a line that was left out are one gap, not two.
+                $blanks = min($blanks, 1);
+                $gap = false;
             }
             $piece = ($released === '' ? '' : str_repeat("\n", $blanks + 1)).AnswerMarkdown::sanitize($line, $linkCheck);
             $blanks = 0;
@@ -535,7 +554,7 @@ class AskAiChatService
             $emit('reasoning', ['delta' => $piece]);
         };
 
-        $onEvent = function (string $type, string $delta) use (&$released, &$raw, &$pending, &$reasoningText, &$reasoningPending, &$reasoningOpen, &$failed, &$stopped, &$wrote, &$blanks, $release, $keepReasoning, $emit, $aborted, $deadline): void {
+        $onEvent = function (string $type, string $delta) use (&$released, &$raw, &$pending, &$reasoningText, &$reasoningPending, &$reasoningOpen, &$failed, &$stopped, &$wrote, &$blanks, &$lines, &$dropped, &$gap, $release, $keepReasoning, $emit, $aborted, $deadline): void {
             if ($aborted !== null && $aborted()) {
                 $stopped = true;
                 throw new ChatInterrupted('client_left');
@@ -550,7 +569,8 @@ class AskAiChatService
                 }
                 $released = $raw = $pending = $reasoningText = $reasoningPending = '';
                 $reasoningOpen = false;
-                $blanks = 0;
+                $blanks = $lines = $dropped = 0;
+                $gap = false;
                 $failed = false;
                 $wrote = false;
 
@@ -631,7 +651,7 @@ class AskAiChatService
                 return null;
             }
 
-            return $this->finishModel($user, $conversation, $userMessage, $intent, $payloadBase, $det, trim($released), $result, $thinking, $started, 'stopped', null);
+            return $this->finishModel($user, $conversation, $userMessage, $intent, $payloadBase, $det, trim($released), $result, $thinking, $started, 'stopped', $this->droppedNotice($dropped), $dropped);
         }
 
         if ($result !== null && ! $failed && $pending !== '') {
@@ -642,13 +662,19 @@ class AskAiChatService
             }
         }
 
+        // Most of the answer could not be checked: what is left of it is not worth reading, so the verified summary stands in.
+        if ($result !== null && ! $failed && $dropped * 2 > $lines) {
+            $failed = true;
+        }
+
         if ($failed) {
             $emit('replace', ['text' => $deterministicText, 'notice' => self::GUARD_NOTICE]);
 
             return $this->finishDeterministic($user, $conversation, $userMessage, $intent, $payloadBase, $det, $deterministicText, $started, self::GUARD_NOTICE, 'guard');
         }
 
-        $modelText = $result === null ? '' : trim(AnswerMarkdown::sanitize($raw === '' ? (string) $result['text'] : $raw, $linkCheck));
+        // Once a line was left out the text that was released, line by line, is the answer; the raw text still holds that line.
+        $modelText = $result === null ? '' : ($dropped > 0 ? trim($released) : trim(AnswerMarkdown::sanitize($raw === '' ? (string) $result['text'] : $raw, $linkCheck)));
         if ($file !== null && ($result === null || $modelText === '')) {
             // Only Claude can read a file, so there is no other writer to try: say so and keep nothing.
             if ($released !== '') {
@@ -684,7 +710,58 @@ class AskAiChatService
             }
         }
 
-        return $this->finishModel($user, $conversation, $userMessage, $intent, $payloadBase, $det, $modelText, $result, $thinking, $started, 'completed', null);
+        return $this->finishModel($user, $conversation, $userMessage, $intent, $payloadBase, $det, $modelText, $result, $thinking, $started, 'completed', $this->droppedNotice($dropped), $dropped);
+    }
+
+    /** The muted note under an answer that kept all of its lines but those with a figure that could not be checked. */
+    private function droppedNotice(int $dropped): ?string
+    {
+        return match (true) {
+            $dropped <= 0 => null,
+            $dropped === 1 => self::DROPPED_NOTICE_ONE,
+            default => $dropped.' lines were left out because their figures could not be checked against your records.',
+        };
+    }
+
+    /**
+     * Leave a trace of a line that was left out so the next miss can be found: the figure as written, the line with every
+     * name of a person masked and cut to 200 characters, and which kinds of facts the line was checked against. Neither
+     * the prompt nor the facts themselves are written.
+     */
+    private function logDroppedLine(string $figure, string $line, array $guardFacts): void
+    {
+        Log::warning('Ask AI chat left out a line whose figure could not be checked.', [
+            'figure' => $figure,
+            'line' => mb_substr($this->maskNames($line, $guardFacts), 0, 200),
+            'fact_keys' => array_keys($guardFacts['facts'] ?? []),
+        ]);
+    }
+
+    /** Replaces every word of $line that is a first or last name of a user, and the name of the person asking, with [name]. */
+    private function maskNames(string $line, array $guardFacts): string
+    {
+        preg_match_all('/\pL[\pL\'-]{1,39}/u', $line, $found);
+        $words = array_slice(array_values(array_unique($found[0])), 0, 60);
+        $names = [];
+        if ($words !== []) {
+            $users = User::query()->where(fn ($query) => $query->whereIn('first_name', $words)->orWhereIn('last_name', $words))->limit(100)->get(['first_name', 'last_name']);
+            foreach ($users as $person) {
+                array_push($names, ...preg_split('/\s+/u', trim($person->first_name.' '.$person->last_name), -1, PREG_SPLIT_NO_EMPTY));
+            }
+        }
+        $asking = $guardFacts['facts']['user_first_name'] ?? null;
+        if (is_string($asking) && $asking !== '') {
+            $names[] = $asking;
+        }
+        $names = array_values(array_filter(array_unique($names), fn (string $name) => mb_strlen($name) >= 2));
+        if ($names === []) {
+            return $line;
+        }
+
+        $pattern = '/(?<![\pL\pN])(?:'.implode('|', array_map(fn (string $name) => preg_quote($name, '/'), $names)).')(?![\pL\pN])/iu';
+        $masked = preg_replace($pattern, '[name]', $line) ?? $line;
+
+        return preg_replace('/\[name\](?:\s{1,5}\[name\]){1,10}/u', '[name]', $masked) ?? $masked;
     }
 
     /** One line of the model's thinking, cleaned and held to the same numbers as the answer; null drops it. */
@@ -735,13 +812,16 @@ class AskAiChatService
         }
     }
 
-    private function finishModel(User $user, AiConversation $conversation, AiMessage $userMessage, string $intent, array $payloadBase, array $det, string $content, ?array $result, string $reasoningText, float $started, string $status, ?string $notice): AiMessage
+    private function finishModel(User $user, AiConversation $conversation, AiMessage $userMessage, string $intent, array $payloadBase, array $det, string $content, ?array $result, string $reasoningText, float $started, string $status, ?string $notice, int $dropped = 0): AiMessage
     {
         $summary = $reasoningText === '' ? null : mb_substr($reasoningText, 0, 1500);
 
         $steps = $this->steps($intent, $det);
         $steps[] = $status === 'stopped' ? 'Writing stopped before the end; kept the checked part' : ($intent === 'attached_file' ? 'Wrote the answer in plain words from what the file shows' : 'Wrote the answer in plain words from those records');
         $steps[] = $intent === 'attached_file' ? 'Checked every number in the answer against what was read from the file' : 'Checked every number in the answer against those records';
+        if ($dropped > 0) {
+            $steps[] = $dropped === 1 ? 'Left out one line whose figure could not be checked' : "Left out {$dropped} lines whose figures could not be checked";
+        }
 
         $engine = $this->engineFor($result['model'] ?? null);
 
