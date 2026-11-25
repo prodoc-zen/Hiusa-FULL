@@ -183,6 +183,22 @@ class EventDeleteGuardTest extends TestCase
         $this->assertSame($event->id, Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->find($entry->id)->event_id);
     }
 
+    public function test_a_cancelled_event_with_ledger_entries_is_told_it_is_already_cancelled(): void
+    {
+        $event = $this->event('cancelled');
+        $this->ledgerEntry($event);
+        $message = 'This event has ledger entries. It is already cancelled and stays on record.';
+
+        $this->deleteJson("/api/events/{$event->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', $message);
+
+        $rows = collect($this->getJson('/api/events')->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame($message, $rows[$event->id]['delete_blocked_reason']);
+        $this->getJson("/api/events/{$event->id}")->assertOk()
+            ->assertJsonPath('delete_blocked_reason', $message);
+    }
+
     public function test_the_event_list_and_detail_report_the_ledger_blocker(): void
     {
         $event = $this->event();
