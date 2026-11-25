@@ -733,7 +733,9 @@ class EventController extends Controller
                 default => null,
             };
             if ($reason === self::LEDGER_BLOCKER) {
-                return [$event->id => $reason];
+                return [$event->id => $event->status === 'cancelled'
+                    ? 'This event has ledger entries. It is already cancelled and stays on record.'
+                    : $reason];
             }
             $advice = match (true) {
                 $reason === self::BOOKING_BLOCKER => ' Cancel it instead to release the venue.',
