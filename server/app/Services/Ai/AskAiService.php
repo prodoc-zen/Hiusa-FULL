@@ -3452,7 +3452,11 @@ class AskAiService
      * Nothing here is written or sent.
      *
      * Query plans measured with EXPLAIN ANALYZE on MySQL 8.0.46 on 2026-11-25: index lookups only, under 0.1 ms. The task
-     * lookup added in r24 (organization, unfinished status, soonest deadline, at most 60 rows) is UNMEASURED.
+     * lookup added in r24 (organization, unfinished status, soonest deadline, at most 60 rows) measured the same day on
+     * the production MySQL (8 task rows, so the plan shape is what counts): the administrator shape reads
+     * tasks_organization_id_index, filters, sorts the few rows and joins users on its primary key, 0.062 ms; the officer
+     * shape reads tasks_assignment_recency_index on (organization_id, assigned_to), 0.012 ms. No table scan in either, and
+     * the app sets no query timeout on the MySQL connection, so there is no limit to compare against.
      */
     private function buildReportPreparation(User $user): array
     {
