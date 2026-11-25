@@ -809,7 +809,12 @@ class AskAiRoleIntents
             return $text;
         };
 
-        $upcoming = $forecasts->firstWhere('forecast_period', $next);
+        $upcoming = FinancialForecast::query()
+            ->where('organization_id', (int) $user->organization_id)
+            ->where('forecast_period', $next)
+            ->latest('updated_at')
+            ->latest('id')
+            ->first();
         $nextName = $month($next);
         if ($upcoming !== null) {
             $sentence = sprintf('A forecast for %s is on file: %s.', $nextName, $describe($upcoming));

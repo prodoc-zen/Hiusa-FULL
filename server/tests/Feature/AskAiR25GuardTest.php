@@ -238,6 +238,24 @@ class AskAiR25GuardTest extends TestCase
         })->once();
     }
 
+    public function test_a_two_word_last_name_is_masked_in_the_logged_line(): void
+    {
+        $this->president();
+        User::factory()->create(['first_name' => 'Mary Ann', 'last_name' => 'De Leon']);
+        $this->fake(["Your finance is steady.\n", "Ms. De Leon still owes 98,765.00 in dues.\n", "General Operations Fund has ₱36,500.00 left.\n", "Merchandise Fund has ₱26,250.00 left.\n", 'Nothing else needs you.']);
+        Log::spy();
+
+        $this->stream();
+
+        Log::shouldHaveReceived('warning')->withArgs(function (string $message, array $context = []): bool {
+            return str_contains($message, 'left out')
+                && ($context['figure'] ?? null) === '98,765.00'
+                && str_contains($context['line'], 'still owes 98,765.00')
+                && ! str_contains($context['line'], 'De Leon')
+                && ! str_contains($context['line'], 'Leon');
+        })->once();
+    }
+
     public function test_the_guard_tells_which_figure_failed(): void
     {
         $guard = new AskAiChatFakeGenerator;

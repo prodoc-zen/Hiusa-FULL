@@ -741,10 +741,21 @@ class AskAiChatService
     private function maskNames(string $line, array $guardFacts): string
     {
         preg_match_all('/\pL[\pL\'-]{1,39}/u', $line, $found);
-        $words = array_slice(array_values(array_unique($found[0])), 0, 60);
+        $sequence = array_slice($found[0], 0, 60);
+        $words = array_values(array_unique($sequence));
+        // A first or last name can be several words ("Mary Ann", "De Leon"), so every run of two and three adjacent words is looked up too.
+        $candidates = $words;
+        for ($start = 0, $count = count($sequence); $start < $count; $start++) {
+            foreach ([2, 3] as $length) {
+                if ($start + $length <= $count) {
+                    $candidates[] = implode(' ', array_slice($sequence, $start, $length));
+                }
+            }
+        }
+        $candidates = array_values(array_unique($candidates));
         $names = [];
-        if ($words !== []) {
-            $users = User::query()->where(fn ($query) => $query->whereIn('first_name', $words)->orWhereIn('last_name', $words))->limit(100)->get(['first_name', 'last_name']);
+        if ($candidates !== []) {
+            $users = User::query()->where(fn ($query) => $query->whereIn('first_name', $candidates)->orWhereIn('last_name', $candidates))->limit(100)->get(['first_name', 'last_name']);
             foreach ($users as $person) {
                 array_push($names, ...preg_split('/\s+/u', trim($person->first_name.' '.$person->last_name), -1, PREG_SPLIT_NO_EMPTY));
             }
