@@ -479,6 +479,25 @@ describe('EventsPage delete', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('You are not authorized to delete this event.');
   });
 
+  it('shows the ledger message when the server refuses to delete an event that has ledger entries', async () => {
+    eventMocks.deleteEvent.mockRejectedValue({ response: { status: 409, data: { message: 'This event has ledger entries. Archive the event instead.' } } });
+    renderEvents();
+    await confirmDelete();
+
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this event?' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This event has ledger entries. Archive the event instead.');
+  });
+
+  it('says ledger entries keep an event on record when it is cancelled instead of deleted', async () => {
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, delete_blocked_reason: 'This event has ledger entries. Archive the event instead.' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    renderEvents();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cancel event' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel this event?' });
+    expect(dialog).toHaveTextContent(/ledger entries/i);
+  });
+
   it('states everything an event delete removes', async () => {
     renderEvents();
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));

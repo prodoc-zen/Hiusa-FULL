@@ -41,6 +41,8 @@ class EventController extends Controller
 {
     private const BOOKING_BLOCKER = 'it has a venue booking that is still pending or approved';
 
+    private const LEDGER_BLOCKER = 'This event has ledger entries. Archive the event instead.';
+
     private const EVENT_GONE = 'event_gone';
 
     public function __construct(
@@ -702,7 +704,7 @@ class EventController extends Controller
     /**
      * Why each event cannot be deleted, keyed by event id, or null when it can. An event that has
      * run, collected files or attendance, been reviewed or has a budget is kept on record
-     * and cancelled instead; so is one that still holds a pending or approved venue booking, which cancelling releases. A pending approval request alone does not block, since every proposal has one.
+     * and cancelled instead; one with ledger entries, archived ones included, is kept too, with its own message; so is one that still holds a pending or approved venue booking, which cancelling releases. A pending approval request alone does not block, since every proposal has one.
      *
      * @param  iterable<Event>  $events
      * @return array<int, ?string>
@@ -715,18 +717,24 @@ class EventController extends Controller
         $reviewed = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->where('status', '!=', 'pending')->distinct()->pluck('entity_id')->flip();
         $withAttendance = Attendance::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
         $withBudget = Budget::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        // Archived entries count: deleting the event would null the link on every one of them, archived or not.
+        $withLedger = Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
         $withBooking = VenueBooking::whereIn('event_id', $ids)->whereIn('status', EventVenueRelease::ACTIVE_STATUSES)->distinct()->pluck('event_id')->flip();
 
-        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget, $withBooking) {
+        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget, $withLedger, $withBooking) {
             $reason = match (true) {
                 in_array($event->status, ['ongoing', 'completed'], true) => "it is {$event->status}",
                 $withFiles->has($event->id) => 'it has submitted requirement files',
                 $reviewed->has($event->id) => 'it has already been reviewed in the approval workflow',
                 $withAttendance->has($event->id) => 'it has attendance records',
                 $withBudget->has($event->id) => 'it has a budget',
+                $withLedger->has($event->id) => self::LEDGER_BLOCKER,
                 $withBooking->has($event->id) => self::BOOKING_BLOCKER,
                 default => null,
             };
+            if ($reason === self::LEDGER_BLOCKER) {
+                return [$event->id => $reason];
+            }
             $advice = match (true) {
                 $reason === self::BOOKING_BLOCKER => ' Cancel it instead to release the venue.',
                 $event->status === 'cancelled' => ' It is already cancelled and stays on record.',
