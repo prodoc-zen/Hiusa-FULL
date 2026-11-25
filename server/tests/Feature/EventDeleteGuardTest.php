@@ -164,7 +164,7 @@ class EventDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/events/{$event->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'This event has ledger entries. Archive the event instead.');
+            ->assertJsonPath('message', 'This event has ledger entries. Cancel it instead to keep the record.');
 
         $this->assertModelExists($event);
         $this->assertSame($event->id, Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->find($entry->id)->event_id);
@@ -177,7 +177,7 @@ class EventDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/events/{$event->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'This event has ledger entries. Archive the event instead.');
+            ->assertJsonPath('message', 'This event has ledger entries. Cancel it instead to keep the record.');
 
         $this->assertModelExists($event);
         $this->assertSame($event->id, Transaction::withoutGlobalScope(Transaction::NOT_ARCHIVED)->find($entry->id)->event_id);
@@ -189,9 +189,9 @@ class EventDeleteGuardTest extends TestCase
         $this->ledgerEntry($event, true);
 
         $rows = collect($this->getJson('/api/events')->assertOk()->json('data'))->keyBy('id');
-        $this->assertSame('This event has ledger entries. Archive the event instead.', $rows[$event->id]['delete_blocked_reason']);
+        $this->assertSame('This event has ledger entries. Cancel it instead to keep the record.', $rows[$event->id]['delete_blocked_reason']);
         $this->getJson("/api/events/{$event->id}")->assertOk()
-            ->assertJsonPath('delete_blocked_reason', 'This event has ledger entries. Archive the event instead.');
+            ->assertJsonPath('delete_blocked_reason', 'This event has ledger entries. Cancel it instead to keep the record.');
     }
 
     public function test_a_proposed_budget_still_waiting_for_review_blocks_deletion(): void

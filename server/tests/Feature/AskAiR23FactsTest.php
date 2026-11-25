@@ -134,6 +134,33 @@ class AskAiR23FactsTest extends TestCase
         $this->assertSame('events_attendance', $this->service()->classifyIntent('What events are coming up?', null, 'ADMIN'));
     }
 
+    public function test_p1_overdue_workload_and_own_task_questions_stay_on_the_task_list_even_when_they_mention_an_event(): void
+    {
+        $this->assertSame('tasks_workload', $this->service()->classifyIntent('How many tasks are overdue across all events?', null, 'DEPARTMENT_HEAD'));
+        $this->assertSame('tasks_workload', $this->service()->classifyIntent('Which overdue tasks are tied to an event?', null, 'ADMIN'));
+        $this->assertSame('tasks_workload', $this->service()->classifyIntent('Who has the most tasks for the Sports Fest event?', null, 'SBO_OFFICER'));
+        $this->assertSame('tasks_workload', $this->service()->classifyIntent('What tasks do I have this week on the calendar?', null, 'SBO_OFFICER'));
+    }
+
+    public function test_p1_an_officers_event_row_counts_every_task_of_the_event_not_only_their_own(): void
+    {
+        $org = $this->org();
+        $admin = User::factory()->admin()->create(['organization_id' => $org->id]);
+        $vp = User::factory()->officer()->create(['organization_id' => $org->id, 'first_name' => 'Angela', 'last_name' => 'Santos']);
+        $this->psitsEvents($org, $admin, $vp);
+
+        $payload = $this->service()->deterministicAnswer($vp, 'What events are coming up and what tasks do they have?', 'events_attendance');
+        $rows = $this->section($payload, 'upcoming-events-list')['rows'];
+        $seminar = collect($rows)->first(fn (array $row) => str_contains($row['primary'], 'Leadership Seminar'));
+        $induction = collect($rows)->first(fn (array $row) => str_contains($row['primary'], 'Induction'));
+
+        $this->assertStringContainsString('1 task', $seminar['secondary']);
+        $this->assertStringNotContainsString('No tasks yet', $seminar['secondary']);
+        $this->assertStringContainsString('No tasks yet', $induction['secondary']);
+        $this->assertStringNotContainsString('Print seminar certificates', $this->rowText($this->section($payload, 'upcoming-event-tasks')['rows']));
+        $this->assertContains('Your tasks on these events', array_column($payload['highlights'], 'label'));
+    }
+
     public function test_p1_the_events_facts_list_ongoing_approved_and_planning_events_with_dates_and_status_and_leave_out_finished_ones(): void
     {
         $org = $this->org();

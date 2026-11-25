@@ -576,9 +576,18 @@ class AskAiService
             && preg_match(self::REPORT_WORK_WORDS, $q) === 1;
     }
 
+    // An event word, a task word and a word for what is ahead. Overdue, workload, "most tasks" and "my tasks" questions
+    // are about the task list even when an event is named, so they never come here.
+    private const EVENT_TASK_AHEAD = '~\b(?:upcoming|coming up|next|scheduled|this (?:week|month)|what events)\b~';
+
+    private const EVENT_TASK_LIST_WORDS = '~\b(?:overdue|late|workloads?|most|fewest|least|how many|who has|who is|my|mine|me|i have|i am|assigned|assignees?|delegat\w*)\b~';
+
     private function asksEventTasks(string $q): bool
     {
-        return preg_match('~\b(?:events?|activities|calendar)\b~', $q) === 1 && preg_match('~\b(?:tasks?|to-?do)\b~', $q) === 1;
+        return preg_match('~\b(?:events?|activities|calendar)\b~', $q) === 1
+            && preg_match('~\b(?:tasks?|to-?do)\b~', $q) === 1
+            && preg_match(self::EVENT_TASK_AHEAD, $q) === 1
+            && preg_match(self::EVENT_TASK_LIST_WORDS, $q) !== 1;
     }
 
     private function asksEventReadiness(string $q, string $role): bool
@@ -3953,7 +3962,8 @@ class AskAiService
         $href = $this->linkTo($user, '/dashboard/events/activity-calendar');
         $closesEvents = in_array($role, ['ADMIN', 'SBO_OFFICER'], true);
         $eventTasks = $role === 'STUDENT' ? collect() : $this->tasksOfEvents($user, $upcomingEvents->pluck('id')->all());
-        $taskCounts = $eventTasks->countBy('event_id');
+        $taskCounts = $role === 'STUDENT' ? collect() : $this->taskCountsOfEvents($upcomingEvents->pluck('id')->all());
+        $tasksLabel = $role === 'SBO_OFFICER' ? 'Your tasks on these events' : 'Tasks on these events';
         $taskHref = $this->linkTo($user, $role === 'SBO_OFFICER' ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board');
 
         return [
@@ -3972,7 +3982,7 @@ class AskAiService
             'highlights' => [
                 ['label' => 'Upcoming / ongoing', 'value' => (string) $upcomingTotal, 'tone' => 'primary'],
                 ...($closesEvents ? [['label' => 'Needs closing', 'value' => (string) $staleEventsCount, 'tone' => $staleEventsCount > 0 ? 'warning' : 'neutral']] : []),
-                ...($role === 'STUDENT' ? [] : [['label' => 'Tasks on these events', 'value' => (string) $eventTasks->count(), 'tone' => 'neutral']]),
+                ...($role === 'STUDENT' ? [] : [['label' => $tasksLabel, 'value' => (string) $eventTasks->count(), 'tone' => 'neutral']]),
             ],
             'sections' => [
                 [
@@ -3993,7 +4003,7 @@ class AskAiService
                 ],
                 ...($role === 'STUDENT' ? [] : [[
                     'id' => 'upcoming-event-tasks',
-                    'title' => 'Tasks On These Events',
+                    'title' => $role === 'SBO_OFFICER' ? 'Your Tasks On These Events' : 'Tasks On These Events',
                     'description' => trim('Every status, earliest deadline first. '.($role === 'SBO_OFFICER' ? 'Only the tasks assigned to you. ' : '').$this->showingFirst($eventTasks->count())),
                     'empty_message' => 'None of these events has a task yet.',
                     'rows' => $eventTasks->take(self::ROW_LIMIT)->map(function ($task) use ($taskHref) {
@@ -4029,6 +4039,26 @@ class AskAiService
                     ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
                 ],
         ];
+    }
+
+    /**
+     * Every task of each given event, whoever it is assigned to, so an officer's event row never says "No tasks yet" for
+     * an event whose tasks belong to someone else.
+     *
+     * @param  array<int, int|string>  $eventIds
+     * @return Collection<int, int>
+     */
+    private function taskCountsOfEvents(array $eventIds): Collection
+    {
+        if ($eventIds === []) {
+            return collect();
+        }
+
+        return DB::table('tasks')
+            ->whereIn('event_id', $eventIds)
+            ->selectRaw('event_id, COUNT(*) as total')
+            ->groupBy('event_id')
+            ->pluck('total', 'event_id');
     }
 
     /**

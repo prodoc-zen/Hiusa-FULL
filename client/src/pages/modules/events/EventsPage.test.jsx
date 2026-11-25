@@ -480,16 +480,16 @@ describe('EventsPage delete', () => {
   });
 
   it('shows the ledger message when the server refuses to delete an event that has ledger entries', async () => {
-    eventMocks.deleteEvent.mockRejectedValue({ response: { status: 409, data: { message: 'This event has ledger entries. Archive the event instead.' } } });
+    eventMocks.deleteEvent.mockRejectedValue({ response: { status: 409, data: { message: 'This event has ledger entries. Cancel it instead to keep the record.' } } });
     renderEvents();
     await confirmDelete();
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete this event?' });
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This event has ledger entries. Archive the event instead.');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This event has ledger entries. Cancel it instead to keep the record.');
   });
 
   it('says ledger entries keep an event on record when it is cancelled instead of deleted', async () => {
-    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, delete_blocked_reason: 'This event has ledger entries. Archive the event instead.' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, delete_blocked_reason: 'This event has ledger entries. Cancel it instead to keep the record.' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
     renderEvents();
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Cancel event' }));
