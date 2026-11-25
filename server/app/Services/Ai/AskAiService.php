@@ -15,6 +15,8 @@ use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\EventRequirementFileReview;
+use App\Models\FinancialReport;
+use App\Models\FinancialReportDeadline;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
@@ -27,6 +29,7 @@ use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\Dashboard\ClientRouteAccess;
 use App\Services\EventApprovalChain;
+use App\Services\Finance\FinancialReportChecks;
 use App\Services\StudentAccountBalances;
 use App\Support\LedgerScope;
 use App\Support\SemesterScope;
@@ -46,6 +49,7 @@ class AskAiService
         'submitted_documents' => 'compliance',
         'clearances_status' => 'compliance',
         'finance_health' => 'finance',
+        'report_preparation' => 'finance',
         'merchandise_orders' => 'merchandise',
         'merchandise_stock' => 'merchandise',
         'events_attendance' => 'events',
@@ -61,6 +65,7 @@ class AskAiService
         'organizations_without_admin',
         'tasks_workload',
         'finance_health',
+        'report_preparation',
         'merchandise_orders',
         'merchandise_stock',
         'events_attendance',
@@ -472,6 +477,12 @@ class AskAiService
             return 'daily_priorities';
         }
 
+        // "What should I do before submitting the financial report" asks for the work to do, not for what the report checks are,
+        // so it is answered from the organization's own records before the tool descriptions claim the words.
+        if ($this->asksReportPreparation($q, $role)) {
+            return 'report_preparation';
+        }
+
         $roleIntent = $this->roleIntents->match($question, $role);
         if ($roleIntent !== null) {
             return $roleIntent;
@@ -495,6 +506,11 @@ class AskAiService
 
         if ($this->asksEventReadiness($q, $role)) {
             return 'event_readiness';
+        }
+
+        // "What events are coming up and what tasks do they have" asks for the events first, and the tasks are listed under them.
+        if ($this->asksEventTasks($q)) {
+            return 'events_attendance';
         }
 
         // A student's own records come before the staff words they share: "outstanding balance" is their fees, not a
@@ -544,6 +560,26 @@ class AskAiService
     private const NOT_AN_EVENT_WORDS = '~\b(?:orders?|claim\w{0,6}|pick-?up|merch\w{0,9}|clearances?|signatures?|ballots?|votes?|voting|elections?|invoices?|fees?|receipts?|payments?|tokens?|budgets?|funds?|reports?|documents?|files?|submissions?|requirements?|applications?|registrations?|approvals?|reviews?|grievances?|complaints?|tasks?|accounts?|passwords?|profile|certificates?|grades?)\b~';
 
     private const EVENT_WORDS = '~\b(?:events?|fest|festival|seminar|assembly|workshop|summit|tournament|competition|orientation|concert|activity|activities|program|programme|induction|ceremony|gala|week)\b~';
+
+    // The people who send a financial report: the organization head and the officers who keep its books. A reviewer reads the
+    // report, so the question reaches the tool description for them.
+    private const REPORT_BEFORE = '~\b(?:before|prior to|ahead of)\b(?: \w+){0,3} (?:submit\w*|send\w*|fil(?:e|ing)|hand(?:ing)? in|turn(?:ing)? in)\b(?: \w+){0,4} financial reports?\b~';
+
+    private const REPORT_READY = '~\bready (?:to|for) (?:submit\w*|send\w*)\b(?: \w+){0,4} financial reports?\b|\bfinancial reports?\b(?: \w+){0,4} ready (?:to|for) (?:submit|send)\w*~';
+
+    private const REPORT_WORK_WORDS = '~\b(?:what|which|anything|things?|steps?|checklist|prepare|preparing|ready|need|needs|should|must|to do)\b~';
+
+    private function asksReportPreparation(string $q, string $role): bool
+    {
+        return in_array($role, ['ADMIN', 'SBO_OFFICER'], true)
+            && (preg_match(self::REPORT_BEFORE, $q) === 1 || preg_match(self::REPORT_READY, $q) === 1)
+            && preg_match(self::REPORT_WORK_WORDS, $q) === 1;
+    }
+
+    private function asksEventTasks(string $q): bool
+    {
+        return preg_match('~\b(?:events?|activities|calendar)\b~', $q) === 1 && preg_match('~\b(?:tasks?|to-?do)\b~', $q) === 1;
+    }
 
     private function asksEventReadiness(string $q, string $role): bool
     {
@@ -597,6 +633,7 @@ class AskAiService
                 'organizations_without_admin' => $this->buildOrganizationsWithoutAdmin($user, $organizationIds),
                 'tasks_workload' => $this->buildTasksWorkload($user, $organizationIds),
                 'finance_health' => $this->withBudgetNote($user, $question, $this->buildFinanceHealth($user, $organizationIds)),
+                'report_preparation' => $this->buildReportPreparation($user),
                 'own_balance' => $this->buildFinanceHealth($user, $organizationIds, true),
                 'merchandise_orders' => $this->buildMerchandiseOrders($user),
                 'merchandise_stock' => $this->buildMerchandiseStock($user),
@@ -610,8 +647,8 @@ class AskAiService
                 default => $this->buildDailyPriorities($user, $organizationIds),
             };
 
-            // A stock list and a readiness checklist are whole answers; the records the search ranked beside them would repeat them.
-            if ($allowModel && ! in_array($intent, ['daily_priorities', 'merchandise_stock', 'event_readiness'], true) && ! in_array($intent, AskAiRoleIntents::INTENTS, true)) {
+            // A stock list, a readiness checklist and a report preparation list are whole answers; the records the search ranked beside them would repeat them.
+            if ($allowModel && ! in_array($intent, ['daily_priorities', 'merchandise_stock', 'event_readiness', 'report_preparation'], true) && ! in_array($intent, AskAiRoleIntents::INTENTS, true)) {
                 $payload = $this->augmentWithRagMatches($payload, $rag);
             }
         }
@@ -1661,6 +1698,7 @@ class AskAiService
             'organizations_without_admin' => 'registrations and organization heads',
             'tasks_workload' => 'tasks',
             'finance_health' => $student ? 'invoices and payments' : 'budgets and transactions',
+            'report_preparation' => 'budgets, transactions and financial report checks',
             'own_balance' => 'invoices and payments',
             'merchandise_orders' => $student ? 'orders' : 'merchandise orders',
             'merchandise_stock' => 'merchandise stock and orders',
@@ -2922,6 +2960,8 @@ class AskAiService
             ];
         }
 
+        $budgetsWaiting = $this->budgetsWaitingForDecision($user, $organizationIds);
+
         $requestsPhrase = $totalPendingApprovals.' approval '.Str::plural('request', $totalPendingApprovals);
         $answer = $role === 'SUPER_ADMIN'
             ? sprintf(
@@ -2936,11 +2976,19 @@ class AskAiService
             )
             : sprintf('%s %s waiting for your review.', $requestsPhrase, $totalPendingApprovals === 1 ? 'is' : 'are');
 
+        if ($budgetsWaiting['count'] > 0) {
+            $answer .= sprintf(' %d of them %s, ₱%s in all.', $budgetsWaiting['count'], $budgetsWaiting['count'] === 1 ? 'is a budget' : 'are budgets', number_format($budgetsWaiting['total'], 2));
+        }
+
         return [
             'title' => 'Pending Approvals & Review Queue',
             'answer' => $answer,
             'highlights' => [
                 ['label' => 'Pending approvals', 'value' => (string) $totalPendingApprovals, 'tone' => $totalPendingApprovals > 0 ? 'warning' : 'success'],
+                ...($budgetsWaiting['count'] > 0 ? [
+                    ['label' => 'Budgets waiting', 'value' => (string) $budgetsWaiting['count'], 'tone' => 'warning'],
+                    ['label' => 'Budget amount waiting', 'value' => '₱'.number_format($budgetsWaiting['total'], 2), 'tone' => 'primary'],
+                ] : []),
                 ...(
                     $role === 'SUPER_ADMIN'
                         ? [
@@ -2958,12 +3006,73 @@ class AskAiService
                     'empty_message' => 'No pending approval requests in your queue.',
                     'rows' => $approvalRows,
                 ],
+                ...($budgetsWaiting['rows'] === [] ? [] : [[
+                    'id' => 'pending-budgets-list',
+                    'title' => 'Budgets Waiting For Your Decision',
+                    'description' => trim('Each budget with its organization, event and allocated amount. '.$this->showingFirst($budgetsWaiting['count'], 'oldest first')),
+                    'empty_message' => 'No budgets are waiting for your decision.',
+                    'rows' => $budgetsWaiting['rows'],
+                ]]),
                 ...$extraSection,
             ],
             'follow_ups' => [
                 ['topic' => 'missing_submissions', 'label' => "Who hasn't submitted requirements?", 'question' => "Which organizations haven't submitted compliance or financial reports?"],
                 ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
             ],
+        ];
+    }
+
+    /**
+     * The budgets among the requests that wait for this person's own decision, each with its organization, event,
+     * allocated amount and stage, and what they come to together. It reads the same queue as the approvals list, so the
+     * count here is a part of that list's count. Only the first rows are built; the total is over every one.
+     *
+     * @param  Collection<int, int>  $organizationIds
+     * @return array{count: int, total: float, rows: array<int, array<string, mixed>>}
+     */
+    private function budgetsWaitingForDecision(User $user, Collection $organizationIds): array
+    {
+        $requests = $this->awaitingApprovalsQuery($user, $organizationIds)
+            ->where('entity_type', 'budget')
+            ->with('requester:school_id,first_name,last_name')
+            ->orderBy('requested_at')
+            ->orderBy('id')
+            ->get();
+
+        $budgets = Budget::with('event:id,title')
+            ->whereIn('id', $requests->pluck('entity_id'))
+            ->get(['id', 'organization_id', 'event_id', 'title', 'allocated_amount'])
+            ->keyBy('id');
+        // A request counts only when its budget belongs to the organization the request names, the rule the label uses.
+        $requests = $requests->filter(fn (ApprovalRequest $req) => (int) $budgets->get($req->entity_id)?->organization_id === (int) $req->organization_id)->values();
+        $organizations = Organization::whereIn('id', $requests->pluck('organization_id'))->get(['id', 'name', 'acronym'])->keyBy('id');
+        $href = $this->linkTo($user, $user->role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organization-approvals' : '/dashboard/approvals');
+
+        return [
+            'count' => $requests->count(),
+            'total' => round((float) $requests->sum(fn (ApprovalRequest $req) => (float) $budgets->get($req->entity_id)->allocated_amount), 2),
+            'rows' => $requests->take(self::ROW_LIMIT)->map(function (ApprovalRequest $req) use ($budgets, $organizations, $href) {
+                $budget = $budgets->get($req->entity_id);
+                $organization = $organizations->get($req->organization_id);
+                $requester = trim(($req->requester?->first_name ?? '').' '.($req->requester?->last_name ?? '')) ?: 'Member';
+
+                return [
+                    'id' => 'pending-budget-'.$budget->id,
+                    'primary' => $budget->title,
+                    'secondary' => sprintf(
+                        '%s · Event: %s · Allocated: ₱%s · Requested by %s',
+                        $organization?->acronym ?: ($organization?->name ?? 'Organization'),
+                        $budget->event?->title ?? 'not linked to an event',
+                        number_format((float) $budget->allocated_amount, 2),
+                        $requester
+                    ),
+                    'status' => 'Waiting for '.$this->reviewerName($req->required_role),
+                    'status_tone' => 'warning',
+                    'meta' => '₱'.number_format((float) $budget->allocated_amount, 2),
+                    'href' => $href,
+                    'action_label' => 'Review',
+                ];
+            })->all(),
         ];
     }
 
@@ -3316,6 +3425,179 @@ class AskAiService
         ];
     }
 
+    // -------------------------------------------------------------------------
+    // Report preparation: what stands between the organization and a clean financial report
+    // -------------------------------------------------------------------------
+
+    /**
+     * What an Admin or officer should settle before sending the financial report, read from the same rules the report
+     * checks use (FinancialReportChecks) over the selected semester, plus the budgets still waiting for approval, the
+     * ledger entries linked to nothing, the deadline and the latest report. Nothing here is written or sent.
+     *
+     * Query plans are UNMEASURED: the unlinked count filters transactions on organization_id and a date range, the same
+     * shape as the report checks. Run EXPLAIN ANALYZE on the real database before this ships.
+     */
+    private function buildReportPreparation(User $user): array
+    {
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)) {
+            return [
+                'title' => 'Before the financial report',
+                'answer' => 'A financial report is prepared and sent by an organization\'s Admin and officers from its own records, so there is none to prepare on your account. The reports sent to you are under your approvals.',
+                'highlights' => [],
+                'sections' => [],
+                'follow_ups' => [
+                    ['topic' => 'pending_approvals', 'label' => 'What is waiting for me?', 'question' => 'What is waiting for my approval?'],
+                ],
+            ];
+        }
+
+        $orgId = (int) $user->organization_id;
+        $semester = AcademicSemester::selected();
+        $from = $semester?->starts_on?->toDateString() ?? today()->startOfYear()->toDateString();
+        $to = $semester?->ends_on?->toDateString() ?? today()->toDateString();
+
+        $findings = app(FinancialReportChecks::class)->forPeriod($orgId, $from, $to);
+        $findingCount = count($findings);
+        $highCount = count(array_filter($findings, fn (array $finding) => $finding['severity'] === 'high'));
+        $receiptCount = count(array_filter($findings, fn (array $finding) => $finding['code'] === 'missing_receipt'));
+
+        $unlinkedCount = Transaction::query()
+            ->where('organization_id', $orgId)
+            ->excludingCashAdvances()
+            ->whereNull('budget_id')
+            ->whereNull('event_id')
+            ->whereDate('transaction_date', '>=', $from)
+            ->whereDate('transaction_date', '<=', $to)
+            ->count();
+
+        $waiting = Budget::query()
+            ->where('organization_id', $orgId)
+            ->whereIn('submission_status', ['pending_department_head', 'pending_sao'])
+            ->tap(fn ($budgets) => SemesterScope::budgets($budgets, $semester))
+            ->orderBy('id')
+            ->get(['id', 'title', 'allocated_amount', 'submission_status']);
+
+        $deadline = FinancialReportDeadline::orderByDesc('id')->first();
+        $deadlineDay = $deadline?->deadline_at?->copy()->startOfDay();
+        $daysLeft = $deadlineDay === null ? null : (int) today()->diffInDays($deadlineDay, false);
+        $latest = FinancialReport::where('organization_id', $orgId)->orderByDesc('id')->first(['id', 'title', 'submission_status']);
+
+        $parts = [];
+        $parts[] = $findingCount === 0
+            ? 'The report checks found nothing to fix for '.$this->periodLabel($from, $to).'.'
+            : sprintf('The report checks found %d %s to fix for %s, %d of them marked high.', $findingCount, $findingCount === 1 ? 'thing' : 'things', $this->periodLabel($from, $to), $highCount);
+        if ($waiting->isNotEmpty()) {
+            $parts[] = sprintf(
+                '%d %s still waiting for approval, so %s not count as available: %s.',
+                $waiting->count(),
+                $waiting->count() === 1 ? 'budget is' : 'budgets are',
+                $waiting->count() === 1 ? 'it does' : 'they do',
+                $this->joinPhrases($waiting->take(3)->pluck('title')->all()).($waiting->count() > 3 ? ' and '.($waiting->count() - 3).' more' : '')
+            );
+        }
+        if ($receiptCount > 0) {
+            $parts[] = sprintf('%d %s no receipt reference.', $receiptCount, $receiptCount === 1 ? 'expense has' : 'expenses have');
+        }
+        if ($unlinkedCount > 0) {
+            $parts[] = sprintf('%d ledger %s not linked to a budget or an event.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are');
+        }
+        $parts[] = match (true) {
+            $deadline === null => 'No financial report deadline has been set yet.',
+            $daysLeft > 1 => sprintf('The financial report deadline is %s, %d days away.', $deadlineDay->format('M j, Y'), $daysLeft),
+            $daysLeft === 1 => sprintf('The financial report deadline is %s, tomorrow.', $deadlineDay->format('M j, Y')),
+            $daysLeft === 0 => sprintf('The financial report deadline is %s, today.', $deadlineDay->format('M j, Y')),
+            default => sprintf('The financial report deadline was %s, %d %s ago.', $deadlineDay->format('M j, Y'), abs($daysLeft), abs($daysLeft) === 1 ? 'day' : 'days'),
+        };
+        $parts[] = $latest === null
+            ? 'No financial report has been created for the organization yet.'
+            : sprintf('The latest report, %s, is %s.', $latest->title, Str::lower(Str::headline((string) $latest->submission_status)));
+
+        $reportsHref = $this->linkTo($user, '/dashboard/finance/transaction-history');
+        $ledgerHref = $this->linkTo($user, '/dashboard/finance/financial-ledger');
+        $budgetsHref = $this->linkTo($user, '/dashboard/finance/budget-allocation');
+
+        $step = fn (string $id, string $primary, string $secondary, string $status, string $tone, ?string $href, string $label) => [
+            'id' => 'report-prep-'.$id,
+            'primary' => $primary,
+            'secondary' => $secondary,
+            'status' => $status,
+            'status_tone' => $tone,
+            'meta' => 'Before you send',
+            'href' => $href,
+            'action_label' => $label,
+        ];
+        $steps = array_values(array_filter([
+            $findingCount > 0 ? $step('checks', 'Work through the report checks', sprintf('%d %s, most urgent first. Open the report and read the checks under Before you send.', $findingCount, $findingCount === 1 ? 'finding' : 'findings'), 'To do', 'warning', $reportsHref, 'Open Financial reports') : null,
+            $receiptCount > 0 ? $step('receipts', 'Add the missing receipt references', sprintf('%d %s no receipt reference.', $receiptCount, $receiptCount === 1 ? 'expense has' : 'expenses have'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
+            $unlinkedCount > 0 ? $step('unlinked', 'Link the entries that belong to a budget or an event', sprintf('%d ledger %s not linked to a budget or an event.', $unlinkedCount, $unlinkedCount === 1 ? 'entry is' : 'entries are'), 'To do', 'warning', $ledgerHref, 'Open the ledger') : null,
+            $waiting->isNotEmpty() ? $step('budgets', 'Get the waiting budgets approved', sprintf('%d %s waiting for a decision, and a budget counts only once it is approved.', $waiting->count(), $waiting->count() === 1 ? 'budget is' : 'budgets are'), 'Waiting', 'info', $budgetsHref, 'Open Budget allocation') : null,
+            $step('send', 'Generate the report and send it', $deadline === null ? 'No deadline is set yet, so send it when the checks are clear.' : 'Send it before the deadline on '.$deadlineDay->format('M j, Y').'.', 'Do last', 'primary', $reportsHref, 'Open Financial reports'),
+        ]));
+
+        return [
+            'title' => 'Before You Send The Financial Report',
+            'answer' => implode(' ', $parts),
+            'highlights' => [
+                ['label' => 'Report deadline', 'value' => $deadlineDay === null ? 'Not set' : $deadlineDay->format('M j, Y'), 'tone' => $daysLeft !== null && $daysLeft < 0 ? 'danger' : 'primary'],
+                ['label' => 'Checks to fix', 'value' => (string) $findingCount, 'tone' => $findingCount > 0 ? 'warning' : 'success'],
+                ['label' => 'Budgets waiting', 'value' => (string) $waiting->count(), 'tone' => $waiting->isNotEmpty() ? 'warning' : 'success'],
+                ['label' => 'Expenses without a receipt', 'value' => (string) $receiptCount, 'tone' => $receiptCount > 0 ? 'warning' : 'success'],
+                ['label' => 'Entries not linked', 'value' => (string) $unlinkedCount, 'tone' => $unlinkedCount > 0 ? 'warning' : 'success'],
+            ],
+            'sections' => [
+                [
+                    'id' => 'report-prep-steps',
+                    'title' => 'What To Do, In Order',
+                    'description' => 'Settle these, then generate the report. The checks never stop you from sending, and the reviewer sees the same list.',
+                    'empty_message' => 'Nothing is standing in the way.',
+                    'rows' => $steps,
+                ],
+                [
+                    'id' => 'report-prep-findings',
+                    'title' => 'What The Report Checks Found',
+                    'description' => trim('Read over '.$this->periodLabel($from, $to).', most urgent first. '.$this->showingFirst($findingCount)),
+                    'empty_message' => 'The report checks found nothing to fix.',
+                    'rows' => array_map(fn (array $finding) => [
+                        'id' => 'report-prep-finding-'.str_replace([':', ','], '-', FinancialReportChecks::keyOf($finding)),
+                        'primary' => FinancialReportChecks::describe($finding),
+                        'secondary' => Str::headline($finding['code']),
+                        'status' => Str::headline($finding['severity']),
+                        'status_tone' => ['high' => 'danger', 'medium' => 'warning', 'low' => 'info'][$finding['severity']] ?? 'info',
+                        'meta' => $finding['amount'] === null ? 'No amount' : '₱'.number_format($finding['amount'], 2),
+                        'href' => $reportsHref,
+                        'action_label' => 'Open Financial reports',
+                    ], array_slice($findings, 0, self::ROW_LIMIT)),
+                ],
+                [
+                    'id' => 'report-prep-budgets',
+                    'title' => 'Budgets Still Waiting For Approval',
+                    'description' => 'A budget is available to spend only once it is approved.',
+                    'empty_message' => 'No budget is waiting for approval.',
+                    'rows' => $waiting->take(self::ROW_LIMIT)->map(fn (Budget $budget) => [
+                        'id' => 'report-prep-budget-'.$budget->id,
+                        'primary' => $budget->title,
+                        'secondary' => 'Allocated: ₱'.number_format((float) $budget->allocated_amount, 2),
+                        'status' => 'Waiting for '.$this->reviewerName($budget->submission_status === 'pending_sao' ? 'SUPER_ADMIN' : 'DEPARTMENT_HEAD'),
+                        'status_tone' => 'warning',
+                        'meta' => '₱'.number_format((float) $budget->allocated_amount, 2),
+                        'href' => $budgetsHref,
+                        'action_label' => 'Open Budget allocation',
+                    ])->all(),
+                ],
+            ],
+            'follow_ups' => [
+                ['topic' => 'finance_health', 'label' => 'How is our finance?', 'question' => 'How is our finance?'],
+                ['topic' => 'my_submissions', 'label' => 'Where do our submissions stand?', 'question' => 'Where do our submissions stand?'],
+            ],
+        ];
+    }
+
+    /** "Jun 1, 2026 to Dec 31, 2026", the span a report check reads. */
+    private function periodLabel(string $from, string $to): string
+    {
+        return Carbon::parse($from)->format('M j, Y').' to '.Carbon::parse($to)->format('M j, Y');
+    }
+
     /**
      * What the ledger itself holds for the selected semester, whether or not an entry is linked to a budget. A manual
      * entry, a verified collection or an invoice payment often carries no budget, so a picture built from approved
@@ -3639,10 +3921,13 @@ class AskAiService
             : [(int) $user->organization_id];
 
         $semesterId = AcademicSemester::selected()?->id;
+        // A student sees what has been approved. The people who run the events also see the ones still being planned, because
+        // an event that is not approved yet is still coming up, and it is the one whose tasks they have to chase.
+        $statuses = $role === 'STUDENT' ? ['approved', 'ongoing'] : ['planning', 'approved', 'ongoing'];
         $upcomingQuery = DB::table('events')
             ->join('organizations', 'organizations.id', '=', 'events.organization_id')
             ->whereIn('events.organization_id', $orgIds)
-            ->whereIn('events.status', ['approved', 'ongoing'])
+            ->whereIn('events.status', $statuses)
             ->where('events.end_time', '>=', now())
             ->when($semesterId, fn ($events) => $events->where('events.academic_semester_id', $semesterId));
         $upcomingTotal = (clone $upcomingQuery)->count();
@@ -3654,6 +3939,7 @@ class AskAiService
                 'events.title',
                 'events.status',
                 'events.start_time',
+                'events.end_time',
                 'events.location',
                 'organizations.name as org_name',
                 'organizations.acronym as org_acronym',
@@ -3666,6 +3952,9 @@ class AskAiService
 
         $href = $this->linkTo($user, '/dashboard/events/activity-calendar');
         $closesEvents = in_array($role, ['ADMIN', 'SBO_OFFICER'], true);
+        $eventTasks = $role === 'STUDENT' ? collect() : $this->tasksOfEvents($user, $upcomingEvents->pluck('id')->all());
+        $taskCounts = $eventTasks->countBy('event_id');
+        $taskHref = $this->linkTo($user, $role === 'SBO_OFFICER' ? '/dashboard/tasks/assigned-tasks' : '/dashboard/tasks/task-board');
 
         return [
             'title' => 'Upcoming Events & Attendance Status',
@@ -3683,6 +3972,7 @@ class AskAiService
             'highlights' => [
                 ['label' => 'Upcoming / ongoing', 'value' => (string) $upcomingTotal, 'tone' => 'primary'],
                 ...($closesEvents ? [['label' => 'Needs closing', 'value' => (string) $staleEventsCount, 'tone' => $staleEventsCount > 0 ? 'warning' : 'neutral']] : []),
+                ...($role === 'STUDENT' ? [] : [['label' => 'Tasks on these events', 'value' => (string) $eventTasks->count(), 'tone' => 'neutral']]),
             ],
             'sections' => [
                 [
@@ -3693,7 +3983,7 @@ class AskAiService
                     'rows' => $upcomingEvents->map(fn ($ev) => [
                         'id' => 'ev-'.$ev->id,
                         'primary' => $ev->title.' — '.($ev->org_acronym ?: $ev->org_name),
-                        'secondary' => ($ev->location ?: 'Campus venue').' · Starts '.Carbon::parse($ev->start_time)->format('M j, Y g:i A'),
+                        'secondary' => ($ev->location ?: 'Campus venue').' · Starts '.Carbon::parse($ev->start_time)->format('M j, Y g:i A').' · Ends '.Carbon::parse($ev->end_time)->format('M j, Y g:i A').($role === 'STUDENT' ? '' : ' · '.((int) ($taskCounts[$ev->id] ?? 0) === 0 ? 'No tasks yet' : $this->plural((int) $taskCounts[$ev->id], 'task'))),
                         'status' => Str::headline($ev->status),
                         'status_tone' => $ev->status === 'ongoing' ? 'success' : 'info',
                         'meta' => Carbon::parse($ev->start_time)->format('M j'),
@@ -3701,6 +3991,31 @@ class AskAiService
                         'action_label' => 'View calendar',
                     ])->all(),
                 ],
+                ...($role === 'STUDENT' ? [] : [[
+                    'id' => 'upcoming-event-tasks',
+                    'title' => 'Tasks On These Events',
+                    'description' => trim('Every status, earliest deadline first. '.($role === 'SBO_OFFICER' ? 'Only the tasks assigned to you. ' : '').$this->showingFirst($eventTasks->count())),
+                    'empty_message' => 'None of these events has a task yet.',
+                    'rows' => $eventTasks->take(self::ROW_LIMIT)->map(function ($task) use ($taskHref) {
+                        $assignee = trim(($task->first_name ?? '').' '.($task->last_name ?? '')) ?: 'Unassigned';
+
+                        return [
+                            'id' => 'evtask-'.$task->id,
+                            'primary' => $task->title,
+                            'secondary' => "For {$task->event_title} · Assigned to {$assignee} · Due ".($task->deadline ? Carbon::parse($task->deadline)->format('M j, Y') : 'no deadline'),
+                            'status' => Str::headline($task->status),
+                            'status_tone' => match ($task->status) {
+                                'overdue' => 'danger',
+                                'completed' => 'success',
+                                'in_progress' => 'info',
+                                default => 'warning',
+                            },
+                            'meta' => ((int) ($task->progress_percent ?? 0)).'% complete',
+                            'href' => $taskHref,
+                            'action_label' => 'Open task',
+                        ];
+                    })->all(),
+                ]]),
             ],
             'follow_ups' => $role === 'STUDENT'
                 ? [
@@ -3714,6 +4029,65 @@ class AskAiService
                     ['topic' => 'daily_priorities', 'label' => 'What should I do today?', 'question' => 'What should I do today?'],
                 ],
         ];
+    }
+
+    /**
+     * The tasks that belong to the given events, whatever their status, earliest deadline first, with the event's title and
+     * the assignee's name. An officer reads only the tasks assigned to them, the same cut the task list makes.
+     *
+     * @param  array<int, int|string>  $eventIds
+     */
+    private function tasksOfEvents(User $user, array $eventIds): Collection
+    {
+        if ($eventIds === []) {
+            return collect();
+        }
+
+        return DB::table('tasks')
+            ->join('events', 'events.id', '=', 'tasks.event_id')
+            ->leftJoin('users', 'tasks.assigned_to', '=', 'users.school_id')
+            ->whereIn('tasks.event_id', $eventIds)
+            ->when($user->role === 'SBO_OFFICER', fn ($tasks) => $tasks->where('tasks.assigned_to', $user->school_id))
+            ->orderBy('tasks.deadline')
+            ->orderBy('tasks.id')
+            ->get([
+                'tasks.id',
+                'tasks.event_id',
+                'tasks.title',
+                'tasks.status',
+                'tasks.deadline',
+                'tasks.progress_percent',
+                'events.title as event_title',
+                'users.first_name',
+                'users.last_name',
+            ]);
+    }
+
+    /**
+     * A budget's four figures on one line for the record search. Income posted against a budget raises what is left, so
+     * a remaining amount above the allocation is normal and the line says how it was reached. When the stored remaining
+     * amount is not allocated plus income posted minus spent, the line says that instead: a real mismatch stays visible
+     * and a correct figure is never presented as one.
+     */
+    private function budgetFigureLine(float $allocated, float $income, float $spent, float $remaining): string
+    {
+        $line = implode(' · ', array_filter([
+            'Allocated: ₱'.number_format($allocated, 2),
+            $income >= 0.005 ? 'Income posted: ₱'.number_format($income, 2) : null,
+            'Spent: ₱'.number_format($spent, 2),
+            'Remaining: ₱'.number_format($remaining, 2),
+        ]));
+
+        $working = $this->budgetWorking($allocated, $income, $spent, $remaining);
+        if ($working !== null) {
+            return $line.'. Working: '.$working;
+        }
+
+        $expected = $allocated + $income - $spent;
+
+        return abs($expected - $remaining) < 0.005
+            ? $line
+            : sprintf('%s. These figures do not add up: allocated + income posted - spent is ₱%s, not the ₱%s shown.', $line, number_format($expected, 2), number_format($remaining, 2));
     }
 
     /**
@@ -5234,11 +5608,13 @@ class AskAiService
                 ])
             : collect();
         $spentByBudget = Budget::spentAmounts($budgets->pluck('id'));
+        $incomeByBudget = Budget::incomeAmounts($budgets->pluck('id'));
 
         foreach ($budgets as $b) {
             $allocated = (float) $b->allocated_amount;
             $remaining = (float) $b->remaining_amount;
             $spent = (float) $spentByBudget[$b->id];
+            $income = (float) $incomeByBudget[$b->id];
             $usedPct = $allocated > 0 ? max(0, min(100, (int) round(($spent / $allocated) * 100))) : 0;
             $orgLabel = $b->org_acronym ?: $b->org_name;
             $budgetTitle = $b->title ?: 'Operational';
@@ -5248,12 +5624,7 @@ class AskAiService
                 'id' => 'rag-budget-'.$b->id,
                 'domain' => 'Finance, Budgets & Ledger',
                 'primary' => "{$orgLabel} — {$budgetTitle} Budget",
-                'secondary' => sprintf(
-                    'Allocated: ₱%s · Spent: ₱%s · Remaining: ₱%s',
-                    number_format($allocated, 2),
-                    number_format($spent, 2),
-                    number_format($remaining, 2)
-                ),
+                'secondary' => $this->budgetFigureLine($allocated, $income, $spent, $remaining),
                 'status' => Str::headline((string) $budgetStatus),
                 'status_tone' => $budgetStatus === 'approved' ? ($usedPct > 90 ? 'warning' : 'success') : 'info',
                 'meta' => '₱'.number_format($remaining, 2).' left',
