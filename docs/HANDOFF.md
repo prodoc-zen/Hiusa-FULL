@@ -1,5 +1,59 @@
 # Handoff: HIUSA, AI test + r20.4 + storyboard done, 2026-11-24 PHT (session 9)
 
+## r24 Ask AI polish, 2026-11-25
+
+r24 is on prod and origin/main. Prod HEAD `d8f5d55326cc390f44da23b0208b14d5c72794ea`, `/up`, `/login` and `/api/health` 200, `/api/health` reports sha `d8f5d55326cc`, database ok, and nginx, mysql, php8.3-fpm, hiusa-ai, hiusa-fingerprint, hiusa-queue and hiusa-scheduler all active. The deploy script printed "Nothing to migrate" and held stock for 0 pending orders.
+
+### What shipped
+
+| Sha | What |
+|---|---|
+| 1b91116c | A receipt number is no negative figure for the numeric guard, report preparation lists the overdue and due-soon tasks, a returned accreditation is reviewed in College compliance. |
+| 712c02d3 | Review round 1 gap: the numeric guard compares signed figures again so a wrong sign on a net or count is refused; only the receipt hyphen lookbehind stays. |
+| 0dfd5415 | Report preparation task query plan measured on the production MySQL (docblock only). |
+| d8f5d553 | Merge of origin/main (ac9c100c, seeded demo accounts start with the privacy notice accepted) into the branch; no conflicts, it touched only `PrivacyConsentTest`. Main fast-forwarded to it. |
+
+Gate before the push: after the merge, `AskAi`, `MarkdownNumericGuard`, `PrivacyConsent`, `AiFallbackParity`, `ReportPreparation`, `CollegeCompliance` and `Accreditation` filters, 548 tests, 7969 assertions, green with 5 skipped (the live engine tests skip when the AI service is not running on the test host). Not a full suite run.
+
+### Backups (host, /var/backups/hiusa)
+
+- `predeploy-r24-20261125T013512Z.sql.gz` (300,593 bytes, 85 CREATE TABLE lines) and `predeploy-r24-20261125T013512Z.files.tar.gz` (109,231,975 bytes), `gzip -t` passed on both.
+- The script's own `hiusa_db-pre-deploy-20261125T013526Z.sql.gz` (300,594 bytes).
+
+### Ask AI eval on prod, same 6 questions, same rubric
+
+Files in `D:/Claude/scratch/hiusa-r22/eval/`: `r24.json`, `truth-r24.json` (fresh from the database before the run), `grading-r24.json`, `grading-r24.md`. Graded by the session against the database, not by the model under test.
+
+| id | Question | Baseline | r22 | r23 | r24 | Guard replaced (b / r22 / r23 / r24) |
+|---|---|---|---|---|---|---|
+| q01 | How is our finance? | 6 | 10 | 7 | 7 | yes / no / yes / yes |
+| q02 | Which budget is closest to running out? | 9 | 10 | 10 | 10 | no / no / no / no |
+| q03 | What should I do before submitting the financial report? | 5 | 5 | 9 | 9 | yes / yes / no / no |
+| q04 | What events are coming up and what tasks do they have? | 5 | 5 | 10 | 10 | no / no / no / no |
+| q13 | Which organizations need my approval? | 10 | 9 | 10 | 10 | no / no / no / no |
+| q14 | What budgets are waiting for me to approve and how much? | 6 | 6 | 10 | 10 | no / no / no / no |
+| Total | | 41 | 45 | 56 | 56 | 2 / 1 / 1 / 1 |
+
+Latency, mean over the six questions in ms, first answer text then full answer: baseline 1389 / 3263, r22 7313 / 11404, r23 7011 / 11548, r24 6969 / 11545. The visible reasoning step adds 6 to 14 s before the first text; r24 did not change it.
+
+The 6 eval conversations (ids 43 to 48) were deleted through the app, status 200, none still listed. No audit_logs row and no consent field was touched.
+
+What r24 fixed: q03 now lists the two overdue tasks; q13 sends the returned accreditation to College compliance instead of the organization applications screen.
+
+What is still wrong:
+
+- q01 still hits the numeric guard (production log 09:36 UTC, `unexpected_value -3495.0`; r23 logged -2.0). The user sees the fixed summary: right figures, no verdict, no next step beyond the row links. The answer is word for word the r23 answer. The offending figure is not traced; the next step is to log the full model text on a guard hit and find which number it invented.
+- q03 has one misleading line: the step says to link "2 ledger entries that have no budget or event", then names the 3,800 Supplies expense, which has an event (Sports Fest 2024) and is not one of the 2 counted. Score stays 9.
+- The score is flat at 56 of 60 between r23 and r24; r24 closed two rubric gaps but not the guard on q01.
+- q05 to q12 stay blocked by the Data Privacy Notice gate and are ungraded.
+
+### Open items
+
+- The q01 guard hit above.
+- The q03 wording above.
+- A full server suite and client suite were not run for r24, only the filters above.
+- Worktree hiusa-r24 was removed with `wt-remove.mjs`; the branch fix/r24-askai-polish is merged into main.
+
 ## r23 Ask AI facts, 2026-11-25
 
 r23 is on prod and origin/main. Prod HEAD `b5686ca2a70cf72f345d465219a9c1f0644ca57e`, `/up` and `/login` 200, `/api/health` reports sha `b5686ca2a70c`, database ok, and nginx, mysql, php8.3-fpm, hiusa-ai, hiusa-fingerprint, hiusa-queue and hiusa-scheduler are active. origin/main had not moved since r22, so main was fast-forwarded to release/r23 (f1acb23a to b5686ca2) with no merge and the suites were not re-run here; they were gated on the release branch. Deployed over ssh with `scripts/deploy-lightsail.sh` piped through `tr -d '\r'`; the script reported nothing to migrate and held stock for 0 pending orders.
