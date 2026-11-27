@@ -245,8 +245,8 @@ class ProcessStatusService
 
         return $this->finish('ADMIN', 'Setting up your organization', array_values(array_filter([
             ['key' => 'organization-approved', 'label' => 'Organization approved', 'done' => $organization->lifecycle_status === 'active'],
-            $this->firstRunSetup($user, $organization->lifecycle_status === 'active'),
             ['key' => 'officers-access', 'label' => 'Officers given access', 'done' => $officers > 0, 'count' => $officers, 'action' => ['Give officers access', '/dashboard/admin/users']],
+            $this->firstRunSetup($user, $organization->lifecycle_status === 'active' && $officers > 0),
             ['key' => 'semester-requirements', 'label' => 'Semester requirements submitted', 'done' => $semesterReports !== null && $semesterReports['submitted'] >= $semesterReports['total'],
                 'count' => $semesterReports['submitted'] ?? null, 'total' => $semesterReports['total'] ?? null, 'action' => ['Submit requirements', '/dashboard/compliance']],
             ($renewal['total'] ?? 0) > 0 ? ['key' => 'renewal', 'label' => 'Renewal', 'done' => $renewal['submitted'] >= $renewal['total'],
@@ -258,12 +258,13 @@ class ProcessStatusService
 
     /**
      * The six first-run items of the dashboard briefing's checklist, as one step, so the two never disagree.
-     * While it is the current step it names what is left and sends the Admin to the first missing item;
-     * before the organization is approved it is only counted, so the list of steps stays short.
+     * It comes after officer access, so the Admin is first asked to give officers access. Once it is the current step
+     * (approved, with officers given access) it names what is left and sends the Admin to the first missing item;
+     * before then it is only counted, so the list of steps stays short.
      *
      * @return array<string, mixed>|null
      */
-    private function firstRunSetup(User $user, bool $approved): ?array
+    private function firstRunSetup(User $user, bool $reached): ?array
     {
         $checklist = $this->setup->forUser($user);
         if ($checklist === null) {
@@ -279,8 +280,8 @@ class ProcessStatusService
             'done' => $missing === [],
             'count' => $checklist['completed'],
             'total' => $checklist['total'],
-            'note' => $missing === [] || ! $approved ? null : 'Still to do: '.implode(', ', array_map(fn (array $step) => lcfirst($step['label']), $missing)).'.',
-            'action' => $approved && $first !== null && $first['href'] !== null ? [$first['label'], $first['href']] : null,
+            'note' => $missing === [] || ! $reached ? null : 'Still to do: '.implode(', ', array_map(fn (array $step) => lcfirst($step['label']), $missing)).'.',
+            'action' => $reached && $first !== null && $first['href'] !== null ? [$first['label'], $first['href']] : null,
         ];
     }
 
