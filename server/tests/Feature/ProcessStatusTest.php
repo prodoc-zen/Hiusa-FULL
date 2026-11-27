@@ -386,9 +386,9 @@ class ProcessStatusTest extends TestCase
 
         $payload = $this->statusOf($admin)->assertOk()->json();
         $this->assertSame('Setting up your organization', $payload['title']);
-        $this->assertSame(['organization-approved', 'first-run-setup', 'officers-access', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
+        $this->assertSame(['organization-approved', 'officers-access', 'first-run-setup', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
         $this->assertSame(['done', 'current', 'todo', 'todo', 'todo'], array_column($payload['steps'], 'state'));
-        $this->assertSame(['label' => 'Set up your officer positions', 'path' => '/dashboard/admin/positions'], $payload['steps'][1]['action']);
+        $this->assertSame(['label' => 'Give officers access', 'path' => '/dashboard/admin/users'], $payload['steps'][1]['action']);
         $this->finishFirstRunSetup($organization);
 
         User::factory()->officer()->create(['organization_id' => $organization->id]);
@@ -419,14 +419,31 @@ class ProcessStatusTest extends TestCase
         $this->assertTrue($this->statusOf($admin)->json()['complete']);
     }
 
-    public function test_a_brand_new_organization_sees_the_first_run_setup_step_with_what_is_missing(): void
+    public function test_a_newly_approved_organization_is_asked_for_officer_access_before_the_first_run_setup(): void
     {
-        $admin = User::factory()->admin()->create(['organization_id' => $this->studentOrganization($this->computing)->id]);
+        $organization = $this->studentOrganization($this->computing);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
 
         $payload = $this->statusOf($admin)->assertOk()->json();
         $steps = $this->steps($payload);
 
-        $this->assertSame(['organization-approved', 'first-run-setup', 'officers-access', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
+        $this->assertSame(['organization-approved', 'officers-access', 'first-run-setup', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
+        $this->assertSame('current', $steps['officers-access']['state']);
+        $this->assertSame(['label' => 'Give officers access', 'path' => '/dashboard/admin/users'], $steps['officers-access']['action']);
+        $this->assertSame('todo', $steps['first-run-setup']['state']);
+        $this->assertArrayNotHasKey('note', $steps['first-run-setup']);
+        $this->assertArrayNotHasKey('action', $steps['first-run-setup']);
+    }
+
+    public function test_once_officers_have_access_the_first_run_setup_step_is_current_and_names_what_is_missing(): void
+    {
+        $organization = $this->studentOrganization($this->computing);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        User::factory()->officer()->create(['organization_id' => $organization->id]);
+
+        $steps = $this->steps($this->statusOf($admin)->assertOk()->json());
+
+        $this->assertSame('done', $steps['officers-access']['state']);
         $this->assertSame('current', $steps['first-run-setup']['state']);
         $this->assertSame(0, $steps['first-run-setup']['count']);
         $this->assertSame(5, $steps['first-run-setup']['total']);
@@ -444,6 +461,7 @@ class ProcessStatusTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $type = $this->requirement($semester, 'semestral_report', 'Accomplishment Report');
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+        User::factory()->officer()->create(['organization_id' => $organization->id]);
 
         $step = $this->steps($this->statusOf($admin)->assertOk()->json())['first-run-setup'];
         $this->assertSame(1, $step['count']);
@@ -492,7 +510,7 @@ class ProcessStatusTest extends TestCase
         $member->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
 
         $step = $this->steps($this->statusOf($admin)->assertOk()->json())['officers-access'];
-        $this->assertSame('todo', $step['state']);
+        $this->assertSame('current', $step['state']);
         $this->assertSame(0, $step['count']);
 
         $president = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
@@ -503,7 +521,7 @@ class ProcessStatusTest extends TestCase
         $this->assertSame(1, $step['count']);
 
         AccountProfile::where('user_school_id', $president->school_id)->update(['account_status' => 'inactive']);
-        $this->assertSame('todo', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
+        $this->assertSame('current', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
 
         $treasurer = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
         $treasurer->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Treasurer', 'account_status' => 'active']);
@@ -536,7 +554,7 @@ class ProcessStatusTest extends TestCase
 
         $payload = $this->statusOf($admin)->assertOk()->json();
 
-        $this->assertSame(['done', 'current', 'done', 'todo', 'todo'], array_column($payload['steps'], 'state'));
+        $this->assertSame(['done', 'done', 'current', 'todo', 'todo'], array_column($payload['steps'], 'state'));
         $this->assertArrayNotHasKey('count', $this->steps($payload)['semester-requirements']);
     }
 
