@@ -13,9 +13,9 @@ use App\Models\EventRequirementFile;
 use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\Task;
-use App\Services\Compliance\RegistrationRequirementCatalog;
 use App\Services\Records\SemesterSnapshotService;
 use App\Services\RequirementSampleService;
+use App\Services\SemesterDefaults;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -24,31 +24,6 @@ use Illuminate\Validation\ValidationException;
 
 class AcademicSemesterController extends Controller
 {
-    private const EVENT_REQUIREMENTS = [
-        'on_campus' => [
-            'Venue Reservation Letter',
-            'Request Letter',
-            'Equipment & Technical Request Forms',
-        ],
-        'off_campus' => [
-            'Approved Letter of Intent for the Proposed Activity',
-            'Document Tracking Slip',
-            'Student Activity Clearance/Permit Form',
-            'Modified Checklist Requirements for Off-Campus Activity',
-            'Report of Compliance',
-            'Designation Letter for Personnel In Charge',
-            "Participants' Parents Consent Form",
-            'Minutes of the Meeting (Planning Stage)',
-            'Curriculum Requirement',
-            'Journal',
-            'Sanitary Permit (If Applicable)',
-            'Emergency Preparedness Plan',
-            'Mobility of Students',
-            'LGU/NGO',
-            'Gate Pass from PCO (If Applicable)',
-        ],
-    ];
-
     public function index(Request $request)
     {
         // Semesters of archived years stay in the picker, marked archived: they are completed, so choosing one is read only.
@@ -63,7 +38,7 @@ class AcademicSemesterController extends Controller
         return response()->json(AcademicSemester::active());
     }
 
-    public function store(Request $request, AcademicYear $academicYear)
+    public function store(Request $request, AcademicYear $academicYear, SemesterDefaults $defaults)
     {
         $data = $request->validate([
             'number' => ['required', 'integer', 'in:1,2'],
@@ -75,7 +50,7 @@ class AcademicSemesterController extends Controller
             throw ValidationException::withMessages(['number' => ['This semester already exists for the academic year.']]);
         }
 
-        $semester = DB::transaction(function () use ($academicYear, $data, $request) {
+        $semester = DB::transaction(function () use ($academicYear, $data, $request, $defaults) {
             AcademicYear::orderBy('id')->lockForUpdate()->first();
             $this->assertNotArchived(AcademicYear::findOrFail($academicYear->id));
             $semester = $academicYear->semesters()->create([
@@ -83,54 +58,7 @@ class AcademicSemesterController extends Controller
                 'status' => 'upcoming',
                 'created_by' => $request->user()->school_id,
             ]);
-            foreach (RegistrationRequirementCatalog::NAMES as $name) {
-                ComplianceRequirementType::create([
-                    'category' => 'organization',
-                    'academic_year' => $academicYear->label,
-                    'academic_semester_id' => $semester->id,
-                    'name' => $name,
-                    'allowed_extensions' => ['pdf'],
-                    'deadline_at' => $semester->ends_on->endOfDay(),
-                    'is_active' => true,
-                    'created_by' => $request->user()->school_id,
-                ]);
-                ComplianceRequirementType::create([
-                    'category' => 'renewal',
-                    'academic_year' => $academicYear->label,
-                    'academic_semester_id' => $semester->id,
-                    'name' => $name,
-                    'allowed_extensions' => ['pdf'],
-                    'deadline_at' => $semester->ends_on->endOfDay(),
-                    'is_active' => true,
-                    'created_by' => $request->user()->school_id,
-                ]);
-            }
-            foreach (ComplianceRequirementType::SEMESTRAL_REPORT_NAMES as $name) {
-                ComplianceRequirementType::create([
-                    'category' => 'semestral_report',
-                    'academic_year' => $academicYear->label,
-                    'academic_semester_id' => $semester->id,
-                    'name' => $name,
-                    'allowed_extensions' => ['pdf'],
-                    'deadline_at' => $semester->ends_on->endOfDay(),
-                    'is_active' => true,
-                    'created_by' => $request->user()->school_id,
-                ]);
-            }
-            $sortOrder = 0;
-            foreach (self::EVENT_REQUIREMENTS as $venueType => $names) {
-                foreach ($names as $name) {
-                    EventRequirement::create([
-                        'name' => $name,
-                        'venue_type' => $venueType,
-                        'academic_semester_id' => $semester->id,
-                        'allowed_extensions' => ['pdf'],
-                        'is_active' => true,
-                        'is_optional' => str_contains($name, '(If Applicable)'),
-                        'sort_order' => ++$sortOrder,
-                    ]);
-                }
-            }
+            $defaults->create($semester, $request->user()->school_id);
             $this->audit($request, 'academic_semester_created', $semester);
 
             return $semester;

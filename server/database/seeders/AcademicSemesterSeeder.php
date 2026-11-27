@@ -5,13 +5,15 @@ namespace Database\Seeders;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\User;
+use App\Services\SemesterDefaults;
 use Illuminate\Database\Seeder;
 
 /**
  * A fresh demo database has an academic year but no open semester, so the semester-filtered lists hide every
  * seeded event the moment the SAO opens one. This opens the current semester first, and the seeders that follow
- * file their events, tasks and announcements in it. It adds no registration requirements: the SAO publishes
- * those, and the seeded compliance demo reads the requirements it seeds itself.
+ * file their events, tasks and announcements in it. It also files the semester's requirement rows, the same ones the
+ * SAO's own semester creation files, so the student application page has requirements to show; the seeded compliance
+ * demo still seeds its own requirements alongside them.
  */
 class AcademicSemesterSeeder extends Seeder
 {
@@ -42,5 +44,10 @@ class AcademicSemesterSeeder extends Seeder
         AcademicYear::where('is_current', true)->update(['is_current' => false]);
         $year->update(['is_current' => true]);
         $semester->update(['status' => 'active']);
+
+        // The requirement rows are owned by the SAO account; without one there is nobody to own them.
+        if ($createdBy !== null) {
+            app(SemesterDefaults::class)->create($semester, (int) $createdBy);
+        }
     }
 }
