@@ -122,7 +122,7 @@ class DashboardBriefingService
                 'tasks' => $this->tasksPillar($orgId),
                 'elections' => $this->electionsPillar([$orgId]),
                 'merchandise' => $this->merchandisePillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $user->notificationOrganizationIds()),
             ],
             'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/manage-events'), $this->routeAccess->hrefFor($role, '/dashboard/elections/manage-elections')),
@@ -151,7 +151,7 @@ class DashboardBriefingService
                 'events' => $this->eventsPillar($orgId),
                 'tasks' => $this->tasksPillar($orgId, $user->id),
                 'merchandise' => $this->merchandisePillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $user->notificationOrganizationIds()),
                 'finance' => $this->financePillar($orgId),
             ],
             'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role, includeTaskWorkload: false), 0, 3),
@@ -183,7 +183,7 @@ class DashboardBriefingService
                 'finance' => $this->universityFinancePillar($organizationIds, 'college'),
                 'events' => $this->universityEventsPillar($organizationIds, 'college'),
                 'elections' => $this->universityElectionsPillar($organizationIds),
-                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $collegeIds),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $user->notificationOrganizationIds(), $collegeIds),
             ],
             'insights' => [],
             'agenda' => $this->universityAgenda($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
@@ -216,7 +216,7 @@ class DashboardBriefingService
                 'events' => $this->eventsPillar($orgId),
                 'merchandise' => $this->myMerchandisePillar($orgId, $user->id),
                 'tasks' => $this->tasksPillar($orgId, $user->id),
-                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $user->notificationOrganizationIds()),
             ],
             'insights' => [],
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote'), $electionOrgIds),
@@ -1037,14 +1037,14 @@ class DashboardBriefingService
         ];
     }
 
-    private function communicationPillar(int $organizationId, int $userId, array $mutedTypes, ?array $announcementOrganizationIds = null): array
+    private function communicationPillar(int $organizationId, int $userId, array $mutedTypes, array $notificationOrganizationIds, ?array $announcementOrganizationIds = null): array
     {
         $announcementOrganizationIds ??= [$organizationId];
         $publishedThisMonth = DB::table('announcements')->whereIn('organization_id', $announcementOrganizationIds)
             ->where('is_published', true)
             ->whereYear('published_at', now()->year)->whereMonth('published_at', now()->month)
             ->count();
-        $unread = NotificationVisibility::apply(DB::table('notifications'), $userId, $organizationId, $mutedTypes)
+        $unread = NotificationVisibility::apply(DB::table('notifications'), $userId, $notificationOrganizationIds, $mutedTypes)
             ->where('is_read', false)->count();
         $last = DB::table('announcements')->whereIn('organization_id', $announcementOrganizationIds)->where('is_published', true)
             ->orderByDesc('published_at')->first(['title']);
