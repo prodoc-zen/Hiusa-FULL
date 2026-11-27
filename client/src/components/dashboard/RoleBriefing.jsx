@@ -38,11 +38,12 @@ function storedSchoolId() {
 }
 
 // The admin home mounts the process tracker above the briefing, and its next-step row owns that page's
-// one filled button. The briefing stays secondary there, for the header action and the checklist alike.
+// one filled button. The briefing stays secondary there, for the header action and the fallback checklist alike.
 const PROCESS_LED_ROLES = new Set(['ADMIN']);
 
 // On these homes the process tracker is the one progress widget: while it shows, the first-run checklist stays out.
-const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'STUDENT', 'DEPARTMENT_HEAD']);
+// If the tracker fails to load, the checklist is the fallback, so the page is never left without setup guidance.
+const TRACKER_OWNS_SETUP = new Set(['SUPER_ADMIN', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD']);
 
 const ACTIONS = {
   ADMIN: [{ label: 'New announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone, variant: 'secondary' }],

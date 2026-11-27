@@ -52,6 +52,24 @@ describe('ProcessTracker', () => {
     expect(screen.getByText('Next for you: Student records loaded')).toBeInTheDocument();
   });
 
+  it('names what is left on the Admin first-run step once, in the next-step row, with a link to the first missing item', async () => {
+    mocks.getProcessStatus.mockResolvedValue({ data: {
+      title: 'Setting up your organization',
+      complete: false,
+      steps: [
+        { key: 'organization-approved', label: 'Organization approved', state: 'done' },
+        { key: 'first-run-setup', label: 'Organization set up', state: 'current', count: 1, total: 6, note: 'Still to do: add your members, plan your first event.', action: { label: 'Add your members', path: '/dashboard/admin/users' } },
+        { key: 'officers-access', label: 'Officers given access', state: 'todo', count: 0 },
+      ],
+    } });
+    renderTracker();
+
+    expect(await screen.findByText('Next for you: Organization set up')).toBeInTheDocument();
+    expect(screen.getAllByText('Still to do: add your members, plan your first event.')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Add your members' })).toHaveAttribute('href', '/dashboard/admin/users');
+    expect(screen.getByText('Step 2 of 3')).toBeInTheDocument();
+  });
+
   it('links a visited step to the page in its action, and never a step still to do', async () => {
     mocks.getProcessStatus.mockResolvedValue({ data: { ...dean, steps: dean.steps.map((step) => (step.key === 'staff-added' || step.key === 'students-allowed' ? { ...step, action: { label: 'Open', path: `/dashboard/${step.key}` } } : step)) } });
     renderTracker();

@@ -26,7 +26,10 @@ class ProcessStatusService
 
     private const DECIDE_APPLICATIONS = ['Review applications', '/dashboard/organization-applications'];
 
-    public function __construct(private readonly ClientRouteAccess $routeAccess) {}
+    public function __construct(
+        private readonly ClientRouteAccess $routeAccess,
+        private readonly SetupChecklistService $setup,
+    ) {}
 
     public function forUser(User $user): array
     {
@@ -242,6 +245,7 @@ class ProcessStatusService
 
         return $this->finish('ADMIN', 'Setting up your organization', array_values(array_filter([
             ['key' => 'organization-approved', 'label' => 'Organization approved', 'done' => $organization->lifecycle_status === 'active'],
+            $this->firstRunSetup($user, $organization->lifecycle_status === 'active'),
             ['key' => 'officers-access', 'label' => 'Officers given access', 'done' => $officers > 0, 'count' => $officers, 'action' => ['Give officers access', '/dashboard/admin/users']],
             ['key' => 'semester-requirements', 'label' => 'Semester requirements submitted', 'done' => $semesterReports !== null && $semesterReports['submitted'] >= $semesterReports['total'],
                 'count' => $semesterReports['submitted'] ?? null, 'total' => $semesterReports['total'] ?? null, 'action' => ['Submit requirements', '/dashboard/compliance']],
@@ -250,6 +254,34 @@ class ProcessStatusService
             ['key' => 'next-election', 'label' => 'Election of next officers', 'done' => $elections !== null && (clone $elections)->whereNotNull('access_handed_over_at')->exists(),
                 'count' => $elections ? (clone $elections)->count() : null, 'action' => ['Plan the election', '/dashboard/elections/manage-elections']],
         ])));
+    }
+
+    /**
+     * The six first-run items of the dashboard briefing's checklist, as one step, so the two never disagree.
+     * While it is the current step it names what is left and sends the Admin to the first missing item;
+     * before the organization is approved it is only counted, so the list of steps stays short.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function firstRunSetup(User $user, bool $approved): ?array
+    {
+        $checklist = $this->setup->forUser($user);
+        if ($checklist === null) {
+            return null;
+        }
+
+        $missing = array_values(array_filter($checklist['steps'], fn (array $step) => ! $step['done']));
+        $first = $missing[0] ?? null;
+
+        return [
+            'key' => 'first-run-setup',
+            'label' => 'Organization set up',
+            'done' => $missing === [],
+            'count' => $checklist['completed'],
+            'total' => $checklist['total'],
+            'note' => $missing === [] || ! $approved ? null : 'Still to do: '.implode(', ', array_map(fn (array $step) => lcfirst($step['label']), $missing)).'.',
+            'action' => $approved && $first !== null && $first['href'] !== null ? [$first['label'], $first['href']] : null,
+        ];
     }
 
     /** @return array{submitted: int, total: int} */

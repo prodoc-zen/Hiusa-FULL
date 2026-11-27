@@ -2,17 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicProgram;
 use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AccountProfile;
+use App\Models\Budget;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
 use App\Models\DepartmentHeadInvitation;
 use App\Models\Election;
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\OrganizationApplicantGrant;
 use App\Models\OrganizationApplication;
 use App\Models\OrganizationComplianceSubmission;
+use App\Models\SboPosition;
 use App\Models\StudentRegistryEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -115,6 +119,16 @@ class ProcessStatusTest extends TestCase
             'category' => $category, 'academic_year' => '2026-2027', 'academic_semester_id' => $semester->id, 'name' => $name,
             'allowed_extensions' => ['pdf'], 'is_active' => true, 'deadline_at' => '2026-12-31', 'created_by' => $this->sao->school_id,
         ]);
+    }
+
+    /** Everything the first-run checklist asks for, except the accreditation submission. */
+    private function finishFirstRunSetup(Organization $organization): void
+    {
+        SboPosition::firstOrCreate(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary'], ['is_active' => true]);
+        User::factory()->student()->create(['organization_id' => $organization->id]);
+        AcademicProgram::create(['organization_id' => $organization->id, 'name' => 'BSIT', 'duration_years' => 4]);
+        Budget::factory()->create(['organization_id' => $organization->id]);
+        Event::factory()->create(['organization_id' => $organization->id]);
     }
 
     private function submit(Organization $organization, ComplianceRequirementType $type, string $status = 'submitted'): void
@@ -372,9 +386,10 @@ class ProcessStatusTest extends TestCase
 
         $payload = $this->statusOf($admin)->assertOk()->json();
         $this->assertSame('Setting up your organization', $payload['title']);
-        $this->assertSame(['organization-approved', 'officers-access', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
-        $this->assertSame(['done', 'current', 'todo', 'todo'], array_column($payload['steps'], 'state'));
-        $this->assertSame(['label' => 'Give officers access', 'path' => '/dashboard/admin/users'], $payload['steps'][1]['action']);
+        $this->assertSame(['organization-approved', 'first-run-setup', 'officers-access', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
+        $this->assertSame(['done', 'current', 'todo', 'todo', 'todo'], array_column($payload['steps'], 'state'));
+        $this->assertSame(['label' => 'Set up your officer positions', 'path' => '/dashboard/admin/positions'], $payload['steps'][1]['action']);
+        $this->finishFirstRunSetup($organization);
 
         User::factory()->officer()->create(['organization_id' => $organization->id]);
         $this->submit($organization, $first);
@@ -402,6 +417,48 @@ class ProcessStatusTest extends TestCase
 
         $election->forceFill(['access_handed_over_at' => now()])->save();
         $this->assertTrue($this->statusOf($admin)->json()['complete']);
+    }
+
+    public function test_a_brand_new_organization_sees_the_first_run_setup_step_with_what_is_missing(): void
+    {
+        $admin = User::factory()->admin()->create(['organization_id' => $this->studentOrganization($this->computing)->id]);
+
+        $payload = $this->statusOf($admin)->assertOk()->json();
+        $steps = $this->steps($payload);
+
+        $this->assertSame(['organization-approved', 'first-run-setup', 'officers-access', 'semester-requirements', 'next-election'], array_column($payload['steps'], 'key'));
+        $this->assertSame('current', $steps['first-run-setup']['state']);
+        $this->assertSame(0, $steps['first-run-setup']['count']);
+        $this->assertSame(5, $steps['first-run-setup']['total']);
+        $this->assertSame(
+            'Still to do: set up your officer positions, add your members, set up programs and sections, propose your first budget, plan your first event.',
+            $steps['first-run-setup']['note'],
+        );
+        $this->assertSame(['label' => 'Set up your officer positions', 'path' => '/dashboard/admin/positions'], $steps['first-run-setup']['action']);
+    }
+
+    public function test_the_first_run_setup_step_links_to_the_first_missing_item_and_is_done_when_all_are_done(): void
+    {
+        $semester = $this->semester();
+        $organization = $this->studentOrganization($this->computing, 'active', ['reviewed_at' => '2026-09-10']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $type = $this->requirement($semester, 'semestral_report', 'Accomplishment Report');
+        SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Secretary', 'is_active' => true]);
+
+        $step = $this->steps($this->statusOf($admin)->assertOk()->json())['first-run-setup'];
+        $this->assertSame(1, $step['count']);
+        $this->assertSame(6, $step['total']);
+        $this->assertStringStartsWith('Still to do: add your members, ', $step['note']);
+        $this->assertStringContainsString('submit your accreditation requirements', $step['note']);
+        $this->assertSame('/dashboard/admin/users', $step['action']['path']);
+
+        $this->finishFirstRunSetup($organization);
+        $this->submit($organization, $type);
+
+        $step = $this->steps($this->statusOf($admin)->json())['first-run-setup'];
+        $this->assertSame('done', $step['state']);
+        $this->assertSame(6, $step['count']);
+        $this->assertArrayNotHasKey('note', $step);
     }
 
     public function test_employee_records_alone_do_not_count_as_school_records_loaded(): void
@@ -435,7 +492,7 @@ class ProcessStatusTest extends TestCase
         $member->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
 
         $step = $this->steps($this->statusOf($admin)->assertOk()->json())['officers-access'];
-        $this->assertSame('current', $step['state']);
+        $this->assertSame('todo', $step['state']);
         $this->assertSame(0, $step['count']);
 
         $president = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
@@ -446,7 +503,7 @@ class ProcessStatusTest extends TestCase
         $this->assertSame(1, $step['count']);
 
         AccountProfile::where('user_school_id', $president->school_id)->update(['account_status' => 'inactive']);
-        $this->assertSame('current', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
+        $this->assertSame('todo', $this->steps($this->statusOf($admin)->json())['officers-access']['state']);
 
         $treasurer = User::factory()->student()->create(['organization_id' => $this->computingHome->id]);
         $treasurer->accountProfiles()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Treasurer', 'account_status' => 'active']);
@@ -479,13 +536,17 @@ class ProcessStatusTest extends TestCase
 
         $payload = $this->statusOf($admin)->assertOk()->json();
 
-        $this->assertSame(['done', 'done', 'current', 'todo'], array_column($payload['steps'], 'state'));
+        $this->assertSame(['done', 'current', 'done', 'todo', 'todo'], array_column($payload['steps'], 'state'));
         $this->assertArrayNotHasKey('count', $this->steps($payload)['semester-requirements']);
     }
 
     public function test_admin_of_an_unapproved_organization_is_stopped_at_approval(): void
     {
         $admin = User::factory()->admin()->create(['organization_id' => $this->studentOrganization($this->computing, 'returned')->id]);
+        $unapproved = $this->steps($this->statusOf($admin)->assertOk()->json())['first-run-setup'];
+        $this->assertSame('todo', $unapproved['state']);
+        $this->assertArrayNotHasKey('note', $unapproved);
+        $this->assertArrayNotHasKey('action', $unapproved);
 
         $payload = $this->statusOf($admin)->assertOk()->json();
 
