@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\GrievanceController;
+use App\Models\AcademicSemester;
 use App\Models\Attendance;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
@@ -15,6 +16,8 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
+use App\Services\Compliance\AccreditationStatusService;
+use App\Services\Compliance\RegistrationRequirementCatalog;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\SaoGovernanceDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -298,6 +301,40 @@ class SaoGovernanceDemoSeederTest extends TestCase
         }
 
         $this->assertSame(0, EventRegistration::whereNotIn('event_id', $upcoming->pluck('id')->merge($completed->pluck('id')))->count());
+    }
+
+    public function test_no_two_active_requirements_of_a_period_are_the_same_document(): void
+    {
+        // A requirement with no semester belongs to the open semester's period, as assertUniqueRequirementName reads it.
+        $activeSemesterId = AcademicSemester::active()->id;
+        $duplicates = ComplianceRequirementType::where('is_active', true)->get()
+            ->groupBy(fn ($type) => implode('|', [$type->academic_year, $type->academic_semester_id ?? $activeSemesterId, $type->category, strtolower(RegistrationRequirementCatalog::canonicalName($type->name) ?? trim($type->name))]))
+            ->filter(fn ($group) => $group->count() > 1)
+            ->map(fn ($group) => $group->pluck('name')->all());
+
+        $this->assertSame([], $duplicates->all());
+    }
+
+    public function test_a_catalog_requirement_can_be_withdrawn_and_published_again(): void
+    {
+        Sanctum::actingAs($this->sao());
+        $catalogRow = ComplianceRequirementType::where('academic_semester_id', AcademicSemester::active()->id)->where('category', 'organization')->where('name', 'Constitutional By-Laws')->firstOrFail();
+
+        $this->putJson("/api/compliance/requirement-types/{$catalogRow->id}", ['is_active' => false])->assertOk();
+        $this->putJson("/api/compliance/requirement-types/{$catalogRow->id}", ['is_active' => true])->assertOk();
+    }
+
+    public function test_the_demo_documents_are_filed_on_the_catalog_rows_and_keep_each_standing(): void
+    {
+        $semesterId = AcademicSemester::active()->id;
+        foreach (['Constitutional By-Laws', 'Official List of Officers'] as $name) {
+            $row = ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('category', 'organization')->where('name', $name)->firstOrFail();
+            $this->assertGreaterThan(0, OrganizationComplianceSubmission::where('requirement_type_id', $row->id)->count());
+        }
+        $this->assertSame(0, ComplianceRequirementType::whereIn('name', ['Constitution and By-Laws', 'List of Officers'])->count());
+
+        $statuses = app(AccreditationStatusService::class)->forOrganizations(collect([2, 3, 4, 5, 6]));
+        $this->assertSame([2 => 'returned', 3 => 'pending_review', 4 => 'incomplete', 5 => 'accredited', 6 => 'incomplete'], $statuses);
     }
 
     public function test_sao_screens_read_the_seeded_data(): void

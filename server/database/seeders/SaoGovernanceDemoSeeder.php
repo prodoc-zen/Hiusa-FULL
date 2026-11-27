@@ -115,8 +115,24 @@ class SaoGovernanceDemoSeeder extends Seeder
             ],
         ];
 
+        // The open semester already carries these two documents under the catalog's spelling, and the SAO screens treat
+        // the two spellings as one requirement, so the demo files its submissions on the catalog rows rather than adding
+        // a second row that blocks withdrawing and publishing the catalog row again.
+        $catalogNames = ['Constitution and By-Laws' => 'Constitutional By-Laws', 'List of Officers' => 'Official List of Officers'];
+        $semester = AcademicSemester::active();
+
         $types = [];
         foreach ($requirements as $name => $requirement) {
+            $catalogRow = isset($catalogNames[$name]) && $semester
+                ? ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('category', 'organization')->where('name', $catalogNames[$name])->first()
+                : null;
+            if ($catalogRow) {
+                // These two documents were the demo's overdue ones, so the catalog rows keep their past due dates, kept inside the semester.
+                $catalogRow->update(['deadline_at' => $requirement['deadline']->copy()->max($semester->starts_on->copy()->setTime(17, 0))]);
+                $types[$name] = $catalogRow;
+
+                continue;
+            }
             $types[$name] = $this->findOrCreate(ComplianceRequirementType::class, [
                 'academic_year' => $academicYear,
                 'name' => $name,
