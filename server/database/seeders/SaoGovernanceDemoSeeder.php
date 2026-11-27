@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Http\Controllers\GrievanceController;
+use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\ClearancePeriod;
@@ -175,6 +176,55 @@ class SaoGovernanceDemoSeeder extends Seeder
                 'reviewed_at' => $reviewedAt,
                 ...$this->stamp($submittedAt, $reviewedAt),
             ]);
+        }
+
+        $this->seedRegistrationRequirementFiles(array_unique(array_column($submissions, 0)));
+    }
+
+    /**
+     * The open semester carries the registration requirements the SAO publishes, and an organization is only
+     * accredited, pending review or returned once none of them is missing. The organizations above that file demo
+     * documents have their registration files approved too, so each keeps the standing its own documents give it.
+     *
+     * @param  array<int, string>  $acronyms
+     */
+    private function seedRegistrationRequirementFiles(array $acronyms): void
+    {
+        $semester = AcademicSemester::active();
+        if (! $semester) {
+            return;
+        }
+
+        $types = ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('category', 'organization')->orderBy('id')->get();
+        foreach ($acronyms as $acronym) {
+            $organization = $this->organizations[$acronym];
+            $representative = $this->representative($organization->id);
+            if (! $representative) {
+                continue;
+            }
+            foreach ($types as $type) {
+                $document = "{$type->name} {$this->academicYear()}";
+                $path = $this->storePlaceholderPdf($organization, $type->name, $document);
+                $submittedAt = $this->at(-25, 10, 30);
+                $reviewedAt = $submittedAt->copy()->addDays(2)->setTime(14, 0);
+
+                $this->findOrCreate(OrganizationComplianceSubmission::class, [
+                    'organization_id' => $organization->id,
+                    'requirement_type_id' => $type->id,
+                ], [
+                    'status' => 'approved',
+                    'file_path' => $path,
+                    'file_original_name' => "{$organization->acronym} {$document}.pdf",
+                    'mime_type' => 'application/pdf',
+                    'file_size' => Storage::disk('local')->size($path),
+                    'remarks' => null,
+                    'submitted_by' => $representative->school_id,
+                    'submitted_at' => $submittedAt,
+                    'reviewed_by' => $this->sao->school_id,
+                    'reviewed_at' => $reviewedAt,
+                    ...$this->stamp($submittedAt, $reviewedAt),
+                ]);
+            }
         }
     }
 
