@@ -332,6 +332,18 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByText('Arrivals')).toBeInTheDocument();
   });
 
+  it('lets the manual check-in form shrink to a phone, so a long email cannot push it off the screen', async () => {
+    const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: {} };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getAttendance.mockResolvedValue({ data: { event, count: 0, summary: { present: 0, late: 0, excused: 0, absent: 0 }, records: [] } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+
+    const column = (await screen.findByText('Manual check-in')).parentElement;
+    expect(column).toHaveClass('min-w-0');
+    expect(column.parentElement).toHaveClass('grid', 'grid-cols-1', 'lg:grid-cols-2');
+  });
+
   it('counts only Present and Late members as arrivals', async () => {
     const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: { expected_participants: 10 } };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });

@@ -35,6 +35,13 @@ describe('PersonPicker', () => {
     peopleMocks.searchPeople.mockResolvedValue([MARIA, JUAN]);
   });
 
+  it('can shrink inside a grid or flex parent, so a long email truncates instead of widening the form', () => {
+    const { container, rerender } = render(<PersonPicker label="Find a student" onSelect={vi.fn()} />);
+    expect(container.firstElementChild).toHaveClass('min-w-0');
+    rerender(<PersonPicker label="Find a student" onSelect={vi.fn()} value={{ ...MARIA, email: 'a.very.long.address.for.a.student@example.edu.ph' }} />);
+    expect(container.firstElementChild).toHaveClass('min-w-0');
+  });
+
   it('waits for two characters and debounces to one request with the scope sent along', async () => {
     renderPicker({ scope: 'college', organizationId: 7, role: 'STUDENT' });
 
