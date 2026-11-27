@@ -18,7 +18,7 @@ class NotificationController extends Controller
         ]);
 
         $muted = $request->user()->mutedNotificationTypes();
-        $query = NotificationVisibility::apply(Notification::query(), $request->user()->id, $request->user()->organization_id, $muted);
+        $query = NotificationVisibility::apply(Notification::query(), $request->user()->id, $request->user()->notificationOrganizationIds(), $muted);
 
         $unreadCount = (clone $query)->where('is_read', false)->count();
         $notifications = $query
@@ -48,7 +48,7 @@ class NotificationController extends Controller
 
     public function markRead(Request $request, $id)
     {
-        $notification = Notification::where('organization_id', $request->user()->organization_id)
+        $notification = Notification::whereIn('organization_id', $request->user()->notificationOrganizationIds())
             ->where('user_id', $request->user()->id)
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
@@ -67,7 +67,7 @@ class NotificationController extends Controller
     public function markAllRead(Request $request)
     {
         Notification::where('user_id', $request->user()->id)
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $request->user()->notificationOrganizationIds())
             ->where('is_read', false)
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());

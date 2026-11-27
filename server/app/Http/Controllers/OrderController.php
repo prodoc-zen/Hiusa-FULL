@@ -912,6 +912,19 @@ class OrderController extends Controller
 
             $this->audit($request, 'claimed', $order->fresh(), $oldValues);
 
+            // Filed under the selling organization like the Payment Approved notice, inside the transaction so one claim notifies once.
+            Notification::create([
+                'organization_id' => $order->organization_id,
+                'user_id' => $order->student_id,
+                'title' => 'Order released',
+                'message' => 'Your order ORD-'.$order->id.' was released to you.',
+                'notification_type' => 'financial',
+                'reference_type' => Order::class,
+                'reference_id' => $order->id,
+                'is_read' => false,
+                'sent_at' => now(),
+            ]);
+
             return ['order' => $order->fresh()];
         });
 

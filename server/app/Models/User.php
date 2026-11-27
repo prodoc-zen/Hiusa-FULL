@@ -483,6 +483,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Organizations whose notifications this person sees. A student reads the ones filed under any club they belong to,
+     * because a purchase, an election result or a granted profile is filed under the club that sold, held or granted it
+     * and not under the college profile they may be signed in to. Everyone else reads only the active organization.
+     * The recipient is always the account itself, so widening the organizations never shows another person's rows.
+     *
+     * @return array<int, int>
+     */
+    public function notificationOrganizationIds(): array
+    {
+        return $this->role === 'STUDENT' ? $this->memberOrganizationIds() : [(int) $this->organization_id];
+    }
+
+    /**
      * The organizations whose announcements and shop this account reads: a student's memberships, anyone else's own scope.
      *
      * @return array<int, int>
