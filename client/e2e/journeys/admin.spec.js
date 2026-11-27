@@ -12,7 +12,7 @@ const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 390, height: 844 }];
 const LONG = { timeout: 45_000 };
 const RUN = Date.now().toString(36);
 
-// Organizations the seed leaves with an Admin and nothing else set up, so the first-run checklist is real.
+// Organizations the seed leaves with an Admin and nothing else set up, so the first-run setup is real.
 const SETUP_ADMINS = {
   1440: { schoolId: 990032, password: 'Admin@123456', college: 'CHS' },
   390: { schoolId: 990042, password: 'Admin@123456', college: 'COE' },
@@ -299,18 +299,35 @@ for (const viewport of VIEWPORTS) {
       for (const member of ((await admin.get('/users?per_page=100')).body?.data ?? []).filter((u) => u.role === 'STUDENT')) await admin.delete(`/users/${member.school_id}`);
       for (const event of (await admin.get('/events?per_page=100')).body?.data ?? []) await admin.delete(`/events/${event.id}`);
       const home = '/dashboard/admin';
-      // The member to add is a student of the organization's college who signed up from the school records.
+      // The member to add and the officer to give access are students of the organization's college who signed up from the school records.
       const student = await newStudent('Member', account.college);
+      const officer = await newStudent('Officer', account.college);
+      const setupStep = async () => (await admin.get('/process/status')).body.steps.find((step) => step.key === 'first-run-setup');
 
       const t = tapper();
       await uiLogin(page, account);
       await homeReady(page);
-      const progress = page.getByRole('progressbar', { name: 'Progress' });
-      await expect(progress).toBeVisible(LONG);
-      const before = Number(await progress.getAttribute('aria-valuenow'));
+      // The process tracker leads: the Admin is first asked to give officers access, and the setup waits behind it.
+      const tracker = page.getByRole('region', { name: 'Where you are in the process' });
+      await expect(tracker.getByRole('heading', { name: 'Setting up your organization', level: 2 })).toBeVisible(LONG);
+      await expect(tracker.getByText('Next for you: Officers given access')).toBeVisible(LONG);
+      await expect(tracker.getByRole('link', { name: 'Give officers access' })).toHaveAttribute('href', '/dashboard/admin/users');
+      // A phone shows the current step only; the wider layouts list the upcoming ones too.
+      if (width >= 640) await expect(tracker.getByRole('listitem').filter({ hasText: 'Organization set up' })).toContainText('Upcoming');
+      await expect(tracker.getByText(/Still to do/)).toHaveCount(0);
+
+      // Once officers have access the setup is the next step, naming what is left and linking to the first item.
+      const granted = await admin.post('/account-profiles/invite', { school_id: officer.schoolId, role: 'SBO_OFFICER' });
+      expect(granted.status, JSON.stringify(granted.body).slice(0, 300)).toBe(201);
+      await page.goto(home);
+      await homeReady(page);
+      await expect(tracker.getByText('Next for you: Organization set up')).toBeVisible(LONG);
+      await expect(tracker.getByText(/Still to do: set up your officer positions, add your members/)).toBeVisible();
+      await expect(tracker.getByRole('link', { name: 'Set up your officer positions' })).toHaveAttribute('href', '/dashboard/admin/positions');
+      const before = (await setupStep()).count;
       const steps = [];
 
-      await t.tap(page.getByRole('link', { name: /Add (officer )?positions/ }), 'Add positions');
+      await t.tap(tracker.getByRole('link', { name: 'Set up your officer positions' }), 'Set up your officer positions');
       await t.tap(page.getByRole('button', { name: /Add position/ }).first(), 'Add position');
       const position = page.getByRole('dialog', { name: 'Add position' });
       await position.getByLabel(/Position title/).selectOption('President');
@@ -322,7 +339,7 @@ for (const viewport of VIEWPORTS) {
 
       await page.goto(home);
       await homeReady(page);
-      await t.tap(page.getByRole('link', { name: /Add members/ }), 'Add members');
+      await t.tap(tracker.getByRole('link', { name: 'Add your members' }), 'Add your members');
       await t.tap(page.getByRole('button', { name: 'Add existing student' }), 'Add existing student');
       const member = page.getByRole('dialog', { name: 'Add an existing student' });
       await expect(member.getByLabel(/school id/i)).toHaveCount(0);
@@ -341,9 +358,10 @@ for (const viewport of VIEWPORTS) {
 
       await page.goto(home);
       await homeReady(page);
-      await t.tap(page.getByRole('link', { name: /Propose (an|first) event/ }), 'Propose an event');
-      // The card opens the New event form itself (the Events list with ?new=1), so there is no list button to tap.
-      await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeVisible(LONG);
+      // The seed leaves the first budget undone too, so the tracker's next item is the budget; the event is reached from the menu.
+      await openLeaf(t, page, width, 'Events and tasks', 'Events');
+      await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible(LONG);
+      await t.tap(page.getByRole('button', { name: 'New event' }).first(), 'New event');
       const form = page.getByRole('main');
       await form.locator('#event-title').fill(`Journey first event ${width} ${RUN}`);
       await form.locator('#event-start-date').fill(localDate(30));
@@ -354,15 +372,17 @@ for (const viewport of VIEWPORTS) {
       await t.tap(form.getByRole('button', { name: 'Send proposal' }), 'Send proposal');
       await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeHidden(LONG);
       steps.push(`event ${t.summary()}`);
-      expect.soft(t.state.clicks, `event ${t.summary()}`).toBeLessThanOrEqual(3);
+      expect.soft(t.state.clicks, `event ${t.summary()}`).toBeLessThanOrEqual(4);
       console.log(`[admin A5 @${width}] ${steps.join(' | ')}`);
 
       await page.goto(home);
       await homeReady(page);
-      await expect(page.getByRole('link', { name: /Add (officer )?positions/ })).toHaveCount(0, LONG);
-      await expect(page.getByRole('link', { name: /Add members/ })).toHaveCount(0);
-      await expect(page.getByRole('link', { name: /Propose (an|first) event/ })).toHaveCount(0);
-      await expect(progress).toHaveAttribute('aria-valuenow', String(before + 3));
+      // The three items are done: the tracker still asks for the setup, now naming only the first budget, and counts them.
+      await expect(tracker.getByText('Next for you: Organization set up')).toBeVisible(LONG);
+      await expect(tracker.getByText('Still to do: propose your first budget.')).toBeVisible(LONG);
+      await expect(tracker.getByRole('link', { name: 'Propose your first budget' })).toBeVisible();
+      await expect(tracker.getByText(/set up your officer positions|add your members|plan your first event/)).toHaveCount(0);
+      expect((await setupStep()).count).toBe(before + 3);
     });
 
     test.afterEach(async ({ page }, testInfo) => {
