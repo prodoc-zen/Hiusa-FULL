@@ -415,10 +415,14 @@ describe('RoleBriefing', () => {
         expect(await screen.findByRole('heading', { name: 'Next for you' })).toBeInTheDocument();
       });
 
-      it('ADMIN: keeps its checklist, which the tracker does not replace', async () => {
+      it('ADMIN: the tracker is the one list, and the checklist is the fallback when it is gone', async () => {
         setTrackerShown(true);
         vi.mocked(getBriefing).mockResolvedValue(briefing('ADMIN', { setup }));
         renderBriefing();
+        await screen.findByRole('heading', { name: 'Needs attention' });
+        expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+
+        act(() => setTrackerShown(false));
 
         expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
       });

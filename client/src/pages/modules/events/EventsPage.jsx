@@ -1804,9 +1804,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
-                      <div className="grid items-start gap-6 border-t border-line py-5 lg:grid-cols-2 lg:gap-8">
+                      <div className="grid grid-cols-1 items-start gap-6 border-t border-line py-5 lg:grid-cols-2 lg:gap-8">
                         {rosterError && <ErrorState className="py-0 lg:col-span-2" title="The member list did not load" description="Fingerprint check-in needs it to match a fingerprint to a member. Try again before checking people in." onRetry={() => setRosterReload((count) => count + 1)} />}
-                        <div className="flex flex-col gap-3">
+                        <div className="flex min-w-0 flex-col gap-3">
                           <h4 className="text-sm font-semibold text-ink">Manual check-in</h4>
                           <PersonPicker
                             label="Member"

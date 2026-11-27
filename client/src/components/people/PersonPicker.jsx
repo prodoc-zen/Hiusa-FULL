@@ -118,7 +118,7 @@ export default function PersonPicker({
 
   if (selected) {
     return (
-      <div className={`flex flex-col gap-1.5 ${className}`}>
+      <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
         <span id={`${baseId}-label`} className={labelClass}>{label}</span>
         <div
           role="group"
@@ -142,7 +142,7 @@ export default function PersonPicker({
   const describedBy = [error ? `${inputId}-error` : hint ? `${inputId}-hint` : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={`relative flex flex-col gap-1.5 ${className}`}>
+    <div className={`relative flex min-w-0 flex-col gap-1.5 ${className}`}>
       <label htmlFor={inputId} className={labelClass}>{label}</label>
       <div className="relative">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft" aria-hidden="true" />
