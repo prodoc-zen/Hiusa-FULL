@@ -50,6 +50,13 @@ class SaoGovernanceDemoSeeder extends Seeder
         'department_head' => 'The college accomplishment report has not been submitted to the Department Head yet.',
     ];
 
+    /** @var array<string, array<string, string>> registration files the SAO sent back, by organization acronym and requirement name */
+    private const RETURNED_REGISTRATION_FILES = [
+        'PSITS-CCS' => [
+            'Officers Data Sheets' => 'The data sheets of the treasurer and the auditor are not signed. Please have them signed and resubmit.',
+        ],
+    ];
+
     private User $sao;
 
     /** @var Collection<string, Organization> keyed by acronym */
@@ -201,6 +208,9 @@ class SaoGovernanceDemoSeeder extends Seeder
      * The open semester carries the registration requirements the SAO publishes, and an organization is only
      * accredited, pending review or returned once none of them is missing. The organizations above that file demo
      * documents have their registration files approved too, so each keeps the standing its own documents give it.
+     * PSITS keeps a second file returned, next to its financial statement: the SAO journey files one open requirement
+     * of PSITS at each screen width, and a returned file leaves the organization's standing at returned, where a
+     * file never submitted would drop it to incomplete.
      *
      * @param  array<int, string>  $acronyms
      */
@@ -223,17 +233,18 @@ class SaoGovernanceDemoSeeder extends Seeder
                 $path = $this->storePlaceholderPdf($organization, $type->name, $document);
                 $submittedAt = $this->at(-25, 10, 30);
                 $reviewedAt = $submittedAt->copy()->addDays(2)->setTime(14, 0);
+                $remarks = self::RETURNED_REGISTRATION_FILES[$acronym][$type->name] ?? null;
 
                 $this->findOrCreate(OrganizationComplianceSubmission::class, [
                     'organization_id' => $organization->id,
                     'requirement_type_id' => $type->id,
                 ], [
-                    'status' => 'approved',
+                    'status' => $remarks ? 'returned' : 'approved',
                     'file_path' => $path,
                     'file_original_name' => "{$organization->acronym} {$document}.pdf",
                     'mime_type' => 'application/pdf',
                     'file_size' => Storage::disk('local')->size($path),
-                    'remarks' => null,
+                    'remarks' => $remarks,
                     'submitted_by' => $representative->school_id,
                     'submitted_at' => $submittedAt,
                     'reviewed_by' => $this->sao->school_id,
