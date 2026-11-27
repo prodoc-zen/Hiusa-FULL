@@ -90,7 +90,8 @@ class SaoGovernanceDemoSeederTest extends TestCase
 
         $deadlines = ComplianceRequirementType::all()->pluck('deadline_at');
         $this->assertTrue($deadlines->contains(fn ($deadline) => $deadline->isPast()) && $deadlines->contains(fn ($deadline) => $deadline->isFuture()), 'Requirement deadlines should include one already past and one still ahead.');
-        $this->assertSame(1, OrganizationComplianceSubmission::where('status', 'returned')->whereNotNull('remarks')->count());
+        // The financial statement and PSITS's officers data sheets: the SAO journey files two open PSITS requirements.
+        $this->assertSame(2, OrganizationComplianceSubmission::where('status', 'returned')->whereNotNull('remarks')->count());
         $this->assertSame(0, OrganizationComplianceSubmission::where('status', '!=', 'returned')->whereNotNull('remarks')->count());
 
         $this->assertSame(Venue::count(), Venue::where('is_active', true)->count(), 'Every seeded venue should be bookable.');
@@ -335,6 +336,19 @@ class SaoGovernanceDemoSeederTest extends TestCase
 
         $statuses = app(AccreditationStatusService::class)->forOrganizations(collect([2, 3, 4, 5, 6]));
         $this->assertSame([2 => 'returned', 3 => 'pending_review', 4 => 'incomplete', 5 => 'accredited', 6 => 'incomplete'], $statuses);
+    }
+
+    public function test_psits_is_left_the_open_requirements_the_sao_journey_files_across_both_widths(): void
+    {
+        // client/e2e/journeys/sao.spec.js files one open (not submitted or returned) requirement of PSITS per width, at 1440 and at 390.
+        $filesAcrossBothWidths = 2;
+        Sanctum::actingAs($this->organizationAdmin('PSITS-CCS'));
+
+        $organization = $this->getJson('/api/compliance/status')->assertOk()->json('organizations');
+        $open = collect($organization['requirements'])->filter(fn ($requirement) => in_array($requirement['status'], ['not_submitted', 'returned'], true));
+
+        $this->assertGreaterThanOrEqual($filesAcrossBothWidths, $open->count());
+        $this->assertSame('returned', $organization['accreditation_status']);
     }
 
     public function test_sao_screens_read_the_seeded_data(): void
