@@ -485,7 +485,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 </div>
               )}
               <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={form.is_optional} onChange={(event) => setForm({ ...form, is_optional: event.target.checked })} />
+                <input type="checkbox" className="h-5 w-5 accent-brand-700" checked={form.is_optional} onChange={(event) => setForm({ ...form, is_optional: event.target.checked })} />
                 Only if applicable
               </label>
               <ActiveSwitch label="Active requirement" checked={form.is_active} onChange={(isActive) => setForm({ ...form, is_active: isActive })} />

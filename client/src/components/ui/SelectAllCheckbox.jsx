@@ -18,7 +18,7 @@ export default function SelectAllCheckbox({ label, selected, total, onChange, di
         checked={total > 0 && selected === total}
         disabled={disabled || total === 0}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 accent-brand-700"
+        className="h-5 w-5 accent-brand-700"
       />
       {label}
     </label>

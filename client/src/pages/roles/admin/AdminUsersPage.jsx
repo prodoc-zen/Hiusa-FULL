@@ -268,7 +268,7 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
           <p className="mt-3 text-xs leading-5 text-ink-muted-strong">Use the same finger four times, lifting it fully after each accepted capture. Only an encrypted template is stored.</p>
         </div>
         <label className="flex min-h-11 items-start gap-3 text-sm leading-5 text-ink-muted-strong">
-          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-line" />
+          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="h-5 w-5 shrink-0 rounded border-line accent-brand-700" />
           <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
         </label>
         {busy && <p className="text-sm font-medium text-ink">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}

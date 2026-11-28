@@ -517,8 +517,8 @@ export default function SaoVenuesPage() {
           <Field label="Capacity" required hint="Number of people this venue can hold">
             <Input type="number" min="0" value={venueForm.capacity} onChange={(event) => setVenueForm({ ...venueForm, capacity: event.target.value })} />
           </Field>
-          <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={venueForm.is_active} onChange={(event) => setVenueForm({ ...venueForm, is_active: event.target.checked })} />
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
+            <input type="checkbox" className="h-5 w-5 accent-brand-700" checked={venueForm.is_active} onChange={(event) => setVenueForm({ ...venueForm, is_active: event.target.checked })} />
             Organizations can request this venue
           </label>
           {venueFormError && <p role="alert" className="text-sm font-medium text-danger-strong">{venueFormError}</p>}

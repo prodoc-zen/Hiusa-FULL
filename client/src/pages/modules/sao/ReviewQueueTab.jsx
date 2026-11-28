@@ -202,7 +202,7 @@ export default function ReviewQueueTab({ organizations, organizationsLoading, or
         <div className="flex items-center gap-1">
           {approvable(submission) ? (
             <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
-              <input type="checkbox" aria-label={`Select ${submission.requirement_type?.name || 'document'} for ${submission.organization?.name || 'organization'}`} checked={ticked.has(submission.id)} onChange={() => toggleTicked(submission.id)} className="h-4 w-4 accent-brand-700" />
+              <input type="checkbox" aria-label={`Select ${submission.requirement_type?.name || 'document'} for ${submission.organization?.name || 'organization'}`} checked={ticked.has(submission.id)} onChange={() => toggleTicked(submission.id)} className="h-5 w-5 accent-brand-700" />
             </label>
           ) : selectableSubmissions.length > 0 && <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 md:block" />}
           <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-medium text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button>

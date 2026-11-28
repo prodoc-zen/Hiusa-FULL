@@ -213,7 +213,7 @@ export default function StudentFinancialAccountsPage() {
         </div>}
         {everyMember && (alreadyPaid > 0 || charge.charge_already_paid) && (
           <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink">
-            <input type="checkbox" checked={Boolean(charge.charge_already_paid)} onChange={(event) => setCharge({ ...charge, charge_already_paid: event.target.checked })} disabled={busy} className="mt-1 h-4 w-4 accent-brand-700" />
+            <input type="checkbox" checked={Boolean(charge.charge_already_paid)} onChange={(event) => setCharge({ ...charge, charge_already_paid: event.target.checked })} disabled={busy} className="h-5 w-5 accent-brand-700" />
             <span>Charge members who already paid a charge with this name</span>
           </label>
         )}
