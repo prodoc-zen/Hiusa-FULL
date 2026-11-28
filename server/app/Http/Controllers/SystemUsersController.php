@@ -47,6 +47,8 @@ class SystemUsersController extends Controller
         'account_profiles.user_school_id',
         'organization_applicant_grants.user_school_id',
         'organization_applicant_grants.granted_by',
+        'event_personnel.user_school_id',
+        'event_personnel.assigned_by',
         'tasks.assigned_to',
         'announcements.created_by',
         'ai_outputs.requested_by',

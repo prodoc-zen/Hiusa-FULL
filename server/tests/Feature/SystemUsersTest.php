@@ -414,6 +414,7 @@ class SystemUsersTest extends TestCase
             'fingerprints.user_id',
             'account_profiles.user_school_id',
             'organization_applicant_grants.user_school_id', 'organization_applicant_grants.granted_by',
+            'event_personnel.user_school_id', 'event_personnel.assigned_by',
             'tasks.assigned_to', 'announcements.created_by',
             'ai_outputs.requested_by', 'ai_outputs.decided_by',
             'ai_conversations.user_id', 'ai_memories.user_id',
@@ -632,6 +633,7 @@ class SystemUsersTest extends TestCase
         $stamps = ['created_at' => now(), 'updated_at' => now()];
         $organization = fn () => Organization::factory()->create()->id;
         $college = fn () => DB::table('colleges')->insertGetId(['name' => 'College '.uniqid(), 'is_active' => true, ...$stamps]);
+        $event = fn () => Event::factory()->create(['created_by' => $other->school_id, 'organization_id' => $other->organization_id])->id;
         $announcement = fn () => DB::table('announcements')->insertGetId(['title' => 'Notice '.uniqid(), 'body' => 'Body', 'created_by' => $other->school_id, ...$stamps]);
 
         // One row per allowlisted reference, all pointing at the same person, so one delete meets every rule at once.
@@ -644,6 +646,8 @@ class SystemUsersTest extends TestCase
             'account_profiles.user_school_id' => fn ($id) => $this->assertDatabaseHas('account_profiles', ['user_school_id' => $id]),
             'organization_applicant_grants.user_school_id' => fn ($id) => DB::table('organization_applicant_grants')->insert(['college_id' => $college(), 'user_school_id' => $id, ...$stamps]),
             'organization_applicant_grants.granted_by' => fn ($id) => DB::table('organization_applicant_grants')->insert(['college_id' => $college(), 'user_school_id' => $other->school_id, 'granted_by' => $id, ...$stamps]),
+            'event_personnel.user_school_id' => fn ($id) => DB::table('event_personnel')->insert(['event_id' => $event(), 'user_school_id' => $id, 'role_label' => 'Marshal', ...$stamps]),
+            'event_personnel.assigned_by' => fn ($id) => DB::table('event_personnel')->insert(['event_id' => $event(), 'user_school_id' => $other->school_id, 'role_label' => 'Marshal', 'assigned_by' => $id, ...$stamps]),
             'tasks.assigned_to' => fn ($id) => Task::factory()->create(['created_by' => $other->school_id, 'assigned_to' => $id]),
             'announcements.created_by' => fn ($id) => DB::table('announcements')->insert(['title' => 'Own notice', 'body' => 'Body', 'created_by' => $id, ...$stamps]),
             'ai_outputs.requested_by' => fn ($id) => DB::table('ai_outputs')->insert(['feature_type' => 'task_recommendation', 'output_text' => 'Text', 'requested_by' => $id]),
@@ -665,7 +669,7 @@ class SystemUsersTest extends TestCase
         $this->deleteJson('/api/system/users/'.$user->school_id, ['school_id' => $user->school_id])->assertOk();
 
         $this->assertDatabaseMissing('users', ['school_id' => $user->school_id]);
-        foreach (['notifications' => 'user_id', 'announcement_views' => 'user_id', 'announcement_reactions' => 'user_id', 'announcement_recipients' => 'user_id', 'fingerprints' => 'user_id', 'account_profiles' => 'user_school_id', 'organization_applicant_grants' => 'user_school_id'] as $table => $column) {
+        foreach (['notifications' => 'user_id', 'announcement_views' => 'user_id', 'announcement_reactions' => 'user_id', 'announcement_recipients' => 'user_id', 'fingerprints' => 'user_id', 'account_profiles' => 'user_school_id', 'organization_applicant_grants' => 'user_school_id', 'event_personnel' => 'user_school_id'] as $table => $column) {
             $this->assertDatabaseMissing($table, [$column => $user->school_id]);
         }
         $this->assertDatabaseHas('announcements', ['title' => 'Own notice', 'created_by' => null]);
