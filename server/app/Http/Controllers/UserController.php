@@ -1128,7 +1128,7 @@ class UserController extends Controller
 
         $user->update($data);
 
-        return response()->json($user->fresh()->asOwnPayload());
+        return response()->json($this->freshOnActiveProfile($user)->asOwnPayload());
     }
 
     public function updatePassword(Request $request)
@@ -1151,7 +1151,20 @@ class UserController extends Controller
         $user->update(['password_hash' => $request->password, 'must_change_password' => false]);
         $user->tokens()->whereKeyNot($user->currentAccessToken()->getKey())->delete();
 
-        return response()->json(['message' => 'Password updated successfully.', 'user' => $user->fresh()->asOwnPayload()]);
+        return response()->json(['message' => 'Password updated successfully.', 'user' => $this->freshOnActiveProfile($user)->asOwnPayload()]);
+    }
+
+    /** fresh() drops the profile the request ran as, so a second workspace's reply would carry the home row's organization and role. */
+    private function freshOnActiveProfile(User $user): User
+    {
+        $fresh = $user->fresh();
+        $profile = $user->activeProfile();
+
+        if ($profile) {
+            $fresh->activateProfile($profile->fresh()->load('organization'));
+        }
+
+        return $fresh;
     }
 
     private function activeOrganizationUser(int $organizationId, string $email): ?User
