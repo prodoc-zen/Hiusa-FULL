@@ -1053,4 +1053,29 @@ describe('EventsPage oversight of attendance and budget use (Fig 31)', () => {
     await screen.findByText(/Present 2 · Late 1/);
     expect(screen.queryByRole('heading', { name: 'Linked budget status' })).not.toBeInTheDocument();
   });
+
+  it('says so when the event details fail to load, and a retry brings the budgets back', async () => {
+    eventMocks.getEvent.mockRejectedValueOnce(new Error('Network down'));
+    await openDetail('DEPARTMENT_HEAD');
+
+    const panel = await screen.findByRole('dialog', { name: 'Event details' });
+    expect(await within(panel).findByText('Some event details could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Linked budget status' })).not.toBeInTheDocument();
+
+    eventMocks.getEvent.mockResolvedValue({ data: detail });
+    const notice = screen.getByText('Some event details could not be loaded.').closest('[role="alert"]');
+    fireEvent.click(within(notice).getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Venue and food')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Linked budget status' })).toBeInTheDocument();
+    expect(screen.queryByText('Some event details could not be loaded.')).not.toBeInTheDocument();
+  });
+
+  it('shows the dean the empty budget text when the event has no linked budgets', async () => {
+    await openDetail('DEPARTMENT_HEAD', { ...detail, budgets: [], financial_summary: undefined, requires_budget: false });
+
+    expect(await screen.findByRole('heading', { name: 'Linked budget status' })).toBeInTheDocument();
+    expect(screen.getByText('This event does not require a budget allocation.')).toBeInTheDocument();
+    expect(screen.queryByText('Some event details could not be loaded.')).not.toBeInTheDocument();
+  });
 });
