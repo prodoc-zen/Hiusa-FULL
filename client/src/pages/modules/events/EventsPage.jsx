@@ -917,6 +917,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     try {
       const response = await getEvent(id);
       setSelectedEvent((current) => (current?.id === id ? response.data : current));
+      setDetailsError(false);
       setEvents((current) => current.map((event) => event.id === id ? response.data : event));
       setEventRows((current) => current.map((event) => event.id === id ? response.data : event));
     } catch {}
@@ -931,6 +932,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       await updateEventStatus(selectedEvent.id, status);
       const response = await getEvent(selectedEvent.id);
       setSelectedEvent(response.data);
+      setDetailsError(false);
       setEvents((current) => current.map((event) => event.id === response.data.id ? response.data : event));
       setEventRows((current) => current.map((event) => event.id === response.data.id ? response.data : event));
       notify.success(`Event marked ${status}.`);
