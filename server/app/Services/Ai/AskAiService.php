@@ -4072,7 +4072,50 @@ class AskAiService
             );
         }
 
-        return $sentence;
+        return $sentence.$this->categoryGroupsSentence($books['categories']);
+    }
+
+    /**
+     * Ledger categories that share a word in their name ("Merchandise" and "Merchandise Sales") are one line of business
+     * to a reader, so the net of that line is stated as a fact: income minus expenses over all of them. Without it a
+     * writer works the figure out itself, and a signed loss that no single category row shows is a number the facts lack.
+     *
+     * @param  array<int, array{category: string, income: float, expense: float, entries: int}>  $categories
+     */
+    private function categoryGroupsSentence(array $categories): string
+    {
+        $byWord = [];
+        foreach ($categories as $index => $category) {
+            preg_match_all('/\pL{4,}/u', mb_strtolower($category['category']), $words);
+            foreach (array_unique($words[0] ?? []) as $word) {
+                $byWord[$word][] = $index;
+            }
+        }
+
+        $peso = fn (float $amount) => '₱'.number_format($amount, 2);
+        $groups = [];
+        foreach ($byWord as $indexes) {
+            if (count($indexes) < 2 || count($indexes) >= count($categories)) {
+                continue;
+            }
+
+            $members = array_map(fn (int $index) => $categories[$index], $indexes);
+            $income = round(array_sum(array_column($members, 'income')), 2);
+            $expense = round(array_sum(array_column($members, 'expense')), 2);
+            $names = array_map(fn (array $member) => $member['category'], $members);
+            sort($names);
+            $groups[implode('|', $names)] = sprintf('%s together come to %s income and %s expenses, so %s net', $this->joinNames($names), $peso($income), $peso($expense), $peso($income - $expense));
+        }
+
+        return $groups === [] ? '' : ' Categories that share a name are added together: '.implode('; ', array_slice(array_values($groups), 0, 3)).'.';
+    }
+
+    /** @param array<int, string> $names */
+    private function joinNames(array $names): string
+    {
+        $last = array_pop($names);
+
+        return $names === [] ? $last : implode(', ', $names).' and '.$last;
     }
 
     private function ledgerHighlights(array $books): array
