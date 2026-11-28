@@ -52,6 +52,7 @@ import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
+import EventTeamPanel from '../../../components/events/EventTeamPanel';
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, SEND_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
@@ -2054,6 +2055,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 )}
                 {!selectedFlow && isReturned(selectedEvent) && selectedEvent.approval_remarks && <p className="border-t border-line pt-4 text-danger-strong"><span className="font-semibold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
                 <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
+                <EventTeamPanel event={selectedEvent} role={currentUserRole} />
                 {!filesAtStage && eventFilesPanel}
               </div>
             )}
