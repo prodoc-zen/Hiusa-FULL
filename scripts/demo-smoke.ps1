@@ -6,13 +6,13 @@
 
 .DESCRIPTION
   Read-mostly. It signs in as the six demo roles, reads one dashboard endpoint
-  per role, probes the upload limit with one oversized request that the server
-  must refuse, and reads the semester and record counts. Nothing is created,
-  changed or deleted. The only writes are the sign-in tokens it creates (it
+  per role, probes the upload limit with two oversized requests that fail
+  validation on purpose, and reads the semester and record counts. Nothing is
+  created, changed or deleted. The only writes are the sign-in tokens it creates (it
   signs them out again at the end) and, with -CheckGroq, one announcement
   draft (one row in ai_outputs and one use of that Admin's daily draft quota).
 
-  Checks (each request has a 30 second timeout; the 15 MB upload gets 60):
+  Checks (each request has a 30 second timeout; the uploads get 60):
     1  GET / (HTML with id="root"), GET /up, TLS certificate validity and days left
     2  POST /api/login for SAO 990001 (needs HIUSA_SAO_PW), Department Head
        940001, Admin 900001, Officer 900004, Student 2100142, Adviser 990002,
@@ -20,18 +20,21 @@
     3  One authenticated dashboard read per role (200 with JSON)
     4  Engines: forecast generation is NOT called (it writes a row every time),
        AI service /health through -Ssh, Groq draft only with -CheckGroq
-    5  15 MB multipart POST as the Department Head to /api/college/organizations,
-       expected 422 (413 means nginx client_max_body_size or PHP post_max_size
-       is too small), then an 11 MB single-file POST to /api/elections as the
-       Admin (missing title, so nothing is created) that must reach Laravel's
-       10 MB file rule; a PHP upload_max_filesize below 11 MB fails it
+    5  15 MB multipart POST as the Admin to /api/compliance/submissions with
+       no requirement type, expected 422 (413 means nginx client_max_body_size
+       or PHP post_max_size is too small), then an 11 MB single-file POST to
+       /api/elections as the Admin (missing title, so nothing is created) that
+       must reach Laravel's 10 MB file rule ("must be 10 MB or smaller"); a 413
+       or a PHP refusal ("failed to upload") fails it
     6  With -Ssh: systemctl is-active, disk percent, scheduler journal tail
     7  Active semester state (an ACTIVE semester is a FAIL: the demo needs a
        reseed, unless -AllowActiveSemester) and record counts
-    8  Demo state the reseed script step 10 creates, all read-only GETs: the
-       finalized ACTIVE 'Demo Student Council Election' is visible to student
-       2100142, an open task exists for officer 900004, 'Leadership Seminar 2024'
-       is ongoing, 'Sports Fest 2024' is approved and 2100142 is not registered
+    8  Only with -ReseedDemo: the demo state the reseed script step 10 creates,
+       all read-only GETs: the finalized ACTIVE 'Demo Student Council Election'
+       is visible to student 2100142, an open task exists for officer 900004,
+       'Leadership Seminar 2024' is ongoing, 'Sports Fest 2024' is approved and
+       2100142 is not registered. Without the switch it prints one INFO line,
+       because the from-scratch demo builds all of this on screen
 
 .PARAMETER Url
   Base address of the site. Default https://13.228.227.182. The certificate is
@@ -60,10 +63,17 @@
   live and the seeded events, tasks and election vanish once one is active. The
   fix is scripts\reseed-staging.ps1 -Execute.
 
+.PARAMETER ReseedDemo
+  Also run step 8, which expects the seeded state that scripts\reseed-staging.ps1
+  -Execute leaves behind. Leave it off for the from-scratch demo
+  (docs\DEAN-DEMO-FROM-SCRATCH.md), where the election, the task and the events
+  are created on screen and step 8 would fail on purpose.
+
 .EXAMPLE
   $env:HIUSA_SAO_PW = '...'   # or leave it unset and type it at the prompt
   .\scripts\demo-smoke.ps1
   .\scripts\demo-smoke.ps1 -Ssh -CheckGroq
+  .\scripts\demo-smoke.ps1 -ReseedDemo
 
 .NOTES
   Environment variables read: HIUSA_SAO_PW, HIUSA_SSH_KEY, TEMP.
@@ -83,7 +93,8 @@ param(
     [switch]$Ssh,
     [string]$SshUser = 'ubuntu',
     [switch]$NoPrompt,
-    [switch]$AllowActiveSemester
+    [switch]$AllowActiveSemester,
+    [switch]$ReseedDemo
 )
 
 Set-StrictMode -Version 1.0
@@ -527,12 +538,16 @@ try {
 
         # ---- 5 Upload limit ---------------------------------------------
         Start-Step '5' 'upload limit'
-        if (-not $script:Tokens.ContainsKey('DH')) {
-            Add-Row 'Upload limit 15 MB' 'WARN' 'skipped: Department Head not signed in'
+        # POST /api/compliance/submissions as the Admin: PHP reads the multipart body, Laravel validates it before
+        # anything else, and the missing requirement_type_id makes it 422 so nothing is created. It has no semester
+        # precondition. (The old target, POST /api/college/organizations, answers 405 now that organizations come
+        # through the application pipeline.)
+        if (-not $script:Tokens.ContainsKey('ADMIN')) {
+            Add-Row 'Upload limit 15 MB' 'WARN' 'skipped: Admin not signed in'
         } else {
             $limitHint = 'nginx client_max_body_size or PHP post_max_size too small'
-            $upload = Invoke-UploadProbe -SizeBytes 15MB -Tag 'big' -Path '/api/college/organizations' -Token $script:Tokens['DH'] `
-                -FileField 'files[1]' -Fields @{ name = ''; acronym = 'SMOKE' }
+            $upload = Invoke-UploadProbe -SizeBytes 15MB -Tag 'big' -Path '/api/compliance/submissions' -Token $script:Tokens['ADMIN'] `
+                -FileField 'document' -Fields @{}
             if ($upload.Status -eq 422) {
                 Add-Row 'Upload limit 15 MB' 'PASS' ('422, the 15 MB body reached Laravel and was refused on validation ({0} ms)' -f $upload.Ms)
             } elseif ($upload.Status -eq 413) {
@@ -544,7 +559,7 @@ try {
             }
         }
 
-        # The 15 MB body is refused by PHP itself (upload_max_filesize 12M), so it proves nginx and post_max_size
+        # The 15 MB file is dropped by PHP itself (upload_max_filesize 12M), so it proves nginx and post_max_size
         # but not the per-file limit. The largest legitimate file is 10 MB (Laravel rule max:10240), so an 11 MB
         # file must get past PHP and be refused by that Laravel rule instead.
         # Endpoint: POST /api/elections as the Admin, not the registration endpoint, because that one answers
@@ -552,9 +567,10 @@ try {
         # is the state the demo starts in. The election endpoint validates the file first, and the missing title
         # makes the request 422 so nothing is created. It does answer 409 when semesters exist but none is active.
         # How PHP and Laravel are told apart: the 422 carries errors keyed informative_letter. If PHP accepted the
-        # file, the message is the size rule ("must not be greater than 10240 kilobytes"). If PHP dropped it
-        # (upload_max_filesize below 11 MB) the file arrives with an upload error and the message is "failed to
-        # upload" or "must be a file" instead.
+        # file, the message is Laravel's size rule, worded "must be 10 MB or smaller" by this app (lang/en/validation.php;
+        # the framework default says "greater than 10240 kilobytes"). That proves the file reached Laravel. If PHP
+        # dropped it (upload_max_filesize below 11 MB) the file arrives with an upload error and the message is
+        # "failed to upload" or "must be a file" instead. Only that, or a 413, is a FAIL.
         if (-not $script:Tokens.ContainsKey('ADMIN')) {
             Add-Row 'Upload limit 11 MB (PHP per file)' 'WARN' 'skipped: Admin not signed in'
         } else {
@@ -569,10 +585,12 @@ try {
                 Add-Row 'Upload limit 11 MB (PHP per file)' 'WARN' '409: semesters exist but none is active, the election endpoint refuses before validating; could not tell PHP from Laravel'
             } elseif ($mid.Status -ne 422) {
                 Add-Row 'Upload limit 11 MB (PHP per file)' 'FAIL' ('expected 422, got ' + (Describe-Failure $mid))
-            } elseif ($fileErrors -match 'kilobytes|greater than') {
+            } elseif ($fileErrors -match 'failed to upload|must be a file') {
+                Add-Row 'Upload limit 11 MB (PHP per file)' 'FAIL' ('422 but PHP dropped the file before the size rule, upload_max_filesize is probably under 11 MB: ' + (Limit-Text $fileErrors 70))
+            } elseif ($fileErrors -match 'smaller|kilobytes|greater than') {
                 Add-Row 'Upload limit 11 MB (PHP per file)' 'PASS' ('422, PHP passed the 11 MB file and Laravel applied its 10 MB rule ({0} ms)' -f $mid.Ms)
             } elseif ($fileErrors) {
-                Add-Row 'Upload limit 11 MB (PHP per file)' 'FAIL' ('422 but the file was refused before the size rule, PHP upload_max_filesize is probably under 11 MB: ' + (Limit-Text $fileErrors 70))
+                Add-Row 'Upload limit 11 MB (PHP per file)' 'WARN' ('422 with an unrecognised file message, check it by hand: ' + (Limit-Text $fileErrors 70))
             } else {
                 Add-Row 'Upload limit 11 MB (PHP per file)' 'WARN' '422 with no message about the file, so PHP versus Laravel could not be told apart'
             }
@@ -663,93 +681,98 @@ try {
         # ---- 8 Demo state -----------------------------------------------
         # What scripts\reseed-staging.ps1 step 10 and the seed leave behind. Read-only GETs, one per question.
         # With a semester active these lists are scoped to it and the seeded rows are hidden, so they FAIL too.
+        # The from-scratch demo builds these on screen, so the step runs only with -ReseedDemo.
         Start-Step '8' 'demo state'
-        $demoElection = 'Demo Student Council Election'
-        $demoTask = 'Prepare the registration desk'
-        if (-not $script:Tokens.ContainsKey('STUDENT')) {
-            Add-Row 'Demo election visible to 2100142' 'WARN' 'skipped: Student not signed in'
+        if (-not $ReseedDemo) {
+            Add-Row 'Reseeded demo state' 'INFO' 'skipped for a from-scratch demo (the election, task and events are built on screen); pass -ReseedDemo to check the seeded state'
         } else {
-            # GET /api/elections as a student lists only finalized ACTIVE elections (and ones with released results).
-            $elections = Get-Rows -Path '/api/elections' -Token $script:Tokens['STUDENT']
-            if ($elections.ContainsKey('Error')) {
-                Add-Row 'Demo election visible to 2100142' 'FAIL' $elections.Error
+            $demoElection = 'Demo Student Council Election'
+            $demoTask = 'Prepare the registration desk'
+            if (-not $script:Tokens.ContainsKey('STUDENT')) {
+                Add-Row 'Demo election visible to 2100142' 'WARN' 'skipped: Student not signed in'
             } else {
-                $ballot = @($elections.Rows | Where-Object { $_.title -eq $demoElection -and $_.status -eq 'active' -and $_.finalized_at }) | Select-Object -First 1
-                if ($ballot) {
-                    Add-Row 'Demo election visible to 2100142' 'PASS' ("'{0}' id {1} is active and finalized, ends {2}" -f $demoElection, $ballot.id, $ballot.end_time)
+                # GET /api/elections as a student lists only finalized ACTIVE elections (and ones with released results).
+                $elections = Get-Rows -Path '/api/elections' -Token $script:Tokens['STUDENT']
+                if ($elections.ContainsKey('Error')) {
+                    Add-Row 'Demo election visible to 2100142' 'FAIL' $elections.Error
                 } else {
-                    $titles = @($elections.Rows | ForEach-Object { $_.title })
-                    $seen = if ($titles.Count -gt 0) { 'the student sees: ' + (Limit-Text ($titles -join ', ') 60) } else { 'the student sees no election' }
-                    Add-Row 'Demo election visible to 2100142' 'FAIL' ("no active, finalized '{0}' (no demo ballot); {1}. Run scripts\reseed-staging.ps1 -Execute" -f $demoElection, $seen)
-                }
-            }
-        }
-        if (-not $script:Tokens.ContainsKey('OFFICER')) {
-            Add-Row 'Open task for officer 900004' 'WARN' 'skipped: Officer not signed in'
-        } else {
-            # GET /api/tasks as an officer is already limited to that officer's own tasks.
-            $tasks = Get-Rows -Path '/api/tasks?per_page=100' -Token $script:Tokens['OFFICER'] -Property 'data'
-            if ($tasks.ContainsKey('Error')) {
-                Add-Row 'Open task for officer 900004' 'FAIL' $tasks.Error
-            } else {
-                $open = @($tasks.Rows | Where-Object { @('pending', 'in_progress', 'overdue') -contains $_.status })
-                $named = @($open | Where-Object { $_.title -eq $demoTask }) | Select-Object -First 1
-                if ($named) {
-                    Add-Row 'Open task for officer 900004' 'PASS' ("'{0}' is {1}, due {2}" -f $demoTask, $named.status, $named.deadline)
-                } elseif ($open.Count -gt 0) {
-                    Add-Row 'Open task for officer 900004' 'PASS' ("no task titled '{0}', but {1} open task(s): '{2}' is {3}" -f $demoTask, $open.Count, (Limit-Text ([string]$open[0].title) 40), $open[0].status)
-                } else {
-                    Add-Row 'Open task for officer 900004' 'FAIL' ("officer 900004 has no open task ({0} listed in total); Officer step 3 has nothing to start. Run scripts\reseed-staging.ps1 -Execute" -f $tasks.Rows.Count)
-                }
-            }
-        }
-        if (-not $script:Tokens.ContainsKey('STUDENT')) {
-            Add-Row 'Seeded events for the demo' 'WARN' 'skipped: Student not signed in'
-        } else {
-            $leadership = Get-Rows -Path '/api/events?search=Leadership%20Seminar&per_page=100' -Token $script:Tokens['STUDENT'] -Property 'data'
-            if ($leadership.ContainsKey('Error')) {
-                Add-Row 'Event Leadership Seminar ongoing' 'FAIL' $leadership.Error
-            } else {
-                $seminar = @($leadership.Rows | Where-Object { $_.title -eq 'Leadership Seminar 2024' }) | Select-Object -First 1
-                if ($seminar -and $seminar.status -eq 'ongoing') {
-                    Add-Row 'Event Leadership Seminar ongoing' 'PASS' ('ongoing until {0}' -f $seminar.end_time)
-                } elseif ($seminar) {
-                    Add-Row 'Event Leadership Seminar ongoing' 'FAIL' ("status is '{0}', expected ongoing (the Officer check-in has no event to use)" -f $seminar.status)
-                } else {
-                    Add-Row 'Event Leadership Seminar ongoing' 'FAIL' "'Leadership Seminar 2024' is not in the student event list"
-                }
-            }
-            $sports = Get-Rows -Path '/api/events?search=Sports%20Fest&per_page=100' -Token $script:Tokens['STUDENT'] -Property 'data'
-            $fest = $null
-            if ($sports.ContainsKey('Error')) {
-                Add-Row 'Event Sports Fest approved' 'FAIL' $sports.Error
-            } else {
-                $fest = @($sports.Rows | Where-Object { $_.title -eq 'Sports Fest 2024' }) | Select-Object -First 1
-                if (-not $fest) {
-                    Add-Row 'Event Sports Fest approved' 'FAIL' "'Sports Fest 2024' is not in the student event list"
-                } elseif ($fest.status -ne 'approved') {
-                    Add-Row 'Event Sports Fest approved' 'FAIL' ("status is '{0}', expected approved" -f $fest.status)
-                } elseif ([DateTimeOffset]::Parse([string]$fest.start_time).UtcDateTime -le [DateTime]::UtcNow) {
-                    Add-Row 'Event Sports Fest approved' 'FAIL' ('approved but it already started ({0}); registration is closed' -f $fest.start_time)
-                } else {
-                    Add-Row 'Event Sports Fest approved' 'PASS' ('approved, starts {0}' -f $fest.start_time)
-                }
-            }
-            # GET /api/me/event-registrations is what the registration panel in the event drawer reads.
-            if ($fest) {
-                $mine = Get-Rows -Path '/api/me/event-registrations' -Token $script:Tokens['STUDENT']
-                if ($mine.ContainsKey('Error')) {
-                    Add-Row 'Student 2100142 not on Sports Fest' 'FAIL' $mine.Error
-                } else {
-                    $registrations = @()
-                    foreach ($group in 'upcoming', 'past') {
-                        if ($null -ne $mine.Raw -and $mine.Raw.PSObject.Properties[$group]) { $registrations += @($mine.Raw.$group) }
-                    }
-                    $held = @($registrations | Where-Object { [string]$_.event_id -eq [string]$fest.id -and @('registered', 'attended', 'no_show') -contains $_.status }) | Select-Object -First 1
-                    if ($held) {
-                        Add-Row 'Student 2100142 not on Sports Fest' 'FAIL' ("already has a '{0}' registration; Student step 1 has nothing to register. Use a back-up student or reseed" -f $held.status)
+                    $ballot = @($elections.Rows | Where-Object { $_.title -eq $demoElection -and $_.status -eq 'active' -and $_.finalized_at }) | Select-Object -First 1
+                    if ($ballot) {
+                        Add-Row 'Demo election visible to 2100142' 'PASS' ("'{0}' id {1} is active and finalized, ends {2}" -f $demoElection, $ballot.id, $ballot.end_time)
                     } else {
-                        Add-Row 'Student 2100142 not on Sports Fest' 'PASS' 'no active registration, the Register button is available'
+                        $titles = @($elections.Rows | ForEach-Object { $_.title })
+                        $seen = if ($titles.Count -gt 0) { 'the student sees: ' + (Limit-Text ($titles -join ', ') 60) } else { 'the student sees no election' }
+                        Add-Row 'Demo election visible to 2100142' 'FAIL' ("no active, finalized '{0}' (no demo ballot); {1}. Run scripts\reseed-staging.ps1 -Execute" -f $demoElection, $seen)
+                    }
+                }
+            }
+            if (-not $script:Tokens.ContainsKey('OFFICER')) {
+                Add-Row 'Open task for officer 900004' 'WARN' 'skipped: Officer not signed in'
+            } else {
+                # GET /api/tasks as an officer is already limited to that officer's own tasks.
+                $tasks = Get-Rows -Path '/api/tasks?per_page=100' -Token $script:Tokens['OFFICER'] -Property 'data'
+                if ($tasks.ContainsKey('Error')) {
+                    Add-Row 'Open task for officer 900004' 'FAIL' $tasks.Error
+                } else {
+                    $open = @($tasks.Rows | Where-Object { @('pending', 'in_progress', 'overdue') -contains $_.status })
+                    $named = @($open | Where-Object { $_.title -eq $demoTask }) | Select-Object -First 1
+                    if ($named) {
+                        Add-Row 'Open task for officer 900004' 'PASS' ("'{0}' is {1}, due {2}" -f $demoTask, $named.status, $named.deadline)
+                    } elseif ($open.Count -gt 0) {
+                        Add-Row 'Open task for officer 900004' 'PASS' ("no task titled '{0}', but {1} open task(s): '{2}' is {3}" -f $demoTask, $open.Count, (Limit-Text ([string]$open[0].title) 40), $open[0].status)
+                    } else {
+                        Add-Row 'Open task for officer 900004' 'FAIL' ("officer 900004 has no open task ({0} listed in total); Officer step 3 has nothing to start. Run scripts\reseed-staging.ps1 -Execute" -f $tasks.Rows.Count)
+                    }
+                }
+            }
+            if (-not $script:Tokens.ContainsKey('STUDENT')) {
+                Add-Row 'Seeded events for the demo' 'WARN' 'skipped: Student not signed in'
+            } else {
+                $leadership = Get-Rows -Path '/api/events?search=Leadership%20Seminar&per_page=100' -Token $script:Tokens['STUDENT'] -Property 'data'
+                if ($leadership.ContainsKey('Error')) {
+                    Add-Row 'Event Leadership Seminar ongoing' 'FAIL' $leadership.Error
+                } else {
+                    $seminar = @($leadership.Rows | Where-Object { $_.title -eq 'Leadership Seminar 2024' }) | Select-Object -First 1
+                    if ($seminar -and $seminar.status -eq 'ongoing') {
+                        Add-Row 'Event Leadership Seminar ongoing' 'PASS' ('ongoing until {0}' -f $seminar.end_time)
+                    } elseif ($seminar) {
+                        Add-Row 'Event Leadership Seminar ongoing' 'FAIL' ("status is '{0}', expected ongoing (the Officer check-in has no event to use)" -f $seminar.status)
+                    } else {
+                        Add-Row 'Event Leadership Seminar ongoing' 'FAIL' "'Leadership Seminar 2024' is not in the student event list"
+                    }
+                }
+                $sports = Get-Rows -Path '/api/events?search=Sports%20Fest&per_page=100' -Token $script:Tokens['STUDENT'] -Property 'data'
+                $fest = $null
+                if ($sports.ContainsKey('Error')) {
+                    Add-Row 'Event Sports Fest approved' 'FAIL' $sports.Error
+                } else {
+                    $fest = @($sports.Rows | Where-Object { $_.title -eq 'Sports Fest 2024' }) | Select-Object -First 1
+                    if (-not $fest) {
+                        Add-Row 'Event Sports Fest approved' 'FAIL' "'Sports Fest 2024' is not in the student event list"
+                    } elseif ($fest.status -ne 'approved') {
+                        Add-Row 'Event Sports Fest approved' 'FAIL' ("status is '{0}', expected approved" -f $fest.status)
+                    } elseif ([DateTimeOffset]::Parse([string]$fest.start_time).UtcDateTime -le [DateTime]::UtcNow) {
+                        Add-Row 'Event Sports Fest approved' 'FAIL' ('approved but it already started ({0}); registration is closed' -f $fest.start_time)
+                    } else {
+                        Add-Row 'Event Sports Fest approved' 'PASS' ('approved, starts {0}' -f $fest.start_time)
+                    }
+                }
+                # GET /api/me/event-registrations is what the registration panel in the event drawer reads.
+                if ($fest) {
+                    $mine = Get-Rows -Path '/api/me/event-registrations' -Token $script:Tokens['STUDENT']
+                    if ($mine.ContainsKey('Error')) {
+                        Add-Row 'Student 2100142 not on Sports Fest' 'FAIL' $mine.Error
+                    } else {
+                        $registrations = @()
+                        foreach ($group in 'upcoming', 'past') {
+                            if ($null -ne $mine.Raw -and $mine.Raw.PSObject.Properties[$group]) { $registrations += @($mine.Raw.$group) }
+                        }
+                        $held = @($registrations | Where-Object { [string]$_.event_id -eq [string]$fest.id -and @('registered', 'attended', 'no_show') -contains $_.status }) | Select-Object -First 1
+                        if ($held) {
+                            Add-Row 'Student 2100142 not on Sports Fest' 'FAIL' ("already has a '{0}' registration; Student step 1 has nothing to register. Use a back-up student or reseed" -f $held.status)
+                        } else {
+                            Add-Row 'Student 2100142 not on Sports Fest' 'PASS' 'no active registration, the Register button is available'
+                        }
                     }
                 }
             }

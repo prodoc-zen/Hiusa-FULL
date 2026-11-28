@@ -1,0 +1,119 @@
+# HIUSA paper alignment
+
+Written 2026-11-28 for the defense panel and for Jade's manuscript edits. It lists every place where the manuscript and the shipped system disagree, with the exact sentence to put in the paper or the one line to say to the panel.
+
+How to read it:
+
+- The manuscript is the text export `HIUSA - FINAL PAPER (2).txt`. Every "line" below is a line number in that file. Figure numbers are the ones printed in that file (the login screen is Figure 43, the module matrix is Table 23).
+- The system is `release/r27` at commit `aa2d4b64`. File and line references were read at that commit. Anything marked "closed in r27" is built on a feature branch that is not merged yet, so its file and line are not given. Re-read section 10 after the merge.
+- Where the paper is silent, there is no disagreement and the item is in section 11, not in a table.
+- The role names differ. The paper has Admin, Adviser, Officer and Student. The system has the SAO (`SUPER_ADMIN`), the Department Head (the dean), the organization Admin (`ADMIN`), the Officer (`SBO_OFFICER`) and the Student. `docs/PAPER_SCOPE_ADDENDUM.md` decision (c) already maps the paper's Adviser to the Department Head. This file uses the system names in the "system does" column.
+
+## 1. Actors and roles (Chapter I, Chapter III, Table 23)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| ACT-1 | Line 767 (Role-Based Access Control), line 1188 (use case diagrams), Table 23 lines 5852 to 6040 | Four actors: Admin, Adviser, Officer, Student. The Admin "has full access to all system functions, including user management, role assignment, audit log review, and system configuration". | Five actors plus two helpers. The SAO sits above the colleges. The Department Head oversees one college and is the paper's Adviser. The organization Admin runs one organization only. Office staff act as the dean (`User.php:135`). The audit log is per organization for the Admin and system wide for the SAO (`api.php:338`). Semesters, requirements and venues belong to the SAO (`api.php:220`, `api.php:433`). | Paper: "Hiusa has five actors. The Student Affairs Office (SAO) governs every college and organization. The Department Head, who acts as the adviser in this study, oversees one college and approves its organizations' events, budgets, elections and reports. Each organization has one Admin who runs that organization, officers who work inside the areas the Admin opens to them, and students." Panel: "The paper's Admin is split in the system. The SAO configures the system, the organization Admin runs one organization." Full wording is in `docs/PAPER_SCOPE_ADDENDUM.md` sections 2.1, 2.4 and decision (c). |
+| ACT-2 | Whole of Chapter III | No figure describes approvals. Events, budgets, elections and financial reports are shown as created and used, never sent for review. | Every event proposal goes organization to Department Head to SAO (when SAO files apply). Budgets, elections and financial reports are approved by the Department Head. A reviewer returns with written remarks (the API status stays `rejected`, the screen says "Returned"). Organizations themselves are registered through an application that the dean endorses and the SAO approves. | Paper: add one use case, "Review and decide approval requests", with the Department Head and the SAO as actors, and one sentence per rule in `docs/PAPER_SCOPE_ADDENDUM.md` decisions (i) and (j). Panel: "Nothing is final until the dean, and for events with SAO files the SAO, has decided." |
+| ACT-3 | Figure 49, lines 2351 to 2417 (Adviser Dashboard) | A dashboard for the Adviser with events, budgets, elections and tasks, a budget breakdown and a notification feed. | The dean's home is `DepartmentHeadHomePage.jsx` (process tracker at line 116, approvals, college counts). The faculty Adviser seat is a separate, view-only seat on an organization, named only by the dean (`AccountProfileController.php:190` to `194`), and it lands on the organization Admin home. The dean has no task board (`api.php:294`, `navigation.js:105` to `117`). | Paper: rename Figure 49 "Department Head Dashboard" and drop "tasks" from the metrics list, or say "task counts are shown on the organization Admin and Officer dashboards". Panel: "The Adviser dashboard is the Department Head's home page." |
+
+## 2. Authenticate and recover account (Figures 20, 43, 44, 45)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| F02 | Figure 20 step 4 and 5 (lines 1227 to 1233), Figure 44 (lines 2042 to 2072), Figure 45 (lines 2074 to 2115), line 2106 | The user enters an email. The system sends a 6-digit verification code. The user types the code on a Code Verification screen (Figure 45), with a 5:00 timer and a Resend Code button, and then resets the password. | The system emails a one-time link, not a code. The link carries a long random token and opens the Reset Password page (`UserController.php:989` to `1033`, `PasswordResetService.php:21` to `50`, `ResetPasswordPage.jsx:24`). The link is good for 60 minutes (`config/auth.php:99`). To get another one the user submits the Recover Account page again. There is no code screen and no timer. | Paper, replace line 2106 and the Figure 45 section with: "The system emails the user a single-use reset link that stays valid for 60 minutes. Opening the link shows the Reset Password screen. If the link has expired, the user requests a new one from the Recover Account screen." Delete the Verification Code, Verify Code, Resend Code and Timer rows of Figure 45, or retitle the screen "Reset link". Panel: "We chose a link over a code because it removes a typing step and the token cannot be guessed." |
+| F02b | Line 2069 (Figure 44 logic 2.2 and 2.3) | An unknown email shows "Email is not yet registered." A known email goes on to the Code Verification screen. | The reply is the same for every case: "If an active account matches those details, password reset instructions will be sent." (`UserController.php:1027`, `:1032`). This is deliberate, so nobody can learn which emails have accounts. The field accepts an email or a School ID (`UserController.php:992`). | Paper, replace lines 2069 to 2070 with: "The system always answers 'If an active account matches those details, password reset instructions will be sent.' so that the screen never reveals whether an email is registered." Panel: "A different message for unknown emails would let a stranger test which emails exist." |
+| F02c | Figure 21 and Figure 20 step 5.2 (line 1232) | "Updates account credentials" as soon as recovery information is submitted. | Credentials change only on the Reset Password page, after the link is opened and a new password that passes the rules is saved (`UserController.php:1053`). When mail is off, the reset is not available and the screen tells the user to ask the organization Admin or the SAO (`UserController.php:1000` to `1007`). | Paper: change 5.2 to "Updates the account password after the user opens the reset link and saves a new password." |
+
+Open risk on this table: reset mail delivery on production is not proven (`docs/HANDOFF.md` task 10, "reset mail to a test student"). Send one reset to a test student before the defense.
+
+## 3. Manage user accounts (Figures 21 and 47)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| ACC-1 | Figure 21 step 4 (lines 1261 to 1263), Figure 47 steps 4 and 6 (lines 2261 to 2266), Table 23 line 5869 | The Admin assigns "user roles" and edits "the user's role". The role filter lists Admin, Adviser, Officer, Student. | Roles are granted by the level above, never by the organization Admin alone. The SAO invites Department Heads. The Department Head invites the organization head and names the faculty Adviser (`AccountProfileController.php:190` to `204`). The organization Admin gives officer and student access, with a position and a list of areas (`api.php:105`), and cannot name another head or an Adviser (`UserController.php:196` to `198`). | Paper, replace step 4 with: "The Admin gives each member officer or student access, a position title and the areas the member may open. The Admin cannot name another organization head or an Adviser; those seats are named by the Department Head and the SAO." Panel: "Each level only grants the level below it, so nobody can promote themselves." |
+
+## 4. Elections (Figures 26, 27, 28, 54 to 59)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| F05a | Figure 26 (lines 1404 to 1434), Table 23 lines 5914 to 5918, Figures 54 and 55 | The Officer sets up elections, manages candidates and schedules them. | Creating, editing, finalizing and deleting an election, its positions and its candidates are `role:ADMIN` (`api.php:394` to `404`). An officer can read positions (`api.php:398`) and sees the candidates page read only (`ManageCandidatesPage.jsx:222`, `canManage = role === 'ADMIN'`). | Paper: in Figure 26 replace "Officer" with "Admin" as the triggering actor and change the Officer's steps to "monitors election status". Panel: "The organization Admin runs the election. Officers monitor it and vote." |
+| F17a | Figure 27 (lines 1437 to 1468), Table 23 lines 5919 to 5923 | Officers and Students vote. | The Admin, officers and students vote, once per position (`AccountProfile.php:16`, `api.php:392`). The faculty Adviser and the Department Head do not vote. | Paper, add to Figure 27: "Eligible voters are the organization's Admin, officers and students. The Adviser and the Department Head oversee the election and do not vote." |
+| F17b | Figure 28 (lines 1471 to 1499), steps 2 and 3 | The Officer "generates" the results, the Adviser reviews them, and someone confirms publication. | The tally is automatic and is read by the Admin, officers, students, the dean and the SAO (`api.php:390`). The Admin finalizes the election (`api.php:396`). A tie is resolved by hand by the Department Head or the SAO (`routes/elections/results.php:10`). | Paper: replace step 2 with "The system counts the votes and shows the results to authorized users. A tie is decided manually by the Department Head or the SAO." |
+
+## 5. Events and calendar (Figures 29 to 32, 60 to 63)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| F05b | Figure 29 (lines 1502 to 1533), Figure 60, Table 23 lines 5938 to 5942 | The Officer creates events, schedules activities and monitors status. | Creating, editing, deleting and changing the status of an event are `role:ADMIN` (`api.php:280` to `283`). Officers read events (`api.php:279`) and check people in (`api.php:289`). Every new event also goes through the dean and, for on-campus venues, the SAO (see ACT-2). | Paper: "The organization Admin proposes and schedules events. Officers check participants in and carry out assigned tasks." Panel: "Planning rights stay with the Admin so one accountable person owns each proposal." |
+| F05c | Figure 30 (lines 1535 to 1566), Table 23 lines 5943 to 5947 | The Officer requests and confirms the AI event plan. | Generating, confirming and discarding a plan are `role:ADMIN` (`api.php:284`, `:286`, `:287`). Reading the plan history is `role:ADMIN` too (`api.php:285`). Officers see the tasks that come out of a confirmed plan on their task list. Reading the plan itself is closed in r27, see section 10. | Paper: "The Admin requests and confirms the plan. Officers read it and carry out the tasks it creates." (true after the r27 merge). |
+| F08 | Figure 30 step 4 (lines 1561 to 1563) | "Displays recommended resources." | The plan lists a resource checklist (`EventController.php:1460`, `:1540`, `:1609`). Resources on the event itself are free text (`EventController.php:278`, `:393`). | None. The paper says "recommended resources", which the system does. Do not describe resource reservation or availability checks anywhere. |
+| F15 | Figure 46 (lines 2184 to 2188 and 2197) | Every user's Profile has a "Biometric" tab. | Students do not enrol themselves. An Admin or an officer enrols a fingerprint for a member from the users page (`api.php:258`, `AdminUsersPage.jsx:69`) and scans at check-in (`api.php:260` to `262`, `EventsPage.jsx:176` to `195`). The Profile has no Biometric tab (`SettingsPage.jsx`). | Paper: remove "Biometric" from the Figure 46 tab list and from step 5. Add: "Fingerprints are enrolled by an Admin or an officer when a member is registered." Panel: "Enrolment is operator driven so a student cannot enrol someone else's finger." |
+| F15b | Figure 31 and Figure 62 (lines 1570 to 1607, 3543 to 3684) | Optional biometric attendance, verified by a fingerprint scanner. | Built and tested with a stand-in matcher (`SuperAdminFingerprintTest`). It has never been run against the physical reader. `docs/HANDOFF.md` task 10 lists "fingerprint enroll, scan and check-in" as still to do by hand. Manual check-in works and is the fallback (`EventController.php:1386`). | Panel, if the reader is not on the table: "Manual check-in is on every event. Fingerprint is optional and needs the reader, as the paper says on line 672." Run one enrol and one scan on the defense laptop first. |
+
+## 6. Finance (Figures 33 to 36, 64 to 67)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| FIN-1 | Figures 33 and 34 (lines 1641 to 1704), Table 23 lines 5967 to 5976 | The Officer records transactions and manages budget allocation. | The Admin does. An officer does too, but only when the position has its "can handle finance" switch on (`EnsureFinanceWriter.php:20` to `31`). By default that is the Treasurer, the Auditor, the Business Manager and the Secretary (`SboPosition.php:25`). Budgets then go to the dean for approval. The dean and the faculty Adviser read only (`api.php:302`, `:314`). | Paper: "The Admin, and officers whose position carries the finance switch, record transactions and prepare budgets. The Department Head and the Adviser read them." |
+
+## 7. Tasks (Figures 37 to 39, 68 to 70, line 1188)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| F05d | Figures 37 and 38 (lines 1774 to 1837), Table 23 lines 5996 to 6010 | The Officer creates tasks and requests AI recommendations. | Creating, editing and deleting tasks and the AI recommendation are `role:ADMIN` (`api.php:295` to `298`). An officer sees their own tasks and updates their status (`api.php:294`, `:299`). | Paper: "The Admin creates and delegates tasks with AI-assisted recommendations. Officers view and update the tasks assigned to them." |
+| F16a | Figure 39 (lines 1840 to 1871), steps 2 and 3 | The Adviser monitors task completion and performance. | The Department Head has no task board: `GET /tasks` is `role:ADMIN,SBO_OFFICER` (`api.php:294`) and the dean's menu has no Tasks entry (`navigation.js:105` to `117`). The Admin monitors progress. | Paper: delete "Adviser" from Figure 39's triggering actors and step 2. Panel: "Task progress is an operations view. The adviser sees results through events, budgets and reports." |
+| F16b | Line 1188 (Student actor) | The Student "views assigned tasks". | Students have no task page and cannot read `/tasks` (`api.php:294`). Table 23 (lines 5995 to 6015) agrees with the system and gives the Student no task function. | Paper, line 1188: delete "viewing assigned tasks" from the Student sentence. |
+
+## 8. Merchandise (Figures 40 to 42, 71 to 76)
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| F05e | Figure 40 (lines 1874 to 1908), Table 23 lines 6020 to 6024 | The Officer adds, updates and adjusts inventory. | Inventory writes are `role:ADMIN` (`api.php:362` to `366`). Officers process orders, verify payments and release items (`api.php:376` to `379`). | Paper: "The Admin manages the inventory. Officers process orders and release items." |
+| F11b | Figure 42 steps 2 to 3 (lines 1967 to 1974) | The student "requests a claim token". | The token is made when the order is placed (`OrderController.php:517`) and shown to the student once the payment is approved (`OrderController.php:104` to `108`). The student never requests it. The officer validates it at pickup (`api.php:379`) and confirms release (`api.php:378`). | Paper, replace the Student's step 2 with: "The system issues a 16-character claim token with the order. It appears in My Orders once the payment is approved." |
+
+The release notice to the buyer, which was a gap in the 2026-11-27 check, is closed in r26 (`OrderController.php:916` to `925`, notice "Order released"). The paper does not promise it, so no edit is needed.
+
+## 9. Announcements and notifications
+
+| ID | Manuscript | Paper says | System does | Put in the paper, or tell the panel |
+|---|---|---|---|---|
+| ANN-1 | Figure 24 (lines 1335 to 1367), Table 23 lines 5897 to 5901 | The Adviser reviews and publishes advisory announcements (Figure 24), yet the matrix gives Manage Announcements to the Admin and the Officer only. | The Admin, officers and the Department Head may all create and publish (`api.php:163` to `169`). The paper contradicts itself, the system follows Figure 24. | Paper, Table 23: add a star in the Adviser column for Manage Announcements. |
+
+Notifications: until r26 a student signed in on the college profile never saw notices filed under a club, such as "Payment Approved". r26 fixed it (`NotificationVisibility.php`, `User::notificationOrganizationIds`). The paper (Figure 32 step 4) promises notifications and now the system delivers them.
+
+## 10. Closed in r27
+
+These are the items the paper expects and the system lacked. They are built on r27 feature branches. After the merge, check each one in the running app, and add file and line references here.
+
+| ID | Manuscript | What the paper asks for | What r27 adds | Paper edit |
+|---|---|---|---|---|
+| F07 | Figure 29 step 4 (lines 1527 to 1529), line 1510 | "Assigns event personnel": retrieves available personnel and stores the assignments. | An event team: the Admin picks members for an event and the assignment is stored with the event. Before r27 people were assigned only to tasks that came from a confirmed plan. | None. Say: "The Admin assigns event personnel on the event, and tasks are assigned from the plan." |
+| F12 | Figure 30 and Table 23 lines 5943 to 5947 | The Officer works with the AI event plan. | Officers can read the AI event plan and its timeline. Generating and confirming it stay with the Admin (see F05c). | In F05c use the "Officers read it" wording. |
+| F10 | Figure 32 (lines 1609 to 1639), Figure 63 (lines 3685 to 3775) | The paper shows a monthly grid with quick search and an upcoming list. It does not promise week or day views or filters. | Calendar week and day views, and date and category filters on the calendar. Before r27 the date, search and status filters existed only in the list view (`EventsPage.jsx:1457`). | None needed. If an older copy of the paper says "browse by month, week or day" or "filter by date or category", it now matches. |
+| F19 | Figure 25 (lines 1370 to 1402), Figure 53 (lines 2640 to 2683) | Keyword search and category buttons. No date filter is promised. | The category filter already exists (`AnnouncementsFeedPage.jsx:57`). r27 adds a date filter. | None needed. |
+| F09 | Figure 31 step 4 (lines 1600 to 1603), line 1574 ("participation verification") | The system "validates attendance records" and "updates participation status". | Participant eligibility flags at check-in. Before r27 the only check was that the person belongs to the organization (`EventController.php:1416` to `1422`) and the event is approved or ongoing (`EventController.php:1406`). | None needed. The paper does not name paid membership or enrolment. If asked: "Check-in flags participants who are not eligible and lets the officer decide." |
+| REAPP | Not in the paper (see ACT-2) | The paper has no approval figure. | "Changed since you approved it": when an organization edits something the dean already approved and it comes back for review, the dean sees what changed. Before r27 that list showed only after a return (`ChangesSinceReturn.php:175` to `196`). | Add one sentence to the approval use case: "When an approved item is edited and returned for review, the reviewer sees which fields changed." |
+
+## 11. Checked, and not a disagreement
+
+| ID | Why no paper edit is needed |
+|---|---|
+| F13 (Auditor and the audit log) | The paper has no Auditor role. Line 1188 gives the audit log to the Admin, and the system gives it to the Admin and the SAO (`api.php:337` to `338`). Officer titles, including Auditor, appear only as position filters (lines 2747, 2763). |
+| F14 (Adviser is the dean) | Already settled by `docs/PAPER_SCOPE_ADDENDUM.md` decision (c). Covered by ACT-1. |
+| DH-10 (dean votes and buys) | In this export of the paper the Adviser column has no star for Conduct Voting or Manage Orders (Table 23, lines 5919 to 5923 and 6025 to 6029). The system agrees: the dean does not vote or buy (`api.php:373`, `:392`). Say it only if the panel asks: "The dean belongs to a college, not to a club." |
+| STU-12 (students view tasks) | Handled in F16b. |
+| ALL-04 and STU-02 (notification counts) | Closed in r26. |
+| SAO-04 and STU-11 (semester without requirements) | Closed in r26: seeded and activated semesters now get their requirement rows, plus a backfill command. |
+| PRES-09 (check-in form clipped on a phone) | Closed in r26 (check-in form fits a phone). |
+| F18 (the SAO's one grant) | A documented carve-out: the SAO names only the Admin of a university-wide organization, which has no dean (`AccountProfileController.php:197` to `199`). The SAO is not in the paper at all (see ACT-1). Tell Jade in one line and keep it. |
+| F06 (survey data) | Research data for Chapter IV, not code. Objectives 1 and 4 are assessed outside the application (`docs/PAPER_SCOPE_ADDENDUM.md` section 2.2). |
+
+## 12. One-line answers for the panel
+
+- "Why is there no 6-digit code?" The reset link is single use and lasts 60 minutes. It cannot be guessed and saves a step.
+- "Why can an officer not create an event?" The organization Admin owns planning so one person answers for each proposal. Officers check people in and do assigned work.
+- "Where is the Adviser?" The Department Head is the adviser. The faculty Adviser seat is a read-only seat the dean names.
+- "Does fingerprint work?" It is built and tested with a stand-in. Manual check-in is the fallback, and the reader is optional as the paper says.
+- "Who approves what?" Dean first, then the SAO for events that carry SAO files. Reviewers can return an item with written remarks and the organization resubmits.
+- "Can a student see tasks?" No. Table 23 gives the Student no task function.
