@@ -1731,7 +1731,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   type="checkbox"
                   checked={archivedView}
                   onChange={(e) => { const next = { ...txFilters, archived: e.target.checked ? '1' : '' }; setTxFilters(next); load(1, next); }}
-                  className="h-4 w-4 accent-brand-600"
+                  className="h-5 w-5 accent-brand-600"
                 />
                 Show archived
               </label>
