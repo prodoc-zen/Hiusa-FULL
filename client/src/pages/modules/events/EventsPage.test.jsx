@@ -1071,6 +1071,26 @@ describe('EventsPage oversight of attendance and budget use (Fig 31)', () => {
     expect(screen.queryByText('Some event details could not be loaded.')).not.toBeInTheDocument();
   });
 
+  it('clears the load failure notice once a status change fetches the full event for an Admin', async () => {
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, status: 'ongoing' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEvent.mockRejectedValueOnce(new Error('Network down'));
+    eventMocks.updateEventStatus.mockResolvedValue({ data: { id: 7, status: 'completed' } });
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+
+    const panel = await screen.findByRole('dialog', { name: 'Event details' });
+    expect(await within(panel).findByText('Some event details could not be loaded.')).toBeInTheDocument();
+
+    eventMocks.getEvent.mockResolvedValue({ data: detail });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Mark Completed' }));
+
+    await waitFor(() => expect(eventMocks.updateEventStatus).toHaveBeenCalledWith(7, 'completed'));
+    expect(await screen.findByText('Venue and food')).toBeInTheDocument();
+    expect(screen.queryByText('Some event details could not be loaded.')).not.toBeInTheDocument();
+  });
+
   it('shows the dean the empty budget text when the event has no linked budgets', async () => {
     await openDetail('DEPARTMENT_HEAD', { ...detail, budgets: [], financial_summary: undefined, requires_budget: false });
 
