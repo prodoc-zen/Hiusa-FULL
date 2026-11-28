@@ -13,6 +13,7 @@ use App\Models\FingerprintVerification;
 use App\Models\User;
 use App\Services\FingerprintTemplateService;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,7 @@ class FingerprintController extends Controller
 
     public function store(Request $request, $id): JsonResponse
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $user = $this->organizationMembers($request)->find($id);
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
@@ -84,7 +85,7 @@ class FingerprintController extends Controller
 
     public function destroy(Request $request, $id): JsonResponse
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $user = $this->organizationMembers($request)->find($id);
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
@@ -133,7 +134,7 @@ class FingerprintController extends Controller
             return $result;
         }
 
-        $user = User::where('organization_id', $request->user()->organization_id)
+        $user = $this->organizationMembers($request)
             ->where('school_id', $result['user']['school_id'])
             ->firstOrFail();
 
@@ -201,7 +202,7 @@ class FingerprintController extends Controller
             return response()->json(['message' => 'This fingerprint confirmation expired. Scan the finger again.'], 422);
         }
 
-        $user = User::where('organization_id', $request->user()->organization_id)
+        $user = $this->organizationMembers($request)
             ->where('school_id', $confirmation['user_id'] ?? null)
             ->where('account_status', 'active')
             ->first();
@@ -293,13 +294,16 @@ class FingerprintController extends Controller
     private function matchWithinOrganization(Request $request, array $data, ?int $eventId = null): array|JsonResponse
     {
         $templateFormat = config('fingerprint.http.template_format');
+        $organizationId = $request->user()->organization_id;
         $department = trim((string) $request->user()->organization?->college);
         $fingerprints = Fingerprint::query()
-            ->where('organization_id', $request->user()->organization_id)
+            ->where('organization_id', $organizationId)
             ->where('template_format', $templateFormat)
-            ->whereHas('user', function ($query) use ($data, $department, $eventId) {
-                $query->where('account_status', 'active');
+            ->whereHas('user', function ($query) use ($data, $department, $eventId, $organizationId) {
+                $query->where('account_status', 'active')
+                    ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('account_status', 'active'));
                 if ($eventId !== null) {
+                    // The account's own role says the person is a student; an officer seat in this organization does not change that.
                     $query->where('role', 'STUDENT');
                     if ($department !== '') {
                         $query->where('department', $department);
@@ -426,6 +430,14 @@ class FingerprintController extends Controller
                 'matcher_ms' => $matches['elapsed_ms'] ?? null,
             ],
         ];
+    }
+
+    /** People who belong to the acting organization through an active account profile, wherever their account lives. */
+    private function organizationMembers(Request $request): Builder
+    {
+        return User::whereHas('accountProfiles', fn ($profiles) => $profiles
+            ->where('organization_id', $request->user()->organization_id)
+            ->where('account_status', 'active'));
     }
 
     private function attendanceAction(?Attendance $record): string
