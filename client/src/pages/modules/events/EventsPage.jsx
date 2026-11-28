@@ -54,6 +54,7 @@ import EventSubmissionPanel from '../../../components/events/EventSubmissionPane
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
 import EventPlanReadOnly from '../../../components/events/EventPlanReadOnly';
 import EligibilityBadges from '../../../components/events/EligibilityBadges';
+import EventTeamPanel from '../../../components/events/EventTeamPanel';
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, SEND_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
@@ -2085,6 +2086,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 {!selectedFlow && isReturned(selectedEvent) && selectedEvent.approval_remarks && <p className="border-t border-line pt-4 text-danger-strong"><span className="font-semibold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
                 {currentUserRole === 'SBO_OFFICER' && <EventPlanReadOnly eventId={selectedEvent.id} />}
                 <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
+                <EventTeamPanel event={selectedEvent} role={currentUserRole} />
                 {!filesAtStage && eventFilesPanel}
               </div>
             )}
