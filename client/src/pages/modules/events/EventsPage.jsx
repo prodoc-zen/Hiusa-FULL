@@ -419,6 +419,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [submissionVersion, setSubmissionVersion] = useState(0);
   const detailsRequestRef = useRef(0);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError] = useState(null);
   const [editingEventId, setEditingEventId] = useState(null);
@@ -878,6 +879,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     detailsRequestRef.current = requestId;
     setSelectedEvent(event);
     setDetailsLoading(true);
+    setDetailsError(false);
     setStatusError(null);
     try {
       const response = await getEvent(event.id);
@@ -891,6 +893,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         return;
       }
       setSelectedEvent(event);
+      setDetailsError(true);
     } finally {
       if (detailsRequestRef.current === requestId) setDetailsLoading(false);
     }
@@ -900,6 +903,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     detailsRequestRef.current += 1;
     setSelectedEvent(null);
     setDetailsLoading(false);
+    setDetailsError(false);
   }
 
   function closeEventDetails() {
@@ -1971,6 +1975,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div role="status" aria-label="Loading event details"><SkeletonText lines={4} /></div>
             ) : (
               <div className="space-y-5 text-sm text-ink-muted-strong">
+                {detailsError && (
+                  <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-danger-strong">Some event details could not be loaded.</p>
+                    <Button variant="secondary" className="min-h-[42px]" onClick={() => loadEventDetails(selectedEvent)}>Try again</Button>
+                  </div>
+                )}
                 <dl className="grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">Schedule</dt><dd className="mt-0.5 text-ink">{formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</dd></div>
                   <div><dt className="text-xs text-ink-muted">Location</dt><dd className="mt-0.5 text-ink">{selectedEvent.location || ''}</dd></div>
