@@ -99,6 +99,102 @@ class ChangesSinceReturnTest extends TestCase
         $this->assertSame([], $this->listed($admin, $eventId, 'event', 'DEPARTMENT_HEAD', 'submitted')['changes_since_return'], 'The organization is not shown the list.');
     }
 
+    private function submittedEventHeldByTheHead(): array
+    {
+        Storage::fake('local');
+        config(['performance.api_cache.enabled' => false]);
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $head = $this->makeCollegeHead($college);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $proposal = EventRequirement::create(['name' => 'Event proposal', 'allowed_extensions' => ['pdf'], 'is_active' => true, 'is_optional' => false, 'venue_type' => 'all', 'sort_order' => 1]);
+
+        Sanctum::actingAs($admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'Leadership Camp',
+            'start_time' => now()->addWeek()->setTime(9, 0)->toDateTimeString(),
+            'end_time' => now()->addWeek()->setTime(11, 0)->toDateTimeString(),
+        ])->assertCreated()->json('id');
+        $this->post('/api/events/'.$eventId.'/submission', ['documents' => [$proposal->id => UploadedFile::fake()->create('proposal-v1.pdf', 20, 'application/pdf')]], ['Accept' => 'application/json'])->assertOk();
+
+        return [$head, $admin, $eventId, ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail()];
+    }
+
+    public function test_an_event_the_head_approved_and_the_admin_then_rescheduled_lists_what_changed_since_the_approval(): void
+    {
+        [$head, $admin, $eventId, $headRow] = $this->submittedEventHeldByTheHead();
+        $fileId = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD')['summary']['requirement_files'][0]['id'];
+        $this->decide($head, $headRow, 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/events/'.$eventId, ['start_time' => now()->addWeeks(2)->setTime(9, 0)->toDateTimeString(), 'end_time' => now()->addWeeks(2)->setTime(11, 0)->toDateTimeString()])->assertOk();
+        $this->assertSame('pending', $headRow->fresh()->status, 'The material edit took the event back to the head.');
+
+        $row = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD');
+        $this->assertSame('approved', $row['changes_since']);
+        $this->assertSame(['Start', 'End'], $this->labels($row['changes_since_return']));
+        $this->assertSame(now()->addWeek()->setTime(9, 0)->format('M j, Y g:i A'), $this->change($row['changes_since_return'], 'start_time')['before']);
+
+        Sanctum::actingAs($head);
+        $this->getJson('/api/approval-requests/'.$headRow->id)->assertOk()->assertJsonPath('changes_since', 'approved')->assertJsonPath('changes_since_return.0.label', 'Start');
+
+        $own = $this->listed($admin, $eventId, 'event', 'DEPARTMENT_HEAD', 'submitted');
+        $this->assertSame([], $own['changes_since_return'], 'The organization is not shown the list.');
+        $this->assertNull($own['changes_since']);
+    }
+
+    public function test_an_event_returned_then_resent_keeps_the_returned_anchor_even_if_it_was_approved_before(): void
+    {
+        [$head, $admin, $eventId, $headRow] = $this->submittedEventHeldByTheHead();
+        $fileId = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD')['summary']['requirement_files'][0]['id'];
+        $this->decide($head, $headRow, 'approved', ['files' => [['id' => $fileId, 'status' => 'ok']]])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/events/'.$eventId, ['location' => 'Gym'])->assertOk();
+        $this->decide($head, $headRow->fresh(), 'rejected')->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/events/'.$eventId, ['title' => 'Leadership Camp 2026'])->assertOk();
+
+        $row = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD');
+        $this->assertSame('returned', $row['changes_since']);
+        $this->assertSame(['Title'], $this->labels($row['changes_since_return']), 'Only what changed since the return, not since the earlier approval.');
+    }
+
+    public function test_an_event_never_approved_or_returned_shows_no_change_list(): void
+    {
+        [$head, $admin, $eventId] = $this->submittedEventHeldByTheHead();
+        $this->putJson('/api/events/'.$eventId, ['title' => 'Leadership Camp 2026'])->assertOk();
+
+        $row = $this->listed($head, $eventId, 'event', 'DEPARTMENT_HEAD');
+        $this->assertSame([], $row['changes_since_return']);
+        $this->assertNull($row['changes_since']);
+    }
+
+    public function test_an_election_that_changed_after_the_reviewer_approved_it_lists_the_changes_since_that_approval(): void
+    {
+        $organization = Organization::factory()->create();
+        $election = Election::factory()->create(['organization_id' => $organization->id]);
+        $requester = User::factory()->admin()->create(['organization_id' => $organization->id])->school_id;
+        $row = fn (string $status) => ApprovalRequest::create([
+            'organization_id' => $organization->id, 'entity_type' => 'election', 'entity_id' => $election->id,
+            'requested_by' => $requester, 'required_role' => 'SUPER_ADMIN', 'status' => $status,
+        ]);
+        $log = fn (string $module, string $action, string $type, int $id, ?array $old, ?array $new) => AuditLog::create([
+            'organization_id' => $organization->id, 'module' => $module, 'action' => $action, 'record_type' => $type, 'record_id' => $id,
+            'old_values' => $old, 'new_values' => $new, 'created_at' => now(),
+        ]);
+        $approved = $row('approved');
+        $log('elections', 'updated', Election::class, $election->id, ['title' => 'Before'], ['title' => 'Draft']);
+        $log('approvals', 'reviewed_approved', ApprovalRequest::class, $approved->id, null, ['status' => 'approved']);
+        $log('elections', 'updated', Election::class, $election->id, ['start_time' => '2026-12-01T01:00:00.000000Z'], ['start_time' => '2026-12-02T01:00:00.000000Z']);
+        $reopened = $row('pending');
+
+        $described = app(ChangesSinceReturn::class)->describeApprovals(collect([$reopened]))[$reopened->id];
+
+        $this->assertSame('approved', $described['since']);
+        $this->assertSame(['Voting opens'], $this->labels($described['changes']), 'The title edit came before the approval.');
+    }
+
     public function test_the_sao_sees_only_what_changed_since_its_own_return(): void
     {
         Storage::fake('local');
@@ -253,7 +349,9 @@ class ChangesSinceReturnTest extends TestCase
         $log('budgets', 'updated', 'App\Models\Budget', 1, ['title' => 'A'], ['title' => 'B']);
         $log('approvals', 'reviewed_approved', ApprovalRequest::class, $approval->id);
         $log('budgets', 'updated', 'App\Models\Budget', 1, ['title' => 'B'], ['title' => 'C']);
-        $this->assertSame([], $service->forApprovals(collect([$approval])), 'The last decision was an approval, so a reopen is not a return.');
+        $changes = $service->describeApprovals(collect([$approval]))[$approval->id];
+        $this->assertSame('approved', $changes['since'], 'The last decision was an approval an edit took back, so the list is measured from it.');
+        $this->assertSame([['field' => 'title', 'label' => 'Title', 'before' => 'B', 'after' => 'C']], $changes['changes']);
 
         $log('approvals', 'reviewed_rejected', ApprovalRequest::class, $approval->id);
         $log('budgets', 'updated', 'App\Models\Budget', 1, ['title' => 'C', 'allocated_amount' => '5.00'], ['title' => 'D', 'allocated_amount' => '5.00']);

@@ -559,6 +559,16 @@ describe('ApprovalDetailDrawer changes since the return', () => {
     ]);
   });
 
+  it('words the note from the approval when the request says the list is measured from it', () => {
+    const { drawer } = renderDrawer({ request: request({ changes_since: 'approved', changes_since_return: [
+      { field: 'start_time', label: 'Start', before: 'Nov 20', after: 'Nov 27' },
+    ] }) });
+
+    const note = within(drawer).getByRole('region', { name: 'Changed since you approved it' });
+    expect(within(note).getByRole('listitem')).toHaveTextContent('Start: Nov 20 to Nov 27');
+    expect(within(drawer).queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();
+  });
+
   it('shows no note when the request carries no list, as it does for the organization', () => {
     const { drawer } = renderDrawer();
     expect(within(drawer).queryByRole('region', { name: 'Changed since you returned it' })).not.toBeInTheDocument();

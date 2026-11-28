@@ -15,14 +15,17 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * What an organization changed after a reviewer returned its work, read from the audit log so no second
- * record of it exists. Every method returns a list of {field, label, before?, after?}: before and after
+ * What an organization changed after a reviewer returned its work, or after a reviewer's own approval was taken
+ * back by an edit, read from the audit log so no second record of it exists. Every method returns a list of {field, label, before?, after?}: before and after
  * only when both are short enough to read in a line, and never for files, which are named in the label.
  * A reviewer gets the list on the screen they decide from; the submitter never does.
  */
 class ChangesSinceReturn
 {
     private const SHORT = 80;
+
+    /** Flows that open a new approval row, not the old one again, when work comes back to a reviewer, and which decisions on the earlier rows anchor the list. */
+    private const NEW_ROW_FLOWS = ['financial_report' => ['rejected'], 'election' => ['approved', 'rejected']];
 
     /** Where each approval flow keeps the audit rows that say what its submitter edited. */
     private const SOURCES = [
@@ -85,12 +88,24 @@ class ChangesSinceReturn
     private const NO_VALUES = ['image_url', 'planning_details.venue_id', 'event_id', 'financial_semester_id', 'rules'];
 
     /**
-     * For every approval still waiting on a reviewer whose last decision was a return.
+     * For every approval still waiting on a reviewer whose last decision was a return or their own approval.
      *
      * @param  Collection<int, ApprovalRequest>  $approvals
      * @return array<int, list<array<string, string>>> keyed by approval id
      */
     public function forApprovals(Collection $approvals): array
+    {
+        return array_map(fn (array $described) => $described['changes'], $this->describeApprovals($approvals));
+    }
+
+    /**
+     * The same lists with what they are measured from: 'returned' when the reviewer sent the work back,
+     * 'approved' when the reviewer had approved it and an edit then put it in front of them again.
+     *
+     * @param  Collection<int, ApprovalRequest>  $approvals
+     * @return array<int, array{since: string, changes: list<array<string, string>>}> keyed by approval id
+     */
+    public function describeApprovals(Collection $approvals): array
     {
         $pending = $approvals->filter(fn (ApprovalRequest $approval) => $approval->status === 'pending' && isset(self::SOURCES[$approval->entity_type]));
         $anchors = $pending->isEmpty() ? [] : $this->returns($pending);
@@ -103,10 +118,10 @@ class ChangesSinceReturn
                 ->orderBy('id')->get()->groupBy('record_id');
             foreach ($group as $approval) {
                 $since = ($rows->get($approval->entity_id) ?? collect())->filter(fn (AuditLog $row) => $row->id > $anchors[$approval->id]->id)->values();
-                $changes[$approval->id] = $type === 'financial_report'
+                $changes[$approval->id] = ['since' => $anchors[$approval->id]->action === 'reviewed_approved' ? 'approved' : 'returned', 'changes' => $type === 'financial_report'
                     ? $this->addedDocuments($since)
                     : [...$this->diff($since->reject(fn (AuditLog $row) => str_starts_with($row->action, 'event_file_')), self::LABELS[$type]),
-                        ...$this->fileChanges($since->filter(fn (AuditLog $row) => str_starts_with($row->action, 'event_file_')), 'original_name', 'requirement')];
+                        ...$this->fileChanges($since->filter(fn (AuditLog $row) => str_starts_with($row->action, 'event_file_')), 'original_name', 'requirement')]];
             }
         }
 
@@ -171,14 +186,23 @@ class ChangesSinceReturn
         return $changes;
     }
 
-    /** The latest return of each pending approval. A financial report is submitted as a new row each time, so its return sits on an earlier row. */
+    /**
+     * The latest decision of each pending approval when it was a return, or an approval that an edit has since taken back.
+     * A financial report is submitted as a new row each time, and an approved election that changes gets a new row, so
+     * the decision sits on an earlier row.
+     */
     private function returns(Collection $pending): array
     {
-        $reports = $pending->where('entity_type', 'financial_report');
-        $earlier = $reports->isEmpty() ? collect() : ApprovalRequest::where('entity_type', 'financial_report')->where('status', 'rejected')
-            ->whereIn('entity_id', $reports->pluck('entity_id')->unique()->all())->get(['id', 'entity_id']);
-        $candidates = $pending->mapWithKeys(fn (ApprovalRequest $approval) => [$approval->id => $approval->entity_type === 'financial_report'
-            ? $earlier->where('entity_id', $approval->entity_id)->where('id', '<', $approval->id)->pluck('id')->all()
+        $earlier = collect();
+        foreach (self::NEW_ROW_FLOWS as $type => $decisions) {
+            $rows = $pending->where('entity_type', $type);
+            if ($rows->isNotEmpty()) {
+                $earlier = $earlier->concat(ApprovalRequest::where('entity_type', $type)->whereIn('status', $decisions)
+                    ->whereIn('entity_id', $rows->pluck('entity_id')->unique()->all())->get(['id', 'entity_type', 'entity_id']));
+            }
+        }
+        $candidates = $pending->mapWithKeys(fn (ApprovalRequest $approval) => [$approval->id => isset(self::NEW_ROW_FLOWS[$approval->entity_type])
+            ? $earlier->where('entity_type', $approval->entity_type)->where('entity_id', $approval->entity_id)->where('id', '<', $approval->id)->pluck('id')->push($approval->id)->all()
             : [$approval->id]]);
         $logs = AuditLog::where('module', 'approvals')->where('record_type', ApprovalRequest::class)
             ->whereIn('action', ['reviewed_approved', 'reviewed_rejected'])->whereIn('record_id', $candidates->flatten()->all())
@@ -187,7 +211,7 @@ class ChangesSinceReturn
         $anchors = [];
         foreach ($candidates as $approvalId => $ids) {
             $latest = $logs->whereIn('record_id', $ids)->last();
-            if ($latest?->action === 'reviewed_rejected') {
+            if ($latest !== null) {
                 $anchors[$approvalId] = $latest;
             }
         }
