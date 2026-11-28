@@ -521,7 +521,7 @@ export default function EventRequirementsTab({ mode = 'settings', organizationId
                 </div>
                 {selectedEventId === approval.entity_id && (
                   <div className="mt-3 space-y-2">
-                    <ChangesSinceReturn changes={approval.changes_since_return} />
+                    <ChangesSinceReturn changes={approval.changes_since_return} since={approval.changes_since} />
                     {filesOf(approval).length === 0
                       ? <p className="text-sm text-ink-muted-strong">No files have been submitted for this event.</p>
                       : <EventFilesReview framed={false} files={filesOf(approval)} actionable marks={marks} notes={notes} onMark={(id, value) => markFile(approval, id, value)} onMarkAll={(ids, value) => markAll(approval, ids, value)} onNote={(id, value) => setNotes((current) => ({ ...current, [id]: value }))} />}

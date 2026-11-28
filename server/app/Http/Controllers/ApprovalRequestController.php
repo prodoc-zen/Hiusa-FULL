@@ -726,10 +726,11 @@ class ApprovalRequestController extends Controller
 
         // Only the people who decide are told what changed since they returned it, never the organization that changed it.
         $role = request()->user()?->approvalRole();
-        $changes = $this->changesSinceReturn->forApprovals(collect($approvals->all())
+        $described = $this->changesSinceReturn->describeApprovals(collect($approvals->all())
             ->filter(fn (ApprovalRequest $approval) => $role === 'SUPER_ADMIN' || ($role !== null && $approval->required_role === $role)));
         foreach ($approvals as $approval) {
-            $approval->changes_since_return = $changes[$approval->id] ?? [];
+            $approval->changes_since_return = $described[$approval->id]['changes'] ?? [];
+            $approval->changes_since = $described[$approval->id]['since'] ?? null;
         }
     }
 
