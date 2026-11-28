@@ -5,8 +5,11 @@
 .hiusa-toaster [data-sonner-toast] {
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(11, 24, 49, .08);
-  padding-right: 40px;
 }
+/* Room for the 42px close box: sonner's own padding: 16px rule is injected after the built stylesheet, so the extra [data-styled=true] is needed to win in production. */
+.hiusa-toaster [data-sonner-toast][data-styled=true] { padding-right: 44px; }
+.hiusa-toaster[dir=rtl] [data-sonner-toast][data-styled=true] { padding-right: 16px; padding-left: 44px; }
+.hiusa-toaster[dir=rtl] [data-sonner-toast][data-styled=true] [data-close-button] { left: 0; right: auto; }
 /* Sonner injects its own close-button rules at module load, after the built stylesheet; the extra [data-styled=true] keeps these ahead of them in production. */
 .hiusa-toaster [data-sonner-toast][data-styled=true] [data-close-button] {
   left: auto;
