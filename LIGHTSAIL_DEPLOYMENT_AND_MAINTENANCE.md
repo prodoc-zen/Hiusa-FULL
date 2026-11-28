@@ -154,11 +154,12 @@ Fingerprint matcher:
 cd /var/www/hiusa/fingerprint-matcher
 dotnet restore
 dotnet publish -c Release -o publish
-cp .env.example .env
-nano .env
+sudo install -d -m 755 /etc/hiusa
+sudo install -o root -g www-data -m 640 .env.example /etc/hiusa/fingerprint.env
+sudo nano /etc/hiusa/fingerprint.env
 ```
 
-Set `MATCHER_API_KEY` to Laravel's `FINGERPRINT_MATCHER_KEY` and `ASPNETCORE_URLS=http://127.0.0.1:9100`. Protect the matcher `.env` with `sudo chown "$USER":www-data .env` and `sudo chmod 640 .env` after saving it. The .NET process reads environment variables from its service manager, so the matcher systemd unit needs `EnvironmentFile=/var/www/hiusa/fingerprint-matcher/.env`. FastAPI's `run.py` loads its own `.env`.
+Set `MATCHER_API_KEY` to Laravel's `FINGERPRINT_MATCHER_KEY` and `ASPNETCORE_URLS=http://127.0.0.1:9100`. The matcher env file lives outside the web root at `/etc/hiusa/fingerprint.env`, owned by `root:www-data` with mode 640 (check with `sudo stat -c '%U:%G %a' /etc/hiusa/fingerprint.env`). Its keys are `MATCHER_API_KEY`, `ASPNETCORE_URLS`, `MATCH_THRESHOLD`, `ENROLLMENT_CONSISTENCY_THRESHOLD`, `FINGERPRINT_DPI` and `TEMPLATE_CACHE_SIZE`. The .NET process reads environment variables from its service manager, so the matcher systemd unit needs `EnvironmentFile=/etc/hiusa/fingerprint.env`, with no `-` prefix, so a missing file stops the unit instead of leaving the matcher running without its key. FastAPI's `run.py` loads its own `.env`.
 
 On an existing Lightsail instance, inspect the already installed units before changing them:
 
@@ -189,15 +190,21 @@ WantedBy=multi-user.target
 
 ```ini
 [Unit]
-Description=HIUSA private fingerprint matcher
+Description=HIUSA SourceAFIS fingerprint matcher
 After=network.target
+Wants=network.target
 
 [Service]
+Type=simple
 User=www-data
-WorkingDirectory=/var/www/hiusa/fingerprint-matcher
-EnvironmentFile=/var/www/hiusa/fingerprint-matcher/.env
+Group=www-data
+WorkingDirectory=/var/www/hiusa/fingerprint-matcher/publish
+EnvironmentFile=/etc/hiusa/fingerprint.env
 ExecStart=/usr/bin/dotnet /var/www/hiusa/fingerprint-matcher/publish/SourceAfisMatcher.dll
 Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
