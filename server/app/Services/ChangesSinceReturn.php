@@ -25,7 +25,7 @@ class ChangesSinceReturn
     private const SHORT = 80;
 
     /** Flows that open a new approval row, not the old one again, when work comes back to a reviewer, and which decisions on the earlier rows anchor the list. */
-    private const NEW_ROW_FLOWS = ['financial_report' => ['rejected'], 'election' => ['approved', 'rejected']];
+    private const NEW_ROW_FLOWS = ['financial_report' => ['rejected'], 'election' => ['approved', 'rejected'], 'budget' => ['approved']];
 
     /** Where each approval flow keeps the audit rows that say what its submitter edited. */
     private const SOURCES = [
@@ -210,13 +210,27 @@ class ChangesSinceReturn
 
         $anchors = [];
         foreach ($candidates as $approvalId => $ids) {
-            $latest = $logs->whereIn('record_id', $ids)->last();
+            $latest = $this->ownDecisions($logs->whereIn('record_id', $ids), $pending->firstWhere('id', $approvalId))->last();
             if ($latest !== null) {
                 $anchors[$approvalId] = $latest;
             }
         }
 
         return $anchors;
+    }
+
+    /**
+     * A budget can pass through two reviewers, and the later one's decision sits on the same row the earlier one is sent
+     * back to, so a decision counts for the reviewer in front of the budget only when a reviewer of that stage made it.
+     */
+    private function ownDecisions(Collection $decisions, ApprovalRequest $approval): Collection
+    {
+        $final = config('approvals.budget_final');
+        if ($approval->entity_type !== 'budget' || ! $final) {
+            return $decisions;
+        }
+
+        return $decisions->filter(fn (AuditLog $log) => ($log->actor_role === $final) === ($approval->required_role === $final));
     }
 
     /**

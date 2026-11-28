@@ -290,6 +290,53 @@ class ChangesSinceReturnTest extends TestCase
         $this->assertSame([['field' => 'allocated_amount', 'label' => 'Allocated amount', 'before' => '800.00', 'after' => '900.00']], $changes);
     }
 
+    /** @return array{0: User, 1: User, 2: User, 3: int, 4: ApprovalRequest} the admin, head and SAO, the budget the head approved, and the head's row */
+    private function budgetApprovedByTheHeadAndWaitingOnTheSao(): array
+    {
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
+        $organization = Organization::factory()->create();
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $head = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+
+        Sanctum::actingAs($admin);
+        $budgetId = $this->postJson('/api/budgets', ['title' => 'Recognition Night', 'allocated_amount' => 800, 'warning_threshold' => 150])->assertCreated()->json('id');
+        $headRow = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
+        $this->decide($head, $headRow, 'approved')->assertOk();
+
+        return [$admin, $head, $superAdmin, $budgetId, $headRow];
+    }
+
+    public function test_a_budget_the_head_approved_and_the_admin_changed_while_it_waited_on_the_sao_lists_the_change_since_the_heads_approval(): void
+    {
+        [$admin, $head, , $budgetId] = $this->budgetApprovedByTheHeadAndWaitingOnTheSao();
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/budgets/'.$budgetId, ['allocated_amount' => 900])->assertOk();
+
+        $row = $this->listed($head, $budgetId, 'budget', 'DEPARTMENT_HEAD');
+        $this->assertSame('approved', $row['changes_since']);
+        $this->assertSame([['field' => 'allocated_amount', 'label' => 'Allocated amount', 'before' => '800.00', 'after' => '900.00']], $row['changes_since_return']);
+    }
+
+    public function test_a_budget_the_sao_returned_is_still_measured_from_the_heads_own_approval(): void
+    {
+        [$admin, $head, $superAdmin, $budgetId] = $this->budgetApprovedByTheHeadAndWaitingOnTheSao();
+        $saoRow = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
+
+        $this->assertSame([], $this->listed($superAdmin, $budgetId, 'budget', 'SUPER_ADMIN')['changes_since_return'], 'The head approving first is not the SAO approving.');
+        $this->assertNull($this->listed($superAdmin, $budgetId, 'budget', 'SUPER_ADMIN')['changes_since']);
+
+        $this->decide($superAdmin, $saoRow, 'rejected')->assertOk();
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/budgets/'.$budgetId, ['allocated_amount' => 900])->assertOk();
+
+        $row = $this->listed($head, $budgetId, 'budget', 'DEPARTMENT_HEAD');
+        $this->assertSame('approved', $row['changes_since'], 'The SAO return is not the head\'s decision.');
+        $this->assertSame(['Allocated amount'], $this->labels($row['changes_since_return']));
+    }
+
     public function test_an_announcement_resent_after_a_return_lists_the_changed_message(): void
     {
         $organization = Organization::factory()->create();
