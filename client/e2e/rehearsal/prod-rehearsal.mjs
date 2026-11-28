@@ -162,6 +162,13 @@ async function closePerson(key) {
 async function waitSettled(page) {
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
   await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0, null, { timeout: 20000 }).catch(() => {});
+  // A loading skeleton is role=status with an aria-label starting "Loading" and carries no aria-busy; it is not a settled page.
+  await page.waitForFunction(() => !Array.from(document.querySelectorAll('[role="status"][aria-label^="Loading"]')).some((node) => node.getClientRects().length > 0), null, { timeout: 20000 }).catch(() => {});
+}
+
+// The strip under the top bar reads "<Role> workspace" then the organization name (WorkspaceBanner.jsx, aside aria-label="Workspace").
+function orgBanner(page) {
+  return page.locator('aside[aria-label="Workspace"]').filter({ hasText: new RegExp(ORG.name, 'i') });
 }
 
 async function measure(page) {
@@ -379,8 +386,9 @@ await step('sao_login', 'Rehearsal SAO signs in by email and lands on the SAO da
   if (!session.ok) throw new Error(`SAO sign-in answered ${session.status}`);
   const page = people.get('sao').page;
   if (!/\/dashboard\/super-admin/.test(page.url())) rec.defect('app_bug', `SAO landed on ${routeOf(page.url())}, not the SAO dashboard.`, ['client/src/App.jsx']);
-  const tracker = page.getByRole('region', { name: 'Where you are in the process' });
-  await tracker.waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The SAO dashboard has no process tracker region.', ['client/src/components/process/ProcessTracker.jsx']));
+  // ProcessTracker.jsx shows the "Where you are in the process" section while steps remain, and a "Setup complete" status once they are done.
+  const tracker = page.getByRole('region', { name: 'Where you are in the process' }).or(page.getByRole('status').filter({ hasText: /^Setup complete$/ })).first();
+  await tracker.waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The SAO dashboard has no process tracker region and no "Setup complete" status.', ['client/src/components/process/ProcessTracker.jsx']));
   if (await tracker.count()) rec.evidence.push(`tracker: ${(await tracker.innerText()).replace(/\s+/g, ' ').slice(0, 200)}`);
   rec.evidence.push(`landed on ${routeOf(page.url())}`);
   await shot('sao', 'dashboard', rec);
@@ -1066,7 +1074,7 @@ async function switchToOrganization(who, rec) {
     }
     rec && (await shot(who, 'profiles-open', rec));
     await orgProfile.first().click();
-    await page.getByText(new RegExp(`Viewing ${ORG.name}`)).first().waitFor({ state: 'visible', timeout: 25000 });
+    await orgBanner(page).first().waitFor({ state: 'visible', timeout: 25000 });
     await waitSettled(page);
     return page;
   }
@@ -1203,18 +1211,24 @@ async function verifyHandover(rec, resultsWho, resultsPage) {
   await waitSettled(resultsPage);
   const listed = resultsPage.getByRole('link', { name: /^Election of officers/i }).or(resultsPage.getByRole('button', { name: /^Election of officers/i })).first();
   if (await listed.count()) { await listed.click(); await waitSettled(resultsPage); }
-  await resultsPage.getByText(/^Access handed over$/i).waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The results page does not say "Access handed over" after the results were released.', ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
+  // Under tally_version 2 the winner is staged: the results page says "Upcoming officer, access starts <date>" (ElectionResultsPage.jsx officerAccessLine).
+  await resultsPage.getByText(/^Upcoming officer, access starts /i).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The results page does not say "Upcoming officer, access starts <date>" after the results were released.', ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
   await shot(resultsWho, 'results', rec);
-  // Winner C holds the head access; outgoing A holds none for the same position (contract S5).
+  // The winner C holds an upcoming President appointment (no active head profile yet); outgoing A stays the active ADMIN until the term starts.
+  const electionId = readCreds().election?.id;
+  const results = electionId ? (await api(resultsWho, 'GET', `/elections/${electionId}/results`)).body : null;
+  const presidency = Array.isArray(results) ? results.find((item) => item.position?.title === 'President') : null;
+  rec.evidence.push(`President appointment: ${presidency ? `${presidency.officer_access ?? 'none'}, term starts ${presidency.term_starts_on ?? 'unset'}` : 'no President result'}`);
+  if (presidency?.officer_access !== 'upcoming') rec.defect('app_bug', `The winner's President appointment is "${presidency?.officer_access ?? 'missing'}", not upcoming, right after the results were released.`, ['server/app/Services/ElectionHandoverService.php', 'server/app/Services/OfficerAppointmentService.php']);
   const profilesOf = async (who) => (await api(who, 'GET', '/user/profiles')).body?.profiles ?? [];
   const cProfiles = await profilesOf('c');
   const cWon = cProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
-  rec.evidence.push(`winner C: ${cWon ? `${cWon.role} ${cWon.position_title} ${cWon.account_status}` : 'no President profile'}`);
-  if (!cWon || cWon.account_status !== 'active' || cWon.role !== 'ADMIN') rec.defect('app_bug', 'The winner did not get active organization head access for President.', ['server/app/Services/ElectionHandoverService.php']);
+  rec.evidence.push(`winner C: ${cWon ? `${cWon.role} ${cWon.position_title} ${cWon.account_status}` : 'no President profile yet'}`);
+  if (cWon && cWon.account_status === 'active' && cWon.role === 'ADMIN') rec.defect('app_bug', 'The winner already holds active organization head access before the term starts.', ['server/app/Services/OfficerAppointmentService.php']);
   const aProfiles = await profilesOf('a');
   const aOld = aProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
   rec.evidence.push(`outgoing A: ${aOld ? `${aOld.role} ${aOld.position_title} ${aOld.account_status}` : 'no President profile left'}`);
-  if (aOld && aOld.account_status === 'active') rec.defect('app_bug', 'The outgoing President still has active access after the handover.', ['server/app/Services/ElectionHandoverService.php']);
+  if (!aOld || aOld.account_status !== 'active' || aOld.role !== 'ADMIN') rec.defect('app_bug', 'The outgoing President lost active head access before the term start.', ['server/app/Services/ElectionHandoverService.php']);
   const cPage = await switchToOrganization('c', rec);
   await cPage.getByRole('navigation').getByRole('link', { name: 'Dashboard' }).first().click();
   await waitSettled(cPage);
@@ -1258,6 +1272,11 @@ await step('election_handover', 'In the org: an election for President with cand
     await aPage.getByLabel('Election title').waitFor({ state: 'visible' });
     await aPage.getByLabel('Election title').fill(title);
     const plannedDay = new Date(semStart + 8 * 3600 * 1000 + 4 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    // The form opens with "Students file their own candidacy" on; the admin adds the candidates here, so it goes off first.
+    const filingSwitch = aPage.getByRole('switch', { name: 'Students file their own candidacy' });
+    await filingSwitch.waitFor({ state: 'visible', timeout: 10000 });
+    if ((await filingSwitch.getAttribute('aria-checked')) === 'true') await filingSwitch.click();
+    if ((await filingSwitch.getAttribute('aria-checked')) !== 'false') throw new Error('the "Students file their own candidacy" switch did not turn off');
     await aPage.getByLabel('Voting starts').fill(todayInside ? manilaLocal(4 * 60 * 1000) : `${plannedDay}T09:00`);
     await aPage.getByLabel('Voting ends').fill(todayInside ? manilaLocal(11 * 60 * 1000) : `${plannedDay}T17:00`);
     await aPage.getByLabel('Position 1 title').fill('President');
@@ -1293,9 +1312,7 @@ await step('election_handover', 'In the org: an election for President with cand
     await shot('dean', 'approval-open', rec);
     await dp.getByRole('button', { name: /^Approve/ }).first().click();
     await shot('dean', 'approve-confirm', rec);
-    const confirm = dp.getByRole('dialog').getByRole('button', { name: /^Approve/ });
-    if (await confirm.count()) await confirm.last().click();
-    else await dp.getByRole('button', { name: /^Approve/ }).last().click();
+    await dp.getByText('Request approved.').first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The dean approving the election request shows no "Request approved." toast.', ['client/src/pages/roles/department-head/DepartmentHeadApprovalsPage.jsx']));
     await waitSettled(dp);
     await dp.waitForTimeout(1200);
     await shot('dean', 'approved', rec);
@@ -1378,7 +1395,7 @@ await step('election_handover', 'In the org: an election for President with cand
     await switchToOrganization(who, rec);
     // The member votes from the organization profile here; the college profile lists this election too, so this is not the only way in.
     // The strip under the top bar names the profile in view; a head or officer also has the Workspace switcher.
-    const onOrg = await page.getByText(new RegExp(`Viewing ${ORG.name}`)).first().isVisible().catch(() => false)
+    const onOrg = await orgBanner(page).first().isVisible().catch(() => false)
       || new RegExp(ORG.name, 'i').test(await page.getByRole('button', { name: /^Workspace:/ }).innerText({ timeout: 2000 }).catch(() => ''));
     if (!onOrg) rec.defect('app_bug', `${fullName(who)} is not on the organization profile, where the election is voted in.`, ['client/src/components/layout/WorkspaceBanner.jsx']);
     await goSidebar(page, rec, /^Vote$/, '/dashboard/elections/cast-vote');
@@ -1429,8 +1446,8 @@ await step('election_handover', 'In the org: an election for President with cand
   // 6. The window ends, the scheduler closes it, A releases the results, the winner gets access.
   const secondsToEnd = Math.max(0, (new Date(election.end_time).getTime() - Date.now()) / 1000);
   rec.notes.push(`waiting ${Math.round(secondsToEnd)}s for the voting window to end`);
-  // The close, the released results and the head access for the winner happen in one move, and the outgoing head loses the
-  // workspace in that same move (their API reads answer 403), so the dean watches for the close and the winner checks it.
+  // The close and the released results happen in one move and the winner is staged as an upcoming officer; the outgoing head
+  // stays the active ADMIN until the term starts. The dean watches for the close and the winner checks the results.
   election = await waitForElection('dean', 'closed', secondsToEnd + 150, rec);
   // C is still on the full-screen ballot receipt, which has no top bar; step back to a dashboard before opening the menu.
   await people.get('c').page.goto('/dashboard/student');
