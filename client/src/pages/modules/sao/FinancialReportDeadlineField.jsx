@@ -63,7 +63,7 @@ export default function FinancialReportDeadlineField() {
       </div>
       {deadline && (
         <label className="mt-3 flex min-h-8 items-start gap-2 text-sm font-medium text-ink pointer-coarse:min-h-[42px]">
-          <input type="checkbox" checked={newRound} onChange={(event) => setNewRound(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-line accent-brand-700" />
+          <input type="checkbox" checked={newRound} onChange={(event) => setNewRound(event.target.checked)} className="h-5 w-5 shrink-0 rounded border-line accent-brand-700" />
           <span>This starts a new round. Organizations that already sent a report must send another.</span>
         </label>
       )}

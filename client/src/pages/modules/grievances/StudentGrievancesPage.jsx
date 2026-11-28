@@ -182,7 +182,7 @@ export default function StudentGrievancesPage() {
 
             {addressedTo === 'organization' ? (
               <label className="flex min-h-11 cursor-pointer items-start gap-3">
-                <input type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-700" />
+                <input type="checkbox" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} className="h-5 w-5 shrink-0 accent-brand-700" />
                 <span className="text-sm text-ink">
                   <span className="block font-medium">File this anonymously to my organization</span>
                   <span className="mt-0.5 block text-xs leading-5 text-ink-muted">

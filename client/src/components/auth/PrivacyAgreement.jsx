@@ -16,7 +16,7 @@ export default function PrivacyAgreement({ id, checked, onChange, error }) {
           aria-required="true"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className="mt-1 h-4 w-4 shrink-0 accent-brand-700"
+          className="h-5 w-5 shrink-0 accent-brand-700"
         />
         <span>
           I have read the{' '}

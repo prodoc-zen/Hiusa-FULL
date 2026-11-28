@@ -156,7 +156,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
           <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink">
             <input
               type="checkbox"
-              className="mt-1 h-4 w-4 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              className="h-5 w-5 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
               checked={viewOnly}
               onChange={(event) => setViewOnly(event.target.checked)}
               disabled={busy}
@@ -172,7 +172,7 @@ export default function GiveAccessModal({ organizationId, actorRole, profile = n
                 <label key={module.key} className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-normal text-ink">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    className="h-5 w-5 rounded border-line accent-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                     checked={modules.includes(module.key)}
                     onChange={() => toggleModule(module.key)}
                     disabled={busy}

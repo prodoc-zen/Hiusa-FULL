@@ -232,7 +232,7 @@ export default function ManageSboPositionsPage() {
             <label htmlFor="position-responsibilities" className="text-[13px] font-medium text-ink">Responsibilities <span className="font-normal text-ink-muted">(optional)</span></label>
             <RichTextEditor id="position-responsibilities" value={form.description} onChange={(description) => setForm({ ...form, description })} maxLength={2000} rows={4} placeholder="Describe this position's responsibilities." />
           </div>
-          <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-ink"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 accent-brand-600" />Available for assignment</label>
+          <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-ink"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-5 w-5 accent-brand-600" />Available for assignment</label>
           {formError && <p role="alert" className="text-sm font-semibold text-danger-strong">{formError}</p>}
         </form>
       </Drawer>

@@ -290,7 +290,7 @@ export default function RequirementsTab({ currentAcademicYear, noSemester = fals
                       : typeForm.allowed_extensions.filter((item) => item !== extension);
                     setTypeForm({ ...typeForm, allowed_extensions });
                     setFieldErrors((current) => ({ ...current, allowed_extensions: null }));
-                  }} />
+                  }} className="h-5 w-5 accent-brand-700" />
                   {extension.toUpperCase()}
                 </label>
               ))}

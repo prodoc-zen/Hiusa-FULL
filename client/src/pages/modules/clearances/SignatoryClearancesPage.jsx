@@ -201,7 +201,7 @@ export default function SignatoryClearancesPage() {
         <div className="flex items-center gap-1">
           {row.status === 'pending' && !row.archived ? (
             <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
-              <input type="checkbox" aria-label={`Select ${studentName(row)} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-brand-700" />
+              <input type="checkbox" aria-label={`Select ${studentName(row)} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-5 w-5 accent-brand-700" />
             </label>
           ) : selectablePendingIds.length > 0 && <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 md:block" />}
           <div className="text-left">

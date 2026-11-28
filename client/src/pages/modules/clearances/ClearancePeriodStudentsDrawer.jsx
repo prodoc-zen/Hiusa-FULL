@@ -93,7 +93,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
     if (signature?.status === 'pending') {
       return (
         <label className="inline-flex min-h-11 min-w-11 items-center justify-center">
-          <input type="checkbox" aria-label={`Select ${name} for bulk clear`} checked={selectedIds.has(signature.id)} onChange={() => toggleRow(signature.id)} className="h-4 w-4 accent-brand-700" />
+          <input type="checkbox" aria-label={`Select ${name} for bulk clear`} checked={selectedIds.has(signature.id)} onChange={() => toggleRow(signature.id)} className="h-5 w-5 accent-brand-700" />
         </label>
       );
     }

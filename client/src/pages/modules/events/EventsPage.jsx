@@ -326,7 +326,7 @@ function FingerprintScanPanel({ eventId, onRecorded, users = [], department = ''
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {attendanceYearLevels.map((yearLevel) => (
             <label key={yearLevel} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-control border px-2.5 text-xs font-medium ${selectedYearLevels.includes(yearLevel) ? 'border-brand-600 bg-brand-600/10 text-ink' : 'border-line bg-surface text-ink-muted-strong'}`}>
-              <input type="checkbox" checked={selectedYearLevels.includes(yearLevel)} onChange={() => toggleYearLevel(yearLevel)} className="h-4 w-4 accent-brand-600" /> {yearLevel}
+              <input type="checkbox" checked={selectedYearLevels.includes(yearLevel)} onChange={() => toggleYearLevel(yearLevel)} className="h-5 w-5 accent-brand-600" /> {yearLevel}
             </label>
           ))}
         </div>
@@ -1325,7 +1325,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           <section aria-labelledby="event-budget" className="space-y-4 border-t border-line pt-6">
             <h2 id="event-budget" className="text-base font-semibold text-ink">Budget</h2>
             <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
-              <input type="checkbox" checked={form.requires_budget} onChange={(e) => setForm({ ...form, requires_budget: e.target.checked })} className="h-4 w-4 rounded border-line" />
+              <input type="checkbox" checked={form.requires_budget} onChange={(e) => setForm({ ...form, requires_budget: e.target.checked })} className="h-5 w-5 rounded border-line" />
               Requires budget allocation
             </label>
             {form.requires_budget && (
