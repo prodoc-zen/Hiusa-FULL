@@ -282,10 +282,11 @@ Route::middleware(['auth:sanctum', 'account.profile', 'view.only', 'org.module',
     Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
     Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
     Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['throttle:ai-generation', 'role:ADMIN', 'privacy.consent', 'period.writable:event']);
-    Route::get('/events/{id}/workflows', [EventController::class, 'workflowHistory'])->middleware(['throttle:api-read', 'role:ADMIN']);
+    Route::get('/events/{id}/workflows', [EventController::class, 'workflowHistory'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/events/{id}/workflows/{aiOutput}/confirm', [EventController::class, 'confirmWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
     Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/events/{id}/attendance/eligibility', [EventController::class, 'attendanceEligibility'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER', 'period.writable:event']);
 
     Route::get('/records', [RecordsController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);

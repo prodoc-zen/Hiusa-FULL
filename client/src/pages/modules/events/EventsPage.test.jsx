@@ -13,6 +13,7 @@ const eventMocks = vi.hoisted(() => ({
   getAttendance: vi.fn(),
   getPersonalAttendance: vi.fn(),
   recordAttendance: vi.fn(),
+  getAttendanceEligibility: vi.fn(() => Promise.resolve({ data: { enrollment: 'enrolled', dues: 'clear', dues_balance: 0, flagged: false } })),
   generateEventPlan: vi.fn(),
   getEventWorkflowHistory: vi.fn(),
   confirmEventWorkflow: vi.fn(),
@@ -889,5 +890,114 @@ describe('EventsPage walkthrough fixes', () => {
       expect(screen.queryByRole('button', { name: 'Remove Ana Reyes' })).not.toBeInTheDocument();
       expect(screen.getByRole('combobox', { name: 'Member' })).toBeInTheDocument();
     });
+  });
+});
+
+describe('EventsPage officer plan and check-in eligibility', () => {
+  const ongoing = { id: 22, title: 'Orientation', status: 'ongoing', organization_id: 5, start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'Gym', planning_details: {} };
+  const eventPage = (...rows) => ({ data: { data: rows, current_page: 1, last_page: 1, total: rows.length, per_page: 10 } });
+  const person = { school_id: 2400055, name: 'Ana Reyes', email: 'ana@example.edu', program: 'BSIT', role: 'STUDENT', organizations: [] };
+  const attendancePayload = (records = []) => ({ data: { event: ongoing, count: records.length, summary: { present: records.length, late: 0, excused: 0, absent: 0 }, records, pagination: { current_page: 1, last_page: 1, per_page: 10, total: records.length } } });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    eventMocks.getEvents.mockResolvedValue(eventPage(ongoing));
+    eventMocks.getEvent.mockResolvedValue({ data: ongoing });
+    eventMocks.getAttendance.mockResolvedValue(attendancePayload());
+    eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
+    eventMocks.getAttendanceEligibility.mockResolvedValue({ data: { enrollment: 'enrolled', dues: 'clear', dues_balance: 0, flagged: false } });
+    userMocks.getUsers.mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 100 });
+    userMocks.getAcademicStructure.mockResolvedValue({ department: 'College of Computer Studies', programs: [] });
+    vi.mocked(searchPeople).mockResolvedValue([person]);
+  });
+
+  const openCheckIn = async () => {
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Orientation' }));
+    await screen.findByText('Manual check-in');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'ana' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Ana Reyes/ }));
+  };
+
+  it('shows an officer the confirmed event plan read-only in the event details', async () => {
+    eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [{
+      id: 3, decision_status: 'accepted', version: 2,
+      structured_output: {
+        overview: 'Run the orientation smoothly.', preparation_phases: ['Confirm scope'], timeline: ['Approve scope'], resources: ['Room'], logistics: ['Sound check'], risks: ['Supplier delay'], scheduling_conflicts: [],
+        tasks: [{ key: 'a', title: 'Book the hall', phase: 'pre_event', priority: 'high', deadline: null }],
+      },
+    }] });
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Orientation' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+
+    const plan = await screen.findByRole('region', { name: 'Event plan' });
+    expect(await within(plan).findByText('Confirmed by the Admin')).toBeInTheDocument();
+    expect(within(plan).getByText('Approve scope')).toBeInTheDocument();
+    expect(within(plan).getByText('Book the hall')).toBeInTheDocument();
+    expect(within(plan).getByText('Workflow steps')).toBeInTheDocument();
+    expect(within(plan).queryByRole('button')).not.toBeInTheDocument();
+    expect(eventMocks.getEventWorkflowHistory).toHaveBeenCalledWith(22);
+    expect(eventMocks.generateEventPlan).not.toHaveBeenCalled();
+  });
+
+  it('says so when no plan has been prepared yet', async () => {
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Orientation' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+
+    expect(await screen.findByText('No plan has been prepared for this event yet.')).toBeInTheDocument();
+  });
+
+  it('shows the selected member as Enrolled with paid dues before Confirm check-in', async () => {
+    await openCheckIn();
+
+    expect(await screen.findByText('Enrolled')).toBeInTheDocument();
+    expect(screen.getByText('Dues paid')).toBeInTheDocument();
+    expect(eventMocks.getAttendanceEligibility).toHaveBeenCalledWith(22, 2400055);
+  });
+
+  it('flags a member who is not in school records or owes dues, and still lets the officer check them in', async () => {
+    eventMocks.getAttendanceEligibility.mockResolvedValue({ data: { enrollment: 'not_in_records', dues: 'unpaid', dues_balance: 250, flagged: true } });
+    eventMocks.recordAttendance.mockResolvedValue({ data: {} });
+    await openCheckIn();
+
+    expect(await screen.findByText('Not in school records')).toBeInTheDocument();
+    expect(screen.getByText('Dues unpaid')).toBeInTheDocument();
+    expect(screen.getByText(/You can still confirm the check-in/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Confirm Check-In/i }));
+    await waitFor(() => expect(eventMocks.recordAttendance).toHaveBeenCalledWith(22, { user_id: 2400055, method: 'manual', status: 'present' }));
+  });
+
+  it('says Not checked when the college has no school records loaded', async () => {
+    eventMocks.getAttendanceEligibility.mockResolvedValue({ data: { enrollment: 'not_checked', dues: 'clear', dues_balance: 0, flagged: false } });
+    await openCheckIn();
+
+    expect(await screen.findByText('Not checked')).toBeInTheDocument();
+    expect(screen.queryByText('Not in school records')).not.toBeInTheDocument();
+  });
+
+  it('says Not checked when the eligibility lookup fails, without blocking the check-in', async () => {
+    eventMocks.getAttendanceEligibility.mockRejectedValue(new Error('offline'));
+    await openCheckIn();
+
+    expect(await screen.findByText('Not checked')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Confirm Check-In/i })).toBeEnabled();
+  });
+
+  it('flags ineligible rows in the attendance log with text', async () => {
+    const records = [
+      { id: 1, user_id: 1, status: 'present', method: 'manual', check_in_time: '2026-10-12T08:05:00Z', user: { school_id: 1, first_name: 'Flagged', last_name: 'Member' }, recorder: null, eligibility: { enrollment: 'enrolled', dues: 'overdue', dues_balance: 100, flagged: true } },
+      { id: 2, user_id: 2, status: 'present', method: 'manual', check_in_time: '2026-10-12T08:06:00Z', user: { school_id: 2, first_name: 'Clear', last_name: 'Member' }, recorder: null, eligibility: { enrollment: 'enrolled', dues: 'clear', dues_balance: 0, flagged: false } },
+    ];
+    eventMocks.getAttendance.mockResolvedValue(attendancePayload(records));
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Orientation' }));
+
+    await screen.findByText('Attendance log');
+    expect(screen.getAllByText('Dues overdue').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Dues paid')).not.toBeInTheDocument();
   });
 });

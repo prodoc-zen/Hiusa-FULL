@@ -81,6 +81,9 @@ export const getPersonalAttendance = (params) =>
 export const recordAttendance = (id, data) =>
   api.post(`/events/${id}/attendance`, data);
 
+export const getAttendanceEligibility = (id, userId) =>
+  api.get(`/events/${id}/attendance/eligibility`, { params: { user_id: userId } });
+
 export const getMyEventRegistrations = () =>
   api.get('/me/event-registrations');
 
