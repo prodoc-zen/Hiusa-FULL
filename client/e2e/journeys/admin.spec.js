@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { HEAD_CCS, PSITS_ADMIN, SAO, STUDENT, apiAs, liveEnabled, shot, uiLogin } from '../support/live.js';
+import { HEAD_CCS, PSITS_ADMIN, SAO, STUDENT, apiAs, liveEnabled, pdfFile, shot, uiLogin } from '../support/live.js';
 import { newStudent } from '../support/pipeline.js';
 
 // ADMIN acceptance journeys from docs/UX_FLOW.md section 9. Each runs at 1440 and 390 px, starts at the
@@ -17,6 +17,16 @@ const SETUP_ADMINS = {
   1440: { schoolId: 990032, password: 'Admin@123456', college: 'CHS' },
   390: { schoolId: 990042, password: 'Admin@123456', college: 'COE' },
 };
+
+// The active semester's SAO event requirements are attached with the proposal; an attached one leaves the list of inputs.
+async function attachEventRequirements(form) {
+  const inputs = form.locator('input[type="file"][aria-label^="Attach "]');
+  const send = form.getByRole('button', { name: 'Send proposal' });
+  await expect.poll(async () => (await inputs.count()) > 0 || send.isEnabled(), LONG).toBe(true);
+  for (let attached = 1; (await inputs.count()) > 0; attached += 1) {
+    await inputs.first().setInputFiles(pdfFile(`requirement-${attached}.pdf`, `Requirement ${attached}`));
+  }
+}
 
 // A failed test restarts the worker and drops its cached sign-ins; the login throttle then answers 429,
 // so wait the window out instead of failing the seed.
@@ -167,6 +177,7 @@ for (const viewport of VIEWPORTS) {
       await form.locator('#event-end-date').fill(localDate(30));
       await form.locator('#event-end-time').fill('12:00');
       await form.locator('#event-campus-venue').selectOption({ index: 1 });
+      await attachEventRequirements(form);
       await t.tap(form.getByRole('button', { name: 'Send proposal' }), 'Send proposal');
       await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeHidden(LONG);
 
@@ -298,6 +309,8 @@ for (const viewport of VIEWPORTS) {
       for (const position of (await admin.get('/sbo-positions')).body ?? []) await admin.delete(`/sbo-positions/${position.id}`);
       for (const member of ((await admin.get('/users?per_page=100')).body?.data ?? []).filter((u) => u.role === 'STUDENT')) await admin.delete(`/users/${member.school_id}`);
       for (const event of (await admin.get('/events?per_page=100')).body?.data ?? []) await admin.delete(`/events/${event.id}`);
+      // A retry must start before officers have access, so the officer seats an earlier attempt granted are removed.
+      for (const seat of ((await admin.get('/account-profiles?per_page=100')).body?.data ?? []).filter((p) => p.role === 'SBO_OFFICER')) await admin.delete(`/account-profiles/${seat.id}`);
       const home = '/dashboard/admin';
       // The member to add and the officer to give access are students of the organization's college who signed up from the school records.
       const student = await newStudent('Member', account.college);
@@ -369,6 +382,7 @@ for (const viewport of VIEWPORTS) {
       await form.locator('#event-end-date').fill(localDate(30));
       await form.locator('#event-end-time').fill('12:00');
       await form.locator('#event-campus-venue').selectOption({ index: 1 });
+      await attachEventRequirements(form);
       await t.tap(form.getByRole('button', { name: 'Send proposal' }), 'Send proposal');
       await expect(page.getByRole('heading', { name: 'New event', level: 1 })).toBeHidden(LONG);
       steps.push(`event ${t.summary()}`);
