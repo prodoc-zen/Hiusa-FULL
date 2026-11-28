@@ -1205,30 +1205,50 @@ async function openElectionAsAdmin(page, rec, election) {
   await waitSettled(page);
 }
 
-// After the window closes the scheduler hands the head access to the winner. Checked from the results page and the profiles.
+// Where the winner's term stands. The results row carries term_starts_on (Y-m-d) only while the appointment is upcoming, so an
+// active officer_access means the term has started. Dates compare as Manila calendar days (the same zone the page formats in).
+function termPhase(officerAccess, termStartsOn, now = new Date()) {
+  if (officerAccess === 'active') return 'started';
+  if (!termStartsOn) return 'undated';
+  const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  return String(termStartsOn).slice(0, 10) > today ? 'future' : 'started';
+}
+async function presidentResult(who) {
+  const electionId = readCreds().election?.id;
+  const results = electionId ? (await api(who, 'GET', `/elections/${electionId}/results`)).body : null;
+  return Array.isArray(results) ? results.find((item) => item.position?.title === 'President') ?? null : null;
+}
+
+// After the window closes the winner is staged: access follows the term start date. Checked from the results page and the profiles.
 async function verifyHandover(rec, resultsWho, resultsPage) {
+  const presidency = await presidentResult(resultsWho);
+  const phase = termPhase(presidency?.officer_access, presidency?.term_starts_on);
+  rec.evidence.push(`President appointment: ${presidency ? `${presidency.officer_access ?? 'none'}, term starts ${presidency.term_starts_on ?? 'unset'}` : 'no President result'}; term phase ${phase}`);
   await resultsPage.goto('/dashboard/elections/election-results');
   await waitSettled(resultsPage);
   const listed = resultsPage.getByRole('link', { name: /^Election of officers/i }).or(resultsPage.getByRole('button', { name: /^Election of officers/i })).first();
   if (await listed.count()) { await listed.click(); await waitSettled(resultsPage); }
-  // Under tally_version 2 the winner is staged: the results page says "Upcoming officer, access starts <date>" (ElectionResultsPage.jsx officerAccessLine).
-  await resultsPage.getByText(/^Upcoming officer, access starts /i).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', 'The results page does not say "Upcoming officer, access starts <date>" after the results were released.', ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
+  // The label comes from ElectionResultsPage.jsx officerAccessLine: "Upcoming officer, access starts <date>", "Upcoming officer" (no date) or "Officer access active".
+  const label = { future: /^Upcoming officer, access starts /i, undated: /^Upcoming officer$/i, started: /^Officer access active$/i }[phase];
+  const labelText = { future: 'Upcoming officer, access starts <date>', undated: 'Upcoming officer', started: 'Officer access active' }[phase];
+  await resultsPage.getByText(label).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => rec.defect('app_bug', `The results page does not say "${labelText}" for a President term that is ${phase}.`, ['client/src/pages/modules/elections/ElectionResultsPage.jsx', 'server/app/Services/ElectionHandoverService.php']));
   await shot(resultsWho, 'results', rec);
-  // The winner C holds an upcoming President appointment (no active head profile yet); outgoing A stays the active ADMIN until the term starts.
-  const electionId = readCreds().election?.id;
-  const results = electionId ? (await api(resultsWho, 'GET', `/elections/${electionId}/results`)).body : null;
-  const presidency = Array.isArray(results) ? results.find((item) => item.position?.title === 'President') : null;
-  rec.evidence.push(`President appointment: ${presidency ? `${presidency.officer_access ?? 'none'}, term starts ${presidency.term_starts_on ?? 'unset'}` : 'no President result'}`);
-  if (presidency?.officer_access !== 'upcoming') rec.defect('app_bug', `The winner's President appointment is "${presidency?.officer_access ?? 'missing'}", not upcoming, right after the results were released.`, ['server/app/Services/ElectionHandoverService.php', 'server/app/Services/OfficerAppointmentService.php']);
+  const wantAccess = phase === 'started' ? 'active' : 'upcoming';
+  if (presidency?.officer_access !== wantAccess) rec.defect('app_bug', `The winner's President appointment is "${presidency?.officer_access ?? 'missing'}", not ${wantAccess}, ${phase === 'started' ? 'after the term start' : 'before the term start'}.`, ['server/app/Services/ElectionHandoverService.php', 'server/app/Services/OfficerAppointmentService.php']);
   const profilesOf = async (who) => (await api(who, 'GET', '/user/profiles')).body?.profiles ?? [];
-  const cProfiles = await profilesOf('c');
-  const cWon = cProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
+  const presidentOf = (profiles) => profiles.filter((item) => item.organization?.name === ORG.name && item.position_title === 'President');
+  const cProfiles = presidentOf(await profilesOf('c'));
+  const cWon = cProfiles.find((item) => item.account_status === 'active' && item.role === 'ADMIN') ?? cProfiles[0];
   rec.evidence.push(`winner C: ${cWon ? `${cWon.role} ${cWon.position_title} ${cWon.account_status}` : 'no President profile yet'}`);
-  if (cWon && cWon.account_status === 'active' && cWon.role === 'ADMIN') rec.defect('app_bug', 'The winner already holds active organization head access before the term starts.', ['server/app/Services/OfficerAppointmentService.php']);
-  const aProfiles = await profilesOf('a');
-  const aOld = aProfiles.find((item) => item.organization?.name === ORG.name && item.position_title === 'President');
+  const cHead = Boolean(cWon && cWon.account_status === 'active' && cWon.role === 'ADMIN');
+  if (phase === 'started' && !cHead) rec.defect('app_bug', 'The winner does not hold active organization head access although the term has started.', ['server/app/Services/OfficerAppointmentService.php', 'server/app/Services/ElectionHandoverService.php']);
+  if (phase !== 'started' && cHead) rec.defect('app_bug', 'The winner already holds active organization head access before the term starts.', ['server/app/Services/OfficerAppointmentService.php']);
+  const aProfiles = presidentOf(await profilesOf('a'));
+  const aOld = aProfiles.find((item) => item.account_status === 'active' && item.role === 'ADMIN') ?? aProfiles[0];
   rec.evidence.push(`outgoing A: ${aOld ? `${aOld.role} ${aOld.position_title} ${aOld.account_status}` : 'no President profile left'}`);
-  if (!aOld || aOld.account_status !== 'active' || aOld.role !== 'ADMIN') rec.defect('app_bug', 'The outgoing President lost active head access before the term start.', ['server/app/Services/ElectionHandoverService.php']);
+  const aActive = Boolean(aOld && aOld.account_status === 'active' && aOld.role === 'ADMIN');
+  if (phase === 'started' && aActive) rec.defect('app_bug', 'The outgoing President is still the active head after the term started.', ['server/app/Services/ElectionHandoverService.php']);
+  if (phase !== 'started' && !aActive) rec.defect('app_bug', 'The outgoing President lost active head access before the term start.', ['server/app/Services/ElectionHandoverService.php']);
   const cPage = await switchToOrganization('c', rec);
   await cPage.getByRole('navigation').getByRole('link', { name: 'Dashboard' }).first().click();
   await waitSettled(cPage);
@@ -1239,11 +1259,17 @@ await step('election_handover', 'In the org: an election for President with cand
   for (const who of ['a', 'b', 'c', 'dean']) {
     if (!people.has(who)) { const s = await signIn(who, rec); if (!s.ok) throw new Error(`${who} sign-in ${s.status}`); }
   }
-  // A re-run after the close finds the outgoing President already inactive: only the handover is left to check.
+  // Under the staged model A stays the active head through the close, so an inactive President profile for A only means the handover
+  // happened once the term has started. Before that it is itself a defect, not a finished handover to verify.
   const spent = ((await api('a', 'GET', '/user/profiles')).body?.profiles ?? []).find((item) => item.organization?.name === ORG.name && item.position_title === 'President' && item.account_status !== 'active');
   if (spent) {
-    rec.notes.push('the handover already happened in an earlier run; checking it from the winner');
-    await verifyHandover(rec, 'c', await switchToOrganization('c', rec));
+    const row = await presidentResult('c');
+    if (termPhase(row?.officer_access, row?.term_starts_on) === 'started') {
+      rec.notes.push('the term already started in an earlier run; checking the handover from the winner');
+      await verifyHandover(rec, 'c', await switchToOrganization('c', rec));
+    } else {
+      rec.defect('app_bug', "The outgoing President is already inactive although the winner's term has not started.", ['server/app/Services/ElectionHandoverService.php']);
+    }
     return;
   }
   const aPage = await switchToOrganization('a', rec);
