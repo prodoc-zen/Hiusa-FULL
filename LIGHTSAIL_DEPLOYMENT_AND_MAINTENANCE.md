@@ -142,11 +142,12 @@ FastAPI:
 cd /var/www/hiusa/ai-service
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-cp .env.example .env
-nano .env
+sudo install -d -m 755 /etc/hiusa
+sudo install -o root -g www-data -m 640 .env.example /etc/hiusa/ai.env
+sudo nano /etc/hiusa/ai.env
 ```
 
-Set `HIUSA_AI_SERVICE_KEY` to the exact key in Laravel, `HIUSA_AI_HOST=127.0.0.1`, `HIUSA_AI_PORT=8001`, and `HIUSA_AI_RELOAD=false`. The entry point is `ai-service/run.py`. Protect the AI `.env` with `sudo chown "$USER":www-data .env` and `sudo chmod 640 .env` after saving it.
+Set `HIUSA_AI_SERVICE_KEY` to the exact key in Laravel, `HIUSA_AI_HOST=127.0.0.1`, `HIUSA_AI_PORT=8001`, and `HIUSA_AI_RELOAD=false`. The AI env file lives outside the web root at `/etc/hiusa/ai.env`, owned by `root:www-data` with mode 640 (check with `sudo stat -c '%U:%G %a' /etc/hiusa/ai.env`). Its keys are `HIUSA_AI_SERVICE_KEY`, `HIUSA_TASK_POSITION_WEIGHT`, `HIUSA_TASK_WORKLOAD_WEIGHT`, `HIUSA_TASK_PERFORMANCE_WEIGHT`, `HIUSA_TASK_RECENCY_WEIGHT`, `HIUSA_TASK_RECENCY_WINDOW_DAYS`, `HIUSA_AI_HOST`, `HIUSA_AI_PORT` and `HIUSA_AI_RELOAD`. The service runs under uvicorn as `app.main:app`, and its systemd unit loads the file with `EnvironmentFile=/etc/hiusa/ai.env`.
 
 Fingerprint matcher:
 
@@ -159,7 +160,7 @@ sudo install -o root -g www-data -m 640 .env.example /etc/hiusa/fingerprint.env
 sudo nano /etc/hiusa/fingerprint.env
 ```
 
-Set `MATCHER_API_KEY` to Laravel's `FINGERPRINT_MATCHER_KEY` and `ASPNETCORE_URLS=http://127.0.0.1:9100`. The matcher env file lives outside the web root at `/etc/hiusa/fingerprint.env`, owned by `root:www-data` with mode 640 (check with `sudo stat -c '%U:%G %a' /etc/hiusa/fingerprint.env`). Its keys are `MATCHER_API_KEY`, `ASPNETCORE_URLS`, `MATCH_THRESHOLD`, `ENROLLMENT_CONSISTENCY_THRESHOLD`, `FINGERPRINT_DPI` and `TEMPLATE_CACHE_SIZE`. The .NET process reads environment variables from its service manager, so the matcher systemd unit needs `EnvironmentFile=/etc/hiusa/fingerprint.env`, with no `-` prefix, so a missing file stops the unit instead of leaving the matcher running without its key. FastAPI's `run.py` loads its own `.env`.
+Set `MATCHER_API_KEY` to Laravel's `FINGERPRINT_MATCHER_KEY` and `ASPNETCORE_URLS=http://127.0.0.1:9100`. The matcher env file lives outside the web root at `/etc/hiusa/fingerprint.env`, owned by `root:www-data` with mode 640 (check with `sudo stat -c '%U:%G %a' /etc/hiusa/fingerprint.env`). Its keys are `MATCHER_API_KEY`, `ASPNETCORE_URLS`, `MATCH_THRESHOLD`, `ENROLLMENT_CONSISTENCY_THRESHOLD`, `FINGERPRINT_DPI` and `TEMPLATE_CACHE_SIZE`. The .NET process reads environment variables from its service manager, so the matcher systemd unit needs `EnvironmentFile=/etc/hiusa/fingerprint.env`, with no `-` prefix, so a missing file stops the unit instead of leaving the matcher running without its key. `app/main.py` also loads `ai-service/.env`, but values from `/etc/hiusa/ai.env` win for any key set in both.
 
 On an existing Lightsail instance, inspect the already installed units before changing them:
 
@@ -173,14 +174,21 @@ If the units do not exist on a fresh instance, create these four files under `/e
 
 ```ini
 [Unit]
-Description=HIUSA Python decision service
-After=network.target
+Description=HIUSA FastAPI decision service
+After=network.target mysql.service
+Wants=network.target
 
 [Service]
+Type=simple
 User=www-data
+Group=www-data
 WorkingDirectory=/var/www/hiusa/ai-service
-ExecStart=/var/www/hiusa/ai-service/.venv/bin/python /var/www/hiusa/ai-service/run.py
+EnvironmentFile=/etc/hiusa/ai.env
+ExecStart=/var/www/hiusa/ai-service/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
 Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
