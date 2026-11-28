@@ -23,6 +23,7 @@ use App\Models\VenueBooking;
 use App\Services\Ai\AiInstructions;
 use App\Services\Ai\FallbackTextGenerator;
 use App\Services\EventApprovalChain;
+use App\Services\EventEligibility;
 use App\Services\EventVenueRelease;
 use App\Services\TaskDelegationService;
 use App\Support\FilterValues;
@@ -50,6 +51,7 @@ class EventController extends Controller
         private readonly TaskDelegationService $delegation,
         private readonly EventApprovalChain $approvalChain,
         private readonly EventVenueRelease $venueRelease,
+        private readonly EventEligibility $eligibility,
     ) {}
 
     public function index(Request $request)
@@ -1268,9 +1270,39 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        return response()->json(AiOutput::where('organization_id', $event->organization_id)
+        $history = AiOutput::where('organization_id', $event->organization_id)
             ->where('feature_type', 'EVENT_WORKFLOW')->where('reference_type', Event::class)->where('reference_id', $event->id)
-            ->orderByDesc('version')->get());
+            ->orderByDesc('version');
+
+        if ($request->user()->role !== 'SBO_OFFICER') {
+            return response()->json($history->get());
+        }
+
+        // An officer reads the plan the Admin confirmed, or the newest unconfirmed draft while none is confirmed; never the prompt, the internal context or the officer rankings.
+        $confirmed = (clone $history)->where('decision_status', 'accepted')->get();
+        $plans = $confirmed->isNotEmpty() ? $confirmed : (clone $history)->where('decision_status', 'pending')->where('status', '!=', 'failed')->limit(1)->get();
+
+        return response()->json($plans->map(function (AiOutput $plan) {
+            $output = $plan->structured_output;
+            if (is_array($output) && is_array($output['tasks'] ?? null)) {
+                $output['tasks'] = array_map(fn ($task) => is_array($task) ? Arr::except($task, ['recommendation', 'assigned_to']) : $task, $output['tasks']);
+                $plan->structured_output = $output;
+            }
+
+            return $plan->makeHidden(['prompt_text', 'structured_input', 'error_message']);
+        })->values());
+    }
+
+    public function attendanceEligibility(Request $request, $id)
+    {
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
+        if (! $event) {
+            return response()->json(['message' => 'Event not found.'], 404);
+        }
+
+        $data = $request->validate(['user_id' => ['required', 'integer']]);
+
+        return response()->json($this->eligibility->forMember((int) $data['user_id'], $event->organization_id));
     }
 
     public function personalAttendance(Request $request)
@@ -1363,12 +1395,18 @@ class EventController extends Controller
             ->orderBy('id')
             ->paginate($filters['per_page'] ?? 10);
 
+        $items = $records->items();
+        if ($canManageAttendance) {
+            $eligibility = $this->eligibility->forMembers(collect($items)->pluck('user_id')->all(), $event->organization_id);
+            $items = array_map(fn (Attendance $record) => [...$record->toArray(), 'eligibility' => $eligibility[(int) $record->user_id] ?? null], $items);
+        }
+
         return response()->json([
             'event' => $event->only(['id', 'title', 'start_time', 'end_time', 'status', 'location', 'planning_details']),
             'count' => $recordCount,
             'checked_in_count' => $checkedInCount,
             'summary' => $summary,
-            'records' => $records->items(),
+            'records' => $items,
             'pagination' => [
                 'current_page' => $records->currentPage(),
                 'last_page' => $records->lastPage(),
@@ -1444,10 +1482,12 @@ class EventController extends Controller
             return response()->json(['message' => 'This member is already checked in for this event.'], 409);
         }
 
-        return response()->json($record->load([
+        $record->load([
             'user:school_id,first_name,last_name',
             'recorder:school_id,first_name,last_name',
-        ]), 201);
+        ]);
+
+        return response()->json([...$record->toArray(), 'eligibility' => $this->eligibility->forMember((int) $data['user_id'], $event->organization_id)], 201);
     }
 
     private function eventWorkflowSchema(): array
