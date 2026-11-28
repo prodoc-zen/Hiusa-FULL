@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\FingerprintMatcher;
 use App\Exceptions\FingerprintMatcherRejected;
 use App\Exceptions\FingerprintMatcherUnavailable;
+use App\Models\AccountProfile;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Event;
@@ -85,7 +86,9 @@ class FingerprintController extends Controller
 
     public function destroy(Request $request, $id): JsonResponse
     {
-        $user = $this->organizationMembers($request)->find($id);
+        // Removal follows the template, not the profile, so a deactivated member's biometric data can still be deleted.
+        $user = User::whereHas('fingerprints', fn ($fingerprints) => $fingerprints
+            ->where('organization_id', $request->user()->organization_id))->find($id);
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
@@ -467,7 +470,13 @@ class FingerprintController extends Controller
 
     private function fingerprintManagementDenial(User $actor, User $target): ?JsonResponse
     {
-        if ($actor->role === 'SBO_OFFICER' && $target->role !== 'STUDENT') {
+        // The seat the person holds in the acting organization decides, the same rule as the roster an SBO Officer sees.
+        // An inactive profile still counts; the account's own role is only the fallback when there is no profile.
+        $seat = AccountProfile::where('user_school_id', $target->school_id)
+            ->where('organization_id', $actor->organization_id)
+            ->value('role') ?? $target->role;
+
+        if ($actor->role === 'SBO_OFFICER' && $seat !== 'STUDENT') {
             return response()->json([
                 'message' => 'SBO Officers can manage Student fingerprints only.',
             ], 403);

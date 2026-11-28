@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -170,7 +171,100 @@ class FingerprintMembershipTest extends TestCase
             ->assertUnprocessable()->assertJsonPath('code', 'no_enrollments');
         $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint/confirm', [
             'confirmation_token' => $preview->json('confirmation_token'),
-        ])->assertUnprocessable();
+        ])->assertUnprocessable()->assertJsonPath('message', 'The identified user is no longer available. Scan again.');
         $this->assertSame(1, Fingerprint::count());
+    }
+
+    public static function seatsAboveStudent(): array
+    {
+        return [
+            'officer seat' => ['SBO_OFFICER'],
+            'admin seat' => ['ADMIN'],
+        ];
+    }
+
+    #[DataProvider('seatsAboveStudent')]
+    public function test_an_officer_cannot_manage_the_fingerprint_of_a_person_who_holds_a_higher_seat_in_the_organization(string $seat): void
+    {
+        $member = $this->collegeStudentInClub('active', $seat);
+        Fingerprint::create([
+            'organization_id' => $this->club->id,
+            'user_id' => $member->school_id,
+            'finger_index' => 0,
+            'template' => 'x',
+            'template_format' => 'ansi',
+            'enrolled_by' => $this->admin->school_id,
+            'enrolled_at' => now(),
+        ]);
+        $sbo = User::factory()->officer()->create(['organization_id' => $this->club->id]);
+
+        Sanctum::actingAs($sbo);
+        $this->postJson('/api/users/'.$member->school_id.'/fingerprint', $this->enrollPayload())->assertForbidden();
+        $this->deleteJson('/api/users/'.$member->school_id.'/fingerprint')->assertForbidden();
+        $this->assertSame(1, Fingerprint::count());
+
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/users/'.$member->school_id.'/fingerprint', $this->enrollPayload())->assertCreated();
+    }
+
+    public function test_an_officer_can_manage_the_fingerprint_of_a_person_who_is_a_student_in_the_organization(): void
+    {
+        $member = $this->collegeStudentInClub('active', 'STUDENT');
+        $sbo = User::factory()->officer()->create(['organization_id' => $this->club->id]);
+
+        Sanctum::actingAs($sbo);
+        $this->postJson('/api/users/'.$member->school_id.'/fingerprint', $this->enrollPayload())->assertCreated();
+        $this->deleteJson('/api/users/'.$member->school_id.'/fingerprint')->assertOk();
+    }
+
+    public function test_an_admin_can_remove_the_fingerprint_of_a_member_whose_profile_was_deactivated(): void
+    {
+        $member = $this->collegeStudentInClub();
+        Sanctum::actingAs($this->admin);
+        $this->postJson('/api/users/'.$member->school_id.'/fingerprint', $this->enrollPayload())->assertCreated();
+        AccountProfile::where('user_school_id', $member->school_id)->where('organization_id', $this->club->id)
+            ->update(['account_status' => 'inactive']);
+
+        $this->deleteJson('/api/users/'.$member->school_id.'/fingerprint')->assertOk();
+        $this->assertDatabaseMissing('fingerprints', ['user_id' => $member->school_id]);
+    }
+
+    public function test_removal_is_not_found_for_a_person_with_no_fingerprint_in_the_organization(): void
+    {
+        $member = $this->collegeStudentInClub();
+        Fingerprint::create([
+            'organization_id' => $this->college->id,
+            'user_id' => $member->school_id,
+            'finger_index' => 0,
+            'template' => 'x',
+            'template_format' => 'ansi',
+            'enrolled_by' => $this->admin->school_id,
+            'enrolled_at' => now(),
+        ]);
+
+        Sanctum::actingAs($this->admin);
+        $this->deleteJson('/api/users/'.$member->school_id.'/fingerprint')->assertNotFound();
+        $this->assertSame(1, Fingerprint::count());
+    }
+
+    public function test_the_roster_flags_only_fingerprints_enrolled_in_this_organization(): void
+    {
+        $member = $this->collegeStudentInClub();
+        Fingerprint::create([
+            'organization_id' => $this->college->id,
+            'user_id' => $member->school_id,
+            'finger_index' => 0,
+            'template' => 'x',
+            'template_format' => 'ansi',
+            'enrolled_by' => $this->admin->school_id,
+            'enrolled_at' => now(),
+        ]);
+
+        Sanctum::actingAs($this->admin);
+        $row = fn () => collect($this->getJson('/api/users')->assertOk()->json('data'))->firstWhere('school_id', $member->school_id);
+        $this->assertFalse((bool) $row()['fingerprint_enrolled']);
+
+        $this->postJson('/api/users/'.$member->school_id.'/fingerprint', $this->enrollPayload())->assertCreated();
+        $this->assertTrue((bool) $row()['fingerprint_enrolled']);
     }
 }

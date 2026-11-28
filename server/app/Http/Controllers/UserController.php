@@ -79,7 +79,7 @@ class UserController extends Controller
         } else {
             $query->select('users.*')
                 ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS))])
-                ->withExists(['fingerprints as fingerprint_enrolled']);
+                ->withExists(['fingerprints as fingerprint_enrolled' => fn ($fingerprints) => $fingerprints->where('organization_id', $request->user()->organization_id)]);
         }
 
         $requestedRoles = ! empty($filters['role']) ? FilterValues::values($filters['role']) : [];
