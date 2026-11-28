@@ -158,14 +158,16 @@ function EventTeam({ event, canEdit }) {
 
 /**
  * The event team inside the event details: who runs the event and in what part. The organization's
- * administrator adds and removes people while the event is still live; officers and the dean read it.
+ * administrator of the event's own organization adds and removes people while the event is still live; officers, the
+ * dean and an Admin of another organization (the college office) read it. organizationId is the signed-in user's active one.
  */
-export default function EventTeamPanel({ event, role }) {
+export default function EventTeamPanel({ event, role, organizationId }) {
   if (!['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(role)) return null;
+  const ownsEvent = organizationId != null && Number(organizationId) === Number(event.organization_id);
 
   return (
     <section aria-label="Event team" className="rounded-card border border-line p-4">
-      <EventTeam key={event.id} event={event} canEdit={role === 'ADMIN' && !LOCKED_STATUSES.includes(event.status)} />
+      <EventTeam key={event.id} event={event} canEdit={role === 'ADMIN' && ownsEvent && !LOCKED_STATUSES.includes(event.status)} />
     </section>
   );
 }

@@ -1310,7 +1310,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
         }
 
-        return response()->json($this->eligibility->forMember((int) $data['user_id'], $event->organization_id));
+        return response()->json($this->eligibility->forMember((int) $data['user_id'], $event->organization_id, $request->user()->canHandleFinance()));
     }
 
     public function personalAttendance(Request $request)
@@ -1405,7 +1405,7 @@ class EventController extends Controller
 
         $items = $records->items();
         if ($canManageAttendance) {
-            $eligibility = $this->eligibility->forMembers(collect($items)->pluck('user_id')->all(), $event->organization_id);
+            $eligibility = $this->eligibility->forMembers(collect($items)->pluck('user_id')->all(), $event->organization_id, $request->user()->canHandleFinance());
             $items = array_map(fn (Attendance $record) => [...$record->toArray(), 'eligibility' => $eligibility[(int) $record->user_id] ?? null], $items);
         }
 
@@ -1495,7 +1495,7 @@ class EventController extends Controller
             'recorder:school_id,first_name,last_name',
         ]);
 
-        return response()->json([...$record->toArray(), 'eligibility' => $this->eligibility->forMember((int) $data['user_id'], $event->organization_id)], 201);
+        return response()->json([...$record->toArray(), 'eligibility' => $this->eligibility->forMember((int) $data['user_id'], $event->organization_id, $request->user()->canHandleFinance())], 201);
     }
 
     private function eventWorkflowSchema(): array

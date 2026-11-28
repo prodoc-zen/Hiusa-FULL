@@ -17,10 +17,13 @@ class EventEligibility
     public function __construct(private readonly StudentAccountBalances $balances) {}
 
     /**
+     * The dues amount is finance detail: pass $withAmount false for a viewer without finance access and the rows
+     * keep the "dues" state and the flag but carry no "dues_balance".
+     *
      * @param  array<int, int|string>  $schoolIds
-     * @return array<int, array{enrollment: string, dues: string, dues_balance: float, flagged: bool}>
+     * @return array<int, array{enrollment: string, dues: string, dues_balance?: float, flagged: bool}>
      */
-    public function forMembers(array $schoolIds, int $organizationId): array
+    public function forMembers(array $schoolIds, int $organizationId, bool $withAmount = true): array
     {
         $schoolIds = array_values(array_unique(array_map('intval', $schoolIds)));
         if ($schoolIds === []) {
@@ -48,13 +51,16 @@ class EventEligibility
                 'dues_balance' => $dues === 'clear' ? 0.0 : $balance,
                 'flagged' => $enrollment === 'not_in_records' || $dues !== 'clear',
             ];
+            if (! $withAmount) {
+                unset($result[$schoolId]['dues_balance']);
+            }
         }
 
         return $result;
     }
 
-    public function forMember(int $schoolId, int $organizationId): array
+    public function forMember(int $schoolId, int $organizationId, bool $withAmount = true): array
     {
-        return $this->forMembers([$schoolId], $organizationId)[$schoolId];
+        return $this->forMembers([$schoolId], $organizationId, $withAmount)[$schoolId];
     }
 }
