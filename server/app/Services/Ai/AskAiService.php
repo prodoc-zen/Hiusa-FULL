@@ -3951,7 +3951,7 @@ class AskAiService
      * stored in, so an entry at 23:59 on the last day of a month stays in that month.
      *
      * @param  array<int, int>  $orgIds
-     * @return array<string, array{label: string, entries: int, income: float, expense: float, categories: array<int, array{category: string, income: float, expense: float, entries: int}>}>
+     * @return array<string, array{label: string, entries: int, income_entries: int, expense_entries: int, income: float, expense: float, categories: array<int, array{category: string, income: float, expense: float, entries: int}>}>
      */
     private function ledgerMonths(array $orgIds): array
     {
@@ -3964,7 +3964,8 @@ class AskAiService
             $entries = LedgerScope::query(request(), $orgIds)->where('transactions.transaction_date', '>=', $from)->where('transactions.transaction_date', '<', $to);
 
             $sum = fn (string $type) => "COALESCE(SUM(CASE WHEN type = '{$type}' THEN amount ELSE 0 END), 0)";
-            $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense")->first();
+            $count = fn (string $type) => "COALESCE(SUM(CASE WHEN type = '{$type}' THEN 1 ELSE 0 END), 0)";
+            $totals = (clone $entries)->selectRaw("COUNT(*) as entries, {$count('income')} as income_entries, {$count('expense')} as expense_entries, {$sum('income')} as income, {$sum('expense')} as expense")->first();
             $categories = (clone $entries)
                 ->selectRaw("category, COUNT(*) as entries, {$sum('income')} as income, {$sum('expense')} as expense")
                 ->groupBy('category')
@@ -3978,6 +3979,8 @@ class AskAiService
             $months[$key] = [
                 'label' => $start->format('F Y'),
                 'entries' => (int) ($totals->entries ?? 0),
+                'income_entries' => (int) ($totals->income_entries ?? 0),
+                'expense_entries' => (int) ($totals->expense_entries ?? 0),
                 'income' => round((float) ($totals->income ?? 0), 2),
                 'expense' => round((float) ($totals->expense ?? 0), 2),
                 'categories' => $categories,
@@ -3993,17 +3996,18 @@ class AskAiService
             return '';
         }
 
-        $peso = fn (float $amount) => '₱'.number_format($amount, 2);
+        // The entry counts are stated so a writer quoting "6 expense entries" quotes a fact, not a sum of the category rows.
+        $peso = fn (float $amount, string $kind, int $entries) => sprintf('₱%s %s (%s)', number_format($amount, 2), $kind, $this->plural($entries, 'entry', 'entries'));
         ['this' => $current, 'last' => $previous] = $months;
 
         return sprintf(
             ' %s; %s.',
             $current['entries'] === 0
                 ? "No ledger entries were recorded this month ({$current['label']})"
-                : sprintf('This month (%s) the ledger shows %s income and %s expenses', $current['label'], $peso($current['income']), $peso($current['expense'])),
+                : sprintf('This month (%s) the ledger shows %s and %s', $current['label'], $peso($current['income'], 'income', $current['income_entries']), $peso($current['expense'], 'expenses', $current['expense_entries'])),
             $previous['entries'] === 0
                 ? "none were recorded last month ({$previous['label']})"
-                : sprintf('last month (%s), %s income and %s expenses', $previous['label'], $peso($previous['income']), $peso($previous['expense']))
+                : sprintf('last month (%s), %s and %s', $previous['label'], $peso($previous['income'], 'income', $previous['income_entries']), $peso($previous['expense'], 'expenses', $previous['expense_entries']))
         );
     }
 
