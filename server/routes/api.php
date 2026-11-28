@@ -26,6 +26,7 @@ use App\Http\Controllers\ElectionBallotController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\ElectionResultsController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\EventPersonnelController;
 use App\Http\Controllers\EventRequirementController;
 use App\Http\Controllers\FileStorageController;
 use App\Http\Controllers\FinancialAccountabilityController;
@@ -287,6 +288,10 @@ Route::middleware(['auth:sanctum', 'account.profile', 'view.only', 'org.module',
     Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER', 'period.writable:event']);
+    Route::get('/events/{id}/personnel', [EventPersonnelController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/events/{id}/personnel/available', [EventPersonnelController::class, 'available'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::post('/events/{id}/personnel', [EventPersonnelController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
+    Route::delete('/events/{id}/personnel/{personnel}', [EventPersonnelController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', 'period.writable:event']);
 
     Route::get('/records', [RecordsController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD,ADMIN,SBO_OFFICER']);
 

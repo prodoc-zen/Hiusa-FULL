@@ -92,3 +92,15 @@ export const registerForEvent = (id) =>
 
 export const cancelEventRegistration = (id) =>
   api.delete(`/events/${id}/registrations/mine`);
+
+export const getEventPersonnel = (id) =>
+  api.get(`/events/${id}/personnel`, { cache: false });
+
+export const getAvailableEventPersonnel = (id, params) =>
+  api.get(`/events/${id}/personnel/available`, { params, cache: false });
+
+export const addEventPersonnel = (id, data) =>
+  api.post(`/events/${id}/personnel`, data);
+
+export const removeEventPersonnel = (id, personnelId) =>
+  api.delete(`/events/${id}/personnel/${personnelId}`);
