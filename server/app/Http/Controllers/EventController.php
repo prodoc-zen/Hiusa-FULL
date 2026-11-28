@@ -169,13 +169,19 @@ class EventController extends Controller
 
         $this->attachApprovalInfo($event);
 
-        if ($request->user()->role === 'ADMIN') {
+        // Fig 31: the dean (and the office staff who act as the dean) and the organization's officers read the
+        // attendance breakdown and the linked budgets, as they read the finance lists; the event query above already
+        // limits every one of them to their own scope. Only the Admin gets the delete blockers.
+        if (in_array($request->user()->role, ['ADMIN', 'DEPARTMENT_HEAD', 'SBO_OFFICER'], true)) {
             $this->loadLinkedBudgets($event);
-            $this->attachDeleteBlockers([$event]);
             $event->attendance_summary = collect(['present', 'late', 'excused', 'absent'])
                 ->mapWithKeys(fn (string $status) => [
                     $status => $event->attendanceRecords()->where('status', $status)->count(),
                 ]);
+        }
+
+        if ($request->user()->role === 'ADMIN') {
+            $this->attachDeleteBlockers([$event]);
         }
 
         return response()->json($event);

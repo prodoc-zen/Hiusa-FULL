@@ -1001,3 +1001,56 @@ describe('EventsPage officer plan and check-in eligibility', () => {
     expect(screen.queryByText('Dues paid')).not.toBeInTheDocument();
   });
 });
+
+describe('EventsPage oversight of attendance and budget use (Fig 31)', () => {
+  const event = { id: 7, title: 'Sports Fest 2024', status: 'completed', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym' };
+  const detail = {
+    ...event,
+    attendance_records_count: 5,
+    attendance_summary: { present: 2, late: 1, excused: 1, absent: 1 },
+    budgets: [{ id: 3, title: 'Venue and food', submission_status: 'approved', approval_status: 'approved', allocated_amount: 5000, spent_amount: 1200, income_amount: 0, remaining_amount: 3800, transactions_count: 2 }],
+    financial_summary: { allocated_budget: 5000, spent: 1200, income: 0, remaining_budget: 3800, risk: 'low', latest_forecast: null },
+  };
+
+  const openDetail = async (role, payload = detail) => {
+    localStorage.setItem('user', JSON.stringify({ role }));
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEvent.mockResolvedValue({ data: payload });
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem('hiusa_fingerprint_reader');
+    eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
+    userMocks.getUsers.mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 100 });
+    userMocks.getAcademicStructure.mockResolvedValue({ department: 'College of Computer Studies', programs: [] });
+  });
+
+  it.each(['DEPARTMENT_HEAD', 'SBO_OFFICER'])('shows %s the attendance breakdown and the linked budgets without any budget controls', async (role) => {
+    await openDetail(role);
+
+    expect(await screen.findByText(/Present 2 · Late 1 · Excused 1 · Absent 1/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Linked budget status' })).toBeInTheDocument();
+    expect(screen.getByText('Venue and food')).toBeInTheDocument();
+    expect(screen.getByText(/Allocated .*5,000/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage budgets' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Update event status' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Manage budgets control for the Admin', async () => {
+    await openDetail('ADMIN');
+
+    expect(await screen.findByRole('button', { name: 'Manage budgets' })).toBeInTheDocument();
+  });
+
+  it('shows the dean no budget block when the server sent none', async () => {
+    const bare = { ...detail, budgets: undefined, financial_summary: undefined };
+    await openDetail('DEPARTMENT_HEAD', bare);
+
+    await screen.findByText(/Present 2 · Late 1/);
+    expect(screen.queryByRole('heading', { name: 'Linked budget status' })).not.toBeInTheDocument();
+  });
+});
