@@ -2,7 +2,7 @@ import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Megaphone, Search } from 'lucide-react';
-import { EmptyState, ErrorState, Input, PageHeader, SkeletonCard } from '../../../components/ui';
+import { EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard } from '../../../components/ui';
 import { getAnnouncements, recordAnnouncementView } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 import PaginationControls from '../../../components/PaginationControls';
@@ -48,19 +48,25 @@ export default function AnnouncementsFeedPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // The server rejects an end date before the start date, so the range is held back until it is valid.
+  const rangeInvalid = Boolean(from && to && to < from);
+  const rangeFrom = rangeInvalid ? '' : from;
+  const rangeTo = rangeInvalid ? '' : to;
   const viewedIds = useRef(new Set());
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const response = await getAnnouncements({ published_only: 1, page, search: search || undefined, category: category === 'all' ? undefined : category });
+      const response = await getAnnouncements({ published_only: 1, page, search: search || undefined, category: category === 'all' ? undefined : category, from: rangeFrom || undefined, to: rangeTo || undefined });
       setAnnouncements(unwrapList(response.data)); setMeta(listMeta(response.data));
     } catch (loadError) { setError(getLoadErrorDescription(loadError)); }
     finally { setLoading(false); }
-  }, [page, search, category]);
+  }, [page, search, category, rangeFrom, rangeTo]);
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
-  useEffect(() => { setPage(1); }, [search, category]);
+  useEffect(() => { setPage(1); }, [search, category, rangeFrom, rangeTo]);
   useEffect(() => {
     let cancelled = false;
     getNotifications({ per_page: 100 }).then((response) => {
@@ -79,8 +85,8 @@ export default function AnnouncementsFeedPage() {
     });
   }, [announcements]);
   const showSource = new Set(announcements.map(organizationName)).size > 1;
-  const hasFilters = Boolean(search.trim()) || category !== 'all';
-  const clearFilters = () => { setSearch(''); setCategory('all'); };
+  const hasFilters = Boolean(search.trim()) || category !== 'all' || Boolean(from) || Boolean(to);
+  const clearFilters = () => { setSearch(''); setCategory('all'); setFrom(''); setTo(''); };
   return <div className="space-y-5">
     <PageHeader title="Announcements" />
     <div className="space-y-4">
@@ -88,9 +94,13 @@ export default function AnnouncementsFeedPage() {
       <label className="relative"><span className="sr-only">Search announcements</span><Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-3 text-ink-muted" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search announcements" className="pl-9" /></label>
       <HiusaSelect filter aria-label="Announcement category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</HiusaSelect>
     </div>
+    <div className="flex flex-wrap items-start gap-3">
+      <Field label="From date" className="w-full sm:w-44"><Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="min-h-11" /></Field>
+      <Field label="To date" error={rangeInvalid ? 'The end date must be on or after the start date.' : undefined} className="w-full sm:w-44"><Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="min-h-11" /></Field>
+    </div>
     {loading && <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>}
     {error && <ErrorState title="Could not load announcements" description={error} onRetry={load} />}
-    {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description={collegeReviewer ? 'Announcements from the organizations in your college show here once they post.' : collegeOnly ? 'Join an organization to see its announcements.' : 'Announcements show here once your organization or the university posts them.'} />)}
+    {!loading && !error && announcements.length === 0 && (hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search, category or date range." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description={collegeReviewer ? 'Announcements from the organizations in your college show here once they post.' : collegeOnly ? 'Join an organization to see its announcements.' : 'Announcements show here once your organization or the university posts them.'} />)}
     {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} showSource={showSource} />)}
     {!loading && !error && <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}
     </div>

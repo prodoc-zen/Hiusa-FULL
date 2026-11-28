@@ -132,6 +132,30 @@ describe('AnnouncementsFeedPage', () => {
     expect(await screen.findByRole('heading', { name: 'General Assembly' })).toBeInTheDocument();
   });
 
+  it('sends the chosen date range to the server and offers Clear filters when it finds nothing', async () => {
+    mocks.getAnnouncements.mockImplementation((params) => Promise.resolve({ data: params.from ? [] : [{ id: 1, title: 'General Assembly', body: 'Everyone is invited.', created_at: '2026-09-01T08:00:00Z' }] }));
+    renderFeed();
+    await screen.findByRole('heading', { name: 'General Assembly' });
+    expect(mocks.getAnnouncements).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: undefined }));
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-10-01' } });
+    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-10-31' } });
+    expect(await screen.findByText('No announcements match')).toBeInTheDocument();
+    expect(mocks.getAnnouncements).toHaveBeenLastCalledWith(expect.objectContaining({ from: '2026-10-01', to: '2026-10-31' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByRole('heading', { name: 'General Assembly' })).toBeInTheDocument();
+    expect(screen.getByLabelText('From date')).toHaveValue('');
+  });
+
+  it('does not ask the server for an end date before the start date, and says so', async () => {
+    mocks.getAnnouncements.mockResolvedValue({ data: [{ id: 1, title: 'General Assembly', body: 'Everyone is invited.', created_at: '2026-09-01T08:00:00Z' }] });
+    renderFeed();
+    await screen.findByRole('heading', { name: 'General Assembly' });
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-10-31' } });
+    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-10-01' } });
+    expect(screen.getByText('The end date must be on or after the start date.')).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getAnnouncements).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: undefined })));
+  });
+
   it('says how long to wait after too many requests, and blames the server for a server fault', async () => {
     mocks.getAnnouncements.mockRejectedValueOnce({ isRateLimited: true, userMessage: 'Too many requests. Please try again in 12 seconds.', response: { status: 429 } });
     renderFeed();
