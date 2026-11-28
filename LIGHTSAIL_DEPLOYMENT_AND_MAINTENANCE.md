@@ -443,7 +443,7 @@ sudo systemctl restart php8.3-fpm hiusa-queue hiusa-scheduler
 
 Rebuild the caches only with the wrapper, as `www-data`. Plain `php artisan optimize` leaves out the overrides in `/etc/hiusa/laravel-native.env` (the AI address and key), so the AI features quietly stop working, and when run as the login user it leaves cache files that `www-data` cannot replace. A key set in `/etc/hiusa/laravel-native.env` wins over the same key in `server/.env`.
 
-For Python or fingerprint settings, edit their own `.env` files and restart only their respective units. For `VITE_*` values, edit `client/.env.production` and rerun `npm run build`; restarting PHP cannot change already built JavaScript. Never paste passwords or keys into diagnostic output.
+For AI service settings, edit `/etc/hiusa/ai.env`; for matcher settings, edit `/etc/hiusa/fingerprint.env` with `sudo nano`; then restart only the matching unit (`hiusa-ai` or `hiusa-fingerprint`). For `VITE_*` values, edit `client/.env.production` and rerun `npm run build`; restarting PHP cannot change already built JavaScript. Never paste passwords or keys into diagnostic output.
 
 ### Watch health and logs
 
