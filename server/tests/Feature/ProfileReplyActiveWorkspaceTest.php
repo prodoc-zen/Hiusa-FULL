@@ -40,6 +40,7 @@ class ProfileReplyActiveWorkspaceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('contact_number', '09171234567')
             ->assertJsonPath('organization_id', $child->id)
+            ->assertJsonPath('organization.id', $child->id)
             ->assertJsonPath('role', 'SBO_OFFICER');
 
         $this->assertSame('09171234567', $student->fresh()->contact_number);
@@ -56,9 +57,37 @@ class ProfileReplyActiveWorkspaceTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('user.organization_id', $child->id)
+            ->assertJsonPath('user.organization.id', $child->id)
             ->assertJsonPath('user.role', 'SBO_OFFICER');
 
         $this->assertTrue(password_verify('new-password-456', $student->fresh()->password_hash));
+    }
+
+    public function test_switching_to_another_users_profile_is_refused_and_the_reply_keeps_the_own_active_workspace(): void
+    {
+        [$student, , $child, $token] = $this->signedInOnSecondProfile();
+
+        $foreignOrg = Organization::factory()->create(['is_active' => true]);
+        $stranger = User::factory()->create([
+            'organization_id' => $foreignOrg->id, 'role' => 'ADMIN', 'account_status' => 'active',
+        ]);
+        $foreign = $stranger->accountProfiles()->where('organization_id', $foreignOrg->id)->first()
+            ?? $stranger->accountProfiles()->create([
+                'organization_id' => $foreignOrg->id, 'role' => 'ADMIN', 'account_status' => 'active',
+            ]);
+        $this->assertSame('active', $foreign->account_status);
+
+        $this->withToken($token)->postJson('/api/user/profiles/'.$foreign->id.'/switch')
+            ->assertNotFound();
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)->putJson('/api/user/profile', ['contact_number' => '09171234567'])
+            ->assertOk()
+            ->assertJsonPath('organization_id', $child->id)
+            ->assertJsonPath('organization.id', $child->id)
+            ->assertJsonPath('role', 'SBO_OFFICER');
+
+        $this->assertSame('09171234567', $student->fresh()->contact_number);
     }
 
     public function test_a_single_profile_user_gets_the_same_reply_as_before(): void
