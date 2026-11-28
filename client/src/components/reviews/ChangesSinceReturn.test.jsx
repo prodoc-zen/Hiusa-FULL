@@ -20,6 +20,22 @@ describe('ChangesSinceReturn', () => {
     expect(rows[2]).toHaveTextContent('proposal-v2.pdf replaced proposal-v1.pdf');
   });
 
+  it('measures from the reviewer approval when an edit took that approval back', () => {
+    render(<ChangesSinceReturn since="approved" changes={[{ field: 'start_time', label: 'Start', before: 'Nov 20', after: 'Nov 27' }]} />);
+
+    const note = screen.getByRole('region', { name: 'Changed since you approved it' });
+    expect(within(note).getByText('Changed since you approved it:')).toBeInTheDocument();
+    expect(within(note).getByRole('listitem')).toHaveTextContent('Start: Nov 20 to Nov 27');
+    expect(screen.queryByText('Changed since you returned it:')).not.toBeInTheDocument();
+  });
+
+  it('keeps the returned wording for any other anchor or none', () => {
+    const { rerender } = render(<ChangesSinceReturn since="returned" changes={[{ field: 'title', label: 'Title' }]} />);
+    expect(screen.getByRole('region', { name: 'Changed since you returned it' })).toBeInTheDocument();
+    rerender(<ChangesSinceReturn since={null} changes={[{ field: 'title', label: 'Title' }]} />);
+    expect(screen.getByRole('region', { name: 'Changed since you returned it' })).toBeInTheDocument();
+  });
+
   it('says blank for an empty value rather than leaving a gap', () => {
     render(<ChangesSinceReturn changes={[{ field: 'location', label: 'Location', before: '', after: 'Gym' }]} />);
 

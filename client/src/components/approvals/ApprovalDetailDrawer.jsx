@@ -368,7 +368,7 @@ function RequestDrawer({ request, role, canAct, organizationName, onClose, onApp
           </div>
         )}
         <NextStep {...nextStep} />
-        <ChangesSinceReturn changes={request.changes_since_return} />
+        <ChangesSinceReturn changes={request.changes_since_return} since={request.changes_since} />
         <ApprovalReceipt request={request} organizationName={organizationName} compact />
         {files.length > 0 && (
           <EventFilesReview
