@@ -7,7 +7,8 @@
   box-shadow: 0 8px 24px rgba(11, 24, 49, .08);
   padding-right: 40px;
 }
-.hiusa-toaster [data-sonner-toast] [data-close-button] {
+/* Sonner injects its own close-button rules at module load, after the built stylesheet; the extra [data-styled=true] keeps these ahead of them in production. */
+.hiusa-toaster [data-sonner-toast][data-styled=true] [data-close-button] {
   left: auto;
   right: 0;
   top: 0;
@@ -20,7 +21,7 @@
   background: transparent !important;
   border-color: transparent !important;
 }
-.hiusa-toaster [data-sonner-toast] [data-close-button]::before {
+.hiusa-toaster [data-sonner-toast][data-styled=true] [data-close-button]::before {
   content: '';
   position: absolute;
   inset: 9px;
@@ -29,7 +30,7 @@
   border-radius: 50%;
   background: var(--color-surface);
 }
-.hiusa-toaster [data-sonner-toast] [data-close-button]:hover::before {
+.hiusa-toaster [data-sonner-toast][data-styled=true] [data-close-button]:hover::before {
   background: var(--color-subtle);
 }
 .hiusa-toaster [data-sonner-toast][data-type="success"] { background: #EBF7EF; border-color: #BBE8C9; color: #166534; }
