@@ -2011,16 +2011,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {selectedEvent.planning_details?.logistics_checklist && <p className="whitespace-pre-wrap"><span className="font-semibold text-ink">Logistics checklist:</span> {selectedEvent.planning_details.logistics_checklist}</p>}
                   </section>
                 )}
-                {canCreateEvents && (
+                {(canCreateEvents || Array.isArray(selectedEvent.budgets)) && (
                   <section className="border-t border-line pt-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-semibold text-ink">Linked budget status</h3>
                         <p className="mt-0.5 text-xs text-ink-muted">Only budgets explicitly linked to this event are included.</p>
                       </div>
-                      <Button variant="secondary" leftIcon={Wallet} onClick={() => navigate(selectedEvent.budgets?.length === 1 ? `/dashboard/finance/budget-allocation?record=${selectedEvent.budgets[0].id}` : `/dashboard/finance/budget-allocation?event=${selectedEvent.id}`)}>
-                        Manage budgets
-                      </Button>
+                      {canCreateEvents && (
+                        <Button variant="secondary" leftIcon={Wallet} onClick={() => navigate(selectedEvent.budgets?.length === 1 ? `/dashboard/finance/budget-allocation?record=${selectedEvent.budgets[0].id}` : `/dashboard/finance/budget-allocation?event=${selectedEvent.id}`)}>
+                          Manage budgets
+                        </Button>
+                      )}
                     </div>
                     {selectedEvent.financial_summary && (
                       <div className="mt-3">
