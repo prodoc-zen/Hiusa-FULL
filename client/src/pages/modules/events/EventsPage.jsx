@@ -29,7 +29,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventRequirements, submitEventRequirements, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventRequirements, submitEventRequirements, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, getAttendanceEligibility, recordAttendance } from '../../../services/eventService';
 import { getVenues } from '../../../services/venueService';
 import { getTasks, previewTaskRecommendation } from '../../../services/taskService';
 import { getAcademicStructure, getUsers } from '../../../services/userService';
@@ -52,6 +52,8 @@ import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
+import EventPlanReadOnly from '../../../components/events/EventPlanReadOnly';
+import EligibilityBadges from '../../../components/events/EligibilityBadges';
 import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
 import { FILE_STAGES, RETURNED_STAGES, SEND_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
 import useRequirementProgress from '../../../components/events/useRequirementProgress';
@@ -457,6 +459,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [attendanceAcademicStructure, setAttendanceAcademicStructure] = useState(null);
   const [attendanceAcademicStructureError, setAttendanceAcademicStructureError] = useState('');
   const [checkInPerson, setCheckInPerson] = useState(null);
+  const [checkInEligibility, setCheckInEligibility] = useState({ status: 'idle', data: null });
   const [checkInStatus, setCheckInStatus] = useState('present');
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
@@ -649,6 +652,19 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setAttendanceStatusFilter('all');
     setAttendancePage(1);
   }
+
+  useEffect(() => {
+    if (!canManageAttendance || !checkInPerson || !selectedAttEventId) {
+      setCheckInEligibility({ status: 'idle', data: null });
+      return undefined;
+    }
+    let active = true;
+    setCheckInEligibility({ status: 'loading', data: null });
+    getAttendanceEligibility(selectedAttEventId, checkInPerson.school_id)
+      .then((response) => { if (active) setCheckInEligibility({ status: 'ready', data: response.data }); })
+      .catch(() => { if (active) setCheckInEligibility({ status: 'error', data: null }); });
+    return () => { active = false; };
+  }, [canManageAttendance, checkInPerson, selectedAttEventId]);
 
   async function handleCheckIn() {
     if (!canManageAttendance || !checkInPerson) return;
@@ -1824,6 +1840,19 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             }}
                             disabled={checkInSubmitting}
                           />
+                          {checkInPerson && (
+                            <div role="status" aria-live="polite" className="flex flex-col gap-1.5">
+                              <p className="text-xs font-semibold text-ink">Eligibility</p>
+                              {checkInEligibility.status === 'loading' && <p className="text-xs text-ink-muted">Checking school records and dues…</p>}
+                              {checkInEligibility.status === 'error' && <StatusBadge tone="neutral" label="Not checked" />}
+                              {checkInEligibility.status === 'ready' && (
+                                <>
+                                  <EligibilityBadges eligibility={checkInEligibility.data} />
+                                  {checkInEligibility.data?.flagged && <p className="text-xs text-ink-muted-strong">This member is flagged. You can still confirm the check-in; the flag stays on the attendance log.</p>}
+                                </>
+                              )}
+                            </div>
+                          )}
                           <Field label="Attendance status">
                             <HiusaSelect id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)}>
                               <option value="present">Present</option>
@@ -1873,6 +1902,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                 <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : ''}</p><p className="mt-0.5 text-xs text-ink-muted">School ID {rec.user?.school_id ?? ''}</p></div>
                                 <AttendanceStatus status={rec.status} />
                               </div>
+                              {rec.eligibility?.flagged && <div className="mt-2"><EligibilityBadges eligibility={rec.eligibility} problemsOnly /></div>}
                               <dl className="mt-2 grid grid-cols-2 gap-3 text-xs">
                                 <div><dt className="text-ink-muted">Check-in</dt><dd className="mt-0.5 font-medium text-ink">{formatDateTime(rec.check_in_time)}</dd></div>
                                 <div><dt className="text-ink-muted">Method</dt><dd className="mt-0.5 font-medium text-ink">{capitalize(rec.method)}</dd></div>
@@ -1900,7 +1930,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                   {rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : ''}
                                   <p className="text-xs font-normal text-ink-muted">{[rec.user?.school_id, ...[rec.user?.program, rec.user?.major, rec.user?.year_level, rec.user?.section].filter(Boolean)].filter((value) => value !== undefined && value !== null && value !== '').join(' · ')}</p>
                                 </td>
-                                <td className="px-4 py-2.5"><AttendanceStatus status={rec.status} /></td>
+                                <td className="px-4 py-2.5"><AttendanceStatus status={rec.status} />{rec.eligibility?.flagged && <div className="mt-1"><EligibilityBadges eligibility={rec.eligibility} problemsOnly /></div>}</td>
                                 <td className="px-4 py-2.5 text-xs text-ink"><p className="whitespace-nowrap">{formatDateTime(rec.check_in_time)}</p><p className="whitespace-nowrap text-ink-muted">Out: {formatDateTime(rec.check_out_time)} · {capitalize(rec.method)}</p></td>
                                 <td className="px-4 py-2.5 text-xs text-ink"><p>{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : ''}</p></td>
                               </tr>
@@ -2053,6 +2083,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   </section>
                 )}
                 {!selectedFlow && isReturned(selectedEvent) && selectedEvent.approval_remarks && <p className="border-t border-line pt-4 text-danger-strong"><span className="font-semibold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
+                {currentUserRole === 'SBO_OFFICER' && <EventPlanReadOnly eventId={selectedEvent.id} />}
                 <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
                 {!filesAtStage && eventFilesPanel}
               </div>
