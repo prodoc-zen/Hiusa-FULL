@@ -1,14 +1,19 @@
 [Unit]
-Description=HIUSA Python decision service
-After=network.target
+Description=HIUSA FastAPI decision service
+After=network.target mysql.service
+Wants=network.target
 
 [Service]
+Type=simple
 User=www-data
+Group=www-data
 WorkingDirectory=/var/www/hiusa/ai-service
-ExecStart=/var/www/hiusa/ai-service/.venv/bin/python /var/www/hiusa/ai-service/run.py
+EnvironmentFile=/etc/hiusa/ai.env
+ExecStart=/var/www/hiusa/ai-service/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
