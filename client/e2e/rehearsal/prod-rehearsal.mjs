@@ -1524,6 +1524,8 @@ await step('records', 'SAO opens School year records for the current semester an
   await page.getByRole('menuitem', { name: /Open organization/ }).click();
   await page.waitForURL(/\/dashboard\/super-admin\/(org|organizations)\//, { timeout: 20000 });
   await waitSettled(page);
+  // The org space draws a table skeleton until its space request answers, and waitSettled does not see that skeleton; wait for a real tab.
+  await page.getByRole('tab', { name: /Transactions/i }).first().waitFor({ timeout: 30000 }).catch(() => {});
   await shot('sao', 'org-space-overview', rec);
   for (const tab of ['People', 'Transactions', 'Documents']) {
     const control = page.getByRole('tab', { name: new RegExp(tab, 'i') }).first();
