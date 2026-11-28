@@ -190,15 +190,21 @@ WantedBy=multi-user.target
 
 ```ini
 [Unit]
-Description=HIUSA private fingerprint matcher
+Description=HIUSA SourceAFIS fingerprint matcher
 After=network.target
+Wants=network.target
 
 [Service]
+Type=simple
 User=www-data
-WorkingDirectory=/var/www/hiusa/fingerprint-matcher
+Group=www-data
+WorkingDirectory=/var/www/hiusa/fingerprint-matcher/publish
 EnvironmentFile=/etc/hiusa/fingerprint.env
 ExecStart=/usr/bin/dotnet /var/www/hiusa/fingerprint-matcher/publish/SourceAfisMatcher.dll
 Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
