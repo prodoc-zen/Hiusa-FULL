@@ -2086,7 +2086,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 {!selectedFlow && isReturned(selectedEvent) && selectedEvent.approval_remarks && <p className="border-t border-line pt-4 text-danger-strong"><span className="font-semibold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
                 {currentUserRole === 'SBO_OFFICER' && <EventPlanReadOnly eventId={selectedEvent.id} />}
                 <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
-                <EventTeamPanel event={selectedEvent} role={currentUserRole} />
+                <EventTeamPanel event={selectedEvent} role={currentUserRole} organizationId={currentUser.organization_id} />
                 {!filesAtStage && eventFilesPanel}
               </div>
             )}

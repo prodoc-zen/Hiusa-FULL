@@ -9,7 +9,7 @@ class EventPersonnel extends Model
 {
     protected $table = 'event_personnel';
 
-    protected $guarded = [];
+    protected $fillable = ['event_id', 'user_school_id', 'role_label', 'assigned_by'];
 
     public function event(): BelongsTo
     {

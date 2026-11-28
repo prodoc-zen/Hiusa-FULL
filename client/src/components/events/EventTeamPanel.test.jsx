@@ -12,7 +12,7 @@ const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('../../services/eventService', () => mocks);
 vi.mock('../../lib/notify', () => ({ default: toasts }));
 
-const event = { id: 9, title: 'Foundation Week', status: 'approved' };
+const event = { id: 9, title: 'Foundation Week', status: 'approved', organization_id: 5 };
 const head = { id: 1, user_school_id: 2024001, name: 'Ana Reyes', role_label: 'Overall head' };
 const logistics = { id: 2, user_school_id: 2024002, name: 'Ben Cruz', role_label: 'Logistics' };
 const candidate = { school_id: 2024003, name: 'Carla Diaz', email: 'carla@example.com', position_title: 'Business Manager' };
@@ -27,7 +27,7 @@ describe('EventTeamPanel', () => {
   });
 
   it('lists the team with each role label', async () => {
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
 
     expect(await screen.findByText('Ana Reyes')).toBeInTheDocument();
     expect(screen.getByText('Overall head')).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe('EventTeamPanel', () => {
   });
 
   it('lets the admin pick an available member, name the role and add them', async () => {
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
     await screen.findByText('Ana Reyes');
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Carl' } });
@@ -59,7 +59,7 @@ describe('EventTeamPanel', () => {
 
   it('shows the server reason when adding fails and keeps the choice', async () => {
     mocks.addEventPersonnel.mockRejectedValue({ response: { status: 422, data: { message: 'That person is already on the event team.' } } });
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
     await screen.findByText('Ana Reyes');
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Carl' } });
@@ -72,7 +72,7 @@ describe('EventTeamPanel', () => {
   });
 
   it('removes a person with a labelled button and reloads the team', async () => {
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
     await screen.findByText('Ben Cruz');
 
     mocks.getEventPersonnel.mockResolvedValueOnce({ data: [head] });
@@ -92,6 +92,23 @@ describe('EventTeamPanel', () => {
     expect(screen.queryByRole('button', { name: 'Add to team' })).not.toBeInTheDocument();
   });
 
+  it('is read only for an admin of another organization, such as the college office opening a club event', async () => {
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={7} />);
+
+    expect(await screen.findByText('Ana Reyes')).toBeInTheDocument();
+    expect(screen.queryByText('Add person')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+  });
+
+  it('is read only for an admin when the active organization is not known', async () => {
+    render(<EventTeamPanel event={event} role="ADMIN" />);
+
+    expect(await screen.findByText('Ana Reyes')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+  });
+
   it('is read only for the dean', async () => {
     render(<EventTeamPanel event={event} role="DEPARTMENT_HEAD" />);
 
@@ -101,7 +118,7 @@ describe('EventTeamPanel', () => {
   });
 
   it('is read only for the admin once the event is cancelled or completed', async () => {
-    render(<EventTeamPanel event={{ ...event, status: 'cancelled' }} role="ADMIN" />);
+    render(<EventTeamPanel event={{ ...event, status: 'cancelled' }} role="ADMIN" organizationId={5} />);
 
     expect(await screen.findByText('Ana Reyes')).toBeInTheDocument();
     expect(screen.getByText('The team is fixed because this event is cancelled.')).toBeInTheDocument();
@@ -118,7 +135,7 @@ describe('EventTeamPanel', () => {
 
   it('says so when the team is empty', async () => {
     mocks.getEventPersonnel.mockResolvedValue({ data: [] });
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
 
     expect(await screen.findByText('No one is on the event team yet')).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
@@ -128,7 +145,7 @@ describe('EventTeamPanel', () => {
     mocks.getEventPersonnel
       .mockRejectedValueOnce({ response: { status: 500, data: { message: 'SQLSTATE broke' } } })
       .mockResolvedValueOnce({ data: [head] });
-    render(<EventTeamPanel event={event} role="ADMIN" />);
+    render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
 
     expect(screen.getByRole('status', { name: 'Loading the event team' })).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the event team.');
@@ -139,11 +156,11 @@ describe('EventTeamPanel', () => {
   });
 
   it('loads the new team when the details switch to another event', async () => {
-    const { rerender } = render(<EventTeamPanel event={event} role="ADMIN" />);
+    const { rerender } = render(<EventTeamPanel event={event} role="ADMIN" organizationId={5} />);
     await screen.findByText('Ana Reyes');
 
     mocks.getEventPersonnel.mockResolvedValue({ data: [{ id: 7, user_school_id: 2024009, name: 'Dina Lim', role_label: 'Host' }] });
-    rerender(<EventTeamPanel event={{ ...event, id: 10 }} role="ADMIN" />);
+    rerender(<EventTeamPanel event={{ ...event, id: 10 }} role="ADMIN" organizationId={5} />);
 
     expect(await screen.findByText('Dina Lim')).toBeInTheDocument();
     expect(screen.queryByText('Ana Reyes')).not.toBeInTheDocument();

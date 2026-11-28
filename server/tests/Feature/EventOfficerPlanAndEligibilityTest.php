@@ -206,7 +206,7 @@ class EventOfficerPlanAndEligibilityTest extends TestCase
         $overdue = $this->member(['x'], 'overdue');
         $paid = $this->member(['x'], 'paid');
 
-        Sanctum::actingAs($this->officer);
+        Sanctum::actingAs($this->admin);
         $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$unpaid->school_id}")->assertOk()
             ->assertJsonPath('dues', 'unpaid')->assertJsonPath('flagged', true)->assertJsonPath('dues_balance', 100);
         $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$overdue->school_id}")->assertOk()
@@ -269,5 +269,41 @@ class EventOfficerPlanAndEligibilityTest extends TestCase
         $other = User::factory()->officer()->create(['organization_id' => Organization::factory()->create()->id, 'account_status' => 'active']);
         Sanctum::actingAs($other);
         $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$student->school_id}")->assertNotFound();
+    }
+
+    public function test_an_officer_without_finance_access_gets_the_dues_flag_but_not_the_amount(): void
+    {
+        $owing = $this->member(['x'], 'unpaid');
+        Attendance::factory()->create(['event_id' => $this->event->id, 'user_id' => $owing->school_id, 'status' => 'present', 'method' => 'manual']);
+        $publicInfo = User::factory()->officer()->create(['organization_id' => $this->organization->id, 'account_status' => 'active', 'position_title' => 'Public Information Officer']);
+
+        Sanctum::actingAs($publicInfo);
+        $lookup = $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$owing->school_id}")->assertOk()
+            ->assertJsonPath('dues', 'unpaid')->assertJsonPath('flagged', true)->json();
+        $this->assertArrayNotHasKey('dues_balance', $lookup);
+
+        $row = collect($this->getJson("/api/events/{$this->event->id}/attendance")->assertOk()->json('records'))->firstWhere('user_id', $owing->school_id);
+        $this->assertSame('unpaid', $row['eligibility']['dues']);
+        $this->assertTrue($row['eligibility']['flagged']);
+        $this->assertArrayNotHasKey('dues_balance', $row['eligibility']);
+
+        $checkIn = $this->member(['x'], 'unpaid');
+        $reply = $this->postJson("/api/events/{$this->event->id}/attendance", ['user_id' => $checkIn->school_id, 'method' => 'manual'])->assertCreated()->json();
+        $this->assertSame('unpaid', $reply['eligibility']['dues']);
+        $this->assertArrayNotHasKey('dues_balance', $reply['eligibility']);
+    }
+
+    public function test_an_officer_with_finance_access_and_the_admin_get_the_dues_amount(): void
+    {
+        $owing = $this->member(['x'], 'unpaid');
+        Attendance::factory()->create(['event_id' => $this->event->id, 'user_id' => $owing->school_id, 'status' => 'present', 'method' => 'manual']);
+        $treasurer = User::factory()->officer()->create(['organization_id' => $this->organization->id, 'account_status' => 'active', 'position_title' => 'Treasurer']);
+
+        foreach ([$treasurer, $this->admin] as $viewer) {
+            Sanctum::actingAs($viewer);
+            $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$owing->school_id}")->assertOk()->assertJsonPath('dues_balance', 100);
+            $row = collect($this->getJson("/api/events/{$this->event->id}/attendance")->assertOk()->json('records'))->firstWhere('user_id', $owing->school_id);
+            $this->assertEquals(100, $row['eligibility']['dues_balance']);
+        }
     }
 }
