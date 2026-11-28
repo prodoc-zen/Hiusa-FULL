@@ -245,8 +245,8 @@ export default function ElectionInfoPage() {
           {election.rules || 'No rules have been published for this election.'}
         </div>
         {(canFile || (filingOpen && slate)) && (
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="size-4 accent-brand-700" />
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="size-5 accent-brand-700" />
             I have read and accept the official rules
           </label>
         )}

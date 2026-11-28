@@ -61,8 +61,8 @@ export default function TieResolutionForm({ electionId, election, result, onReso
         {tied.map((candidate) => {
           const checked = selected.includes(candidate.id);
           return (
-            <label key={candidate.id} className="flex min-h-10 items-center gap-3 text-sm text-ink">
-              <input type="checkbox" className="h-4 w-4" checked={checked} disabled={!checked && full} onChange={() => toggle(candidate.id)} />
+            <label key={candidate.id} className="flex min-h-11 items-center gap-3 text-sm text-ink">
+              <input type="checkbox" className="h-5 w-5 accent-brand-700" checked={checked} disabled={!checked && full} onChange={() => toggle(candidate.id)} />
               <span>{formatDisplayText(candidate.name)} ({candidate.votes} {Number(candidate.votes) === 1 ? 'vote' : 'votes'})</span>
             </label>
           );

@@ -36,7 +36,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             description: '!mt-0.5 !text-xs !font-medium !text-ink-muted',
             actionButton: '!ml-2 !inline-flex !h-8 !shrink-0 !items-center !rounded-control !bg-brand-700 !px-3 !text-xs !font-bold !text-white hover:!bg-brand-800',
             cancelButton: '!ml-2 !inline-flex !h-8 !shrink-0 !items-center !rounded-control !border !border-line !bg-surface !px-3 !text-xs !font-bold !text-ink hover:!bg-subtle',
-            closeButton: 'hover:!bg-subtle hover:!border-line',
           },
         }}
       />

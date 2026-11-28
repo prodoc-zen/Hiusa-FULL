@@ -110,7 +110,7 @@ export default function FileReviewList({ rows, labels = {}, wideAction = false, 
                       checked={selection.checkedIds.has(row.id)}
                       disabled={selection.disabledIds?.has(row.id)}
                       onChange={() => selection.onToggle(row.id)}
-                      className="h-4 w-4 accent-brand-700"
+                      className="h-5 w-5 accent-brand-700"
                     />
                   </label>
                   <div className="min-w-0 flex-1">{line}</div>

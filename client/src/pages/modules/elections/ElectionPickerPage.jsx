@@ -224,7 +224,7 @@ function ElectionArtworkField({ id, file, existingUrl = '', onChange, onRemove }
 function CheckField({ label, hint, className = '', ...props }) {
   return (
     <label className={`flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink ${className}`}>
-      <input type="checkbox" className="mt-1 h-4 w-4 accent-brand-700" {...props} />
+      <input type="checkbox" className="h-5 w-5 shrink-0 accent-brand-700" {...props} />
       <span>{label}{hint && <span className="block text-xs font-normal text-ink-muted">{hint}</span>}</span>
     </label>
   );

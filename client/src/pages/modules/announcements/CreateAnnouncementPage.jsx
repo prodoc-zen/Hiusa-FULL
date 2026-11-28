@@ -271,8 +271,8 @@ export default function CreateAnnouncementPage() {
               )}
             </div>
             <div className="space-y-1 border-t border-line pt-3">
-              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Pin to the top<span className="block text-xs font-normal text-ink-muted">Keeps this update ahead of regular posts.</span></span></label>
-              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-1 h-4 w-4 accent-brand-700" /><span>Mark as important<span className="block text-xs font-normal text-ink-muted">Adds an Important label.</span></span></label>
+              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="h-5 w-5 accent-brand-700" /><span>Pin to the top<span className="block text-xs font-normal text-ink-muted">Keeps this update ahead of regular posts.</span></span></label>
+              <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm font-medium text-ink"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="h-5 w-5 accent-brand-700" /><span>Mark as important<span className="block text-xs font-normal text-ink-muted">Adds an Important label.</span></span></label>
             </div>
           </div>
         </section>
