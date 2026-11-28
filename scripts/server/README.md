@@ -6,6 +6,7 @@ These files mirror what runs on the production Lightsail instance, rebuilt from 
 |---|---|
 | `hiusa-artisan` | `/usr/local/bin/hiusa-artisan`, mode 755. Run it as `www-data` so config caches keep the native overrides. |
 | `laravel-native.env.example` | `/etc/hiusa/laravel-native.env`, root:www-data, mode 640, with real values filled in. |
+| `fingerprint-matcher/.env.example` | `/etc/hiusa/fingerprint.env`, root:www-data, mode 640, with a real `MATCHER_API_KEY` filled in. The other keys are `ASPNETCORE_URLS`, `MATCH_THRESHOLD`, `ENROLLMENT_CONSISTENCY_THRESHOLD`, `FINGERPRINT_DPI` and `TEMPLATE_CACHE_SIZE`. `hiusa-fingerprint.service` reads this file with no `-` prefix on `EnvironmentFile=`, so the unit fails to start until the file exists. Create it before you enable the unit. |
 | `systemd/hiusa-*.service` | `/etc/systemd/system/` |
 | `systemd/hiusa-ops-check.timer` | `/etc/systemd/system/`, next to `hiusa-ops-check.service`. See "Watching the queue and scheduler". |
 | `systemd/*.service.d/native-env.conf` | `/etc/systemd/system/<unit>.service.d/`, so FPM, the queue and the scheduler load the overrides. |
@@ -15,6 +16,8 @@ These files mirror what runs on the production Lightsail instance, rebuilt from 
 Differences from the unit files in the guide: the queue and scheduler units have `RestartSec=5` and `StartLimitIntervalSec=0` (the latter under `[Unit]`, where systemd reads it), so a crash while MySQL restarts does not leave a unit failed for good, and the queue worker runs with `--timeout=60`, below the 90 second `retry_after` in `server/config/queue.php`. The nginx `/index.php` location repeats the 110M body limit because nginx checks the limit again after the internal rewrite.
 
 Also not captured here: the FPM pool overrides that expose the AI settings to PHP workers and the Certbot deploy hook. Copy them from the instance.
+
+Install the matcher env file before you start the units: `sudo install -d -m 755 /etc/hiusa`, then `sudo install -o root -g www-data -m 640 fingerprint-matcher/.env.example /etc/hiusa/fingerprint.env`, then edit it with `sudo nano` to set `MATCHER_API_KEY` to the value of Laravel's `FINGERPRINT_MATCHER_KEY`. Do not keep a copy at `/var/www/hiusa/fingerprint-matcher/.env` for the unit to read, because the unit does not look there.
 
 After installing the units, run `sudo systemctl daemon-reload` and `sudo systemctl enable --now hiusa-ai hiusa-fingerprint hiusa-queue hiusa-scheduler`, then `systemctl is-enabled` on each so a reboot brings them back.
 
