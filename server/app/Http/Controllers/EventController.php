@@ -1302,6 +1302,14 @@ class EventController extends Controller
 
         $data = $request->validate(['user_id' => ['required', 'integer']]);
 
+        $belongsToOrganization = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $event->organization_id)->where('account_status', 'active'))
+            ->where('school_id', $data['user_id'])
+            ->exists();
+
+        if (! $belongsToOrganization) {
+            return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
+        }
+
         return response()->json($this->eligibility->forMember((int) $data['user_id'], $event->organization_id));
     }
 
