@@ -1,13 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { footerNav, getNavLeaves } from "./components/layout/navigation";
+import { footerNav, getNavLeaves, ROLE_HOME_PATHS } from "./components/layout/navigation";
 import { effectiveRole, isOfficeStaff } from "./utils/collegeIdentity";
-
-const ROLE_DASHBOARD_PATHS = {
-  ADMIN: "/dashboard/admin",
-  SBO_OFFICER: "/dashboard/officer",
-  DEPARTMENT_HEAD: "/dashboard/department-head",
-  STUDENT: "/dashboard/student",
-};
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("user");
@@ -63,22 +56,22 @@ export default function ProtectedRoute({ allowedRoles = null, requireVenueBookin
 
   // Office staff pass any page the Department Head may open; the menu guard below holds them to the dean's pages.
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(role) && !allowedRoles.includes(effectiveRole(user))) {
-    const fallback = ROLE_DASHBOARD_PATHS[role] || "/dashboard";
+    const fallback = ROLE_HOME_PATHS[role] || "/dashboard";
     // The dashboard reads this to say why the person landed there, and to offer their other profile that may open the page.
     return <Navigate to={fallback} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 
   if (isOfficeStaff(user) && !officeStaffMayOpen(location.pathname)) {
     // No role can open the page for them (the menu decides), so the notice says plainly there is no access, never Switch.
-    return <Navigate to={ROLE_DASHBOARD_PATHS.ADMIN} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles: [] } }} />;
+    return <Navigate to={ROLE_HOME_PATHS.ADMIN} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles: [] } }} />;
   }
 
   if (requireVenueBooking && role === "SBO_OFFICER" && user?.can_book_venues === false) {
-    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
+    return <Navigate to={ROLE_HOME_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 
   if (requireFinanceWriter && role === "SBO_OFFICER" && user?.can_handle_finance !== true) {
-    return <Navigate to={ROLE_DASHBOARD_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
+    return <Navigate to={ROLE_HOME_PATHS.SBO_OFFICER} replace state={{ accessDenied: { path: location.pathname + location.search, allowedRoles } }} />;
   }
 
   return children || <Outlet />;
