@@ -240,6 +240,25 @@ class EventOfficerPlanAndEligibilityTest extends TestCase
         $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$student->school_id}")->assertOk()->assertJsonPath('dues', 'clear');
     }
 
+    public function test_the_eligibility_lookup_refuses_a_school_id_outside_the_organization(): void
+    {
+        $this->loadRegistryFor();
+        $outsider = User::factory()->student()->create([
+            'organization_id' => Organization::factory()->create()->id, 'account_status' => 'active',
+        ]);
+        StudentRegistryEntry::create([
+            'school_id' => $outsider->school_id, 'first_name' => 'Out', 'last_name' => 'Sider', 'birth_date' => '2005-01-02',
+            'college_id' => $this->organization->college_id, 'program' => 'BSIT', 'year_level' => '1st Year', 'record_type' => 'student',
+        ]);
+
+        Sanctum::actingAs($this->officer);
+        $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id={$outsider->school_id}")
+            ->assertStatus(422)
+            ->assertExactJson(['message' => 'Selected user does not belong to this organization.']);
+        $this->getJson("/api/events/{$this->event->id}/attendance/eligibility?user_id=999999999")
+            ->assertStatus(422);
+    }
+
     public function test_the_eligibility_lookup_is_for_this_organizations_officers_only(): void
     {
         $student = $this->member(['x']);
